@@ -117,15 +117,15 @@ const amIDefensivePlayer = computed(() => {
 
 // UI State Computeds
 const bothPlayersNoSetAction = computed(() => {
-  if (!gameStore.gameState.currentAtBat) return false;
+  if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
   return !gameStore.gameState.currentAtBat.batterAction || !gameStore.gameState.currentAtBat.pitcherAction;
 });
 const pitcherOnlySetActions = computed(() => {
-  if (!gameStore.gameState.currentAtBat) return false;
+  if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
   return !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction;
 });
 const bothPlayersSetAction = computed(() => {
-    if (!gameStore.gameState.currentAtBat) return false;
+    if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
     return !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
 });
 

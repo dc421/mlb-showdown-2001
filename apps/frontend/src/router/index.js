@@ -43,12 +43,6 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/game/:id',
-      name: 'game',
-      component: GameView,
-      meta: { requiresAuth: true }
-    },
-    {
       path: '/game/:id/setup',
       name: 'game-setup',
       component: GameSetupView,
