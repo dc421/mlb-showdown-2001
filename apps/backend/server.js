@@ -323,7 +323,6 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       const initialGameState = {
         inning: 1, isTopInning: true, awayScore: 0, homeScore: 0, outs: 0,
         bases: { first: null, second: null, third: null },
-        atBatStatus: 'set-actions',
         pitcherStats: {},
         awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0 },
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0 },
@@ -340,8 +339,6 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
             basesBeforePlay: { first: null, second: null, third: null }
         }
       };
-
-      console.log('1. BACKEND: Creating initial game state. atBatStatus is:', initialGameState.atBatStatus);
 
       await client.query(`INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)`, [gameId, 1, initialGameState]);
       
@@ -856,7 +853,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           }
       }
       const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher);
-      finalState = { ...newState, atBatStatus: 'reveal-outcome' };
+      finalState = { ...newState };
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
       
       
@@ -931,7 +928,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
 
     if (action === 'intentional_walk') {
         const { newState, events: walkEvents } = applyOutcome(currentState, 'BB', batter, pitcher);
-        finalState = { ...newState, atBatStatus: 'reveal-outcome' };
+        finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
 
@@ -968,7 +965,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 }
             }
             const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher);
-            finalState = { ...newState, atBatStatus: 'reveal-outcome' };
+            finalState = { ...newState };
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
 
             // --- ADD THESE DEBUG LOGS ---
@@ -1020,7 +1017,6 @@ app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
     const currentTurn = stateResult.rows[0].turn_number;
     
     // The only job is to change the status to reveal the outcome.
-    finalState.atBatStatus = 'reveal-outcome';
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
     await client.query('COMMIT');
@@ -1067,7 +1063,6 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       }
       
       // 3. Create a fresh scorecard for the new at-bat.
-      newState.atBatStatus = 'set-actions';
       const { batter, pitcher } = await getActivePlayers(gameId, newState);
       newState.currentAtBat = {
           batter: batter,
@@ -1162,11 +1157,9 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
         if (runnersWereSent) {
             // If runners were sent, proceed to the defensive decision
             newState.currentPlay.choices = decisions;
-            newState.atBatStatus = 'defensive-throw-decision';
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         } else {
             // If no runners were sent, the play is over. Finalize the turn.
-            newState.atBatStatus = 'pitching';
             const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
             newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
@@ -1258,7 +1251,6 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         }
 
         // 3. Finalize the turn state
-        newState.atBatStatus = 'pitching';
         newState.currentPlay = null;
         // On a steal, the batter does NOT advance. On other plays, they do.
         if (!isSteal) {
@@ -1337,7 +1329,6 @@ app.post('/api/games/:gameId/infield-in-play', authenticateToken, async (req, re
       newState.outs++;
     }
 
-    newState.atBatStatus = 'pitching';
     newState.infieldInDecision = null;
     const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
     newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
@@ -1423,7 +1414,6 @@ app.post('/api/games/:gameId/tag-up', authenticateToken, async (req, res) => {
         }
     }
     
-    newState.atBatStatus = 'pitching';
     newState.tagUpDecisions = null;
 
     const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
@@ -1477,7 +1467,6 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
     
     // Set the game state to pause for the defensive throw
-    newState.atBatStatus = 'defensive-steal-throw';
     newState.stealAttempt = { from: fromBase, runner: newState.bases[fromBase === 1 ? 'first' : 'second'] };
     
     // Pass the turn to the defensive player
@@ -1547,7 +1536,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     }
     
     newState.bases = newBases;
-    newState.atBatStatus = 'pitching';
     newState.stealAttempt = null;
     newState.stealRollResult = { catcherArm, throwRoll, total: catcherTotal, outcome: isSafe ? 'Safe' : 'Out' };
     
@@ -1630,7 +1618,6 @@ app.post('/api/games/:gameId/advance-runners', authenticateToken, async (req, re
     }
     
     // Finalize the turn
-    newState.atBatStatus = 'pitching';
     newState.baserunningDecisions = null;
     const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
     newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;

@@ -33,7 +33,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   }
   else if (outcome.includes('GB')) {
     if (state.infieldIn && newState.outs < 2 && newState.bases.third) {
-        newState.atBatStatus = 'infield-in-decision';
         events.push(`${batter.displayName} hits a ground ball with the infield in...`);
         newState.currentPlay = { type: 'INFIELD_IN', runner: newState.bases.third, batter: runnerData };
     }
@@ -61,7 +60,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   else if (outcome.includes('FB')) {
     newState.outs++;
     if (newState.outs < 3 && (newState.bases.first || newState.bases.second || newState.bases.third)) {
-        newState.atBatStatus = 'offensive-baserunning-decision';
         events.push(`${batter.displayName} flies out.`);
         newState.currentPlay = { hitType: 'FB', decisions: [
             { runner: state.bases.third, from: 3 },
@@ -87,7 +85,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
           newState.bases.first = null;
           events.push(`${batter.displayName} steals second base!`);
       } else if (decisions.length > 0) {
-          newState.atBatStatus = 'offensive-baserunning-decision';
           newState.currentPlay = { hitType: '1B', decisions: decisions };
       }
   }
@@ -98,7 +95,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
       if (newState.bases.first) { newState.bases.third = newState.bases.first; newState.bases.first = null; }
       newState.bases.second = runnerData;
       if (runnerFromThird) {
-        newState.atBatStatus = 'offensive-baserunning-decision';
         newState.currentPlay = { hitType: '2B', decisions: [{ runner: runnerFromThird, from: 3 }] };
       }
   }
