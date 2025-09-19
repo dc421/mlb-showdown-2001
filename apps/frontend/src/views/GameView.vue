@@ -76,6 +76,9 @@ const awayBenchAndBullpen = computed(() => {
     return gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
 });
 
+const haveIRolledForSwing = ref(false);
+
+
 const scoreChangeMessage = ref('');
 
 // in GameView.vue
@@ -116,10 +119,6 @@ const amIDefensivePlayer = computed(() => {
 });
 
 // UI State Computeds
-const bothPlayersNoSetAction = computed(() => {
-  if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
-  return !gameStore.gameState.currentAtBat.batterAction || !gameStore.gameState.currentAtBat.pitcherAction;
-});
 const pitcherOnlySetActions = computed(() => {
   if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
   return !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction;
@@ -129,20 +128,24 @@ const bothPlayersSetAction = computed(() => {
     return !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
 });
 
+const isOffenseWaitingToRoll = computed(() => {
+  return amIOffensivePlayer.value && 
+  ((bothPlayersSetAction.value && !haveIRolledForSwing.value && !amIReadyForNext.value))
+})
+
+const isDefenseWaitingForReveal = computed(() => {
+  amIDefensivePlayer.value &&
+    bothPlayersSetAction.value &&
+    !showSwingResultWithDelay.value
+});
+
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
 const shouldHidePlayOutcome = computed(() => {
   // Scenario 1: The offensive player has not yet clicked "ROLL FOR SWING".
   // Both actions are in, but the local `haveIRolledForSwing` flag is false.
-  const isOffenseWaitingToRoll = amIOffensivePlayer.value &&
-  ((!!gameStore.gameState.currentAtBat?.batterAction && !!gameStore.gameState.currentAtBat?.pitcherAction) ||
-    (!haveIRolledForSwing.value && !amIReadyForNext.value && !!gameStore.gameState.currentAtBat?.batterAction));
     
   // Scenario 2: The defensive player is waiting for the 900ms reveal delay.
-  const isDefenseWaitingForReveal = amIDefensivePlayer.value &&
-    bothPlayersSetAction.value &&
-    !showSwingResultWithDelay.value;
-
-  return isOffenseWaitingToRoll || isDefenseWaitingForReveal;
+  return isOffenseWaitingToRoll.value || isDefenseWaitingForReveal.value;
 });
 
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
@@ -175,12 +178,10 @@ const showNextHitterButton = computed(() => {
   }
   
   // Rule 3: The at-bat must be fully resolved (both players have acted).
-  const atBatIsResolved = gameStore.gameState.currentAtBat?.batterAction && gameStore.gameState.currentAtBat?.pitcherAction;
+  const atBatIsResolved = bothPlayersSetAction.value;
 
   // Exception to Rule 3: Or, the other player has already moved on.
-  const opponentIsReady = myTeam.value === 'home' 
-    ? gameStore.gameState.awayPlayerReadyForNext
-    : gameStore.gameState.homePlayerReadyForNext;
+  const opponentIsReady = opponentReadyForNext.value;
 
   // Show the button if the at-bat is resolved OR the opponent is already ready.
   if (atBatIsResolved || opponentIsReady) {
@@ -271,7 +272,7 @@ const showSwingResultWithDelay = ref(false);
 // in GameView.vue
 watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
-    // When we enter the "Reveal Outcome" screen, wait 750 milliseconds...
+    // When we enter the "Reveal Outcome" screen, wait 900 milliseconds...
     setTimeout(() => {
       // ...then set our new flag to true.
       showSwingResultWithDelay.value = true;
@@ -289,6 +290,16 @@ const amIReadyForNext = computed(() => {
         return gameStore.gameState.homePlayerReadyForNext;
     } else {
         return gameStore.gameState.awayPlayerReadyForNext;
+    }
+});
+
+// in GameView.vue
+const opponentReadyForNext = computed(() => {
+    if (!gameStore.gameState || !authStore.user) return false;
+    if (myTeam.value === 'home') {
+        return gameStore.gameState.awayPlayerReadyForNext;
+    } else {
+        return gameStore.gameState.homePlayerReadyForNext;
     }
 });
 
@@ -333,17 +344,6 @@ const pitcherToDisplay = computed(() => {
     return gameStore.gameState.currentAtBat.pitcher;
 });
 
-const gameStateToDisplay = computed(() => {
-  // If I am viewing the outcome of the last play, show the game state as it was
-  // at the end of that play, which is stored in lastCompletedAtBat.
-  if (showOutcomeReveal.value && !amIReadyForNext.value && gameStore.gameState.lastCompletedAtBat) {
-    return gameStore.gameState.lastCompletedAtBat;
-  }
-  // Otherwise, show the live, current game state.
-  return gameStore.gameState;
-});
-
-const haveIRolledForSwing = ref(false);
 
 // in GameView.vue
 const showResolvedState = computed(() => {
@@ -535,11 +535,6 @@ const defensiveNextBatterIndex = computed(() => {
     return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
 });
 
-const currentAtBatRolled = computed(() => {
-return gameStore.gameState.currentAtBat.batterAction && gameStore.gameState.currentAtBat.pitcherAction
-});
-
-
 const bothPlayersCaughtUp = computed(() => {
 return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
 });
@@ -597,26 +592,26 @@ onUnmounted(() => {
     
     <div class="main-view">
         <div class="at-bat-display">
-          <PlayerCard :player="pitcherToDisplay" role="Pitcher" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(showSetActions && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
+          <PlayerCard :player="pitcherToDisplay" role="Pitcher" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
           <div class="vs-area">
     <div class="action-box">
         <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <div v-else-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(showSetActions && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
+                <div v-else-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
                     Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
                 </div>
     </div>
             <div class="vs">VS</div>
             <div class="action-box">
                 <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
-                <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && currentAtBatRolled" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <div v-else-if="atBatToDisplay.swingRollResult && showSwingResultWithDelay" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
+                <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+                <div v-else-if="atBatToDisplay.swingRollResult && !showSwingResultWithDelay.value" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
                     Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
                     <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
                 </div>
     </div>
-        <button v-if="showNextHitterButton && showSwingResultWithDelay" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
+        <button v-if="showNextHitterButton && !showSwingResultWithDelay.value" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
     </div>
-                    <PlayerCard :player="batterToDisplay" role="Batter" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(showSetActions && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
+                    <PlayerCard :player="batterToDisplay" role="Batter" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
         </div>
         <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">
             Waiting for pitch...

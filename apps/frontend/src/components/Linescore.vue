@@ -5,7 +5,7 @@ import { useGameStore } from '@/stores/game';
 const gameStore = useGameStore();
 
 const linescore = computed(() => {
-  // Use the direct store state: gameState, not gameStateToDisplay
+  // Use the direct store state: gameState
   const innings = Array.from({ length: Math.max(9, gameStore.gameState?.inning || 0) }, (_, i) => i + 1);
   const scores = { away: [], home: [] };
 

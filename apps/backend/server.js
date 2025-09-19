@@ -336,7 +336,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
             batterAction: null,
             pitchRollResult: null,
             swingRollResult: null,
-            basesBeforePlay: { first: null, second: null, third: null }
+            basesBeforePlay: { first: null, second: null, third: null },
+            outsBeforePlay: 0
         }
       };
 
@@ -1053,7 +1054,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.lastCompletedAtBat = { ...newState.currentAtBat,
         bases: newState.currentAtBat.basesBeforePlay,
         eventCount: newState.currentAtBat.swingRollResult?.eventCount || 1, // Save the event count
-        outs: newState.outs 
+        outs: newState.outsBeforePlay 
        };
 
       const inningDidNotChange = originalState.isTopInning === newState.isTopInning;
@@ -1069,6 +1070,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           pitcher: pitcher,
           pitcherAction: null, batterAction: null,
           pitchRollResult: null, swingRollResult: null,
+          outsBeforePlay: newState.outs,
           basesBeforePlay: newState.bases
       };
     }
