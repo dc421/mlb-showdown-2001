@@ -266,7 +266,7 @@ watch(showOutcomeReveal, (isRevealing) => {
     // When the next at-bat starts, reset the flag for the next reveal.
     showSwingResultWithDelay.value = false;
   }
-});
+}, { immediate: true });
 
 // in GameView.vue
 const amIReadyForNext = computed(() => {
@@ -602,7 +602,7 @@ onUnmounted(() => {
                     <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
                 </div>
     </div>
-        <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
+        <button v-if="showNextHitterButton && showSwingResultWithDelay" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
     </div>
                     <PlayerCard :player="batterToDisplay" role="Batter" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(showSetActions && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
         </div>
