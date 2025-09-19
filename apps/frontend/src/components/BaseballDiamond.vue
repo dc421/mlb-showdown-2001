@@ -5,7 +5,7 @@ defineProps({
   bases: Object,
   canSteal: Boolean,
   catcherArm: Number,
-  atBatStatus: String,
+  isStealAttemptInProgress: Boolean,
 });
 const emit = defineEmits(['attempt-steal']);
 </script>
@@ -31,7 +31,7 @@ const emit = defineEmits(['attempt-steal']);
       <button v-if="canSteal && bases.first" @click="emit('attempt-steal', 1)" class="steal-button">Steal 2nd</button>
     </div>
     <div class="button-slot" style="top: 75%; left: 20%;">
-      <div v-if="canSteal || atBatStatus === 'defensive-steal-throw'" class="defense-rating">
+      <div v-if="canSteal || isStealAttemptInProgress" class="defense-rating">
           Catcher Arm: {{ catcherArm >= 0 ? '+' : '' }}{{ catcherArm }}
       </div>
     </div>

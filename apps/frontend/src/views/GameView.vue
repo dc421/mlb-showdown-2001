@@ -32,7 +32,6 @@ const isMyTurn = computed(() => {
   if (!authStore.user || !gameStore.game) return false;
   return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
 });
-const atBatStatus = computed(() => gameStore.gameState?.atBatStatus || 'set-actions');
 
 
 const batterLineupInfo = computed(() => {
@@ -116,15 +115,19 @@ const amIDefensivePlayer = computed(() => {
     return !amIOffensivePlayer.value;
 });
 
-// NEW: Helper to determine if the offensive player should see their buttons
-const canOffenseAct = computed(() => {
-    return !amIDefensivePlayer.value && atBatStatus.value === 'pitching' && !offensiveChoiceMade.value;
-});
-
 // UI State Computeds
-const showSetActions = computed(() => atBatStatus.value === 'set-actions');
-const showPitchReveal = computed(() => atBatStatus.value === 'reveal-pitch');
-const showOutcomeReveal = computed(() => atBatStatus.value === 'reveal-outcome');
+const bothPlayersNoSetAction = computed(() => {
+  if (!gameStore.gameState.currentAtBat) return false;
+  return !gameStore.gameState.currentAtBat.batterAction || !gameStore.gameState.currentAtBat.pitcherAction;
+});
+const pitcherOnlySetActions = computed(() => {
+  if (!gameStore.gameState.currentAtBat) return false;
+  return !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction;
+});
+const bothPlayersSetAction = computed(() => {
+    if (!gameStore.gameState.currentAtBat) return false;
+    return !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
+});
 
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
 const shouldHidePlayOutcome = computed(() => {
@@ -136,7 +139,7 @@ const shouldHidePlayOutcome = computed(() => {
     
   // Scenario 2: The defensive player is waiting for the 900ms reveal delay.
   const isDefenseWaitingForReveal = amIDefensivePlayer.value &&
-    showOutcomeReveal.value &&
+    bothPlayersSetAction.value &&
     !showSwingResultWithDelay.value;
 
   return isOffenseWaitingToRoll || isDefenseWaitingForReveal;
@@ -145,8 +148,19 @@ const shouldHidePlayOutcome = computed(() => {
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
 
 const canAttemptSteal = computed(() => {
-    // The steal option should only be available during the 'swinging' phase
-    return amIOffensivePlayer.value && atBatStatus.value === 'swinging';
+  if (!amIOffensivePlayer.value || !gameStore.gameState || !gameStore.gameState.currentAtBat) {
+    return false;
+  }
+  // Can only steal after the pitch but before the swing
+  if (!gameStore.gameState.currentAtBat.pitcherAction || gameStore.gameState.currentAtBat.batterAction) {
+    return false;
+  }
+  const { bases } = gameStore.gameState;
+  // Can steal 2nd if runner on 1st and 2nd is empty
+  const canStealSecond = bases.first && !bases.second;
+  // Can steal 3rd if runner on 2nd and 3rd is empty
+  const canStealThird = bases.second && !bases.third;
+  return canStealSecond || canStealThird;
 });
 
 const showNextHitterButton = computed(() => {
@@ -255,7 +269,7 @@ const batterTeamColors = computed(() => gameStore.gameState?.isTopInning ? awayT
 const showSwingResultWithDelay = ref(false);
 
 // in GameView.vue
-watch(showOutcomeReveal, (isRevealing) => {
+watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
     // When we enter the "Reveal Outcome" screen, wait 750 milliseconds...
     setTimeout(() => {
@@ -438,18 +452,16 @@ function makeDefensiveThrow(base) {
 }
 
 function handleStealAttempt(fromBase) {
-  // --- FINAL DEBUG LOG ---
-  console.log('--- STEAL ATTEMPT HANDLER in GameView ---');
-  console.log('Received fromBase value:', fromBase, '(Type:', typeof fromBase, ')');
-
   if (!canAttemptSteal.value) {
       console.log('Steal aborted: canAttemptSteal is false.');
       return;
   }
   if (confirm(`Are you sure you want to attempt to steal from base ${fromBase}?`)) {
-      gameStore.attemptSteal(gameId, fromBase);
+      gameStore.initiateSteal(gameId, fromBase);
   }
 }
+
+const isStealAttemptInProgress = computed(() => !!gameStore.gameState.stealAttempt);
 
 // in GameView.vue <script setup>
 
@@ -616,11 +628,11 @@ onUnmounted(() => {
       {{ scoreChangeMessage }}
     </div>
 
-        <BaseballDiamond :bases="basesToDisplay" />
+        <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
         <div class="actions">
         
         <!-- Screen 1: Secondary Action Buttons -->
-        <div v-if="showSetActions">
+        <div v-if="bothPlayersNoSetAction">
             <div class="button-group">
                 <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
                 <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction  && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
@@ -628,7 +640,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Screen 2: Waiting message -->
-        <div v-else-if="showPitchReveal && amIDefensivePlayer" class="turn-indicator">
+        <div v-else-if="pitcherOnlySetActions && amIDefensivePlayer" class="turn-indicator">
             Waiting for batter to swing...
         </div>
     </div>
