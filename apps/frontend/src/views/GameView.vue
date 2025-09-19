@@ -131,9 +131,9 @@ const shouldHidePlayOutcome = computed(() => {
   // Scenario 1: The offensive player has not yet clicked "ROLL FOR SWING".
   // Both actions are in, but the local `haveIRolledForSwing` flag is false.
   const isOffenseWaitingToRoll = amIOffensivePlayer.value &&
-    ((gameStore.gameState.currentAtBat?.batterAction && gameStore.gameState.currentAtBat?.pitcherAction) ||
-    (!haveIRolledForSwing.value && !amIReadyForNext.value && gameStore.gameState.currentAtBat?.pitcherAction));
-
+  ((!!gameStore.gameState.currentAtBat?.batterAction && !!gameStore.gameState.currentAtBat?.pitcherAction) ||
+    (!haveIRolledForSwing.value && !amIReadyForNext.value && !!gameStore.gameState.currentAtBat?.batterAction));
+    
   // Scenario 2: The defensive player is waiting for the 900ms reveal delay.
   const isDefenseWaitingForReveal = amIDefensivePlayer.value &&
     showOutcomeReveal.value &&
@@ -523,6 +523,16 @@ const defensiveNextBatterIndex = computed(() => {
     return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
 });
 
+const currentAtBatRolled = computed(() => {
+return gameStore.gameState.currentAtBat.batterAction && gameStore.gameState.currentAtBat.pitcherAction
+});
+
+
+const bothPlayersCaughtUp = computed(() => {
+return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
+});
+
+
 // in GameView.vue
 const outcomeBatter = computed(() => {
     // This now correctly looks for the batter object inside the swingRollResult
@@ -585,8 +595,8 @@ onUnmounted(() => {
     </div>
             <div class="vs">VS</div>
             <div class="action-box">
-                <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction  && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
-                <button v-else-if="amIOffensivePlayer && (!haveIRolledForSwing && !amIReadyForNext) || (gameStore.gameState.currentAtBat.batterAction && gameStore.gameState.currentAtBat.pitcherAction)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+                <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
+                <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && currentAtBatRolled" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <div v-else-if="atBatToDisplay.swingRollResult && showSwingResultWithDelay" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
                     Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
                     <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
