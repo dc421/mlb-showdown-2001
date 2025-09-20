@@ -13,6 +13,9 @@ const route = useRoute();
 const gameStore = useGameStore();
 const authStore = useAuthStore();
 const gameId = route.params.id;
+const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
+const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
+const hasSeenResult = ref(JSON.parse(sessionStorage.getItem(seenResultStorageKey)) || false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -76,7 +79,7 @@ const awayBenchAndBullpen = computed(() => {
     return gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
 });
 
-const haveIRolledForSwing = ref(false);
+const haveIRolledForSwing = ref(JSON.parse(sessionStorage.getItem(rollStorageKey)) || false);
 
 
 const scoreChangeMessage = ref('');
@@ -136,7 +139,7 @@ const isOffenseWaitingToRoll = computed(() => {
 const isDefenseWaitingForReveal = computed(() => {
   amIDefensivePlayer.value &&
     bothPlayersSetAction.value &&
-    !showSwingResultWithDelay.value
+    !isSwingResultVisible.value
 });
 
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
@@ -267,19 +270,28 @@ const groupedGameLog = computed(() => {
 const pitcherTeamColors = computed(() => gameStore.gameState?.isTopInning ? homeTeamColors.value : awayTeamColors.value);
 const batterTeamColors = computed(() => gameStore.gameState?.isTopInning ? awayTeamColors.value : homeTeamColors.value);
 
-const showSwingResultWithDelay = ref(false);
+const isSwingResultVisible = ref(false);
 
 // in GameView.vue
 watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
-    // When we enter the "Reveal Outcome" screen, wait 900 milliseconds...
-    setTimeout(() => {
-      // ...then set our new flag to true.
-      showSwingResultWithDelay.value = true;
-    }, 900); // You can adjust this delay (in ms)
+    if (hasSeenResult.value) {
+      // User has seen it before (e.g., after reload), show immediately.
+      isSwingResultVisible.value = true;
+    } else {
+      // First time seeing the result for this at-bat.
+      // Wait 900ms, then show it and mark it as seen.
+      setTimeout(() => {
+        isSwingResultVisible.value = true;
+        hasSeenResult.value = true;
+        sessionStorage.setItem(seenResultStorageKey, 'true');
+      }, 900);
+    }
   } else {
-    // When the next at-bat starts, reset the flag for the next reveal.
-    showSwingResultWithDelay.value = false;
+    // New at-bat, reset visibility and the "seen" flag.
+    isSwingResultVisible.value = false;
+    hasSeenResult.value = false;
+    sessionStorage.removeItem(seenResultStorageKey);
   }
 }, { immediate: true });
 
@@ -422,10 +434,12 @@ function handleOffensiveAction(action) {
 
 function handleSwing(action = null) {
   haveIRolledForSwing.value = true; // Set the flag immediately
+  sessionStorage.setItem(rollStorageKey, 'true');
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
   haveIRolledForSwing.value = false; // Reset for the next at-bat
+  sessionStorage.removeItem(rollStorageKey);
   gameStore.nextHitter(gameId);
 }
 
@@ -604,12 +618,12 @@ onUnmounted(() => {
             <div class="action-box">
                 <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
                 <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <div v-else-if="atBatToDisplay.swingRollResult && !showSwingResultWithDelay.value" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
+                <div v-else-if="atBatToDisplay.swingRollResult && isSwingResultVisible" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
                     Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
                     <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
                 </div>
     </div>
-        <button v-if="showNextHitterButton && !showSwingResultWithDelay.value" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
+        <button v-if="showNextHitterButton && isSwingResultVisible" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
     </div>
                     <PlayerCard :player="batterToDisplay" role="Batter" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
         </div>
