@@ -864,25 +864,27 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       
       
       if (events && events.length > 0) {
-          const originalOuts = finalState.outs - (newState.outs - currentState.outs);
-          const originalScore = (finalState.awayScore + finalState.homeScore) - (newState.awayScore - currentState.awayScore) - (newState.homeScore - currentState.homeScore);
+        const originalOuts = currentState.outs;
+        const originalScore = currentState.awayScore + currentState.homeScore;
+        let combinedLogMessage = events.join(' ');
 
-          // --- ADD THESE DEBUG LOGS ---
-        console.log('--- SET ACTION OUTS DEBUG ---');
-        console.log('Original Outs:', originalOuts);
-        console.log('Final Outs:', finalState.outs);
-        // --- End of Debug Logs ---
+        if (finalState.inningChanged) {
+          combinedLogMessage += ` <strong>Outs: 3</strong>`;
+        } else if (finalState.outs > originalOuts) {
+          combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
+        }
 
+        if ((finalState.awayScore + finalState.homeScore) > originalScore) {
+          combinedLogMessage += ` <strong>Score: ${finalState.awayScore}-${finalState.homeScore}</strong>`;
+        }
 
-          let combinedLogMessage = events.join(' ');
-          if (finalState.outs > originalOuts) {
-              const outsForLog = finalState.outs === 0 ? 3 : finalState.outs;
-              combinedLogMessage += ` <strong>Outs: ${outsForLog}</strong>`;
-          }
-          if ((finalState.awayScore + finalState.homeScore) > originalScore) {
-              combinedLogMessage += ` <strong>Score: ${finalState.awayScore}-${finalState.homeScore}</strong>`;
-          }
-          await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
+        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
+
+        if (finalState.inningChanged) {
+          const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} of the ${finalState.inning} ---</strong>`;
+          await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+          delete finalState.inningChanged;
+        }
       }
       
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
@@ -981,19 +983,28 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         // --- End of Debug Logs ---
             
             if (events && events.length > 0) {
-          const originalOuts = finalState.outs - (newState.outs - currentState.outs);
-          const originalScore = (finalState.awayScore + finalState.homeScore) - (newState.awayScore - currentState.awayScore) - (newState.homeScore - currentState.homeScore);
+              const originalOuts = currentState.outs;
+              const originalScore = currentState.awayScore + currentState.homeScore;
+              let combinedLogMessage = events.join(' ');
 
-          let combinedLogMessage = events.join(' ');
-          if (finalState.outs > originalOuts) {
-              const outsForLog = finalState.outs === 0 ? 3 : finalState.outs;
-              combinedLogMessage += ` <strong>Outs: ${outsForLog}</strong>`;
-          }
-          if ((finalState.awayScore + finalState.homeScore) > originalScore) {
-              combinedLogMessage += ` <strong>(Score: ${finalState.awayScore}-${finalState.homeScore})</strong>`;
-          }
-          await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
-      }
+              if (finalState.inningChanged) {
+                combinedLogMessage += ` <strong>Outs: 3</strong>`;
+              } else if (finalState.outs > originalOuts) {
+                combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
+              }
+
+              if ((finalState.awayScore + finalState.homeScore) > originalScore) {
+                combinedLogMessage += ` <strong>(Score: ${finalState.awayScore}-${finalState.homeScore})</strong>`;
+              }
+
+              await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
+
+              if (finalState.inningChanged) {
+                const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} of the ${finalState.inning} ---</strong>`;
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+                delete finalState.inningChanged;
+              }
+            }
 
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         }

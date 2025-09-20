@@ -144,6 +144,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
 
   // --- Handle Inning Change ---
   if (newState.outs >= 3 && !newState.gameOver) {
+    newState.inningChanged = true; // Signal to the server
     const wasTop = newState.isTopInning;
     newState.isTopInning = !newState.isTopInning;
     if (newState.isTopInning) newState.inning++;
