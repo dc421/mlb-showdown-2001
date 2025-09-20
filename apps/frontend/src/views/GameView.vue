@@ -573,8 +573,9 @@ onMounted(async () => {
 
   socket.connect();
   socket.emit('join-game-room', gameId);
-  socket.on('game-updated', () => { 
-    gameStore.fetchGame(gameId);
+  socket.on('game-updated', (data) => {
+    console.log('--- 3. GameView: game-updated event received from socket. ---');
+    gameStore.updateGameData(data);
   });
 });
 
