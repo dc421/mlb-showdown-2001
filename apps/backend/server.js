@@ -743,74 +743,79 @@ app.post('/api/games/:gameId/join', authenticateToken, async (req, res) => {
     }
 });
 
+// --- NEW REUSABLE FUNCTION ---
+async function getAndProcessGameData(gameId, dbClient) {
+  const allCardsResult = await dbClient.query('SELECT name, team FROM cards_player');
+  const gameResult = await dbClient.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
+  if (gameResult.rows.length === 0) {
+    return null; // Game not found
+  }
+  const game = gameResult.rows[0];
+
+  const participantsResult = await dbClient.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
+  const teamsData = {};
+  for (const p of participantsResult.rows) {
+    const teamResult = await dbClient.query('SELECT * FROM teams WHERE user_id = $1', [p.user_id]);
+    if (p.user_id === game.home_team_user_id) {
+      teamsData.home = teamResult.rows[0];
+    } else {
+      teamsData.away = teamResult.rows[0];
+    }
+  }
+
+  if (game.status === 'pending') {
+    return { game, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
+  }
+
+  const stateResult = await dbClient.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+  if (stateResult.rows.length === 0) {
+    return { game, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
+  }
+  const currentState = stateResult.rows[0];
+
+  const eventsResult = await dbClient.query('SELECT * FROM game_events WHERE game_id = $1 ORDER BY "timestamp" ASC', [gameId]);
+  let batter = null, pitcher = null, lineups = { home: null, away: null }, rosters = { home: [], away: [] };
+
+  if (game.status === 'in_progress') {
+    const activePlayers = await getActivePlayers(gameId, currentState.state_data);
+    batter = activePlayers.batter;
+    pitcher = activePlayers.pitcher;
+
+    for (const p of participantsResult.rows) {
+      const rosterCardsResult = await dbClient.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [p.roster_id]);
+      const fullRosterCards = rosterCardsResult.rows;
+      if (p.lineup?.battingOrder) {
+        const lineupWithDetails = p.lineup.battingOrder.map(spot => ({ ...spot, player: fullRosterCards.find(c => c.card_id === spot.card_id) }));
+        const spCard = fullRosterCards.find(c => c.card_id === p.lineup.startingPitcher);
+        processPlayers(lineupWithDetails.map(l => l.player), allCardsResult.rows);
+        processPlayers(fullRosterCards, allCardsResult.rows);
+        if (spCard) processPlayers([spCard], allCardsResult.rows);
+
+        if (p.user_id === game.home_team_user_id) {
+          lineups.home = { battingOrder: lineupWithDetails, startingPitcher: spCard };
+          rosters.home = fullRosterCards;
+        } else {
+          lineups.away = { battingOrder: lineupWithDetails, startingPitcher: spCard };
+          rosters.away = fullRosterCards;
+        }
+      }
+    }
+    if (batter) processPlayers([batter], allCardsResult.rows);
+    if (pitcher) processPlayers([pitcher], allCardsResult.rows);
+  }
+
+  return { game, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
+}
+
 // GET A SPECIFIC GAME'S STATE (now processed)
-// in server.js
 app.get('/api/games/:gameId', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   try {
-    const allCardsResult = await pool.query('SELECT name, team FROM cards_player');
-    const gameResult = await pool.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
-    if (gameResult.rows.length === 0) {
-        return res.status(404).json({ message: 'Game not found.' });
+    const gameData = await getAndProcessGameData(gameId, pool);
+    if (!gameData) {
+      return res.status(404).json({ message: 'Game not found.' });
     }
-    const game = gameResult.rows[0];
-
-    const participantsResult = await pool.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
-    const teamsData = {};
-    for (const p of participantsResult.rows) {
-        const teamResult = await pool.query('SELECT * FROM teams WHERE user_id = $1', [p.user_id]);
-        if (p.user_id === game.home_team_user_id) {
-            teamsData.home = teamResult.rows[0];
-        } else {
-            teamsData.away = teamResult.rows[0];
-        }
-    }
-    
-    // If the game is pending, we can now safely return because we have the team data.
-    if (game.status === 'pending') {
-        return res.json({ game, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData });
-    }
-
-    const stateResult = await pool.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
-    if (stateResult.rows.length === 0) {
-        return res.status(404).json({ message: 'Game state not found.' });
-    }
-    const currentState = stateResult.rows[0];
-
-    const eventsResult = await pool.query('SELECT * FROM game_events WHERE game_id = $1 ORDER BY "timestamp" ASC', [gameId]);
-    
-    let batter = null, pitcher = null, lineups = { home: null, away: null }, rosters = { home: [], away: [] };
-
-    if (game.status === 'in_progress') {
-        const activePlayers = await getActivePlayers(gameId, currentState.state_data);
-        batter = activePlayers.batter;
-        pitcher = activePlayers.pitcher;
-
-        for (const p of participantsResult.rows) {
-            const rosterCardsResult = await pool.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [p.roster_id]);
-            const fullRosterCards = rosterCardsResult.rows;
-            if (p.lineup?.battingOrder) {
-                const lineupWithDetails = p.lineup.battingOrder.map(spot => ({ ...spot, player: fullRosterCards.find(c => c.card_id === spot.card_id) }));
-                const spCard = fullRosterCards.find(c => c.card_id === p.lineup.startingPitcher);
-                processPlayers(lineupWithDetails.map(l => l.player), allCardsResult.rows);
-                processPlayers(fullRosterCards, allCardsResult.rows);
-                if (spCard) processPlayers([spCard], allCardsResult.rows);
-
-                if (p.user_id === game.home_team_user_id) {
-                    lineups.home = { battingOrder: lineupWithDetails, startingPitcher: spCard };
-                    rosters.home = fullRosterCards;
-                } else {
-                    lineups.away = { battingOrder: lineupWithDetails, startingPitcher: spCard };
-                    rosters.away = fullRosterCards;
-                }
-            }
-        }
-        if (batter) processPlayers([batter], allCardsResult.rows);
-        if (pitcher) processPlayers([pitcher], allCardsResult.rows);
-    }
-    
-    res.json({ game, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData });
-
+    res.json(gameData);
   } catch (error) {
     console.error(`Error fetching game data for game ${gameId}:`, error);
     res.status(500).json({ message: 'Server error while fetching game data.' });
@@ -1091,7 +1096,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('COMMIT');
     
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
+
     res.sendStatus(200);
   } catch (error) {
     await client.query('ROLLBACK');
