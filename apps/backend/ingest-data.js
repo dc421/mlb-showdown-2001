@@ -49,8 +49,19 @@ async function ingestData() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // TRUNCATE all tables
     await client.query('TRUNCATE TABLE cards_player RESTART IDENTITY CASCADE');
+    await client.query('TRUNCATE TABLE teams RESTART IDENTITY CASCADE');
     
+    // Process and insert teams
+    const teams = await processCsv('teams.csv');
+    for (const team of teams) {
+      const insertQuery = `INSERT INTO teams (city, name, display_format, logo_url) VALUES ($1, $2, $3, $4)`;
+      const values = [team.city, team.name, team.display_format, team.logo_url];
+      await client.query(insertQuery, values);
+    }
+
     const hitters = await processCsv('hitters.csv');
     const pitchers = await processCsv('pitchers.csv');
     const allPlayersRaw = [...hitters, ...pitchers];
