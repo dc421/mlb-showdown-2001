@@ -5,7 +5,9 @@
   "main": "ingest_data.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate:create": "node-pg-migrate -r dotenv/config create",
+    "migrate:up": "node-pg-migrate -r dotenv/config up"
   },
   "keywords": [],
   "author": "",
@@ -19,5 +21,8 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "node-pg-migrate": "^7.5.2"
   }
 }
