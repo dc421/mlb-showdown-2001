@@ -8,6 +8,11 @@ exports.up = pgm => {
     user_id: 'id',
     email: { type: 'varchar(255)', notNull: true, unique: true },
     hashed_password: { type: 'text', notNull: true },
+    team_id: {
+      type: 'integer',
+      references: '"teams"(team_id)',
+      onDelete: 'SET NULL',
+    },
     created_at: {
       type: 'timestamptz',
       notNull: true,

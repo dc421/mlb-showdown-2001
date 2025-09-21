@@ -13,7 +13,21 @@ const { applyOutcome } = require('./gameLogic');
 
 const app = express();
 const server = http.createServer(app);
-const io = module.exports.io = new Server(server, { cors: { origin: ["http://localhost:5173", "https://willowy-griffin-457413.netlify.app"] } });
+const allowedOrigins = [process.env.FRONTEND_URL, "http://localhost:5173"];
+const io = module.exports.io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    methods: ["GET", "POST"]
+  }
+});
 const PORT = process.env.PORT || 3001;
 
 // My debugging code starts right after this line
@@ -42,16 +56,6 @@ const dbConfig = process.env.NODE_ENV === 'production'
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
 
-// --- MIDDLEWARE ---
-app.use((req, res, next) => {
-  const allowedOrigins = ['https://willowy-griffin-457413.netlify.app', 'http://localhost:5173'];
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) { res.setHeader('Access-Control-Allow-Origin', origin); }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') { return res.sendStatus(200); }
-  next();
-});
 
 // in server.js
 // in server.js
