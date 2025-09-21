@@ -1,71 +1,41 @@
-# Database Setup and Management on Render
+# Database Setup and Management on Render (Free Tier)
 
-This guide provides instructions for setting up and managing your PostgreSQL database on Render.
+This guide provides instructions for setting up and managing your PostgreSQL database on Render, specifically for users on the **Free Tier** who do not have access to the Render Shell or One-off Jobs.
 
-## One-Time Setup
+## Part 1: Initial One-Time Database Setup
 
-You only need to perform these steps once for your application.
+You only need to perform these steps **once** for your application. This process will create all your database tables and populate them with the initial data.
 
-### 1. Connect Your Database in Render
+1.  **Connect Your Database in Render** (If not already done)
+    *   Go to your Render Dashboard.
+    *   Navigate to your backend service.
+    *   Go to the "Environment" tab and ensure you have an environment variable `DATABASE_URL` that correctly points to your Render PostgreSQL instance.
 
-1.  Go to your Render Dashboard.
-2.  Navigate to your backend service (the one using this code).
-3.  Go to the "Environment" tab.
-4.  Click "Add Environment Group" or "Add Secret File" and connect the environment group that contains the `DATABASE_URL` from your Render PostgreSQL instance. Render automatically creates this for you when you create a database. Make sure your backend service and your database are in the same region for the best performance.
+2.  **Set the Initial Build Command**
+    *   Go to your backend service's "Settings" tab in the Render Dashboard.
+    *   Find the "Build & Deploy" section and locate the **Build Command**.
+    *   Set the build command to the following line:
+        ```
+        npm install && cd apps/backend && npm run migrate:up && node ingest-data.js
+        ```
 
-### 2. Initial Database Migration and Data Ingestion
+3.  **Deploy the Setup**
+    *   Click the "Manual Deploy" button on your service's page and select "Deploy latest commit".
+    *   Monitor the deployment logs. The logs should show the dependencies being installed, the migrations running (`migrate:up`), and the data ingestion script running.
+    *   This deployment may take longer than usual. Once it is successful, your database will be fully set up.
 
-You need to run the initial setup commands from the Render Shell.
+## Part 2: Ongoing Deployments & Future Changes
 
-1.  Go to your backend service in the Render Dashboard.
-2.  Click on the "Shell" tab to open a terminal session.
-3.  Wait for the shell to connect. Your code is located in the `/usr/src/app` directory.
-4.  Run the following commands one by one:
+After the initial setup is complete, you **must** change the build command to prevent the data ingestion from running again.
 
-    ```bash
-    # Navigate to the backend directory
-    cd apps/backend
+1.  **Set the Final Build Command**
+    *   Return to your backend service's "Settings" tab.
+    *   Update the **Build Command** to the following:
+        ```
+        npm install && cd apps/backend && npm run migrate:up
+        ```
+    *   This new command ensures that every time you deploy a new version of your application, any new database migrations will be applied automatically, but it will **not** re-run the data ingestion script.
 
-    # Install dependencies (if not already done by the build command)
-    npm install
-
-    # Run the database migration to create all tables
-    npm run migrate:up
-
-    # Run the script to populate the 'cards_player' table
-    node ingest-data.js
-    ```
-
-After these commands complete successfully, your database will be fully set up and populated with the initial player card data.
-
-## Ongoing Deployments & Future Changes
-
-### Automatic Migrations
-
-To ensure your database schema is always up-to-date with your code, you should add the migration command to your service's **Build Command** in Render.
-
-1.  Go to your backend service's "Settings" tab in the Render Dashboard.
-2.  Find the "Build & Deploy" section.
-3.  Your Build Command is likely `npm install` or similar. You should add the migration command to run *after* dependencies are installed. A good build command would be:
-
-    ```
-    npm install && cd apps/backend && npm run migrate:up
-    ```
-    *Note: Adjust the `cd apps/backend` part if your root directory is configured differently in Render.*
-
-    This command ensures that every time you deploy a new version of your application, any new database migrations will be applied automatically.
-
-### Making Future Schema Changes
-
-When you need to change the database schema in the future (e.g., add a column, create a new table):
-
-1.  **Create a new migration file locally:**
-    ```bash
-    # From your local machine, in the apps/backend directory
-    npm run migrate:create -- --name your-descriptive-migration-name
-    ```
-2.  **Edit the new migration file:** Add your `pgm.addColumn()`, `pgm.createTable()`, etc. calls to the `up` function, and the corresponding `down` calls.
-3.  **Commit and push the new migration file** to your Git repository.
-4.  **Deploy your application on Render.** The updated Build Command will automatically run your new migration, and your database will be updated.
-
-This workflow provides a safe and reliable way to evolve your database schema over time.
+2.  **Making Future Schema Changes**
+    *   When you need to change the database schema (e.g., add a column, create a new table), you will first create and commit a new migration file from your local machine.
+    *   When you push your changes, the updated build command will automatically run your new migration, and your database will be updated safely.

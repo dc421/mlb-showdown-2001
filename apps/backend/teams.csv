@@ -1,0 +1,6 @@
+team_id,city,name,abbreviation,logo_url,primary_color,secondary_color,user_id,display_format
+5,NY South,Freeze,NYS,https://i.ibb.co/zVpNh2fm/Gemini-Generated-Image-3edwmb3edwmb3edw.png,#A1C7ED,#EBEBEB,,{city} {name}
+2,Detroit,Style Pizzas,DET,https://i.ibb.co/nNfgWRQG/Style-Pizzas.png,#E6C691,#C43014,,{city} {name}
+1,Boston,True Alrics,BOS,https://i.ibb.co/tP8Q1YV7/Gemini-Generated-Image-3qbx6z3qbx6z3qbx.png,#0F336E,#109AB2,,{city} {name}
+4,Ann Arbor,Alchemists,AA,https://i.ibb.co/WpNn7znL/Gemini-Generated-Image-ccvlijccvlijccvl.png,#FAC011,#000000,,{city} {name}
+3,New York,Colossus,NY,https://i.ibb.co/9H2FNp78/Gemini-Generated-Image-9m7wx39m7wx39m7w.png,#6C6F70,#FCC623,,{name} of {city}
