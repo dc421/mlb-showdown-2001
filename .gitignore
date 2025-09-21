@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Local Environment
+.env
+.env.local
+
+# IDE
+.idea
+.vscode
+
+# Misc
+.DS_Store
+*.log
