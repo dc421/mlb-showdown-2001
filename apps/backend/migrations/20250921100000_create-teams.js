@@ -5,6 +5,11 @@ exports.up = pgm => {
     name: { type: 'varchar(100)', notNull: true },
     display_format: { type: 'varchar(50)' },
     logo_url: { type: 'text' },
+    user_id: {
+      type: 'integer',
+      references: '"users"(user_id)',
+      onDelete: 'SET NULL',
+    },
   });
 };
 
