@@ -16,6 +16,15 @@ const server = http.createServer(app);
 const io = module.exports.io = new Server(server, { cors: { origin: ["http://localhost:5173", "https://willowy-griffin-457413.netlify.app"] } });
 const PORT = process.env.PORT || 3001;
 
+// My debugging code starts right after this line
+console.log('--- DEBUGGING RENDER ENV ---');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('DATABASE_URL is set:', !!process.env.DATABASE_URL);
+// The following line will print your database URL to the logs.
+// We will remove this after debugging.
+console.log('DATABASE_URL value:', process.env.DATABASE_URL);
+console.log('--- END DEBUGGING ---');
+
 const dbConfig = {
   user: process.env.DB_USER, host: process.env.DB_HOST, database: process.env.DB_DATABASE,
   password: process.env.DB_PASSWORD, port: process.env.DB_PORT,
