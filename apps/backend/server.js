@@ -25,13 +25,20 @@ console.log('DATABASE_URL is set:', !!process.env.DATABASE_URL);
 console.log('DATABASE_URL value:', process.env.DATABASE_URL);
 console.log('--- END DEBUGGING ---');
 
-const dbConfig = {
-  user: process.env.DB_USER, host: process.env.DB_HOST, database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD, port: process.env.DB_PORT,
-};
-if (process.env.NODE_ENV === 'production') {
-  dbConfig.ssl = { rejectUnauthorized: false };
-}
+const dbConfig = process.env.NODE_ENV === 'production'
+  ? { // For Render/production
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    }
+  : { // For local development
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_DATABASE,
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT,
+    };
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
 
