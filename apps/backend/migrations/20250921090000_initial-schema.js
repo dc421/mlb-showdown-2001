@@ -3,7 +3,21 @@
 exports.shorthands = undefined;
 
 exports.up = pgm => {
-  // 1. USERS TABLE
+  // 1. TEAMS TABLE (Moved here)
+  pgm.createTable('teams', {
+    team_id: 'id',
+    city: { type: 'varchar(100)', notNull: true },
+    name: { type: 'varchar(100)', notNull: true },
+    display_format: { type: 'varchar(50)' },
+    logo_url: { type: 'text' },
+    user_id: {
+      type: 'integer',
+      references: '"users"(user_id)',
+      onDelete: 'SET NULL',
+    },
+  });
+
+  // 2. USERS TABLE
   pgm.createTable('users', {
     user_id: 'id',
     email: { type: 'varchar(255)', notNull: true, unique: true },
@@ -20,13 +34,13 @@ exports.up = pgm => {
     },
   });
 
-  // 2. CARDS_PLAYER TABLE
+  // 3. CARDS_PLAYER TABLE (Corrected)
   pgm.createTable('cards_player', {
     card_id: 'id',
     name: { type: 'varchar(255)' },
     team: { type: 'varchar(10)' },
-    set_name: { type: 'varchar(50)' },
-    card_number: { type: 'integer' },
+    set_name: { type: 'varchar(50)' },    // <-- ADDED
+    card_number: { type: 'integer' },     // <-- ADDED
     year: { type: 'integer' },
     points: { type: 'integer' },
     on_base: { type: 'integer' },
