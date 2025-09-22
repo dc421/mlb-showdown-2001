@@ -5,6 +5,7 @@ if (process.env.NODE_ENV !== 'production') {
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
+const cors = require('cors');
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
@@ -54,6 +55,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
       port: process.env.DB_PORT,
     };
 const pool = module.exports.pool = new Pool(dbConfig);
+app.use(cors(corsOptions));
 app.use(express.json());
 
 
