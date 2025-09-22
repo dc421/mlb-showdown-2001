@@ -25,6 +25,8 @@ exports.up = pgm => {
     card_id: 'id',
     name: { type: 'varchar(255)' },
     team: { type: 'varchar(10)' },
+    set_name: { type: 'varchar(50)' },
+    card_number: { type: 'integer' },
     year: { type: 'integer' },
     points: { type: 'integer' },
     on_base: { type: 'integer' },
