@@ -57,7 +57,7 @@ onUnmounted(() => {
     <header class="team-header" :style="{ backgroundColor: authStore.user.team.primary_color, color: authStore.user.team.secondary_color }">
       <img :src="authStore.user.team.logo_url" :alt="authStore.user.team.name" class="team-logo" />
       <div class="team-info">
-        <h1>{{ authStore.user.team.city }} {{ authStore.user.team.name }}</h1>
+        <h1>{{ authStore.user.team.display_format }}</h1>
         <p>Owner: {{ authStore.user.owner }}</p>
       </div>
     </header>
