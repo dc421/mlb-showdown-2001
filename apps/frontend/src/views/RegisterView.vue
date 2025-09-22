@@ -58,7 +58,7 @@ onMounted(() => {
           <select id="team_id" v-model="team_id" required>
             <option :value="null" disabled>-- Available Teams --</option>
             <option v-for="team in authStore.availableTeams" :key="team.team_id" :value="team.team_id">
-              {{ team.city }} {{ team.name }}
+              {{ team.display_format }}
             </option>
           </select>
         </div>
