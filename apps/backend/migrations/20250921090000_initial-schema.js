@@ -3,34 +3,43 @@
 exports.shorthands = undefined;
 
 exports.up = pgm => {
-  // 1. TEAMS TABLE (Moved here)
+  // Step 1: Create TEAMS table without the user_id foreign key
   pgm.createTable('teams', {
     team_id: 'id',
     city: { type: 'varchar(100)', notNull: true },
     name: { type: 'varchar(100)', notNull: true },
     display_format: { type: 'varchar(50)' },
     logo_url: { type: 'text' },
-    user_id: {
-      type: 'integer',
-      references: '"users"(user_id)',
-      onDelete: 'SET NULL',
-    },
+    user_id: { type: 'integer' }, // Reference will be added later
   });
 
-  // 2. USERS TABLE
+  // Step 2: Create USERS table without the team_id foreign key
   pgm.createTable('users', {
     user_id: 'id',
     email: { type: 'varchar(255)', notNull: true, unique: true },
     hashed_password: { type: 'text', notNull: true },
-    team_id: {
-      type: 'integer',
-      references: '"teams"(team_id)',
-      onDelete: 'SET NULL',
-    },
+    team_id: { type: 'integer' }, // Reference will be added later
     created_at: {
       type: 'timestamptz',
       notNull: true,
       default: pgm.func('now()'),
+    },
+  });
+
+  // Step 3: Now that both tables exist, add the foreign key constraints
+  pgm.addConstraint('teams', 'fk_teams_user_id', {
+    foreignKeys: {
+      columns: 'user_id',
+      references: 'users(user_id)',
+      onDelete: 'SET NULL',
+    },
+  });
+
+  pgm.addConstraint('users', 'fk_users_team_id', {
+    foreignKeys: {
+      columns: 'team_id',
+      references: 'teams(team_id)',
+      onDelete: 'SET NULL',
     },
   });
 
