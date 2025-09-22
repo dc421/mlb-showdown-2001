@@ -15,19 +15,20 @@ const { applyOutcome } = require('./gameLogic');
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = [process.env.FRONTEND_URL, "http://localhost:5173"];
-const io = module.exports.io = new Server(server, {
-  cors: {
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-        return callback(new Error(msg), false);
-      }
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
-    },
-    methods: ["GET", "POST"]
-  }
+    }
+    const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+    return callback(new Error(msg), false);
+  },
+  methods: ["GET", "POST"]
+};
+app.use(cors(corsOptions));
+const io = module.exports.io = new Server(server, {
+  cors: corsOptions
 });
 const PORT = process.env.PORT || 3001;
 
@@ -55,7 +56,6 @@ const dbConfig = process.env.NODE_ENV === 'production'
       port: process.env.DB_PORT,
     };
 const pool = module.exports.pool = new Pool(dbConfig);
-app.use(cors(corsOptions));
 app.use(express.json());
 
 
