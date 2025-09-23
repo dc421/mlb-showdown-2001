@@ -287,11 +287,6 @@ watch(bothPlayersSetAction, (isRevealing) => {
         sessionStorage.setItem(seenResultStorageKey, 'true');
       }, 900);
     }
-  } else {
-    // New at-bat, reset visibility and the "seen" flag.
-    isSwingResultVisible.value = false;
-    hasSeenResult.value = false;
-    sessionStorage.removeItem(seenResultStorageKey);
   }
 }, { immediate: true });
 
@@ -438,8 +433,8 @@ function handleSwing(action = null) {
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
-  haveIRolledForSwing.value = false; // Reset for the next at-bat
-  sessionStorage.removeItem(rollStorageKey);
+  // The state resets are now handled by the `bothPlayersCaughtUp` watcher.
+  // This function is now only responsible for telling the server about the user's intent.
   gameStore.nextHitter(gameId);
 }
 
@@ -551,6 +546,23 @@ const defensiveNextBatterIndex = computed(() => {
 
 const bothPlayersCaughtUp = computed(() => {
 return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
+});
+
+// This watcher is the new source of truth for resetting the at-bat UI.
+// It only fires when BOTH players have clicked "Next Hitter" and the server
+// has confirmed it's time to move on.
+watch(bothPlayersCaughtUp, (areWeReady) => {
+    if (areWeReady) {
+        console.log("Both players caught up, resetting UI for next at-bat.");
+        // Reset the swing result visibility and tracking.
+        isSwingResultVisible.value = false;
+        hasSeenResult.value = false;
+        sessionStorage.removeItem(seenResultStorageKey);
+
+        // Reset the local "rolled" flag for the offensive player.
+        haveIRolledForSwing.value = false;
+        sessionStorage.removeItem(rollStorageKey);
+    }
 });
 
 
