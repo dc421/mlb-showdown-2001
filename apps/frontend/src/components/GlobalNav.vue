@@ -69,4 +69,35 @@ const isGamePage = computed(() => route.name === 'game');
   width: auto;   /* Allow the width to adjust automatically */
   border-radius: 4px; /* A squircle looks better than a forced circle */
 }
+
+/* ADD THIS MEDIA QUERY */
+@media (max-width: 768px) {
+  .global-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .nav-left {
+    flex-basis: auto;
+    order: 1;
+  }
+
+  .nav-center {
+    order: 3;
+    width: 100%; /* Ensure it takes full width to be scrollable if needed */
+    overflow-x: auto; /* Allows horizontal scrolling for the linescore */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scrollbar-width: none; /* For Firefox */
+  }
+
+  .nav-center::-webkit-scrollbar {
+    display: none; /* For Chrome, Safari, and Opera */
+  }
+
+  .nav-right {
+    order: 2;
+  }
+}
 </style>
