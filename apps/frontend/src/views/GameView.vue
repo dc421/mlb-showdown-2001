@@ -648,11 +648,6 @@ onUnmounted(() => {
                 <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction  && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
             </div>
         </div>
-
-        <!-- Screen 2: Waiting message -->
-        <div v-else-if="pitcherOnlySetActions && amIDefensivePlayer" class="turn-indicator">
-            Waiting for batter to swing...
-        </div>
     </div>
     <div class="event-log">
     <h2>Game Log</h2>
