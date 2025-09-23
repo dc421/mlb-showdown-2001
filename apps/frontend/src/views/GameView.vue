@@ -593,7 +593,7 @@ onUnmounted(() => {
   <div class="game-container" v-if="gameStore.gameState && gameStore.lineups?.home && gameStore.lineups?.away">
     <div class="side-panels">
         <div class="lineup-panel">
-            <h3 :style="{ color: awayTeamColors.primary}"><img v-if="gameStore.teams.away" :src="gameStore.teams.away.logo_url" class="lineup-logo" /> {{gameStore.teams.away.city}} Lineup</h3>
+            <h3 :style="{ color: awayTeamColors.primary}" class="lineup-header"><img v-if="gameStore.teams.away" :src="gameStore.teams.away.logo_url" class="lineup-logo" /> {{gameStore.teams.away.city}} Lineup</h3>
             <ol><li v-for="(spot, index) in gameStore.lineups.away.battingOrder" :key="spot.player.card_id" :class="{ 
                   'now-batting': gameStore.gameState.isTopInning && index === gameStore.gameState.awayTeam.battingOrderPosition,
                   'next-up': !gameStore.gameState.isTopInning && index === defensiveNextBatterIndex,
@@ -667,7 +667,7 @@ onUnmounted(() => {
 
     <div class="side-panels">
         <div class="lineup-panel">
-            <h3 :style="{ color: homeTeamColors.primary}"><img v-if="gameStore.teams.home" :src="gameStore.teams.home.logo_url" class="lineup-logo" /> {{gameStore.teams.home.city}} Lineup</h3>
+            <h3 :style="{ color: homeTeamColors.primary}" class="lineup-header"><img v-if="gameStore.teams.home" :src="gameStore.teams.home.logo_url" class="lineup-logo" /> {{gameStore.teams.home.city}} Lineup</h3>
             <ol><li v-for="(spot, index) in gameStore.lineups.home.battingOrder" :key="spot.player.card_id" :class="{ 
                   'now-batting': !gameStore.gameState.isTopInning && index === gameStore.gameState.homeTeam.battingOrderPosition,
                   'next-up': gameStore.gameState.isTopInning && index === defensiveNextBatterIndex,
@@ -773,10 +773,8 @@ onUnmounted(() => {
 
 .lineup-logo {
   height: 28px;
-  width: 28px; /* Give it a fixed width */
   flex-shrink: 0; /* Prevent it from being squished or stretched */
-  border-radius: 50%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .vs-area {
   display: flex;
