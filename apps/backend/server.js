@@ -470,7 +470,8 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
     
     await client.query('COMMIT');
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.status(200).json({ message: 'Substitution successful.' });
 
   } catch (error) {
@@ -501,7 +502,8 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
     await client.query('COMMIT');
     
     // Notify the room that the game state has changed
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.status(200).json({ message: 'Defensive strategy updated.' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -928,7 +930,8 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
     await client.query('COMMIT');
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1048,7 +1051,8 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
     await client.query('COMMIT');
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.status(200).json({ message: 'Pitch action complete.' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1074,7 +1078,8 @@ app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
     await client.query('COMMIT');
     
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1226,7 +1231,8 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
         
         await client.query('COMMIT');
-        io.to(gameId).emit('game-updated');
+        const gameData = await getAndProcessGameData(gameId, client);
+        io.to(gameId).emit('game-updated', gameData);
         res.sendStatus(200);
         
     } catch (error) {
@@ -1332,7 +1338,8 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.userId, gameId]);
         await client.query('COMMIT');
         
-        io.to(gameId).emit('game-updated');
+        const gameData = await getAndProcessGameData(gameId, client);
+        io.to(gameId).emit('game-updated', gameData);
         res.sendStatus(200);
 
     } catch (error) {
@@ -1411,7 +1418,8 @@ app.post('/api/games/:gameId/infield-in-play', authenticateToken, async (req, re
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.userId, gameId]);
     await client.query('COMMIT');
     
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
   } catch (error) { /* ... */ } 
   finally { client.release(); }
@@ -1497,7 +1505,8 @@ app.post('/api/games/:gameId/tag-up', authenticateToken, async (req, res) => {
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.userId, gameId]);
     await client.query('COMMIT');
     
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
 
   } catch (error) { 
@@ -1530,7 +1539,8 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     
     await client.query('COMMIT');
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1614,7 +1624,8 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
     await client.query('COMMIT');
     
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.status(200).json({ message: 'Steal resolved.' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1694,7 +1705,8 @@ app.post('/api/games/:gameId/advance-runners', authenticateToken, async (req, re
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.userId, gameId]);
     await client.query('COMMIT');
     
-    io.to(gameId).emit('game-updated');
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
 
   } catch (error) {
