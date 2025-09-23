@@ -73,31 +73,28 @@ const isGamePage = computed(() => route.name === 'game');
 /* ADD THIS MEDIA QUERY */
 @media (max-width: 768px) {
   .global-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+    padding: 0.5rem;
     gap: 1rem;
   }
 
-  .nav-left {
-    flex-basis: auto;
-    order: 1;
+  .nav-left, .nav-right {
+    flex-shrink: 0;
   }
 
   .nav-center {
-    order: 3;
-    width: 100%; /* Ensure it takes full width to be scrollable if needed */
-    overflow-x: auto; /* Allows horizontal scrolling for the linescore */
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    flex-grow: 1;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none; /* For Firefox */
+    min-width: 0;
   }
 
   .nav-center::-webkit-scrollbar {
-    display: none; /* For Chrome, Safari, and Opera */
+      display: none; /* For Chrome, Safari, and Opera */
   }
 
-  .nav-right {
-    order: 2;
+  .nav-left {
+      flex-basis: auto;
   }
 }
 </style>
