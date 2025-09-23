@@ -3,17 +3,27 @@
 exports.shorthands = undefined;
 
 exports.up = pgm => {
-  pgm.addColumns('teams', {
-    abbreviation: { type: 'varchar(10)' },
-    primary_color: { type: 'varchar(7)' },
-    secondary_color: { type: 'varchar(7)' },
-  });
-  pgm.addColumns('cards_player', {
-    image_url: { type: 'text' },
-  });
+  pgm.sql(`
+    ALTER TABLE "teams"
+      ADD COLUMN IF NOT EXISTS "abbreviation" varchar(10),
+      ADD COLUMN IF NOT EXISTS "primary_color" varchar(7),
+      ADD COLUMN IF NOT EXISTS "secondary_color" varchar(7);
+  `);
+  pgm.sql(`
+    ALTER TABLE "cards_player"
+      ADD COLUMN IF NOT EXISTS "image_url" text;
+  `);
 };
 
 exports.down = pgm => {
-  pgm.dropColumns('teams', ['abbreviation', 'primary_color', 'secondary_color']);
-  pgm.dropColumns('cards_player', ['image_url']);
+  pgm.sql(`
+    ALTER TABLE "teams"
+      DROP COLUMN IF EXISTS "abbreviation",
+      DROP COLUMN IF EXISTS "primary_color",
+      DROP COLUMN IF EXISTS "secondary_color";
+  `);
+  pgm.sql(`
+    ALTER TABLE "cards_player"
+      DROP COLUMN IF EXISTS "image_url";
+  `);
 };
