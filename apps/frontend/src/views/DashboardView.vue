@@ -7,6 +7,13 @@ import { socket } from '@/services/socket';
 const authStore = useAuthStore();
 const router = useRouter();
 
+const myTeamDisplayName = computed(() => {
+  if (!authStore.user?.team) return '';
+  const team = authStore.user.team;
+  const format = team.display_format || '{city} {name}';
+  return format.replace('{city}', team.city).replace('{name}', team.name);
+});
+
 // in DashboardView.vue
 const gamesToJoin = computed(() => {
     if (!authStore.user) return [];
@@ -57,7 +64,7 @@ onUnmounted(() => {
     <header class="team-header" :style="{ backgroundColor: authStore.user.team.primary_color, color: authStore.user.team.secondary_color }">
       <img :src="authStore.user.team.logo_url" :alt="authStore.user.team.name" class="team-logo" />
       <div class="team-info">
-        <h1>{{ authStore.user.team.display_format }}</h1>
+        <h1>{{ myTeamDisplayName }}</h1>
         <p>Owner: {{ authStore.user.owner }}</p>
       </div>
     </header>
@@ -78,7 +85,7 @@ onUnmounted(() => {
             <li v-for="game in authStore.myGames" :key="game.game_id">
                 <RouterLink :to="game.status === 'pending' ? `/game/${game.game_id}/setup` : (game.status === 'lineups' ? `/game/${game.game_id}/lineup` : `/game/${game.game_id}`)">
                     <!-- This now displays the opponent's team name -->
-                    <span v-if="game.opponent">vs. {{ game.opponent.city }}</span>
+                    <span v-if="game.opponent">vs. {{ game.opponent.full_display_name }}</span>
                     <span v-else>Waiting for opponent...</span>
                     
                     <span class="status">{{ game.status }}</span>
@@ -95,7 +102,7 @@ onUnmounted(() => {
          <ul v-if="authStore.openGames.length > 0" class="game-list">
          <!-- in DashboardView.vue template -->
 <li v-for="game in gamesToJoin" :key="game.game_id">
-  <span>Game vs. {{ game.city }}</span>
+  <span>Game vs. {{ game.full_display_name }}</span>
   <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster">Join</button>
 </li>
         </ul>
