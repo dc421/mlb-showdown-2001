@@ -403,8 +403,13 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
 app.get('/api/available-teams', async (req, res) => {
   try {
     console.log('4. Backend received request for /api/available-teams.');
-    const availableTeams = await pool.query("SELECT team_id, city, name FROM teams WHERE user_id IS NULL");
-    res.json(availableTeams.rows);
+    const availableTeamsQuery = await pool.query("SELECT team_id, city, name, display_format FROM teams WHERE user_id IS NULL");
+    const availableTeams = availableTeamsQuery.rows.map(team => {
+        const format = team.display_format || '{city} {name}';
+        team.full_display_name = format.replace('{city}', team.city).replace('{name}', team.name);
+        return team;
+    });
+    res.json(availableTeams);
   } catch (error) {
     console.error('Error fetching available teams:', error);
     res.status(500).json({ message: 'Server error.' });
@@ -530,8 +535,8 @@ app.get('/api/rosters/:rosterId', authenticateToken, async (req, res) => {
 // in server.js
 app.get('/api/games/open', authenticateToken, async (req, res) => {
   try {
-    const openGames = await pool.query(
-      `SELECT g.game_id, t.city, t.name as team_name, u.user_id as host_user_id 
+    const openGamesQuery = await pool.query(
+      `SELECT g.game_id, t.city, t.name, t.display_format, u.user_id as host_user_id
        FROM games g 
        JOIN game_participants gp ON g.game_id = gp.game_id
        JOIN users u ON gp.user_id = u.user_id
@@ -539,7 +544,12 @@ app.get('/api/games/open', authenticateToken, async (req, res) => {
        WHERE g.status = 'pending' AND 
        (SELECT COUNT(*) FROM game_participants WHERE game_id = g.game_id) = 1`
     );
-    res.json(openGames.rows);
+    const openGames = openGamesQuery.rows.map(game => {
+        const format = game.display_format || '{city} {name}';
+        game.full_display_name = format.replace('{city}', game.city).replace('{name}', game.name);
+        return game;
+    });
+    res.json(openGames);
   } catch (error) {
     console.error('Error fetching open games:', error);
     res.status(500).json({ message: 'Server error while fetching open games.' });
@@ -562,7 +572,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
     const gamesWithOpponent = [];
     for (const game of gamesResult.rows) {
         const opponentResult = await pool.query(
-            `SELECT t.city, t.name as team_name 
+            `SELECT t.city, t.name, t.display_format
              FROM game_participants gp 
              JOIN users u ON gp.user_id = u.user_id 
              JOIN teams t ON u.team_id = t.team_id 
@@ -571,7 +581,11 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         );
         
         // Add opponent info to the game object, if an opponent exists
-        const opponent = opponentResult.rows.length > 0 ? opponentResult.rows[0] : null;
+        let opponent = opponentResult.rows.length > 0 ? opponentResult.rows[0] : null;
+        if (opponent) {
+            const format = opponent.display_format || '{city} {name}';
+            opponent.full_display_name = format.replace('{city}', opponent.city).replace('{name}', opponent.name);
+        }
         gamesWithOpponent.push({ ...game, opponent });
     }
 
