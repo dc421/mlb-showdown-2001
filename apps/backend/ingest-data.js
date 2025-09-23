@@ -57,8 +57,8 @@ async function ingestData() {
     // Process and insert teams
     const teams = await processCsv('teams.csv');
     for (const team of teams) {
-      const insertQuery = `INSERT INTO teams (city, name, display_format, logo_url) VALUES ($1, $2, $3, $4)`;
-      const values = [team.city, team.name, team.display_format, team.logo_url];
+      const insertQuery = `INSERT INTO teams (city, name, display_format, logo_url, abbreviation, primary_color, secondary_color) VALUES ($1, $2, $3, $4, $5, $6, $7)`;
+      const values = [team.city, team.name, team.display_format, team.logo_url, team.abbreviation, team.primary_color, team.secondary_color];
       await client.query(insertQuery, values);
     }
 
@@ -112,6 +112,10 @@ async function ingestData() {
       const values = [card.name, card.team, card.set_name, card.card_number, card.year, card.points, card.on_base, card.control, card.ip, card.speed, card.fielding_ratings, card.chart_data];
       await client.query(insertQuery, values);
     }
+
+    // After all data is inserted, run the image updates
+    const imageUpdatesSql = fs.readFileSync('image_updates.sql', 'utf8');
+    await client.query(imageUpdatesSql);
 
     await client.query('COMMIT');
     console.log('✅ Data ingestion complete!');
