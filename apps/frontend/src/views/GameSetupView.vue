@@ -167,8 +167,9 @@ watch(useDh, (newValue) => {
   .dh-section { margin-top: 1rem; }
   .dh-toggle label { margin-right: 1.5rem; }
   .team-logo-small {
-    width: 50px;
-    height: 50px;
+    max-width: 50px;
+    max-height: 50px;
+    object-fit: contain;
     border-radius: 50%;
     margin-bottom: 0.5rem;
 }
