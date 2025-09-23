@@ -375,10 +375,12 @@ const gameEventsToDisplay = computed(() => {
 
 // in GameView.vue
 const basesToDisplay = computed(() => {
-  // If the outcome should be hidden, show the bases from the *previous* completed at-bat.
   if (shouldHidePlayOutcome.value) {
-    // This safely handles the first at-bat of the game where lastCompletedAtBat is null.
-    return gameStore.gameState?.lastCompletedAtBat?.bases || { 1: null, 2: null, 3: null };
+    if (opponentReadyForNext.value) {
+      return gameStore.gameState?.lastCompletedAtBat?.basesBeforePlay || { first: null, second: null, third: null };
+    } else {
+      return gameStore.gameState?.currentAtBat?.basesBeforePlay || { first: null, second: null, third: null };
+    }
   }
 
   // Otherwise, show the current, live bases.
@@ -386,10 +388,12 @@ const basesToDisplay = computed(() => {
 });
 
 const outsToDisplay = computed(() => {
-  // If the outcome should be hidden, show the outs from the *previous* completed at-bat.
   if (shouldHidePlayOutcome.value) {
-    // If there was no previous at-bat, the outs count was 0.
-    return gameStore.gameState?.lastCompletedAtBat?.outs || 0;
+    if (opponentReadyForNext.value) {
+      return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
+    } else {
+      return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
+    }
   }
   
   // Otherwise, show the current, live number of outs.
