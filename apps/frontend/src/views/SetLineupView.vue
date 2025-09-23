@@ -139,6 +139,7 @@ async function handleSubmission() {
 // in SetLineupView.vue
 onMounted(async () => {
   console.log('1. SetLineupView has mounted for game ID:', gameId);
+  socket.emit('join-game-room', gameId);
   await gameStore.fetchGame(gameId); // Fetches basic game info like DH rule
 
   const participantInfo = await authStore.fetchMyParticipantInfo(gameId);
