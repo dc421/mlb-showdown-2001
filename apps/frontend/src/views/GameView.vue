@@ -344,6 +344,7 @@ const batterToDisplay = computed(() => {
 });
 
 const pitcherToDisplay = computed(() => {
+    if (!gameStore.gameState) return null;
     if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
         return gameStore.gameState.lastCompletedAtBat.pitcher;
     }
@@ -377,18 +378,18 @@ const basesToDisplay = computed(() => {
   // If the outcome should be hidden, show the bases from the *previous* completed at-bat.
   if (shouldHidePlayOutcome.value) {
     // This safely handles the first at-bat of the game where lastCompletedAtBat is null.
-    return gameStore.gameState.lastCompletedAtBat?.bases || { 1: null, 2: null, 3: null };
+    return gameStore.gameState?.lastCompletedAtBat?.bases || { 1: null, 2: null, 3: null };
   }
 
   // Otherwise, show the current, live bases.
-  return gameStore.gameState.bases;
+  return gameStore.gameState?.bases;
 });
 
 const outsToDisplay = computed(() => {
   // If the outcome should be hidden, show the outs from the *previous* completed at-bat.
   if (shouldHidePlayOutcome.value) {
     // If there was no previous at-bat, the outs count was 0.
-    return gameStore.gameState.lastCompletedAtBat?.outs || 0;
+    return gameStore.gameState?.lastCompletedAtBat?.outs || 0;
   }
   
   // Otherwise, show the current, live number of outs.
@@ -545,6 +546,7 @@ const defensiveNextBatterIndex = computed(() => {
 });
 
 const bothPlayersCaughtUp = computed(() => {
+if (!gameStore.gameState) return false;
 return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
 });
 
