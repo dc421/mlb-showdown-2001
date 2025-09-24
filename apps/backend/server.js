@@ -898,6 +898,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       }
       const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher);
       finalState = { ...newState };
+      finalState.defensivePlayerCompletedAction = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
       
       
@@ -1013,6 +1014,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             }
             const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher);
             finalState = { ...newState };
+            finalState.defensivePlayerCompletedAction = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
 
             // --- ADD THESE DEBUG LOGS ---
@@ -1119,6 +1121,8 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
         newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
       }
+
+      newState.defensivePlayerCompletedAction = false; // Reset for the new at-bat cycle
       
       // 3. Create a fresh scorecard for the new at-bat.
       const { batter, pitcher } = await getActivePlayers(gameId, newState);
