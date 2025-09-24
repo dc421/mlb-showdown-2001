@@ -13,9 +13,10 @@ const route = useRoute();
 const gameStore = useGameStore();
 const authStore = useAuthStore();
 const gameId = route.params.id;
+const initialLoadComplete = ref(false);
 const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
-const hasSeenResult = ref(JSON.parse(sessionStorage.getItem(seenResultStorageKey)) || false);
+const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -79,7 +80,7 @@ const awayBenchAndBullpen = computed(() => {
     return gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
 });
 
-const haveIRolledForSwing = ref(JSON.parse(sessionStorage.getItem(rollStorageKey)) || false);
+const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey)) || false);
 
 
 const scoreChangeMessage = ref('');
@@ -284,16 +285,17 @@ watch(bothPlayersSetAction, (isRevealing) => {
       setTimeout(() => {
         isSwingResultVisible.value = true;
         hasSeenResult.value = true;
-        sessionStorage.setItem(seenResultStorageKey, 'true');
+        localStorage.setItem(seenResultStorageKey, 'true');
       }, 900);
     }
   } else {
+    if (!initialLoadComplete.value) return;
     // A new at-bat is starting (currentAtBat changed), so reset the UI state.
     isSwingResultVisible.value = false;
     hasSeenResult.value = false;
-    sessionStorage.removeItem(seenResultStorageKey);
+    localStorage.removeItem(seenResultStorageKey);
     haveIRolledForSwing.value = false;
-    sessionStorage.removeItem(rollStorageKey);
+    localStorage.removeItem(rollStorageKey);
   }
 }, { immediate: true });
 
@@ -441,7 +443,7 @@ function handleOffensiveAction(action) {
 
 function handleSwing(action = null) {
   haveIRolledForSwing.value = true; // Set the flag immediately
-  sessionStorage.setItem(rollStorageKey, 'true');
+  localStorage.setItem(rollStorageKey, 'true');
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
@@ -574,6 +576,7 @@ const outcomeBatter = computed(() => {
 // in GameView.vue
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
+  initialLoadComplete.value = true;
   
   // --- THIS IS THE DEBUG LOG ---
   console.log('--- GameView Mounted: Checking Store Data ---');
