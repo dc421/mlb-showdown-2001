@@ -625,15 +625,15 @@ onUnmounted(() => {
         <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <div v-else-if="atBatToDisplay.pitchRollResult &&
                 (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext.value) &&
-                !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
+                !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
                     Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
                 </div>
     </div>
             <div class="vs">VS</div>
             <div class="action-box">
                 <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
-                <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing.value && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <div v-else-if="atBatToDisplay.swingRollResult && isSwingResultVisible" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
+                <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+                <div v-else-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
                     Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
                     <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
                 </div>
