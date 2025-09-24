@@ -6,8 +6,10 @@ const authStore = useAuthStore();
 </script>
 
 <template>
-  <GlobalNav v-if="authStore.isAuthenticated" /> 
-  <RouterView />
+  <GlobalNav v-if="authStore.isAuthenticated" />
+  <div class="main-content-wrapper">
+    <RouterView />
+  </div>
 </template>
 
 <style>
@@ -15,5 +17,10 @@ const authStore = useAuthStore();
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
+    background-color: #343a40; /* Dark background for the whole page */
+  }
+
+  .main-content-wrapper {
+    background-color: white; /* White background for the content area */
   }
 </style>
