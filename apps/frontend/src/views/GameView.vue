@@ -276,17 +276,26 @@ const isSwingResultVisible = ref(false);
 // in GameView.vue
 watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
+    // If we've already seen the result (e.g. page refresh), show it immediately.
     if (hasSeenResult.value) {
-      // User has seen it before (e.g., after reload), show immediately.
       isSwingResultVisible.value = true;
-    } else {
-      // First time seeing the result for this at-bat.
-      // Wait 900ms, then show it and mark it as seen.
+      return;
+    }
+
+    const defensivePlayerCompleted = gameStore.gameState?.defensivePlayerCompletedAction;
+
+    // The special case: defensive player is last and it's their turn to see the delay.
+    if (amIDefensivePlayer.value && defensivePlayerCompleted) {
       setTimeout(() => {
         isSwingResultVisible.value = true;
         hasSeenResult.value = true;
         localStorage.setItem(seenResultStorageKey, 'true');
       }, 900);
+    } else {
+      // In all other cases, show the result immediately.
+      isSwingResultVisible.value = true;
+      hasSeenResult.value = true;
+      localStorage.setItem(seenResultStorageKey, 'true');
     }
   } else {
     if (!initialLoadComplete.value) return;
