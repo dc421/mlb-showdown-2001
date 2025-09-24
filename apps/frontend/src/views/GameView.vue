@@ -287,6 +287,13 @@ watch(bothPlayersSetAction, (isRevealing) => {
         sessionStorage.setItem(seenResultStorageKey, 'true');
       }, 900);
     }
+  } else {
+    // A new at-bat is starting (currentAtBat changed), so reset the UI state.
+    isSwingResultVisible.value = false;
+    hasSeenResult.value = false;
+    sessionStorage.removeItem(seenResultStorageKey);
+    haveIRolledForSwing.value = false;
+    sessionStorage.removeItem(rollStorageKey);
   }
 }, { immediate: true });
 
@@ -554,22 +561,6 @@ if (!gameStore.gameState) return false;
 return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
 });
 
-// This watcher is the new source of truth for resetting the at-bat UI.
-// It only fires when BOTH players have clicked "Next Hitter" and the server
-// has confirmed it's time to move on.
-watch(bothPlayersCaughtUp, (areWeReady) => {
-    if (areWeReady) {
-        console.log("Both players caught up, resetting UI for next at-bat.");
-        // Reset the swing result visibility and tracking.
-        isSwingResultVisible.value = false;
-        hasSeenResult.value = false;
-        sessionStorage.removeItem(seenResultStorageKey);
-
-        // Reset the local "rolled" flag for the offensive player.
-        haveIRolledForSwing.value = false;
-        sessionStorage.removeItem(rollStorageKey);
-    }
-});
 
 
 // in GameView.vue
