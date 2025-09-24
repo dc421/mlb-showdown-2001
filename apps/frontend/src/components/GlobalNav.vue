@@ -83,14 +83,8 @@ const isGamePage = computed(() => route.name === 'game');
 
   .nav-center {
     flex-grow: 1;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; /* For Firefox */
-    min-width: 0;
-  }
-
-  .nav-center::-webkit-scrollbar {
-      display: none; /* For Chrome, Safari, and Opera */
+    /* By removing overflow-x and min-width, the container will expand to fit its content (the linescore)
+       instead of scrolling internally. This allows the entire nav bar to become scrollable on the page level. */
   }
 
   .nav-left {
