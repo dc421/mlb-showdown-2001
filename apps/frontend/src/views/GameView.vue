@@ -320,8 +320,6 @@ watch(bothPlayersSetAction, (isRevealing) => {
     isSwingResultVisible.value = false;
     hasSeenResult.value = false;
     localStorage.removeItem(seenResultStorageKey);
-    haveIRolledForSwing.value = false;
-    localStorage.removeItem(rollStorageKey);
   }
 }, { immediate: true });
 
@@ -466,6 +464,8 @@ function handleNextHitter() {
   if (!opponentReadyForNext.value) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
+  haveIRolledForSwing.value = false;
+  localStorage.removeItem(rollStorageKey);
   gameStore.nextHitter(gameId);
 }
 
