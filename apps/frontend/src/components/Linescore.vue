@@ -10,7 +10,7 @@ const linescore = computed(() => {
   const scores = { away: [], home: [] };
 
   // Use the direct store state: gameEvents, not gameEventsToDisplay
-  if (!gameStore.gameEvents || !gameStore.gameState) {
+  if (!gameStore.gameEventsToDisplay || !gameStore.gameState) {
     return { innings, scores };
   }
 
@@ -20,11 +20,14 @@ const linescore = computed(() => {
   let inningMarkersFound = 0;
 
   // Use the direct store state: gameEvents, not gameEventsToDisplay
-  gameStore.gameEvents.forEach(event => {
+  gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
         if (event.log_message.includes('scores!')) {
-          if (isTop) { awayRunsInInning++; } 
-          else { homeRunsInInning++; }
+          // New logic to parse multi-run plays
+          const runsMatch = event.log_message.match(/\((\d+) runs\)/);
+          const runsScored = runsMatch ? parseInt(runsMatch[1], 10) : 1;
+          if (isTop) { awayRunsInInning += runsScored; }
+          else { homeRunsInInning += runsScored; }
         }
         else if (event.log_message.includes('---')) {
           if (inningMarkersFound > 0) {

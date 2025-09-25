@@ -87,14 +87,22 @@ const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey))
 const scoreChangeMessage = ref('');
 
 // in GameView.vue
-watch(() => gameStore.gameState?.awayScore + gameStore.gameState?.homeScore, (newTotalScore, oldTotalScore) => {
-  // If the new score is greater, a run was just scored.
-  if (newTotalScore > oldTotalScore) {
-    const awayTeamName = gameStore.teams?.away?.name || 'Away';
-    const homeTeamName = gameStore.teams?.home?.name || 'Home';
+watch([() => gameStore.gameState?.awayScore, () => gameStore.gameState?.homeScore], ([newAwayScore, newHomeScore], [oldAwayScore, oldHomeScore]) => {
+  if (newAwayScore !== oldAwayScore || newHomeScore !== oldHomeScore) {
+    const awayTeamName = gameStore.teams?.away?.name.toUpperCase() || 'AWAY';
+    const homeTeamName = gameStore.teams?.home?.name.toUpperCase() || 'HOME';
+
+    let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
+    let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
+
+    if (newAwayScore > oldAwayScore) {
+      awayScoreDisplay = `${awayTeamName} <span style="color: #dc3545;">${newAwayScore}</span>`;
+    }
+    if (newHomeScore > oldHomeScore) {
+      homeScoreDisplay = `${homeTeamName} <span style="color: #dc3545;">${newHomeScore}</span>`;
+    }
     
-    // Create the message with the new score.
-    scoreChangeMessage.value = `${awayTeamName} ${gameStore.gameState.awayScore}, ${homeTeamName} ${gameStore.gameState.homeScore}`;
+    scoreChangeMessage.value = `${awayScoreDisplay}, ${homeScoreDisplay}`;
   }
 });
 
@@ -148,10 +156,18 @@ const isDefenseWaitingForReveal = computed(() => {
 const shouldHidePlayOutcome = computed(() => {
   // Scenario 1: The offensive player has not yet clicked "ROLL FOR SWING".
   // Both actions are in, but the local `haveIRolledForSwing` flag is false.
-    
+  const offenseWaiting = isOffenseWaitingToRoll.value;
+
   // Scenario 2: The defensive player is waiting for the 900ms reveal delay.
-  return isOffenseWaitingToRoll.value || isDefenseWaitingForReveal.value;
+  const defenseWaiting = isDefenseWaitingForReveal.value;
+
+  return offenseWaiting || defenseWaiting;
 });
+
+// NEW: Watch this computed and update the central store state
+watch(shouldHidePlayOutcome, (newValue) => {
+  gameStore.setOutcomeHidden(newValue);
+}, { immediate: true });
 
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
 
@@ -247,7 +263,7 @@ const groupedGameLog = computed(() => {
   let currentGroup = { header: 'Pre-Game', plays: [] };
 
   // Go through events in chronological order
-  gameEventsToDisplay.value.forEach(event => {
+  gameStore.gameEventsToDisplay.forEach(event => {
     // A '---' indicates the start of a new half-inning
     if (event.log_message && event.log_message.includes('---')) {
       // If the current group has plays, save it before starting a new one
@@ -381,18 +397,6 @@ const showResolvedState = computed(() => {
   return atBatIsResolved && !waitingToSwing;
 });
 
-// in GameView.vue
-const gameEventsToDisplay = computed(() => {
-  if (!gameStore.gameEvents) return [];
-  
-  // If the outcome should be hidden, slice the last few events from the log.
-  if (shouldHidePlayOutcome.value) {
-    return gameStore.gameEvents.slice(0, gameStore.gameEvents.length - 1);
-  }
-
-  // Otherwise, show all events.
-  return gameStore.gameEvents;
-});
 
 // in GameView.vue
 const basesToDisplay = computed(() => {
@@ -678,9 +682,7 @@ onUnmounted(() => {
                     <div v-if="(amIDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">
                 Waiting for swing...
             </div>
-            <div v-if="runScoredOnPlay && !shouldHidePlayOutcome" class="score-update-flash">
-      {{ scoreChangeMessage }}
-    </div>
+            <div v-if="runScoredOnPlay && !shouldHidePlayOutcome" class="score-update-flash" v-html="scoreChangeMessage"></div>
 
         <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
         <div class="actions">
@@ -918,7 +920,7 @@ onUnmounted(() => {
 .score-update-flash {
   font-size: 1.25rem;
   font-weight: bold;
-  color: #dc3545; /* A bright, clear red */
+  color: black;
   text-align: center
 }
 </style>

@@ -330,11 +330,25 @@ async function resetRolls(gameId) {
 
 // --- ADD THIS LINE ---
   const displayOuts = ref(0);
+  const isOutcomeHidden = ref(false);
 
   // --- ADD THIS ACTION ---
   function setDisplayOuts(count) {
     displayOuts.value = count;
   }
+
+  function setOutcomeHidden(value) {
+    isOutcomeHidden.value = value;
+  }
+
+  const gameEventsToDisplay = computed(() => {
+    if (!gameEvents.value) return [];
+    if (isOutcomeHidden.value) {
+      // The backend guarantees the last event is the one to hide
+      return gameEvents.value.slice(0, gameEvents.value.length - 1);
+    }
+    return gameEvents.value;
+  });
 
 
   function updateGameData(data) {
@@ -351,7 +365,7 @@ async function resetRolls(gameId) {
 
   return { game, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
-    displayOuts, setDisplayOuts,
+    displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData };
 })
