@@ -22,5 +22,6 @@ const authStore = useAuthStore();
 
   .main-content-wrapper {
     background-color: white; /* White background for the content area */
+    min-height: 100vh;
   }
 </style>
