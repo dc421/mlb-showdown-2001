@@ -184,5 +184,15 @@ onUnmounted(() => {
 .game-list li a:hover { background-color: #f0f0f0; }
 .status { text-transform: capitalize; color: #555; }
 .turn-indicator { font-weight: bold; color: #28a745; }
+
+@media (max-width: 768px) {
+  .team-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  .team-info h1 {
+    font-size: 2rem;
+  }
+}
 </style>
 
