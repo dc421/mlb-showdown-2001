@@ -521,6 +521,11 @@ watch(infieldIn, (newValue) => {
 
 });
 
+const bothPlayersCaughtUp = computed(() => {
+if (!gameStore.gameState) return false;
+return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
+});
+
 watch(batterToDisplay, (newBatter, oldBatter) => {
   const newName = newBatter ? newBatter.name : 'null';
   const oldName = oldBatter ? oldBatter.name : 'null';
@@ -575,11 +580,6 @@ const defensiveTeamKey = computed(() => gameStore.gameState?.isTopInning ? 'home
 const defensiveNextBatterIndex = computed(() => {
     if (!gameStore.gameState) return -1;
     return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
-});
-
-const bothPlayersCaughtUp = computed(() => {
-if (!gameStore.gameState) return false;
-return !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext
 });
 
 
