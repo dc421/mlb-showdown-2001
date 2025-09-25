@@ -40,7 +40,9 @@ const linescore = computed(() => {
     }
   });
   
-  if (isTop) {
+  if (gameStore.isBetweenHalfInnings) {
+    // In this specific state, don't add the optimistic '0' for the next inning
+  } else if (isTop) {
     scores.away.push(awayRunsInInning);
   } else {
     if(scores.away.length === scores.home.length) {
