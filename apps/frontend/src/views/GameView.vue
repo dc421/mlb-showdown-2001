@@ -27,6 +27,7 @@ const baserunningChoices = ref({});
 // NEW: Local state for the checkbox
 
 const infieldIn = ref(gameStore.gameState?.infieldIn || false);
+const anticipatedBatter = ref(null);
 
 
 const REPLACEMENT_HITTER = { card_id: 'replacement_hitter', displayName: 'Replacement Hitter', control: null };
@@ -351,13 +352,15 @@ const nextBatterInLineup = computed(() => {
 });
 
 const batterToDisplay = computed(() => {
-  if (!gameStore.gameState) {
+    if (anticipatedBatter.value) {
+        return anticipatedBatter.value;
+    }
+    if (!gameStore.gameState) {
         return null;
     }
     if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
-    // In all other cases, show the data for the current at-bat.
     return gameStore.gameState.currentAtBat.batter;
 });
 
@@ -456,8 +459,9 @@ function handleSwing(action = null) {
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
-  // The state resets are now handled by the `bothPlayersCaughtUp` watcher.
-  // This function is now only responsible for telling the server about the user's intent.
+  if (!opponentReadyForNext.value) {
+    anticipatedBatter.value = nextBatterInLineup.value;
+  }
   gameStore.nextHitter(gameId);
 }
 
@@ -521,6 +525,12 @@ watch(batterToDisplay, (newBatter, oldBatter) => {
   const newName = newBatter ? newBatter.name : 'null';
   const oldName = oldBatter ? oldBatter.name : 'null';
   console.log(`--- 2. batterToDisplay CHANGED from ${oldName} to ${newName} ---`);
+});
+
+watch(bothPlayersCaughtUp, (areThey) => {
+    if (areThey) {
+        anticipatedBatter.value = null;
+    }
 });
 
 
