@@ -626,8 +626,8 @@ onUnmounted(() => {
     <div class="side-panels">
         <div class="lineup-panel">
             <h3 :style="{ color: awayTeamColors.primary}" class="lineup-header"><img v-if="gameStore.teams.away" :src="gameStore.teams.away.logo_url" class="lineup-logo" /> {{gameStore.teams.away.city}} Lineup</h3>
-            <ol><li v-for="(spot, index) in gameStore.lineups.away.battingOrder" :key="spot.player.card_id" :class="{ 
-                  'now-batting': gameStore.gameState.isTopInning && index === gameStore.gameState.awayTeam.battingOrderPosition,
+            <ol><li v-for="(spot, index) in gameStore.lineups.away.battingOrder" :key="spot.player.card_id" :class="{
+                  'now-batting': gameStore.gameState.isTopInning && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
                   'next-up': !gameStore.gameState.isTopInning && index === defensiveNextBatterIndex,
                   'sub-target': playerToSubIn && myTeam === 'away'}" @click="selectedCard = spot.player"> {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }}) </li></ol>
             <div v-if="awayPitcher" class="pitcher-info" :class="{'sub-target': playerToSubIn && myTeam === 'away' && isMyTurn}" @click="executeSubstitution(awayPitcher, 'P')"> <hr /><strong :style="{ color: awayTeamColors.primary}">Pitching:</strong> {{ awayPitcher.name }} </div>
@@ -697,8 +697,8 @@ onUnmounted(() => {
     <div class="side-panels">
         <div class="lineup-panel">
             <h3 :style="{ color: homeTeamColors.primary}" class="lineup-header"><img v-if="gameStore.teams.home" :src="gameStore.teams.home.logo_url" class="lineup-logo" /> {{gameStore.teams.home.city}} Lineup</h3>
-            <ol><li v-for="(spot, index) in gameStore.lineups.home.battingOrder" :key="spot.player.card_id" :class="{ 
-                  'now-batting': !gameStore.gameState.isTopInning && index === gameStore.gameState.homeTeam.battingOrderPosition,
+            <ol><li v-for="(spot, index) in gameStore.lineups.home.battingOrder" :key="spot.player.card_id" :class="{
+                  'now-batting': !gameStore.gameState.isTopInning && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
                   'next-up': gameStore.gameState.isTopInning && index === defensiveNextBatterIndex,
                   'sub-target': playerToSubIn && myTeam === 'home'}" @click="selectedCard = spot.player"> {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }}) </li></ol>
             <div v-if="homePitcher" class="pitcher-info" :class="{'sub-target': playerToSubIn && myTeam === 'home'}" @click="executeSubstitution(homePitcher, 'P')"> <hr /><strong :style="{ color: homeTeamColors.primary}">Pitching:</strong> {{ homePitcher.name }} </div>
