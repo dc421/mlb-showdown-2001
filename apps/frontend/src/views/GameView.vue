@@ -645,7 +645,7 @@ onUnmounted(() => {
         <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <div v-else-if="atBatToDisplay.pitchRollResult &&
                 (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
-                !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
+                !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
                     Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
                 </div>
     </div>
@@ -712,8 +712,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.game-container { display: grid; grid-template-columns: 1fr 2.5fr 1fr; gap: 1rem; max-width: 1600px; margin: 1rem auto; font-family: sans-serif; }
-.at-bat-display { display: flex; justify-content: center; align-items: flex-start; gap: 2rem; margin-bottom: 1.5rem; }
+.game-container { display: grid; grid-template-columns: 1fr 2.5fr 1fr; gap: 1rem; max-width: 1600px; margin: 0rem auto; font-family: sans-serif; }
+.at-bat-display { display: flex; justify-content: center; align-items: flex-start; gap: 1.5rem; margin-top: .75rem; margin-bottom: 1.5rem; }
 .vs-area { text-align: center; padding-top: 5rem; position: relative; }
 .actions { text-align: center; margin-bottom: 1.5rem; min-height: 50px; }
 .vs { font-size: 2.5rem; font-weight: bold; color: #888; }
