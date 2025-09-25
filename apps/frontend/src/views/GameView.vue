@@ -365,6 +365,14 @@ const nextBatterInLineup = computed(() => {
   return offensiveLineup[nextIndex]?.player;
 });
 
+// Pre-cache the next batter's image
+watch(nextBatterInLineup, (newNextBatter) => {
+  if (newNextBatter && newNextBatter.image_url) {
+    const img = new Image();
+    img.src = newNextBatter.image_url;
+  }
+}, { immediate: true });
+
 const batterToDisplay = computed(() => {
     if (anticipatedBatter.value) {
         return anticipatedBatter.value;
