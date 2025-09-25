@@ -586,6 +586,17 @@ const outcomeBatter = computed(() => {
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
   initialLoadComplete.value = true;
+
+  // NEW: Check if we are returning to a completed at-bat
+  const atBat = atBatToDisplay.value;
+  if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
+    const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !haveIRolledForSwing.value;
+    if (!isOffensiveAndHasNotRolled) {
+      isSwingResultVisible.value = true;
+      hasSeenResult.value = true;
+      localStorage.setItem(seenResultStorageKey, 'true');
+    }
+  }
   
   // --- THIS IS THE DEBUG LOG ---
   console.log('--- GameView Mounted: Checking Store Data ---');
