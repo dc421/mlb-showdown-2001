@@ -89,8 +89,8 @@ const scoreChangeMessage = ref('');
 // in GameView.vue
 watch([() => gameStore.gameState?.awayScore, () => gameStore.gameState?.homeScore], ([newAwayScore, newHomeScore], [oldAwayScore, oldHomeScore]) => {
   if (newAwayScore !== oldAwayScore || newHomeScore !== oldHomeScore) {
-    const awayTeamName = gameStore.teams?.away?.name.toUpperCase() || 'AWAY';
-    const homeTeamName = gameStore.teams?.home?.name.toUpperCase() || 'HOME';
+    const awayTeamName = gameStore.teams?.away?.city.toUpperCase() || 'AWAY';
+    const homeTeamName = gameStore.teams?.home?.city.toUpperCase() || 'HOME';
 
     let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
     let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
