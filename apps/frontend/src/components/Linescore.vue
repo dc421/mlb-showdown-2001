@@ -23,9 +23,7 @@ const linescore = computed(() => {
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
         if (event.log_message.includes('scores!')) {
-          // New logic to parse multi-run plays
-          const runsMatch = event.log_message.match(/\((\d+) runs\)/);
-          const runsScored = runsMatch ? parseInt(runsMatch[1], 10) : 1;
+          const runsScored = (event.log_message.match(/scores!/g) || []).length;
           if (isTop) { awayRunsInInning += runsScored; }
           else { homeRunsInInning += runsScored; }
         }
