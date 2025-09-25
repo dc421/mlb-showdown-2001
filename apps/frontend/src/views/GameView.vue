@@ -724,7 +724,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.game-container { display: grid; grid-template-columns: 1fr 2.5fr 1fr; gap: 1rem; max-width: 1600px; margin: 0rem auto; font-family: sans-serif; }
+.game-container { background-color: #fff; display: grid; grid-template-columns: 1fr 2.5fr 1fr; gap: 1rem; max-width: 1600px; margin: 0rem auto; font-family: sans-serif; }
 .at-bat-display { display: flex; justify-content: center; align-items: flex-start; gap: 1.5rem; margin-top: .75rem; margin-bottom: 1.5rem; }
 .vs-area { text-align: center; padding-top: 5rem; position: relative; }
 .actions { text-align: center; margin-bottom: 1.5rem; min-height: 50px; }
