@@ -628,6 +628,56 @@ const outcomeBatter = computed(() => {
 
 
 
+const controlledPlayer = computed(() => {
+  return amIOffensivePlayer.value ? batterToDisplay.value : pitcherToDisplay.value;
+});
+
+const opponentPlayer = computed(() => {
+  return amIOffensivePlayer.value ? pitcherToDisplay.value : batterToDisplay.value;
+});
+
+const controlledPlayerRole = computed(() => {
+  return amIOffensivePlayer.value ? 'Batter' : 'Pitcher';
+});
+
+const opponentPlayerRole = computed(() => {
+  return amIOffensivePlayer.value ? 'Pitcher' : 'Batter';
+});
+
+const controlledPlayerTeamColors = computed(() => {
+  return amIOffensivePlayer.value ? batterTeamColors.value : pitcherTeamColors.value;
+});
+
+const opponentPlayerTeamColors = computed(() => {
+  return amIOffensivePlayer.value ? pitcherTeamColors.value : batterTeamColors.value;
+});
+
+const showAdvantage = computed(() => {
+  return atBatToDisplay.value.pitchRollResult &&
+         (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !bothPlayersCaughtUp.value) &&
+         !(!bothPlayersSetAction.value && amIOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction);
+});
+
+const controlledPlayerHasAdvantage = computed(() => {
+  if (!showAdvantage.value) return null;
+  const advantageGoesTo = atBatToDisplay.value.pitchRollResult?.advantage;
+  if (amIOffensivePlayer.value) {
+    return advantageGoesTo === 'batter';
+  } else {
+    return advantageGoesTo === 'pitcher';
+  }
+});
+
+const opponentPlayerHasAdvantage = computed(() => {
+  if (!showAdvantage.value) return null;
+  const advantageGoesTo = atBatToDisplay.value.pitchRollResult?.advantage;
+  if (amIOffensivePlayer.value) {
+    return advantageGoesTo === 'pitcher';
+  } else {
+    return advantageGoesTo === 'batter';
+  }
+});
+
 // in GameView.vue
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
@@ -673,9 +723,15 @@ onUnmounted(() => {
     <!-- TOP SECTION: AT-BAT DISPLAY -->
     <div class="at-bat-container">
 
-      <!-- PITCHER AND ACTIONS -->
+      <!-- USER-CONTROLLED PLAYER -->
       <div class="player-and-actions-container">
-        <PlayerCard :player="pitcherToDisplay" role="Pitcher" :is-controlled-player="amIDefensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
+        <PlayerCard
+          :player="controlledPlayer"
+          :role="controlledPlayerRole"
+          :is-controlled-player="true"
+          :has-advantage="controlledPlayerHasAdvantage"
+          :primary-color="controlledPlayerTeamColors.primary"
+        />
         <div class="actions-container">
           <!-- Main Action Buttons -->
           <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
@@ -698,7 +754,6 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
-          <!-- Roll results will be moved here in a later step -->
           <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
@@ -709,9 +764,15 @@ onUnmounted(() => {
           <div v-if="runScoredOnPlay && !shouldHidePlayOutcome" class="score-update-flash" v-html="scoreChangeMessage"></div>
       </div>
 
-      <!-- BATTER -->
+      <!-- OPPONENT PLAYER -->
       <div class="player-container">
-        <PlayerCard :player="batterToDisplay" role="Batter" :is-controlled-player="amIOffensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
+        <PlayerCard
+          :player="opponentPlayer"
+          :role="opponentPlayerRole"
+          :is-controlled-player="false"
+          :has-advantage="opponentPlayerHasAdvantage"
+          :primary-color="opponentPlayerTeamColors.primary"
+        />
       </div>
     </div>
 
