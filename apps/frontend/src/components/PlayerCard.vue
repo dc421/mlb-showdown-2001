@@ -15,6 +15,10 @@ const props = defineProps({
   primaryColor: {
     type: String,
     default: '#ffc107' // Default to gold if no color is provided
+  },
+  isControlledPlayer: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -47,7 +51,8 @@ function formatRange(range) {
     class="player-card-container" 
     :class="{ 
       advantage: hasAdvantage === true, 
-      disadvantage: hasAdvantage === false 
+      disadvantage: hasAdvantage === false,
+      'controlled-player': isControlledPlayer
     }"
     :style="{ '--advantage-color': primaryColor }"
     v-if="player">
@@ -105,6 +110,11 @@ function formatRange(range) {
 
 .disadvantage .card-image {
   filter: grayscale(100%) contrast(1.1) brightness(1.05);
+}
+
+.controlled-player {
+  transform: scale(1.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 </style>
 
