@@ -895,4 +895,15 @@ onUnmounted(() => {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
 .score-update-flash { font-size: 1.25rem; font-weight: bold; color: black; text-align: center; }
 
+/* --- RESPONSIVE STYLES --- */
+@media (max-width: 992px) {
+  .at-bat-container, .info-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .at-bat-container .player-container { order: 1; }
+  .at-bat-container .diamond-and-results-container { order: 2; }
+  .at-bat-container .player-and-actions-container { order: 3; }
+}
 </style>
