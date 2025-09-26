@@ -419,6 +419,9 @@ const basesToDisplay = computed(() => {
 });
 
 const outsToDisplay = computed(() => {
+  if (gameStore.isBetweenHalfInnings) {
+    return 3;
+  }
   if (shouldHidePlayOutcome.value) {
     if (opponentReadyForNext.value) {
       return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
@@ -437,6 +440,20 @@ watch(outsToDisplay, (newOuts) => {
     gameStore.setDisplayOuts(newOuts);
   }
 }, { immediate: true }); // 'immediate' runs the watcher once on component load
+
+
+const isBetweenHalfInnings = computed(() => {
+  if (!gameStore.gameState || !gameStore.gameState.lastCompletedAtBat) {
+    return false;
+  }
+  // State is true if the half-inning has flipped and the current player hasn't moved on
+  return !amIReadyForNext.value &&
+         gameStore.gameState.lastCompletedAtBat.isTopInning !== gameStore.gameState.isTopInning;
+});
+
+watch(isBetweenHalfInnings, (newValue) => {
+  gameStore.setIsBetweenHalfInnings(newValue);
+}, { immediate: true });
 
 
 function hexToRgba(hex, alpha = 1) {
