@@ -677,29 +677,34 @@ onUnmounted(() => {
     </div>
     
     <div class="main-view">
-        <div class="at-bat-display">
-          <PlayerCard :player="pitcherToDisplay" role="Pitcher" :is-controlled-player="amIDefensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
-          <div class="vs-area">
-    <div class="action-box">
-        <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <div v-else-if="atBatToDisplay.pitchRollResult &&
-                (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
-                !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
-                    Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
+        <div class="at-bat-grid">
+            <!-- Pitcher Card -->
+            <PlayerCard :player="pitcherToDisplay" role="Pitcher" :is-controlled-player="amIDefensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
+
+            <!-- VS Area -->
+            <div class="vs-area">
+                <div class="action-box">
+                    <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+                    <div v-else-if="atBatToDisplay.pitchRollResult &&
+                    (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
+                    !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
+                        Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
+                    </div>
                 </div>
-    </div>
-            <div class="vs">VS</div>
-            <div class="action-box">
-                <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
-                <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <div v-else-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
-                    Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
-                    <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
+                <div class="vs">VS</div>
+                <div class="action-box">
+                    <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
+                    <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+                    <div v-else-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
+                        Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
+                        <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
+                    </div>
                 </div>
-    </div>
-        <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
-    </div>
-                    <PlayerCard :player="batterToDisplay" role="Batter" :is-controlled-player="amIOffensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
+                <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
+            </div>
+
+            <!-- Batter Card -->
+            <PlayerCard :player="batterToDisplay" role="Batter" :is-controlled-player="amIOffensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
         </div>
         <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">
             Waiting for pitch...
@@ -750,6 +755,7 @@ onUnmounted(() => {
 
 <style scoped>
 .game-container { background-color: #fff; display: grid; grid-template-columns: 1fr 2.5fr 1fr; gap: 1rem; max-width: 1600px; margin: 0rem auto; font-family: sans-serif; }
+.at-bat-grid { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 1.5rem; margin-top: .75rem; margin-bottom: 1.5rem; }
 .at-bat-display { display: flex; justify-content: center; align-items: flex-start; gap: 1.5rem; margin-top: .75rem; margin-bottom: 1.5rem; }
 .vs-area { text-align: center; padding-top: 5rem; position: relative; }
 .actions { text-align: center; margin-bottom: 1.5rem; min-height: 50px; }
