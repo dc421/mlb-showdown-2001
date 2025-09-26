@@ -81,6 +81,46 @@ const awayBenchAndBullpen = computed(() => {
     return gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
 });
 
+const leftPanelData = computed(() => {
+    const isHome = myTeam.value === 'home';
+    const teamData = isHome ? gameStore.teams.home : gameStore.teams.away;
+    const lineupData = isHome ? gameStore.lineups.home : gameStore.lineups.away;
+    const benchAndBullpen = isHome ? homeBenchAndBullpen.value : awayBenchAndBullpen.value;
+    const pitcher = isHome ? homePitcher.value : awayPitcher.value;
+    const colors = isHome ? homeTeamColors.value : awayTeamColors.value;
+
+    return {
+        team: teamData,
+        lineup: lineupData?.battingOrder,
+        pitcher: pitcher,
+        bullpen: benchAndBullpen.filter(p => p.displayPosition === 'RP'),
+        bench: benchAndBullpen.filter(p => p.control === null),
+        colors: colors,
+        isMyTeam: true,
+        teamKey: myTeam.value
+    };
+});
+
+const rightPanelData = computed(() => {
+    const isHome = myTeam.value === 'home';
+    const teamData = isHome ? gameStore.teams.away : gameStore.teams.home;
+    const lineupData = isHome ? gameStore.lineups.away : gameStore.lineups.home;
+    const benchAndBullpen = isHome ? awayBenchAndBullpen.value : homeBenchAndBullpen.value;
+    const pitcher = isHome ? awayPitcher.value : homePitcher.value;
+    const colors = isHome ? awayTeamColors.value : homeTeamColors.value;
+
+    return {
+        team: teamData,
+        lineup: lineupData?.battingOrder,
+        pitcher: pitcher,
+        bullpen: benchAndBullpen.filter(p => p.displayPosition === 'RP'),
+        bench: benchAndBullpen.filter(p => p.control === null),
+        colors: colors,
+        isMyTeam: false,
+        teamKey: myTeam.value === 'home' ? 'away' : 'home'
+    };
+});
+
 const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey)) || false);
 
 
@@ -213,10 +253,6 @@ const showNextHitterButton = computed(() => {
   return false;
 });
 
-const homeBench = computed(() => homeBenchAndBullpen.value.filter(p => p.control === null));
-const homeBullpen = computed(() => homeBenchAndBullpen.value.filter(p => p.displayPosition === 'RP'));
-const awayBench = computed(() => awayBenchAndBullpen.value.filter(p => p.control === null));
-const awayBullpen = computed(() => awayBenchAndBullpen.value.filter(p => p.displayPosition === 'RP'));
 const outfieldDefense = computed(() => {
     if (!gameStore.gameState || !gameStore.lineups) return 0;
     const defensiveLineup = gameStore.gameState.isTopInning ? gameStore.lineups.home : gameStore.lineups.away;
@@ -778,17 +814,54 @@ onUnmounted(() => {
 
     <!-- BOTTOM SECTION: INFO PANELS -->
     <div class="info-container">
-      <!-- Away Lineup -->
-      <div class="lineup-panel">
-          <h3 :style="{ color: awayTeamColors.primary}" class="lineup-header"><img v-if="gameStore.teams.away" :src="gameStore.teams.away.logo_url" class="lineup-logo" /> {{gameStore.teams.away.city}} Lineup</h3>
-          <ol><li v-for="(spot, index) in gameStore.lineups.away.battingOrder" :key="spot.player.card_id" :class="{
-                'now-batting': gameStore.gameState.isTopInning && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                'next-up': !gameStore.gameState.isTopInning && index === defensiveNextBatterIndex,
-                'sub-target': playerToSubIn && myTeam === 'away'}" @click="selectedCard = spot.player"> {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }}) </li></ol>
-          <div v-if="awayPitcher" class="pitcher-info" :class="{'sub-target': playerToSubIn && myTeam === 'away' && isMyTurn}" @click="executeSubstitution(awayPitcher, 'P')"> <hr /><strong :style="{ color: awayTeamColors.primary}">Pitching:</strong> {{ awayPitcher.name }} </div>
-          <div v-if="awayBullpen.length > 0"> <hr /><strong :style="{ color: awayTeamColors.primary}">Bullpen:</strong> <ul><li v-for="p in awayBullpen" :key="p.card_id" @click="isMyTurn && selectPlayerToSubIn(p)" :class="{selected: playerToSubIn?.card_id === p.card_id}">{{ p.displayName }} ({{p.ip}} IP)</li></ul> </div>
-          <div v-if="awayBench.length > 0"> <hr /><strong :style="{ color: awayTeamColors.primary}">Bench:</strong> <ul><li v-for="p in awayBench" :key="p.card_id" @click="isMyTurn && selectPlayerToSubIn(p)" :class="{selected: playerToSubIn?.card_id === p.card_id}">{{ p.displayName }} ({{p.displayPosition}})</li></ul> </div>
-          <div v-if="myTeam === 'away' && isMyTurn"><hr /><strong :style="{ color: awayTeamColors.primary}">Defaults:</strong><ul> <li @click="selectPlayerToSubIn(REPLACEMENT_PITCHER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_PITCHER.card_id}">Use Replacement Pitcher</li> <li @click="selectPlayerToSubIn(REPLACEMENT_HITTER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_HITTER.card_id}">Use Replacement Hitter</li> </ul></div>
+      <!-- Left Panel (User's Team) -->
+      <div class="lineup-panel" v-if="leftPanelData.team">
+          <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
+              <img :src="leftPanelData.team.logo_url" class="lineup-logo" /> {{ leftPanelData.team.city }} Lineup
+          </h3>
+          <ol>
+              <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
+                  :class="{
+                      'now-batting': ((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
+                      'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex,
+                      'sub-target': playerToSubIn && leftPanelData.isMyTeam
+                  }"
+                  @click="selectedCard = spot.player">
+                  {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})
+              </li>
+          </ol>
+          <div v-if="leftPanelData.pitcher" class="pitcher-info"
+               :class="{'sub-target': playerToSubIn && leftPanelData.isMyTeam}"
+               @click="executeSubstitution(leftPanelData.pitcher, 'P')">
+              <hr /><strong :style="{ color: leftPanelData.colors.primary }">Pitching:</strong> {{ leftPanelData.pitcher.name }}
+          </div>
+          <div v-if="leftPanelData.bullpen.length > 0">
+              <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
+              <ul>
+                  <li v-for="p in leftPanelData.bullpen" :key="p.card_id"
+                      @click="leftPanelData.isMyTeam && isMyTurn && selectPlayerToSubIn(p)"
+                      :class="{selected: playerToSubIn?.card_id === p.card_id}">
+                      {{ p.displayName }} ({{p.ip}} IP)
+                  </li>
+              </ul>
+          </div>
+          <div v-if="leftPanelData.bench.length > 0">
+              <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
+              <ul>
+                  <li v-for="p in leftPanelData.bench" :key="p.card_id"
+                      @click="leftPanelData.isMyTeam && isMyTurn && selectPlayerToSubIn(p)"
+                      :class="{selected: playerToSubIn?.card_id === p.card_id}">
+                      {{ p.displayName }} ({{p.displayPosition}})
+                  </li>
+              </ul>
+          </div>
+          <div v-if="leftPanelData.isMyTeam && isMyTurn">
+              <hr /><strong :style="{ color: leftPanelData.colors.primary }">Defaults:</strong>
+              <ul>
+                  <li @click="selectPlayerToSubIn(REPLACEMENT_PITCHER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_PITCHER.card_id}">Use Replacement Pitcher</li>
+                  <li @click="selectPlayerToSubIn(REPLACEMENT_HITTER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_HITTER.card_id}">Use Replacement Hitter</li>
+              </ul>
+          </div>
       </div>
 
       <!-- Game Log -->
@@ -802,17 +875,54 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Home Lineup -->
-      <div class="lineup-panel">
-          <h3 :style="{ color: homeTeamColors.primary}" class="lineup-header"><img v-if="gameStore.teams.home" :src="gameStore.teams.home.logo_url" class="lineup-logo" /> {{gameStore.teams.home.city}} Lineup</h3>
-          <ol><li v-for="(spot, index) in gameStore.lineups.home.battingOrder" :key="spot.player.card_id" :class="{
-                'now-batting': !gameStore.gameState.isTopInning && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                'next-up': gameStore.gameState.isTopInning && index === defensiveNextBatterIndex,
-                'sub-target': playerToSubIn && myTeam === 'home'}" @click="selectedCard = spot.player"> {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }}) </li></ol>
-          <div v-if="homePitcher" class="pitcher-info" :class="{'sub-target': playerToSubIn && myTeam === 'home'}" @click="executeSubstitution(homePitcher, 'P')"> <hr /><strong :style="{ color: homeTeamColors.primary}">Pitching:</strong> {{ homePitcher.name }} </div>
-          <div v-if="homeBullpen.length > 0"> <hr /><strong :style="{ color: homeTeamColors.primary}">Bullpen:</strong> <ul><li v-for="p in homeBullpen" :key="p.card_id" @click="isMyTurn && selectPlayerToSubIn(p)" :class="{selected: playerToSubIn?.card_id === p.card_id}">{{ p.displayName }} ({{p.ip}} IP)</li></ul> </div>
-          <div v-if="homeBench.length > 0"> <hr /><strong :style="{ color: homeTeamColors.primary}">Bench:</strong> <ul><li v-for="p in homeBench" :key="p.card_id" @click="isMyTurn && selectPlayerToSubIn(p)" :class="{selected: playerToSubIn?.card_id === p.card_id}">{{ p.displayName }} ({{p.displayPosition}})</li></ul> </div>
-          <div v-if="myTeam === 'home'"><hr /><strong :style="{ color: homeTeamColors.primary}">Defaults:</strong><ul> <li @click="selectPlayerToSubIn(REPLACEMENT_PITCHER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_PITCHER.card_id}">Use Replacement Pitcher</li> <li @click="selectPlayerToSubIn(REPLACEMENT_HITTER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_HITTER.card_id}">Use Replacement Hitter</li> </ul></div>
+      <!-- Right Panel (Opponent's Team) -->
+      <div class="lineup-panel" v-if="rightPanelData.team">
+          <h3 :style="{ color: rightPanelData.colors.primary }" class="lineup-header">
+              <img :src="rightPanelData.team.logo_url" class="lineup-logo" /> {{ rightPanelData.team.city }} Lineup
+          </h3>
+          <ol>
+              <li v-for="(spot, index) in rightPanelData.lineup" :key="spot.player.card_id"
+                  :class="{
+                      'now-batting': ((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
+                      'next-up': !((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex,
+                      'sub-target': playerToSubIn && rightPanelData.isMyTeam
+                  }"
+                  @click="selectedCard = spot.player">
+                  {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})
+              </li>
+          </ol>
+          <div v-if="rightPanelData.pitcher" class="pitcher-info"
+               :class="{'sub-target': playerToSubIn && rightPanelData.isMyTeam}"
+               @click="executeSubstitution(rightPanelData.pitcher, 'P')">
+              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Pitching:</strong> {{ rightPanelData.pitcher.name }}
+          </div>
+          <div v-if="rightPanelData.bullpen.length > 0">
+              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
+              <ul>
+                  <li v-for="p in rightPanelData.bullpen" :key="p.card_id"
+                      @click="rightPanelData.isMyTeam && isMyTurn && selectPlayerToSubIn(p)"
+                      :class="{selected: playerToSubIn?.card_id === p.card_id}">
+                      {{ p.displayName }} ({{p.ip}} IP)
+                  </li>
+              </ul>
+          </div>
+          <div v-if="rightPanelData.bench.length > 0">
+              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bench:</strong>
+              <ul>
+                  <li v-for="p in rightPanelData.bench" :key="p.card_id"
+                      @click="rightPanelData.isMyTeam && isMyTurn && selectPlayerToSubIn(p)"
+                      :class="{selected: playerToSubIn?.card_id === p.card_id}">
+                      {{ p.displayName }} ({{p.displayPosition}})
+                  </li>
+              </ul>
+          </div>
+          <div v-if="rightPanelData.isMyTeam && isMyTurn">
+              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Defaults:</strong>
+              <ul>
+                  <li @click="selectPlayerToSubIn(REPLACEMENT_PITCHER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_PITCHER.card_id}">Use Replacement Pitcher</li>
+                  <li @click="selectPlayerToSubIn(REPLACEMENT_HITTER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_HITTER.card_id}">Use Replacement Hitter</li>
+              </ul>
+          </div>
       </div>
     </div>
   </div>
