@@ -73,13 +73,13 @@ function formatRange(range) {
 .player-card-container {
   /* This allows the card to shrink with the screen */
   width: 100%;
-  max-width: 220px; /* It won't grow larger than this */
+  max-width: 200px; /* It won't grow larger than this */
   
   /* This automatically calculates the height to maintain the card's shape */
   aspect-ratio: 220 / 308;
 
   position: relative;
-  height: 308px;
+  height: 272px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   overflow: hidden;
@@ -113,7 +113,6 @@ function formatRange(range) {
 }
 
 .controlled-player {
-  transform: scale(1.1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  transform: scale(1.15);
 }
 </style>
