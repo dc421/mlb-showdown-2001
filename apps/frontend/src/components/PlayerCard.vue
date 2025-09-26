@@ -111,8 +111,4 @@ function formatRange(range) {
 .disadvantage .card-image {
   filter: grayscale(100%) contrast(1.1) brightness(1.05);
 }
-
-.controlled-player {
-  transform: scale(1.15);
-}
 </style>
