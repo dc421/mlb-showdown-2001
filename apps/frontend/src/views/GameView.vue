@@ -678,7 +678,7 @@ onUnmounted(() => {
     
     <div class="main-view">
         <div class="at-bat-display">
-          <PlayerCard :player="pitcherToDisplay" role="Pitcher" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
+          <PlayerCard :player="pitcherToDisplay" role="Pitcher" :is-controlled-player="amIDefensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
           <div class="vs-area">
     <div class="action-box">
         <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
@@ -699,7 +699,7 @@ onUnmounted(() => {
     </div>
         <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
     </div>
-                    <PlayerCard :player="batterToDisplay" role="Batter" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
+                    <PlayerCard :player="batterToDisplay" role="Batter" :is-controlled-player="amIOffensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'batter' : null" :primary-color="batterTeamColors.primary" />
         </div>
         <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">
             Waiting for pitch...
