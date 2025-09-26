@@ -809,6 +809,7 @@ onUnmounted(() => {
     display: flex;
     justify-content: center;
     align-items: center;
+    width: clamp(250px, 30vw, 350px); /* KEY CHANGE */
 }
 
 /* Generic container for a player card if no actions are below it */
