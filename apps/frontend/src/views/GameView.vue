@@ -299,10 +299,10 @@ watch(bothPlayersSetAction, (isRevealing) => {
       return;
     }
 
-    const defensivePlayerCompleted = gameStore.gameState?.defensivePlayerCompletedAction;
+    const defensivePlayerSecond = gameStore.gameState?.defensivePlayerWentSecond;
 
     // The special case: defensive player is last and it's their turn to see the delay.
-    if (amIDefensivePlayer.value && defensivePlayerCompleted) {
+    if (amIDefensivePlayer.value && defensivePlayerSecond) {
       setTimeout(() => {
         isSwingResultVisible.value = true;
         hasSeenResult.value = true;
