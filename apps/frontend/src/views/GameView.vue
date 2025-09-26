@@ -773,7 +773,7 @@ onUnmounted(() => {
 .lineup-panel li:hover { text-decoration: underline; }
 .pitcher-info { font-weight: bold; margin-top: 0.5rem; }
 .event-log { flex-grow: 1; background: #f9f9f9; padding: 1rem; border-radius: 8px; display: flex; flex-direction: column; }
-.event-log ul { list-style: none; padding: 0; min-height: 300px; overflow-y: auto; flex-grow: 1; }
+.event-log ul { list-style: none; padding: 0; overflow-y: auto; }
 .event-log li { padding: 0.5rem; border-bottom: 1px solid #eee; }
 .loading-container { text-align: center; padding: 5rem; font-size: 1.5rem; }
 .diamond-area { position: relative; }
