@@ -24,4 +24,10 @@ const authStore = useAuthStore();
     background-color: white; /* White background for the content area */
     min-height: 100vh;
   }
+
+  @media (max-width: 768px) {
+    body {
+      background-color: #fff; /* White background for mobile */
+    }
+  }
 </style>
