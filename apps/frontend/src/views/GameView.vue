@@ -673,29 +673,6 @@ onUnmounted(() => {
     <!-- TOP SECTION: AT-BAT DISPLAY -->
     <div class="at-bat-container">
 
-<<<<<<< HEAD
-        <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
-        <div class="actions">
-        
-        <!-- Screen 1: Secondary Action Buttons -->
-        <div v-if="!bothPlayersSetAction">
-            <div class="button-group">
-                <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction  && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-            </div>
-        </div>
-    </div>
-    <div class="event-log">
-    <h2>Game Log</h2>
-    <div v-for="(group, groupIndex) in groupedGameLog" :key="`group-${groupIndex}`" class="inning-group">
-      <div class="inning-header" v-html="group.header"></div>
-      <ul>
-        <li v-for="event in group.plays.slice().reverse()" :key="event.event_id" v-html="event.log_message"></li>
-      </ul>
-    </div>
-</div>
-</div>
-=======
       <!-- PITCHER AND ACTIONS -->
       <div class="player-and-actions-container">
         <PlayerCard :player="pitcherToDisplay" role="Pitcher" :is-controlled-player="amIDefensivePlayer" :has-advantage="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !(!gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext)) && !(!bothPlayersSetAction && amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction) ? atBatToDisplay.pitchRollResult?.advantage === 'pitcher' : null" :primary-color="pitcherTeamColors.primary" />
@@ -705,7 +682,6 @@ onUnmounted(() => {
           <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
           <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
           <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
->>>>>>> 79c86e5d917fb9040e572e4ab3b533e5203ca6d5
 
           <!-- Secondary Action Buttons -->
           <div v-if="!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction">
@@ -783,62 +759,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-<<<<<<< HEAD
-.game-container { background-color: #fff; display: grid; grid-template-columns: 1fr 2.5fr 1fr; gap: 2.5rem; max-width: 1600px; margin: 0rem auto; font-family: sans-serif; }
-.at-bat-display { display: flex; justify-content: center; align-items: flex-start; gap: 2.5rem; margin-top: 2rem; margin-bottom: 2rem; }
-.vs-area { text-align: center; padding-top: 5rem; position: relative; }
-.actions { text-align: center; margin-bottom: 1.5rem; min-height: 50px; }
-.vs { font-size: 2.5rem; font-weight: bold; color: #888; }
-.pitch-result, .swing-result { margin-top: 0; padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem;}
-.pitch-result { background: #fff8e1; border: 1px solid #ffecb3; }
-.swing-result { background: #e7f5ff; border: 1px solid #b3e0ff; }
-.scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; grid-template-rows: auto auto; padding: 1rem; background-color: #343a40; color: white; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; }
-.team-score { font-size: 2rem; font-weight: bold; }
-.inning-display { grid-column: 2 / 3; display: flex; align-items: center; gap: 1rem; font-size: 1.5rem; }
-.inning-arrow { opacity: 0.2; }
-.inning-arrow.top, .inning-arrow.bottom { opacity: 1; }
-.outs-display { grid-column: 1 / 4; font-size: 1.2rem; margin-top: 0.5rem; }
-.turn-indicator { font-style: italic; color: #555; padding-top: 1rem; text-align: center}
-.side-panels { display: flex; flex-direction: column; gap: 1rem; }
-.lineup-panel { background: #f9f9f9; padding: 1rem; border-radius: 8px; }
-.lineup-panel h3 { margin-top: 0; }
-.lineup-panel ol { padding-left: 0px; margin: 0.5rem 0; list-style: none;}
-.lineup-panel ul { padding-left: 17px; margin: 0.5rem 0; list-style: none;}
-.lineup-panel li { cursor: pointer; padding: 2px 0; }
-.lineup-panel li:hover { text-decoration: underline; }
-.pitcher-info { font-weight: bold; margin-top: 0.5rem; }
-.event-log { flex-grow: 1; background: #f9f9f9; padding: 1rem; border-radius: 8px; display: flex; flex-direction: column; }
-.event-log ul { list-style: none; padding: 0; overflow-y: auto; }
-.event-log li { padding: 0.5rem; border-bottom: 1px solid #eee; }
-.loading-container { text-align: center; padding: 5rem; font-size: 1.5rem; }
-.diamond-area { position: relative; }
-.outfield-defense { position: absolute; top: 0; left: 0; background: rgba(0,0,0,0.5); color: white; padding: 4px; border-radius: 4px; font-size: 0.8em; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-overlay > div { max-width: 320px; }
-.actions .sub-btn { font-size: 0.8rem; padding: 0.4rem 0.8rem; position: absolute; top: 0; right: 0; }
-.sub-modal { background: white; padding: 2rem; border-radius: 8px; width: 800px; max-width: 90vw; }
-.sub-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
-.sub-list { height: 400px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; }
-.sub-item-header { background-color: #eee; padding: 0.5rem; font-weight: bold; position: sticky; top: 0; }
-.sub-item { padding: 0.5rem; border-bottom: 1px solid #eee; cursor: pointer; }
-.sub-item:hover { background-color: #f0f8ff; }
-.sub-item.available:hover { background-color: #eef8ff; }
-.sub-item.available.selected { background-color: #007bff; color: white; }
-.selection-info { text-align: center; background: #fff8e1; padding: 0.5rem; border-radius: 4px; }
-.close-btn { margin-top: 1rem; }
-.lineup-panel li.sub-target, .pitcher-info.sub-target { background-color: #ffc107; cursor: crosshair; }
-.side-panels ul li.selected { background-color: #007bff; color: white; }
-.pitcher-info.sub-target { background-color: #ffc107; cursor: crosshair; }
-.defense-strategy {
-  margin-top: .25rem;
-  margin-bottom: 1rem;
-  font-weight: bold;
-}
-.button-group button {
-    margin: 0 0.5rem;}
-    .game-over {
-  text-align: center;
-=======
 /* Main container for the whole view */
 .game-view-container {
   display: flex;
@@ -846,7 +766,6 @@ onUnmounted(() => {
   gap: 2rem;
   max-width: 1600px;
   margin: 0 auto;
->>>>>>> 79c86e5d917fb9040e572e4ab3b533e5203ca6d5
   padding: 1rem;
   font-family: sans-serif;
   background-color: #fff;
