@@ -131,6 +131,12 @@ async function getInfieldDefense(defensiveParticipant) {
 }
 
 // --- HELPER FUNCTIONS ---
+function getOrdinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function processPlayers(playersToProcess, allPlayers) {
     const nameCounts = {};
     allPlayers.forEach(p => { nameCounts[p.name] = (nameCounts[p.name] || 0) + 1; });
@@ -371,7 +377,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       const allCardsResult = await pool.query('SELECT name, team FROM cards_player');
       processPlayers([startingPitcherCard], allCardsResult.rows);
 
-      const inningChangeEvent = `<strong>--- Top of the 1st --- (Now Pitching: ${startingPitcherCard.displayName})</strong>`;
+      const inningChangeEvent = `<strong>--- Top 1st --- (Now Pitching: ${startingPitcherCard.displayName})</strong>`;
       // --- ADD THIS LOG ---
     console.log(`🔫 SERVER: Creating initial event for game ${gameId}:`, inningChangeEvent);
 
@@ -920,7 +926,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
         if (finalState.inningChanged) {
-          const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} of the ${finalState.inning} ---</strong>`;
+          const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)} ---</strong>`;
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
           delete finalState.inningChanged;
         }
@@ -1041,7 +1047,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
               if (finalState.inningChanged) {
-                const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} of the ${finalState.inning} ---</strong>`;
+                const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)} ---</strong>`;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
                 delete finalState.inningChanged;
               }
@@ -1328,7 +1334,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
       if (newState.isTopInning) newState.inning++;
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
-      events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} of the ${newState.inning} ---</strong>`);
+      events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
         }
 
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
@@ -1406,7 +1412,7 @@ app.post('/api/games/:gameId/infield-in-play', authenticateToken, async (req, re
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
       if (newState.inning <= 9 || (newState.inning > 9 && wasTop)) {
-        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} of the ${newState.inning} ---</strong>`);
+        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
       }
     }
 
@@ -1493,7 +1499,7 @@ app.post('/api/games/:gameId/tag-up', authenticateToken, async (req, res) => {
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
       if (newState.inning <= 9 || (newState.inning > 9 && wasTop)) {
-        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} of the ${newState.inning} ---</strong>`);
+        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
       }
     }
     
@@ -1614,7 +1620,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         if (newState.isTopInning) newState.inning++;
         newState.outs = 0;
         newState.bases = { first: null, second: null, third: null };
-        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} of the ${newState.inning} ---</strong>`);
+        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
     }
 
     console.log('Final Bases to be Saved:', JSON.stringify(newState.bases));
@@ -1698,7 +1704,7 @@ app.post('/api/games/:gameId/advance-runners', authenticateToken, async (req, re
       if (newState.isTopInning) newState.inning++;
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
-      events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} of the ${newState.inning} ---</strong>`);
+      events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
