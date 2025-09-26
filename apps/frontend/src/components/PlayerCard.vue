@@ -15,6 +15,10 @@ const props = defineProps({
   primaryColor: {
     type: String,
     default: '#ffc107' // Default to gold if no color is provided
+  },
+  teamLogoUrl: {
+    type: String,
+    default: ''
   }
 });
 
@@ -58,6 +62,7 @@ function formatRange(range) {
       class="card-image"
       @error="handleImageError"
     />
+    <img v-if="teamLogoUrl" :src="teamLogoUrl" class="team-logo" alt="Team Logo" />
   </div>
   <div v-else class="player-card-container placeholder">
     <p>Loading {{ role }}...</p>
@@ -105,6 +110,18 @@ function formatRange(range) {
 
 .disadvantage .card-image {
   filter: grayscale(100%) contrast(1.1) brightness(1.05);
+}
+
+.team-logo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 40px; /* Adjust size as needed */
+  height: 40px; /* Adjust size as needed */
+  object-fit: contain;
+  background-color: rgba(255, 255, 255, 0.7); /* Optional: a semi-transparent background */
+  border-radius: 50%; /* Optional: make it circular */
+  padding: 2px; /* Optional: adds a little space around the logo */
 }
 </style>
 
