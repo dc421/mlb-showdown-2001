@@ -1785,6 +1785,7 @@ io.on('connection', (socket) => {
 
 // --- SERVER STARTUP ---
 async function startServer() {
+  console.log('Attempting to connect to database...');
   try {
     await pool.query('SELECT NOW()');
     console.log('✅ Database connection successful!');
@@ -1792,7 +1793,8 @@ async function startServer() {
       console.log(`Server is running on http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.error('❌ DATABASE CONNECTION FAILED:', error);
+    console.error('❌ DATABASE CONNECTION FAILED:', error.message);
+    console.error(error.stack);
     process.exit(1);
   }
 }
