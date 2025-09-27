@@ -1071,6 +1071,9 @@ onUnmounted(() => {
     grid-row: auto;
     margin-top: 0;
   }
+  .player-container {
+    flex: 1 1 45%;
+  }
 }
 
 

@@ -79,7 +79,6 @@ function formatRange(range) {
   aspect-ratio: 220 / 308;
 
   position: relative;
-  height: 272px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   border-radius: 12px;
   overflow: hidden;
