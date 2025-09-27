@@ -377,7 +377,16 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       const allCardsResult = await pool.query('SELECT name, team FROM cards_player');
       processPlayers([startingPitcherCard], allCardsResult.rows);
 
-      const inningChangeEvent = `<strong>--- Top 1st --- (Now Pitching: ${startingPitcherCard.displayName})</strong>`;
+      const awayTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [awayParticipant.user_id]);
+      const awayTeamLogo = awayTeam.rows[0].logo_url;
+
+      const inningChangeEvent = `
+        <div class="inning-header-content">
+            <img src="${awayTeamLogo}" class="team-logo-small" alt="Team Logo">
+            <div class="inning-text">Top 1st</div>
+        </div>
+        <div class="pitcher-announcement">Pitching: ${startingPitcherCard.displayName}</div>
+      `;
       // --- ADD THIS LOG ---
     console.log(`🔫 SERVER: Creating initial event for game ${gameId}:`, inningChangeEvent);
 
@@ -926,7 +935,31 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
         if (finalState.inningChanged) {
-          const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)} ---</strong>`;
+          const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
+          const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+          const home_team_user_id = game.rows[0].home_team_user_id;
+
+          const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
+          const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
+
+          const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
+          const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
+
+          const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
+          const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
+          const pitcher = pitcherResult.rows[0];
+          processPlayers([pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
+
+          const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
+          const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
+
+          const inningChangeEvent = `
+            <div class="inning-header-content">
+                <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
+                <div class="inning-text">${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</div>
+            </div>
+            <div class="pitcher-announcement">Pitching: ${pitcher.displayName}</div>
+          `;
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
           delete finalState.inningChanged;
         }
@@ -1047,7 +1080,31 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
               if (finalState.inningChanged) {
-                const inningChangeEvent = `<strong>--- ${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)} ---</strong>`;
+                const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
+                const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+                const home_team_user_id = game.rows[0].home_team_user_id;
+
+                const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
+                const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
+
+                const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
+                const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
+
+                const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
+                const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
+                const pitcher = pitcherResult.rows[0];
+                processPlayers([pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
+
+                const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
+                const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
+
+                const inningChangeEvent = `
+                  <div class="inning-header-content">
+                      <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
+                      <div class="inning-text">${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</div>
+                  </div>
+                  <div class="pitcher-announcement">Pitching: ${pitcher.displayName}</div>
+                `;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
                 delete finalState.inningChanged;
               }
