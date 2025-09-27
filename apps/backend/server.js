@@ -597,13 +597,24 @@ app.get('/api/games', authenticateToken, async (req, res) => {
             [game.game_id, userId]
         );
         
-        // Add opponent info to the game object, if an opponent exists
         let opponent = opponentResult.rows.length > 0 ? opponentResult.rows[0] : null;
         if (opponent) {
             const format = opponent.display_format || '{city} {name}';
             opponent.full_display_name = format.replace('{city}', opponent.city).replace('{name}', opponent.name);
         }
-        gamesWithOpponent.push({ ...game, opponent });
+
+        let gameState = null;
+        if (game.status === 'in_progress') {
+            const stateResult = await pool.query(
+                'SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1',
+                [game.game_id]
+            );
+            if (stateResult.rows.length > 0) {
+                gameState = stateResult.rows[0].state_data;
+            }
+        }
+
+        gamesWithOpponent.push({ ...game, opponent, gameState });
     }
 
     res.json(gamesWithOpponent);
