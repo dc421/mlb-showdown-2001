@@ -80,7 +80,7 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ gameStore.gameState?.awayScore }}</td>
           <td>
-            <OutsDisplay v-if="gameStore.gameState?.isTopInning" :outs="gameStore.displayOuts" />
+            <OutsDisplay :outs="gameStore.displayOuts" />
           </td>
         </tr>
         <tr>
@@ -93,7 +93,6 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ gameStore.gameState?.homeScore }}</td>
           <td>
-            <OutsDisplay v-if="!gameStore.gameState?.isTopInning" :outs="gameStore.displayOuts" />
           </td>
         </tr>
       </tbody>

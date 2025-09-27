@@ -10,7 +10,7 @@ defineProps({
 
 <template>
   <div class="outs-display">
-    <div class="outs-label">OUTS</div>
+    <div class="outs-label">Outs</div>
     <div class="dots">
       <span
         v-for="n in 3"
@@ -26,16 +26,16 @@ defineProps({
 .outs-display {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   justify-content: center;
   align-items: center;
   min-width: 40px; /* To match other cells */
 }
 
 .outs-label {
-    font-size: 0.8em;
+    font-size: 1em;
     color: white;
-    line-height: 1;
+    line-height: 0;
 }
 
 .dots {
