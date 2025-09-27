@@ -714,6 +714,28 @@ const opponentPlayerHasAdvantage = computed(() => {
   }
 });
 
+const pitchResultClasses = computed(() => {
+  const classes = ['result-box'];
+  // Pitcher is the controlled player (on the left) if I am the defensive player.
+  if (amIDefensivePlayer.value) {
+    classes.push('result-box-left');
+  } else {
+    classes.push('result-box-right');
+  }
+  return classes;
+});
+
+const swingResultClasses = computed(() => {
+  const classes = ['result-box'];
+  // Batter is the controlled player (on the left) if I am the offensive player.
+  if (amIOffensivePlayer.value) {
+    classes.push('result-box-left');
+  } else {
+    classes.push('result-box-right');
+  }
+  return classes;
+});
+
 // in GameView.vue
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
@@ -790,10 +812,10 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
-          <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" class="result-box pitch-result" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
+          <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" class="result-box swing-result" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
+          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
@@ -1065,9 +1087,10 @@ onUnmounted(() => {
   border: 1px solid;
   text-align: center;
   position: absolute; /* Position relative to the diamond container */
+  top: 20px;
 }
-.pitch-result { top: 20px; left: 20px; }
-.swing-result { top: 20px; right: 20px; }
+.result-box-left { left: 20px; }
+.result-box-right { right: 20px; }
 .result-box .outcome-text { font-size: 2.5rem; line-height: 1; }
 
 /* Indicators & Flashes */
