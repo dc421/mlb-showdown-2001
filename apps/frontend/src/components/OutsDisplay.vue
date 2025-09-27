@@ -10,22 +10,37 @@ defineProps({
 
 <template>
   <div class="outs-display">
-    <span
-      v-for="n in 3"
-      :key="n"
-      class="out-dot"
-      :class="{ filled: n <= outs }"
-    ></span>
+    <div class="outs-label">OUTS</div>
+    <div class="dots">
+      <span
+        v-for="n in 3"
+        :key="n"
+        class="out-dot"
+        :class="{ filled: n <= outs }"
+      ></span>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .outs-display {
   display: flex;
+  flex-direction: column;
   gap: 4px;
   justify-content: center;
   align-items: center;
   min-width: 40px; /* To match other cells */
+}
+
+.outs-label {
+    font-size: 0.8em;
+    color: white;
+    line-height: 1;
+}
+
+.dots {
+    display: flex;
+    gap: 4px;
 }
 
 .out-dot {
