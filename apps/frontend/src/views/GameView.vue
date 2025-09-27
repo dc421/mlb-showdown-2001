@@ -1034,7 +1034,7 @@ onUnmounted(() => {
 .info-container {
   display: flex;
   justify-content: center;
-  gap: 2rem;
+  gap: 1rem;
   align-items: flex-start; /* Align tops of panels */
 }
 
@@ -1051,7 +1051,7 @@ onUnmounted(() => {
   background: #f9f9f9;
   padding: 1rem;
   border-radius: 8px;
-  flex: 1.5; /* Give game log more space */
+  flex: 2; /* Give game log more space */
   min-width: 300px;
   max-width: 500px;
   display: flex;
