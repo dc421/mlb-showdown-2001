@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/game';
-import OutsDisplay from './OutsDisplay.vue';
 
 const gameStore = useGameStore();
 
@@ -66,7 +65,6 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           <th></th>
           <th v-for="inning in linescore.innings" :key="inning">{{ inning }}</th>
           <th>R</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -79,9 +77,6 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ gameStore.gameState?.awayScore }}</td>
-          <td>
-            <OutsDisplay :outs="gameStore.displayOuts" />
-          </td>
         </tr>
         <tr>
           <td>{{ homeTeamAbbr }}</td>
@@ -92,8 +87,6 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ gameStore.gameState?.homeScore }}</td>
-          <td>
-          </td>
         </tr>
       </tbody>
     </table>
@@ -121,13 +114,9 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
   font-weight: bold;
   min-width: 40px;
 }
-.linescore-table tr td:nth-last-child(2) {
-  font-weight: bold;
-  border-left: 1px solid rgba(255, 255, 255, 0.5);
-}
 .linescore-table tr td:last-child {
   font-weight: bold;
-  color: #dc3545; /* Red for outs */
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
 }
 .current-inning {
   color: #ffc107;
