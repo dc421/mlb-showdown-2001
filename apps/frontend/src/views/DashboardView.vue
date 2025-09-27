@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { socket } from '@/services/socket';
+import GameScorecard from '@/components/GameScorecard.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -84,12 +85,8 @@ onUnmounted(() => {
         <ul v-if="authStore.myGames.length > 0" class="game-list">
             <li v-for="game in authStore.myGames" :key="game.game_id">
                 <RouterLink :to="game.status === 'pending' ? `/game/${game.game_id}/setup` : (game.status === 'lineups' ? `/game/${game.game_id}/lineup` : `/game/${game.game_id}`)">
-                    <!-- This now displays the opponent's team name -->
-                    <span v-if="game.opponent">vs. {{ game.opponent.full_display_name }}</span>
-                    <span v-else>Waiting for opponent...</span>
-                    
-                    <span class="status">{{ game.status }}</span>
-                    <span v-if="game.status === 'in_progress' && Number(game.current_turn_user_id) === authStore.user?.userId" class="turn-indicator">
+                    <GameScorecard :game="game" />
+                    <span v-if="Number(game.current_turn_user_id) === authStore.user?.userId" class="turn-indicator">
                         Your Turn!
                     </span>
                 </RouterLink>
