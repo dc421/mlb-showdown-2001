@@ -23,13 +23,13 @@ const isGamePage = computed(() => route.name === 'game');
     
     <div class="nav-center">
       <Linescore v-if="isGamePage && gameStore.gameState && gameStore.gameEvents.length > 0" />
-    </div>
-
-    <div class="nav-right">
       <OutsDisplay
         v-if="isGamePage && gameStore.gameState"
         :outs="gameStore.displayOuts"
       />
+    </div>
+
+    <div class="nav-right">
       <button class="logout-button" @click="authStore.logout()">Logout</button>
     </div>
   </nav>
@@ -74,6 +74,12 @@ const isGamePage = computed(() => route.name === 'game');
   width: auto;  
   border-radius: 4px;
   display: block;
+}
+
+.nav-center {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .nav-right {
