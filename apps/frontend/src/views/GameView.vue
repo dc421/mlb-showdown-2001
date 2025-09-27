@@ -1082,6 +1082,32 @@ onUnmounted(() => {
 .inning-group { margin-bottom: 1rem; }
 .inning-header { font-weight: bold; padding: 0.5rem; background-color: #e9ecef; border-bottom: 1px solid #dee2e6; }
 
+/* --- NEW STYLES FOR INNING HEADER --- */
+.inning-header >>> .inning-header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; /* Space between logo and text */
+}
+
+.inning-header >>> .team-logo-small {
+  height: 28px; /* Control the size of the logo */
+  width: 28px;
+  object-fit: contain;
+}
+
+.inning-header >>> .inning-text {
+  font-size: 1.25rem; /* Make the "Top 1st" text bigger */
+  font-weight: bold;
+}
+
+.inning-header >>> .pitcher-announcement {
+  margin-top: 0.25rem; /* Space above the pitcher's name */
+  font-size: 0.9rem;
+  font-style: italic;
+  font-weight: normal;
+  color: #555;
+}
+
 /* Action Buttons */
 .action-button, .tactile-button {
   padding: .5rem 1rem;
