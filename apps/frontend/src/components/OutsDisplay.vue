@@ -25,12 +25,17 @@ defineProps({
 <style scoped>
 .outs-display {
   display: flex;
+  /* CHANGED: Stack the label and dots vertically */
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  /* CHANGED: Adjust gap for vertical spacing */
+  gap: 0.2rem;
 }
 
 .outs-label {
-    font-size: 1em;
+    /* CHANGED: Adjusted font size */
+    font-size: 0.8em;
+    font-family: monospace;
     color: white;
     font-weight: bold;
 }

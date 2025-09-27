@@ -13,14 +13,15 @@ const isGamePage = computed(() => route.name === 'game');
 </script>
 
 <template>
-  <nav class="global-nav">
+  <nav class="global-nav" :class="{ 'game-page-active': isGamePage }">
     <div class="nav-left">
-      <img v-if="authStore.user?.team" :src="authStore.user.team.logo_url" alt="Team Logo" class="nav-team-logo" />
-      <RouterLink to="/dashboard">Dashboard</RouterLink>
+      <RouterLink to="/dashboard">
+        <img v-if="authStore.user?.team" :src="authStore.user.team.logo_url" alt="Team Logo" class="nav-team-logo" />
+      </RouterLink>
+      <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
     </div>
     
     <div class="nav-center">
-      <!-- This component is now much simpler. It just needs to be shown. -->
       <Linescore v-if="isGamePage && gameStore.gameState && gameStore.gameEvents.length > 0" />
     </div>
 
@@ -29,7 +30,7 @@ const isGamePage = computed(() => route.name === 'game');
         v-if="isGamePage && gameStore.gameState"
         :outs="gameStore.displayOuts"
       />
-      <button @click="authStore.logout()">Logout</button>
+      <button class="logout-button" @click="authStore.logout()">Logout</button>
     </div>
   </nav>
 </template>
@@ -38,11 +39,10 @@ const isGamePage = computed(() => route.name === 'game');
 <style scoped>
 .global-nav {
   background-color: #343a40;
-  padding: 0.5rem 1rem; /* Adjusted padding */
+  padding: 0.5rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* ADD THESE THREE LINES */
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -56,7 +56,7 @@ const isGamePage = computed(() => route.name === 'game');
   display: flex;
   align-items: center;
   flex-basis: 200px;
-  gap: .5rem; /* This adds space between the logo and the link */
+  gap: .5rem; 
 }
 .global-nav a:hover {
   opacity: 0.8;
@@ -70,9 +70,10 @@ const isGamePage = computed(() => route.name === 'game');
   cursor: pointer;
 }
 .nav-team-logo {
-  height: 30px; /* Keep a fixed height */
-  width: auto;   /* Allow the width to adjust automatically */
-  border-radius: 4px; /* A squircle looks better than a forced circle */
+  height: 30px; 
+  width: auto;  
+  border-radius: 4px;
+  display: block;
 }
 
 .nav-right {
@@ -81,7 +82,6 @@ const isGamePage = computed(() => route.name === 'game');
   gap: 1rem;
 }
 
-/* ADD THIS MEDIA QUERY */
 @media (max-width: 768px) {
   .global-nav {
     padding: 0.5rem;
@@ -94,12 +94,33 @@ const isGamePage = computed(() => route.name === 'game');
 
   .nav-center {
     flex-grow: 1;
-    /* By removing overflow-x and min-width, the container will expand to fit its content (the linescore)
-       instead of scrolling internally. This allows the entire nav bar to become scrollable on the page level. */
+    min-width: 0; /* Allows the container to shrink */
+    /* ADDED: These properties help center the scaled content */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* ADDED: This is the shrinking magic.
+    :deep() allows this component's styles to affect its direct child (Linescore).
+    We are scaling the Linescore component down to 85% of its original size.
+  */
+  .nav-center :deep(> *) {
+    transform: scale(0.85);
+    transform-origin: center;
   }
 
   .nav-left {
       flex-basis: auto;
   }
+
+  .dashboard-link-text {
+    display: none;
+  }
+  
+  .global-nav.game-page-active .logout-button {
+    display: none;
+  }
 }
 </style>
+
