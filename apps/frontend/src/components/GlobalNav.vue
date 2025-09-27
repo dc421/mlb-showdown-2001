@@ -91,34 +91,26 @@ const isGamePage = computed(() => route.name === 'game');
 @media (max-width: 768px) {
   .global-nav {
     padding: 0.5rem;
-    gap: 1rem;
+    gap: 0.5rem; /* Reduced gap for tighter fit */
   }
 
-  .nav-left, .nav-right {
+  .nav-left {
+    flex-shrink: 0; /* Prevent logo from shrinking */
+    flex-basis: auto;
+  }
+
+  .nav-right {
     flex-shrink: 0;
   }
 
   .nav-center {
-    flex-grow: 1;
-    min-width: 0; /* Allows the container to shrink */
-    /* ADDED: These properties help center the scaled content */
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    flex-grow: 1; /* Allow this to fill available space */
+    min-width: 0; /* Critical for flex-grow in a flex container */
+    justify-content: space-between; /* Pushes Linescore and Outs apart */
   }
 
-  /* ADDED: This is the shrinking magic.
-    :deep() allows this component's styles to affect its direct child (Linescore).
-    We are scaling the Linescore component down to 85% of its original size.
-  */
-  .nav-center :deep(> *) {
-    transform: scale(0.85);
-    transform-origin: center;
-  }
-
-  .nav-left {
-      flex-basis: auto;
-  }
+  /* REMOVED: The transform was causing the overlap issue.
+     Flexbox properties now handle the layout. */
 
   .dashboard-link-text {
     display: none;
@@ -126,6 +118,11 @@ const isGamePage = computed(() => route.name === 'game');
   
   .global-nav.game-page-active .logout-button {
     display: none;
+  }
+
+  /* Ensure the outs are visible against the dark background */
+  .nav-center :deep(.outs-display) {
+    background-color: transparent; /* Or whatever matches the nav */
   }
 }
 </style>

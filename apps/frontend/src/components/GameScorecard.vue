@@ -36,7 +36,7 @@ const inningDescription = computed(() => {
         <div class="inning">{{ inningDescription }}</div>
       </div>
       <div class="game-state">
-        <BaseballDiamond :runners="gameState.bases" />
+        <BaseballDiamond :bases="gameState.bases" />
         <OutsDisplay :outs="gameState.outs" />
       </div>
     </div>
