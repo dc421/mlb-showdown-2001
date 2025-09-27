@@ -980,66 +980,100 @@ onUnmounted(() => {
   background-color: #fff;
 }
 
-/* Top section containing player cards, diamond, and actions */
+/* --- DESKTOP LAYOUT (GRID) --- */
 .at-bat-container {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 2rem;
+  display: grid;
+  grid-template-columns: 320px 1fr 320px; /* Card | Diamond | Card */
+  grid-template-rows: auto 1fr; /* Row 1 for cards, Row 2 for actions */
+  gap: 1rem 2rem;
+  justify-items: center;
+  align-items: start;
   margin-top: 1rem;
 }
 
-/* Container for a player card AND its associated action buttons */
-.player-cards-and-actions-container {
-  display: contents; /* Behaves like the old .player-cards-container on desktop */
-}
-
+/* We no longer want these to flatten, we need them as grid items */
+.player-cards-and-actions-container,
 .player-cards-wrapper {
-  display: contents; /* Behaves like the old .player-cards-container on desktop */
+  display: contents;
 }
 
-.player-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* The user's card and actions are grouped on desktop */
+/* Place items in the grid */
 .player-container:first-child {
-  order: 1;
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
 }
-
-/* Actions are nested inside the first player container on desktop */
 .actions-container {
+  grid-column: 1 / 2;
+  grid-row: 2 / 3; /* Position below the first player card */
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  min-width: 200px; /* Give buttons some space */
-  text-align: center;
-  order: 2; /* Appears below the card */
+  width: 100%;
+  max-width: 320px;
   margin-top: 1rem;
 }
-
-.actions-container .tactile-button,
-.actions-container .action-button {
-    width: 100%;
-    margin: 0;
-}
-
-/* The opponent's card is last on desktop */
-.player-container:last-child {
-    order: 3;
-}
-
-/* Container for the diamond and roll results */
 .diamond-and-results-container {
-    position: relative; /* Needed for absolute positioning of results */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: clamp(250px, 30vw, 350px);
-    order: 2;
+  grid-column: 2 / 3;
+  grid-row: 1 / 3; /* Span both rows to stay centered */
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: clamp(250px, 30vw, 350px);
 }
+.player-container:last-child {
+  grid-column: 3 / 4;
+  grid-row: 1 / 2;
+}
+
+
+/* --- MOBILE LAYOUT (FLEXBOX) --- */
+@media (max-width: 992px) {
+  .at-bat-container {
+    display: flex; /* Override grid */
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem; /* Add some space between reordered items */
+  }
+
+  /* Make containers actual flex items again */
+  .player-cards-and-actions-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    order: 1; /* Default, but explicit */
+    width: 100%;
+  }
+
+  /* Reorder the items for mobile */
+  .diamond-and-results-container {
+    order: 1; /* Diamond appears FIRST */
+  }
+  .player-cards-wrapper {
+    order: 2; /* Player cards appear SECOND */
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    width: 100%;
+  }
+  .actions-container {
+    order: 3; /* Action buttons appear LAST */
+    width: 100%;
+    max-width: 350px;
+  }
+
+  /* Reset grid-specific properties */
+  .player-container,
+  .actions-container,
+  .diamond-and-results-container,
+  .player-container:last-child {
+    grid-column: auto;
+    grid-row: auto;
+    margin-top: 0;
+  }
+}
+
 
 /* Bottom section for lineups and game log */
 .info-container {
@@ -1047,6 +1081,13 @@ onUnmounted(() => {
   justify-content: center;
   gap: 1rem;
   align-items: flex-start; /* Align tops of panels */
+}
+
+@media (max-width: 992px) {
+  .info-container {
+    flex-direction: column;
+    align-items: center;
+  }
 }
 
 .lineup-panel {
@@ -1103,6 +1144,8 @@ onUnmounted(() => {
   transition: all 0.1s ease-in-out;
   cursor: pointer;
   background-color: #F0F0F0;
+  width: 100%;
+  margin: 0;
 }
 .action-button:hover, .tactile-button:hover { background-color: #E4E4E4; }
 .action-button:active, .tactile-button:active { background-color: #C4C4C4; box-shadow: none; }
@@ -1126,45 +1169,4 @@ onUnmounted(() => {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
 .score-update-flash { font-size: 1.25rem; font-weight: bold; color: black; text-align: center; }
 
-/* --- RESPONSIVE STYLES --- */
-@media (max-width: 992px) {
-  .at-bat-container, .info-container {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  /* On mobile, the main container is reordered */
-  .diamond-and-results-container {
-    order: 2; /* Diamond appears second */
-  }
-
-  .player-cards-and-actions-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    order: 1; /* This whole block appears first */
-    width: 100%;
-  }
-
-  .actions-container {
-    order: 1; /* Buttons at the top */
-    width: 100%;
-    max-width: 350px; /* Match player card width */
-    margin-top: 0; /* Reset desktop margin */
-  }
-
-  .player-cards-wrapper {
-    order: 2; /* Player cards below buttons */
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    width: 100%;
-  }
-
-  /* Reset order for individual player cards inside the wrapper */
-  .player-container {
-    order: 0;
-  }
-}
 </style>
