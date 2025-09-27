@@ -329,26 +329,33 @@ const isSwingResultVisible = ref(false);
 // in GameView.vue
 watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
-    // If we've already seen the result (e.g. page refresh), show it immediately.
-    if (hasSeenResult.value) {
-      isSwingResultVisible.value = true;
-      return;
-    }
+    // NOTE: This watcher ONLY handles the visibility logic for the DEFENSIVE player.
+    // The offensive player's visibility is handled separately and more simply.
+    // In the template, the swing result is shown if `isSwingResultVisible || haveIRolledForSwing`.
+    // For the offensive player, `isSwingResultVisible` is always false, so the result
+    // only appears when `haveIRolledForSwing` becomes true (i.e., when they click the button).
+    if (amIDefensivePlayer.value) {
+      // If we've already seen the result (e.g. page refresh), show it immediately.
+      if (hasSeenResult.value) {
+        isSwingResultVisible.value = true;
+        return;
+      }
 
-    const defensivePlayerSecond = gameStore.gameState?.defensivePlayerWentSecond;
+      const defensivePlayerSecond = gameStore.gameState?.defensivePlayerWentSecond;
 
-    // The special case: defensive player is last and it's their turn to see the delay.
-    if (amIDefensivePlayer.value && defensivePlayerSecond) {
-      setTimeout(() => {
+      // The special case: defensive player is last and it's their turn to see the delay.
+      if (defensivePlayerSecond) {
+        setTimeout(() => {
+          isSwingResultVisible.value = true;
+          hasSeenResult.value = true;
+          localStorage.setItem(seenResultStorageKey, 'true');
+        }, 900);
+      } else {
+        // Defensive player went first, show result immediately.
         isSwingResultVisible.value = true;
         hasSeenResult.value = true;
         localStorage.setItem(seenResultStorageKey, 'true');
-      }, 900);
-    } else {
-      // In all other cases, show the result immediately.
-      isSwingResultVisible.value = true;
-      hasSeenResult.value = true;
-      localStorage.setItem(seenResultStorageKey, 'true');
+      }
     }
   } else {
     if (!initialLoadComplete.value) return;
