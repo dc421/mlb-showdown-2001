@@ -27,10 +27,10 @@ const linescore = computed(() => {
           if (isTop) { awayRunsInInning += runsScored; }
           else { homeRunsInInning += runsScored; }
         }
-        else if (event.log_message.includes('---')) {
+        else if (event.log_message.includes('inning-change-message')) {
           if (inningMarkersFound > 0) {
-              if (isTop) { scores.away.push(awayRunsInInning); } 
-              else { scores.home.push(homeRunsInInning); }
+              if (isTop) { scores.away.push(awayRunsInning); }
+              else { scores.home.push(homeRunsInning); }
           }
           inningMarkersFound++;
           awayRunsInInning = 0;

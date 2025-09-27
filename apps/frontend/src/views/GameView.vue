@@ -300,8 +300,8 @@ const groupedGameLog = computed(() => {
 
   // Go through events in chronological order
   gameStore.gameEventsToDisplay.forEach(event => {
-    // A '---' indicates the start of a new half-inning
-    if (event.log_message && event.log_message.includes('---')) {
+    // A log message with the 'inning-change-message' class indicates a new half-inning
+    if (event.log_message && event.log_message.includes('inning-change-message')) {
       // If the current group has plays, save it before starting a new one
       if (currentGroup.plays.length > 0) {
         groups.push(currentGroup);
@@ -1138,8 +1138,8 @@ onUnmounted(() => {
 .inning-group { margin-bottom: 1rem; }
 .inning-header { font-weight: bold; padding: 0.5rem; background-color: #e9ecef; border-bottom: 1px solid #dee2e6; }
 
-/* --- NEW STYLES FOR INNING HEADER --- */
-.inning-header >>> .inning-header-content {
+/* --- STYLES FOR INNING HEADER --- */
+.inning-header >>> .inning-change-message {
   display: flex;
   align-items: center;
   gap: 0.75rem; /* Space between logo and text */
@@ -1151,8 +1151,8 @@ onUnmounted(() => {
   object-fit: contain;
 }
 
-.inning-header >>> .inning-text {
-  font-size: 1.25rem; /* Make the "Top 1st" text bigger */
+.inning-header >>> .inning-change-message b {
+  font-size: 1.1rem;
   font-weight: bold;
 }
 

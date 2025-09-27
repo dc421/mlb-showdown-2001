@@ -381,9 +381,9 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       const awayTeamLogo = awayTeam.rows[0].logo_url;
 
       const inningChangeEvent = `
-        <div class="inning-header-content">
+        <div class="inning-change-message">
             <img src="${awayTeamLogo}" class="team-logo-small" alt="Team Logo">
-            <div class="inning-text">Top 1st</div>
+            <b>Top 1st</b>
         </div>
         <div class="pitcher-announcement">Pitching: ${startingPitcherCard.displayName}</div>
       `;
@@ -965,9 +965,9 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
 
           const inningChangeEvent = `
-            <div class="inning-header-content">
+            <div class="inning-change-message">
                 <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
-                <div class="inning-text">${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</div>
+                <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
             </div>
             <div class="pitcher-announcement">Pitching: ${pitcher.displayName}</div>
           `;
@@ -1110,9 +1110,9 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
 
                 const inningChangeEvent = `
-                  <div class="inning-header-content">
+                  <div class="inning-change-message">
                       <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
-                      <div class="inning-text">${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</div>
+                      <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
                   </div>
                   <div class="pitcher-announcement">Pitching: ${pitcher.displayName}</div>
                 `;
@@ -1402,7 +1402,6 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
       if (newState.isTopInning) newState.inning++;
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
-      events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
         }
 
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
@@ -1480,7 +1479,7 @@ app.post('/api/games/:gameId/infield-in-play', authenticateToken, async (req, re
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
       if (newState.inning <= 9 || (newState.inning > 9 && wasTop)) {
-        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
+        // This is now handled by the inningChangeEvent logic
       }
     }
 
@@ -1567,7 +1566,6 @@ app.post('/api/games/:gameId/tag-up', authenticateToken, async (req, res) => {
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
       if (newState.inning <= 9 || (newState.inning > 9 && wasTop)) {
-        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
       }
     }
     
@@ -1688,7 +1686,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         if (newState.isTopInning) newState.inning++;
         newState.outs = 0;
         newState.bases = { first: null, second: null, third: null };
-        events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
     }
 
     console.log('Final Bases to be Saved:', JSON.stringify(newState.bases));
@@ -1772,7 +1769,7 @@ app.post('/api/games/:gameId/advance-runners', authenticateToken, async (req, re
       if (newState.isTopInning) newState.inning++;
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
-      events.push(`<strong>--- ${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)} ---</strong>`);
+      // This is now handled by the inningChangeEvent logic
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
