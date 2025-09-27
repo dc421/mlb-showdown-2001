@@ -25,17 +25,19 @@ defineProps({
 <style scoped>
 .outs-display {
   display: flex;
+  /* CHANGED: Stack the label and dots vertically */
   flex-direction: column;
-  gap: 8px;
-  justify-content: center;
   align-items: center;
-  min-width: 40px; /* To match other cells */
+  /* CHANGED: Adjust gap for vertical spacing */
+  gap: 0.2rem;
 }
 
 .outs-label {
-    font-size: 1em;
+    /* CHANGED: Adjusted font size */
+    font-size: 0.8em;
+    font-family: monospace;
     color: white;
-    line-height: 0;
+    font-weight: bold;
 }
 
 .dots {

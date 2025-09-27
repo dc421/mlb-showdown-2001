@@ -4,8 +4,8 @@ import { useRoute } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { useAuthStore } from '@/stores/auth';
 import { socket } from '@/services/socket';
+import { getContrastingTextColor } from '@/utils/colors';
 import PlayerCard from '@/components/PlayerCard.vue';
-import Linescore from '@/components/Linescore.vue';
 import BaseballDiamond from '@/components/BaseballDiamond.vue';
 
 const showSubModal = ref(false);
@@ -323,6 +323,8 @@ const groupedGameLog = computed(() => {
 
 const pitcherTeamColors = computed(() => gameStore.gameState?.isTopInning ? homeTeamColors.value : awayTeamColors.value);
 const batterTeamColors = computed(() => gameStore.gameState?.isTopInning ? awayTeamColors.value : homeTeamColors.value);
+const pitcherResultTextColor = computed(() => getContrastingTextColor(pitcherTeamColors.value.primary));
+const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamColors.value.primary));
 
 const isSwingResultVisible = ref(false);
 
@@ -505,8 +507,7 @@ watch(isBetweenHalfInnings, (newValue) => {
   gameStore.setIsBetweenHalfInnings(newValue);
 }, { immediate: true });
 
-
-function hexToRgba(hex, alpha = 1) {
+function hexToRgba(hex, alpha = 0.95) {
   if (!hex || !/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
     return `rgba(200, 200, 200, ${alpha})`; // Fallback for invalid colors
   }
@@ -791,10 +792,10 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
-          <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary, 0.25), borderColor: hexToRgba(pitcherTeamColors.secondary, 0.25) }">
+          <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary, 0.25), borderColor: hexToRgba(batterTeamColors.secondary, 0.25) }">
+          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
@@ -815,9 +816,9 @@ onUnmounted(() => {
           <div class="actions-container">
             <!-- Main Action Buttons -->
             <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-            <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
+            <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
             <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-            <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
+            <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
             <!-- Secondary Action Buttons -->
             <div v-if="!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction">
