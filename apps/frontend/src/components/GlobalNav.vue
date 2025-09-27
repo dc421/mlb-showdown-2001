@@ -79,7 +79,7 @@ const isGamePage = computed(() => route.name === 'game');
 .nav-center {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
 }
 
 .nav-right {

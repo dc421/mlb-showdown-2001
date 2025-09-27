@@ -34,7 +34,7 @@ defineProps({
 
 .outs-label {
     /* CHANGED: Adjusted font size */
-    font-size: 0.8em;
+    font-size: 0.95em;
     font-family: monospace;
     color: white;
     font-weight: bold;
