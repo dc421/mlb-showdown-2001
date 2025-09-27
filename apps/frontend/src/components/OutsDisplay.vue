@@ -25,17 +25,14 @@ defineProps({
 <style scoped>
 .outs-display {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  justify-content: center;
   align-items: center;
-  min-width: 40px; /* To match other cells */
+  gap: 0.5rem;
 }
 
 .outs-label {
     font-size: 1em;
     color: white;
-    line-height: 0;
+    font-weight: bold;
 }
 
 .dots {

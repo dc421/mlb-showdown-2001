@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useGameStore } from '@/stores/game';
 import Linescore from '@/components/Linescore.vue';
+import OutsDisplay from '@/components/OutsDisplay.vue';
 
 const authStore = useAuthStore();
 const gameStore = useGameStore();
@@ -24,6 +25,10 @@ const isGamePage = computed(() => route.name === 'game');
     </div>
 
     <div class="nav-right">
+      <OutsDisplay
+        v-if="isGamePage && gameStore.gameState"
+        :outs="gameStore.displayOuts"
+      />
       <button @click="authStore.logout()">Logout</button>
     </div>
   </nav>
@@ -68,6 +73,12 @@ const isGamePage = computed(() => route.name === 'game');
   height: 30px; /* Keep a fixed height */
   width: auto;   /* Allow the width to adjust automatically */
   border-radius: 4px; /* A squircle looks better than a forced circle */
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 /* ADD THIS MEDIA QUERY */
