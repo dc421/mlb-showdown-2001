@@ -11,7 +11,7 @@ const emit = defineEmits(['attempt-steal']);
 </script>
 
 <template>
-  <div class="diamond-container">
+  <div v-if="bases" class="diamond-container">
     <!-- Runner slots are now absolutely positioned divs -->
     <div class="runner-slot" style="top: 48%; left: 78%;">
       <RunnerCard v-if="bases.first" :runner="bases.first" />
