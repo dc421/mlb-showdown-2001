@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useGameStore } from '@/stores/game';
+import OutsDisplay from './OutsDisplay.vue';
 
 const gameStore = useGameStore();
 
@@ -65,7 +66,7 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           <th></th>
           <th v-for="inning in linescore.innings" :key="inning">{{ inning }}</th>
           <th>R</th>
-          <th>Outs</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -79,9 +80,8 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ gameStore.gameState?.awayScore }}</td>
           <td>
-          <span v-if="gameStore.gameState?.isTopInning">{{ gameStore.displayOuts }}</span>
+            <OutsDisplay v-if="gameStore.gameState?.isTopInning" :outs="gameStore.displayOuts" />
           </td>
-
         </tr>
         <tr>
           <td>{{ homeTeamAbbr }}</td>
@@ -93,7 +93,7 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ gameStore.gameState?.homeScore }}</td>
           <td>
-            <span v-if="!gameStore.gameState?.isTopInning">{{ gameStore.displayOuts }}</span>
+            <OutsDisplay v-if="!gameStore.gameState?.isTopInning" :outs="gameStore.displayOuts" />
           </td>
         </tr>
       </tbody>
