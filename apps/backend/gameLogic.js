@@ -144,7 +144,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
     newState.gameOver = true;
     newState.winningTeam = 'home';
-    events.push(`--- HOME TEAM WINS! WALK-OFF! ---`);
+    events.push(`HOME TEAM WINS! WALK-OFF!`);
   }
 
   // --- Handle Inning Change ---
