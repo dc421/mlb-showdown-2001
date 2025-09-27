@@ -1031,37 +1031,35 @@ onUnmounted(() => {
 /* --- MOBILE LAYOUT (FLEXBOX) --- */
 @media (max-width: 992px) {
   .at-bat-container {
-    display: flex; /* Override grid */
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem; /* Add some space between reordered items */
-  }
-
-  /* Make containers actual flex items again */
-  .player-cards-and-actions-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
-    order: 1; /* Default, but explicit */
-    width: 100%;
+  }
+
+  /* This is the key change. By using 'display: contents', we make the children
+     of this container direct flex items of '.at-bat-container', which allows
+     us to reorder them freely. */
+  .player-cards-and-actions-container {
+    display: contents;
   }
 
   /* Reorder the items for mobile */
-  .diamond-and-results-container {
-    order: 1; /* Diamond appears FIRST */
-  }
-  .player-cards-wrapper {
-    order: 2; /* Player cards appear SECOND */
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    width: 100%;
-  }
   .actions-container {
-    order: 3; /* Action buttons appear LAST */
+    order: 1; /* Action buttons appear FIRST */
     width: 100%;
     max-width: 350px;
+  }
+  .diamond-and-results-container {
+    order: 2; /* Diamond appears SECOND */
+  }
+  .player-cards-wrapper {
+    order: 3; /* Player cards appear LAST */
+    display: flex;
+    gap: 1rem;
+    justify-content: center; /* This will now correctly center the cards */
+    width: 100%;
+    flex-wrap: wrap; /* Ensure cards wrap on very small screens */
   }
 
   /* Reset grid-specific properties */
