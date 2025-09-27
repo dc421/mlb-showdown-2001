@@ -802,18 +802,10 @@ onUnmounted(() => {
           <div v-if="runScoredOnPlay && !shouldHidePlayOutcome" class="score-update-flash" v-html="scoreChangeMessage"></div>
       </div>
 
-      <!-- PLAYER CARDS -->
-      <div class="player-cards-container">
-        <!-- USER-CONTROLLED PLAYER -->
-        <div class="player-and-actions-container">
-          <PlayerCard
-            :player="controlledPlayer"
-            :role="controlledPlayerRole"
-            :is-controlled-player="true"
-            :has-advantage="controlledPlayerHasAdvantage"
-            :primary-color="controlledPlayerTeamColors.primary"
-          />
-          <div class="actions-container">
+      <!-- PLAYER CARDS & ACTIONS -->
+      <div class="player-cards-and-actions-container">
+        <!-- Actions (for layout purposes) -->
+        <div class="actions-container">
             <!-- Main Action Buttons -->
             <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
             <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
@@ -829,18 +821,31 @@ onUnmounted(() => {
             <!-- Waiting Indicators -->
             <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">Waiting for pitch...</div>
             <div v-if="(amIDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">Waiting for swing...</div>
-          </div>
         </div>
 
-        <!-- OPPONENT PLAYER -->
-        <div class="player-container">
-          <PlayerCard
-            :player="opponentPlayer"
-            :role="opponentPlayerRole"
-            :is-controlled-player="false"
-            :has-advantage="opponentPlayerHasAdvantage"
-            :primary-color="opponentPlayerTeamColors.primary"
-          />
+        <!-- Player Cards Wrapper -->
+        <div class="player-cards-wrapper">
+          <!-- USER-CONTROLLED PLAYER -->
+          <div class="player-container">
+            <PlayerCard
+              :player="controlledPlayer"
+              :role="controlledPlayerRole"
+              :is-controlled-player="true"
+              :has-advantage="controlledPlayerHasAdvantage"
+              :primary-color="controlledPlayerTeamColors.primary"
+            />
+          </div>
+
+          <!-- OPPONENT PLAYER -->
+          <div class="player-container">
+            <PlayerCard
+              :player="opponentPlayer"
+              :role="opponentPlayerRole"
+              :is-controlled-player="false"
+              :has-advantage="opponentPlayerHasAdvantage"
+              :primary-color="opponentPlayerTeamColors.primary"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -985,21 +990,34 @@ onUnmounted(() => {
 }
 
 /* Container for a player card AND its associated action buttons */
-.player-and-actions-container {
+.player-cards-and-actions-container {
+  display: contents; /* Behaves like the old .player-cards-container on desktop */
+}
+
+.player-cards-wrapper {
+  display: contents; /* Behaves like the old .player-cards-container on desktop */
+}
+
+.player-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+}
+
+/* The user's card and actions are grouped on desktop */
+.player-container:first-child {
   order: 1;
 }
 
-/* Container for just the action buttons */
+/* Actions are nested inside the first player container on desktop */
 .actions-container {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 200px; /* Give buttons some space */
   text-align: center;
+  order: 2; /* Appears below the card */
+  margin-top: 1rem;
 }
 
 .actions-container .tactile-button,
@@ -1008,26 +1026,19 @@ onUnmounted(() => {
     margin: 0;
 }
 
+/* The opponent's card is last on desktop */
+.player-container:last-child {
+    order: 3;
+}
+
 /* Container for the diamond and roll results */
 .diamond-and-results-container {
     position: relative; /* Needed for absolute positioning of results */
     display: flex;
     justify-content: center;
     align-items: center;
-    width: clamp(250px, 30vw, 350px); /* KEY CHANGE */
+    width: clamp(250px, 30vw, 350px);
     order: 2;
-}
-
-/* Generic container for a player card if no actions are below it */
-.player-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    order: 3;
-}
-
-.player-cards-container {
-  display: contents; /* This is key for the desktop flex layout */
 }
 
 /* Bottom section for lineups and game log */
@@ -1122,22 +1133,37 @@ onUnmounted(() => {
     align-items: center;
   }
 
-  /* On mobile, the wrapper becomes a flex container */
-  .player-cards-container {
+  /* On mobile, the main container is reordered */
+  .diamond-and-results-container {
+    order: 2; /* Diamond appears second */
+  }
+
+  .player-cards-and-actions-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    order: 1; /* This whole block appears first */
+    width: 100%;
+  }
+
+  .actions-container {
+    order: 1; /* Buttons at the top */
+    width: 100%;
+    max-width: 350px; /* Match player card width */
+    margin-top: 0; /* Reset desktop margin */
+  }
+
+  .player-cards-wrapper {
+    order: 2; /* Player cards below buttons */
     display: flex;
     gap: 1rem;
     justify-content: center;
     width: 100%;
-    order: 2; /* Make this container appear after the diamond */
   }
 
-  .diamond-and-results-container {
-    order: 1; /* Diamond appears first */
-  }
-
-  /* Reset the order for children of the cards container */
-  .player-cards-container .player-and-actions-container,
-  .player-cards-container .player-container {
+  /* Reset order for individual player cards inside the wrapper */
+  .player-container {
     order: 0;
   }
 }
