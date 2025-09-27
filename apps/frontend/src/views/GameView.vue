@@ -359,13 +359,10 @@ watch(bothPlayersSetAction, (isRevealing) => {
         localStorage.setItem(seenResultStorageKey, 'true');
       }
     }
-  } else {
-    if (!initialLoadComplete.value) return;
-    // A new at-bat is starting (currentAtBat changed), so reset the UI state.
-    isSwingResultVisible.value = false;
-    hasSeenResult.value = false;
-    localStorage.removeItem(seenResultStorageKey);
   }
+  // The `else` block was removed. The responsibility for resetting the result view
+  // has been moved to the `handleNextHitter` function. This prevents a player's
+  // view from being reset when their OPPONENT clicks "Next Hitter".
 }, { immediate: true });
 
 // in GameView.vue
@@ -537,6 +534,11 @@ function handleSwing(action = null) {
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
+  // Reset the result visibility for the current player.
+  isSwingResultVisible.value = false;
+  hasSeenResult.value = false;
+  localStorage.removeItem(seenResultStorageKey);
+
   if (!opponentReadyForNext.value) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
@@ -796,7 +798,7 @@ onUnmounted(() => {
           <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || haveIRolledForSwing)" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
+          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIOffensivePlayer && haveIRolledForSwing))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
@@ -811,7 +813,7 @@ onUnmounted(() => {
             <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
             <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
             <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-            <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+            <button v-if="showNextHitterButton && (isSwingResultVisible || (amIOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
             <!-- Secondary Action Buttons -->
             <div v-if="!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction">
