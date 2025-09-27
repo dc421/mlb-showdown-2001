@@ -774,6 +774,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  gameStore.resetGameState();
   socket.off('game-updated');
   socket.disconnect();
 });
