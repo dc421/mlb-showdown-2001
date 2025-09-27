@@ -1133,5 +1133,13 @@ onUnmounted(() => {
   .player-cards-container .player-container {
     order: 0;
   }
+
+  /* NEW: Re-order the action buttons and player card on mobile */
+  .player-and-actions-container > .actions-container {
+    order: 1;
+  }
+  .player-and-actions-container > div:first-child { /* This targets the PlayerCard component */
+    order: 2;
+  }
 }
 </style>
