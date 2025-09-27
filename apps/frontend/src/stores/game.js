@@ -368,10 +368,27 @@ async function resetRolls(gameId) {
     if (data.teams) teams.value = data.teams;
   }
 
+  function resetGameState() {
+    game.value = null;
+    gameState.value = null;
+    gameEvents.value = [];
+    batter.value = null;
+    pitcher.value = null;
+    lineups.value = { home: null, away: null };
+    rosters.value = { home: [], away: [] };
+    teams.value = { home: null, away: null };
+    setupState.value = null;
+    displayOuts.value = 0;
+    isOutcomeHidden.value = false;
+    isBetweenHalfInnings.value = false;
+  }
+
   return { game, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay,
     isBetweenHalfInnings, setIsBetweenHalfInnings,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
-    updateGameData };
+    updateGameData,
+    resetGameState
+  };
 })
