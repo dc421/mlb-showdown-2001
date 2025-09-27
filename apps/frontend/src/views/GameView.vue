@@ -781,34 +781,6 @@ onUnmounted(() => {
     <!-- TOP SECTION: AT-BAT DISPLAY -->
     <div class="at-bat-container">
 
-      <!-- USER-CONTROLLED PLAYER -->
-      <div class="player-and-actions-container">
-        <PlayerCard
-          :player="controlledPlayer"
-          :role="controlledPlayerRole"
-          :is-controlled-player="true"
-          :has-advantage="controlledPlayerHasAdvantage"
-          :primary-color="controlledPlayerTeamColors.primary"
-        />
-        <div class="actions-container">
-          <!-- Main Action Buttons -->
-          <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-          <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
-          <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-          <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
-
-          <!-- Secondary Action Buttons -->
-          <div v-if="!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction">
-              <button v-if="amIDefensivePlayer && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-              <button v-if="amIOffensivePlayer && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-          </div>
-
-          <!-- Waiting Indicators -->
-          <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">Waiting for pitch...</div>
-          <div v-if="(amIDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">Waiting for swing...</div>
-        </div>
-      </div>
-
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
@@ -822,15 +794,46 @@ onUnmounted(() => {
           <div v-if="runScoredOnPlay && !shouldHidePlayOutcome" class="score-update-flash" v-html="scoreChangeMessage"></div>
       </div>
 
-      <!-- OPPONENT PLAYER -->
-      <div class="player-container">
-        <PlayerCard
-          :player="opponentPlayer"
-          :role="opponentPlayerRole"
-          :is-controlled-player="false"
-          :has-advantage="opponentPlayerHasAdvantage"
-          :primary-color="opponentPlayerTeamColors.primary"
-        />
+      <!-- PLAYER CARDS -->
+      <div class="player-cards-container">
+        <!-- USER-CONTROLLED PLAYER -->
+        <div class="player-and-actions-container">
+          <PlayerCard
+            :player="controlledPlayer"
+            :role="controlledPlayerRole"
+            :is-controlled-player="true"
+            :has-advantage="controlledPlayerHasAdvantage"
+            :primary-color="controlledPlayerTeamColors.primary"
+          />
+          <div class="actions-container">
+            <!-- Main Action Buttons -->
+            <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+            <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')">Swing Away</button>
+            <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+            <button v-if="showNextHitterButton && (isSwingResultVisible || amIOffensivePlayer)" class="action-button tactile-button" @click="handleNextHitter()">Next Hitter</button>
+
+            <!-- Secondary Action Buttons -->
+            <div v-if="!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction">
+                <button v-if="amIDefensivePlayer && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
+                <button v-if="amIOffensivePlayer && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+            </div>
+
+            <!-- Waiting Indicators -->
+            <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">Waiting for pitch...</div>
+            <div v-if="(amIDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">Waiting for swing...</div>
+          </div>
+        </div>
+
+        <!-- OPPONENT PLAYER -->
+        <div class="player-container">
+          <PlayerCard
+            :player="opponentPlayer"
+            :role="opponentPlayerRole"
+            :is-controlled-player="false"
+            :has-advantage="opponentPlayerHasAdvantage"
+            :primary-color="opponentPlayerTeamColors.primary"
+          />
+        </div>
       </div>
     </div>
 
@@ -979,6 +982,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  order: 1;
 }
 
 /* Container for just the action buttons */
@@ -1003,6 +1007,7 @@ onUnmounted(() => {
     justify-content: center;
     align-items: center;
     width: clamp(250px, 30vw, 350px); /* KEY CHANGE */
+    order: 2;
 }
 
 /* Generic container for a player card if no actions are below it */
@@ -1010,6 +1015,11 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     align-items: center;
+    order: 3;
+}
+
+.player-cards-container {
+  display: contents; /* This is key for the desktop flex layout */
 }
 
 /* Bottom section for lineups and game log */
@@ -1104,8 +1114,23 @@ onUnmounted(() => {
     align-items: center;
   }
 
-  .at-bat-container .player-container { order: 1; }
-  .at-bat-container .diamond-and-results-container { order: 2; }
-  .at-bat-container .player-and-actions-container { order: 3; }
+  /* On mobile, the wrapper becomes a flex container */
+  .player-cards-container {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    width: 100%;
+    order: 2; /* Make this container appear after the diamond */
+  }
+
+  .diamond-and-results-container {
+    order: 1; /* Diamond appears first */
+  }
+
+  /* Reset the order for children of the cards container */
+  .player-cards-container .player-and-actions-container,
+  .player-cards-container .player-container {
+    order: 0;
+  }
 }
 </style>
