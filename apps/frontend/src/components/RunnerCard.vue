@@ -34,7 +34,7 @@ function handleImageError(event) {
 <style scoped>
 .runner-card {
   width: 100%;
-  height: 100%;
+  height: 95%;
   /* BORDER IS NOW 2PX THICK */
   border: 5px solid transparent; 
   border-radius: 4px;

@@ -176,10 +176,6 @@ const pitcherOnlySetActions = computed(() => {
   if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
   return !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction;
 });
-const bothPlayersSetAction = computed(() => {
-    if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
-    return !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
-});
 
 const isOffenseWaitingToRoll = computed(() => {
   return amIOffensivePlayer.value && !haveIRolledForSwing.value && !amIReadyForNext.value && 
@@ -329,6 +325,39 @@ const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamC
 const isSwingResultVisible = ref(false);
 
 // in GameView.vue
+const amIReadyForNext = computed(() => {
+    if (!gameStore.gameState || !authStore.user) return false;
+    if (myTeam.value === 'home') {
+        return gameStore.gameState.homePlayerReadyForNext;
+    } else {
+        return gameStore.gameState.awayPlayerReadyForNext;
+    }
+});
+
+// in GameView.vue
+const opponentReadyForNext = computed(() => {
+    if (!gameStore.gameState || !authStore.user) return false;
+    if (myTeam.value === 'home') {
+        return gameStore.gameState.awayPlayerReadyForNext;
+    } else {
+        return gameStore.gameState.homePlayerReadyForNext;
+    }
+});
+
+const atBatToDisplay = computed(() => {
+    if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
+        return gameStore.gameState.lastCompletedAtBat;
+    }
+    return gameStore.gameState.currentAtBat;
+});
+
+
+const bothPlayersSetAction = computed(() => {
+    if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
+    return !!atBatToDisplay.value.batterAction && !!atBatToDisplay.value.pitcherAction;
+});
+
+// in GameView.vue
 watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
     // NOTE: This watcher ONLY handles the visibility logic for the DEFENSIVE player.
@@ -364,33 +393,6 @@ watch(bothPlayersSetAction, (isRevealing) => {
   // has been moved to the `handleNextHitter` function. This prevents a player's
   // view from being reset when their OPPONENT clicks "Next Hitter".
 }, { immediate: true });
-
-// in GameView.vue
-const amIReadyForNext = computed(() => {
-    if (!gameStore.gameState || !authStore.user) return false;
-    if (myTeam.value === 'home') {
-        return gameStore.gameState.homePlayerReadyForNext;
-    } else {
-        return gameStore.gameState.awayPlayerReadyForNext;
-    }
-});
-
-// in GameView.vue
-const opponentReadyForNext = computed(() => {
-    if (!gameStore.gameState || !authStore.user) return false;
-    if (myTeam.value === 'home') {
-        return gameStore.gameState.awayPlayerReadyForNext;
-    } else {
-        return gameStore.gameState.homePlayerReadyForNext;
-    }
-});
-
-const atBatToDisplay = computed(() => {
-    if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
-        return gameStore.gameState.lastCompletedAtBat;
-    }
-    return gameStore.gameState.currentAtBat;
-});
 
 const nextBatterInLineup = computed(() => {
   if (!gameStore.gameState || !gameStore.lineups) return null;
@@ -795,7 +797,9 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
-          <div v-if="atBatToDisplay.pitchRollResult && (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) && !(!bothPlayersSetAction && amIOffensivePlayer && !!gameStore.gameState.currentAtBat.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
+          <div v-if="atBatToDisplay.pitchRollResult &&
+           (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
+            !(!bothPlayersSetAction.value && amIOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
           <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIOffensivePlayer && haveIRolledForSwing))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
@@ -1191,8 +1195,8 @@ onUnmounted(() => {
   position: absolute; /* Position relative to the diamond container */
   top: 20px;
 }
-.result-box-left { left: 20px; }
-.result-box-right { right: 20px; }
+.result-box-left { left: 4px; }
+.result-box-right { right: -4px; }
 .result-box .outcome-text { font-size: 2.5rem; line-height: 1; }
 
 /* Indicators & Flashes */
