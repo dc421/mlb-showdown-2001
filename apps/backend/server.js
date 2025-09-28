@@ -378,14 +378,16 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       processPlayers([startingPitcherCard], allCardsResult.rows);
 
       const awayTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [awayParticipant.user_id]);
+      const homeTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [homeParticipant.user_id]);
       const awayTeamLogo = awayTeam.rows[0].logo_url;
+      const homeTeamAbbr = homeTeam.rows[0].abbreviation;
 
       const inningChangeEvent = `
         <div class="inning-change-message">
             <img src="${awayTeamLogo}" class="team-logo-small" alt="Team Logo">
             <b>Top 1st</b>
         </div>
-        <div class="pitcher-announcement">Pitching: ${startingPitcherCard.displayName}</div>
+        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${startingPitcherCard.displayName}</div>
       `;
       // --- ADD THIS LOG ---
     console.log(`🔫 SERVER: Creating initial event for game ${gameId}:`, inningChangeEvent);
@@ -962,14 +964,16 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           processPlayers([pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
 
           const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
+          const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
           const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
+          const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
 
           const inningChangeEvent = `
             <div class="inning-change-message">
                 <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
                 <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
             </div>
-            <div class="pitcher-announcement">Pitching: ${pitcher.displayName}</div>
+            <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
           `;
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
           delete finalState.inningChanged;
@@ -1107,14 +1111,16 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 processPlayers([pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
 
                 const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
+                const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
                 const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
+                const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
 
                 const inningChangeEvent = `
                   <div class="inning-change-message">
                       <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
                       <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
                   </div>
-                  <div class="pitcher-announcement">Pitching: ${pitcher.displayName}</div>
+                  <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
                 `;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
                 delete finalState.inningChanged;
