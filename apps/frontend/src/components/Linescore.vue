@@ -46,7 +46,10 @@ const linescore = computed(() => {
     scores.away.push(awayRunsInInning);
   } else {
     if(scores.away.length === scores.home.length) {
-       scores.away.push(awayRunsInInning);
+      // When we're in the bottom of an inning, the away team's runs for this inning are final.
+      // The awayRunsInning variable should have been reset to 0 by the last inning-change event.
+      // Pushing 0 is the correct action.
+      scores.away.push(0);
     }
     scores.home.push(homeRunsInInning);
   }
