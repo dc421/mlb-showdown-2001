@@ -1,6 +1,5 @@
 <script setup>
 import { computed } from 'vue';
-import BaseballDiamond from './BaseballDiamond.vue';
 import OutsDisplay from './OutsDisplay.vue';
 
 const props = defineProps({
@@ -11,12 +10,35 @@ const props = defineProps({
 });
 
 const gameState = computed(() => props.game.gameState);
+const awayTeamAbbr = computed(() => props.game.away_team?.abbreviation || 'AWAY');
+const homeTeamAbbr = computed(() => props.game.home_team?.abbreviation || 'HOME');
 
 const inningDescription = computed(() => {
   if (!gameState.value) return '';
-  const inningHalf = gameState.value.isTopInning ? 'Top' : 'Bottom';
+  const inningHalf = gameState.value.isTopInning ? '▲' : '▼';
   const inningNumber = gameState.value.inning;
-  return `${inningHalf} ${inningNumber}`;
+  return `${inningNumber}${inningHalf}`;
+});
+
+const runnersOnBaseText = computed(() => {
+    if (!gameState.value || !gameState.value.bases) return '';
+    const bases = gameState.value.bases;
+    const runners = [];
+    if (bases.first) runners.push('1st');
+    if (bases.second) runners.push('2nd');
+    if (bases.third) runners.push('3rd');
+
+    if (runners.length === 0) return 'bases empty';
+    if (runners.length === 3) return 'bases loaded';
+
+    if (runners.length === 1) {
+        return `runner on ${runners[0]}`;
+    }
+
+    if (runners.length === 2) {
+        return `runners on ${runners[0]} & ${runners[1]}`;
+    }
+    return ''; // Should not be reached
 });
 </script>
 
@@ -30,14 +52,14 @@ const inningDescription = computed(() => {
     <div v-if="game.status === 'in_progress' && gameState" class="game-details">
       <div class="score-inning">
         <div class="score">
-          <span>AWAY: {{ gameState.awayScore }}</span>
-          <span>HOME: {{ gameState.homeScore }}</span>
+          <span>{{ awayTeamAbbr }}: {{ gameState.awayScore }}</span>
+          <span>{{ homeTeamAbbr }}: {{ gameState.homeScore }}</span>
         </div>
         <div class="inning">{{ inningDescription }}</div>
       </div>
       <div class="game-state">
-        <BaseballDiamond :bases="gameState.bases" />
-        <OutsDisplay :outs="gameState.outs" />
+        <div class="runners">{{ runnersOnBaseText }}</div>
+        <OutsDisplay :outs="gameState.outs" :labelColor="'black'" />
       </div>
     </div>
     <div v-else class="game-status">
@@ -77,14 +99,19 @@ const inningDescription = computed(() => {
 }
 
 .inning {
-  font-style: italic;
   font-size: 0.9rem;
 }
 
 .game-state {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column; /* Changed to stack runners and outs */
+  align-items: flex-end; /* Align to the right */
+  gap: 0.25rem;
+}
+
+.runners {
+  font-style: italic;
+  font-size: 0.9rem;
 }
 
 .game-status {

@@ -4,13 +4,17 @@ defineProps({
     type: Number,
     required: true,
     default: 0
+  },
+  labelColor: {
+    type: String,
+    default: 'white'
   }
 });
 </script>
 
 <template>
   <div class="outs-display">
-    <div class="outs-label">Outs</div>
+    <div class="outs-label" :style="{ color: labelColor }">Outs</div>
     <div class="dots">
       <span
         v-for="n in 3"
@@ -36,7 +40,6 @@ defineProps({
     /* CHANGED: Adjusted font size */
     font-size: 0.95em;
     font-family: monospace;
-    color: white;
     font-weight: bold;
 }
 
