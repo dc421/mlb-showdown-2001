@@ -990,7 +990,8 @@ onUnmounted(() => {
 /* --- DESKTOP LAYOUT (GRID) --- */
 .at-bat-container {
   display: grid;
-  grid-template-columns: 320px 1fr 320px; /* Card | Diamond | Card */
+  grid-template-columns: 320px auto 320px; /* Card | Diamond | Card */
+  justify-content: center; /* This will center the grid columns as a group */
   grid-template-rows: auto 1fr; /* Row 1 for cards, Row 2 for actions */
   gap: 1rem 2rem;
   justify-items: center;
