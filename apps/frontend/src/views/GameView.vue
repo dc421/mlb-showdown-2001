@@ -1194,10 +1194,10 @@ onUnmounted(() => {
   border: 1px solid;
   text-align: center;
   position: absolute; /* Position relative to the diamond container */
-  top: 20px;
+  top: 25px;
 }
-.result-box-left { left: 4px; }
-.result-box-right { right: -4px; }
+.result-box-left { left: 8px; }
+.result-box-right { right: 12px; }
 .result-box .outcome-text { font-size: 2.5rem; line-height: 1; }
 
 /* Indicators & Flashes */
