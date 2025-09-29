@@ -245,14 +245,8 @@ const showNextHitterButton = computed(() => {
     return true;
   }
 
-  // Case 2: At-bat is over, but inning is not.
-  // Only the offensive player should see the button.
-  if (!amIOffensivePlayer.value) {
-    return false;
-  }
-
   // Don't show if they haven't rolled for their swing yet.
-  if (!haveIRolledForSwing.value) {
+  if (amIOffensivePlayer.value && !haveIRolledForSwing.value) {
     return false;
   }
   
@@ -378,7 +372,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
     // In the template, the swing result is shown if `isSwingResultVisible || haveIRolledForSwing`.
     // For the offensive player, `isSwingResultVisible` is always false, so the result
     // only appears when `haveIRolledForSwing` becomes true (i.e., when they click the button).
-    if (amIDefensivePlayer.value) {
+    if (amIDisplayDefensivePlayer.value) {
       // If we've already seen the result (e.g. page refresh), show it immediately.
       if (hasSeenResult.value) {
         isSwingResultVisible.value = true;
@@ -1207,7 +1201,7 @@ onUnmounted(() => {
   border: 1px solid;
   text-align: center;
   position: absolute; /* Position relative to the diamond container */
-  top: 25px;
+  top: 20px;
 }
 .result-box-left { left: 8px; }
 .result-box-right { right: 12px; }
