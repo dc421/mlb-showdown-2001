@@ -123,6 +123,12 @@ const isGamePage = computed(() => route.name === 'game');
   /* Ensure the outs are visible against the dark background */
   .nav-center :deep(.outs-display) {
     background-color: transparent; /* Or whatever matches the nav */
+    flex-shrink: 0;
+  }
+
+  .nav-center :deep(.linescore-container) {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }
 </style>
