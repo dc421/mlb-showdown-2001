@@ -154,6 +154,93 @@ function processPlayers(playersToProcess, allPlayers) {
 };
 
 
+// --- HELPER: Handles series logic after a game completes ---
+async function handleSeriesProgression(gameId, client) {
+    // 1. Get game and series info
+    const gameResult = await client.query('SELECT series_id, home_team_user_id, game_in_series FROM games WHERE game_id = $1', [gameId]);
+    if (!gameResult.rows[0] || !gameResult.rows[0].series_id) {
+        return; // Not a series game, do nothing.
+    }
+    const { series_id, home_team_user_id, game_in_series } = gameResult.rows[0];
+
+    const seriesResult = await client.query('SELECT * FROM series WHERE id = $1', [series_id]);
+    const series = seriesResult.rows[0];
+
+    const finalStateResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    const finalState = finalStateResult.rows[0].state_data;
+
+    const participantsResult = await client.query('SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1', [gameId]);
+    const gameAwayUser = participantsResult.rows.find(p => p.user_id !== home_team_user_id);
+
+    // 2. Update series away user if it's the first game and not set yet
+    if (!series.series_away_user_id) {
+        await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [gameAwayUser.user_id, series_id]);
+        series.series_away_user_id = gameAwayUser.user_id; // Update local copy
+    }
+
+    // 3. Update series score
+    const winnerId = finalState.winningTeam === 'home' ? home_team_user_id : gameAwayUser.user_id;
+    if (winnerId === series.series_home_user_id) {
+        await client.query('UPDATE series SET home_wins = home_wins + 1 WHERE id = $1', [series_id]);
+        series.home_wins++;
+    } else {
+        await client.query('UPDATE series SET away_wins = away_wins + 1 WHERE id = $1', [series_id]);
+        series.away_wins++;
+    }
+
+    // 4. Check if the series is over
+    let isSeriesOver = false;
+    if (series.series_type === 'playoff' && (series.home_wins >= 4 || series.away_wins >= 4)) {
+        isSeriesOver = true;
+    }
+    if (series.series_type === 'regular_season' && game_in_series >= 7) {
+        isSeriesOver = true;
+    }
+
+    if (isSeriesOver) {
+        await client.query(`UPDATE series SET status = 'completed' WHERE id = $1`, [series_id]);
+        io.emit('games-updated'); // Notify clients the series is done
+        return;
+    }
+
+    // 5. If not over, create the next game in the series
+    const nextGameNumber = game_in_series + 1;
+    const nextHomeUserId = [3, 4, 5].includes(nextGameNumber) ? series.series_away_user_id : series.series_home_user_id;
+    const nextAwayUserId = nextHomeUserId === series.series_home_user_id ? series.series_away_user_id : series.series_home_user_id;
+
+    // Use the DH rule from the completed game for the next one. This is a simplification.
+    const lastGameSettings = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
+    const useDhForNextGame = lastGameSettings.rows[0].use_dh;
+
+    const newGameResult = await client.query(
+        `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh) VALUES ('lineups', $1, $2, $3, $4) RETURNING game_id`,
+        [series_id, nextGameNumber, nextHomeUserId, useDhForNextGame]
+    );
+    const newGameId = newGameResult.rows[0].game_id;
+
+    const homePlayerInfo = participantsResult.rows.find(p => p.user_id === nextHomeUserId);
+    const awayPlayerInfo = participantsResult.rows.find(p => p.user_id === nextAwayUserId);
+
+    await client.query(
+        `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, 'home', $4)`,
+        [newGameId, nextHomeUserId, homePlayerInfo.roster_id, homePlayerInfo.league_designation]
+    );
+    await client.query(
+        `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, 'away', $4)`,
+        [newGameId, nextAwayUserId, awayPlayerInfo.roster_id, awayPlayerInfo.league_designation]
+    );
+
+    io.emit('games-updated'); // Notify all clients to refresh their dashboards
+
+    // Also emit a specific event to the two players in the game room with the next game details
+    io.to(gameId.toString()).emit('series-next-game-ready', {
+        nextGameId: newGameId,
+        home_wins: series.home_wins,
+        away_wins: series.away_wins
+    });
+}
+
+
 // --- API Routes ---
 
 app.use('/api/dev', require('./routes/dev'));
@@ -319,6 +406,15 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // --- NEW: Enforce Pitching Rotation ---
+    const mandatoryPitcherId = await getMandatoryPitcher(gameId, userId, client);
+    if (mandatoryPitcherId && Number(mandatoryPitcherId) !== Number(startingPitcher)) {
+        await client.query('ROLLBACK'); // Release the transaction
+        const requiredPitcherResult = await client.query('SELECT name FROM cards_player WHERE card_id = $1', [mandatoryPitcherId]);
+        const pitcherName = requiredPitcherResult.rows[0]?.name || 'the correct pitcher';
+        return res.status(400).json({ message: `Rotation is set. You must use ${pitcherName} as your starting pitcher for this game.` });
+    }
     
     await client.query(
       `UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3`,
@@ -581,7 +677,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
     const gamesResult = await pool.query(
-      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id
+      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id, g.game_in_series
        FROM games g JOIN game_participants gp ON g.game_id = gp.game_id 
        WHERE gp.user_id = $1 ORDER BY g.created_at DESC`,
       [userId]
@@ -661,20 +757,37 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
 
 // GAME SETUP & PLAY
 app.post('/api/games', authenticateToken, async (req, res) => {
-    const { roster_id, home_or_away, league_designation } = req.body;
+    const { roster_id, home_or_away, league_designation, series_type } = req.body;
     const userId = req.user.userId;
-    if (!roster_id || !home_or_away || !league_designation) {
-        return res.status(400).json({ message: 'roster_id, home_or_away, and league_designation are required.' });
+    if (!roster_id || !home_or_away || !league_designation || !series_type) {
+        return res.status(400).json({ message: 'roster_id, home_or_away, league_designation, and series_type are required.' });
     }
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const newGame = await client.query(`INSERT INTO games (status) VALUES ('pending') RETURNING game_id`);
-        const gameId = newGame.rows[0].game_id;
+        let gameId;
+
+        if (series_type !== 'exhibition') {
+            const newSeries = await client.query(
+                `INSERT INTO series (series_type, series_home_user_id) VALUES ($1, $2) RETURNING id`,
+                [series_type, userId] // The creator is the series home user
+            );
+            const seriesId = newSeries.rows[0].id;
+
+            const newGame = await client.query(
+                `INSERT INTO games (status, series_id, game_in_series) VALUES ('pending', $1, 1) RETURNING game_id`,
+                [seriesId]
+            );
+            gameId = newGame.rows[0].game_id;
+        } else {
+            const newGame = await client.query(`INSERT INTO games (status) VALUES ('pending') RETURNING game_id`);
+            gameId = newGame.rows[0].game_id;
+        }
+
         await client.query(`INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, roster_id, home_or_away, league_designation]);
+
         await client.query('COMMIT');
-        console.log(`1. BACKEND: Emitting 'games-updated' after creating game ${gameId}.`);
-    io.emit('games-updated'); // <-- ADD THIS LINE
+        io.emit('games-updated');
         res.status(201).json({ message: 'Game created and waiting for an opponent.', gameId: gameId });
     } catch (error) {
         await client.query('ROLLBACK');
@@ -840,6 +953,11 @@ async function getAndProcessGameData(gameId, dbClient) {
     return null; // Game not found
   }
   const game = gameResult.rows[0];
+  let series = null;
+  if (game.series_id) {
+      const seriesResult = await dbClient.query('SELECT * FROM series WHERE id = $1', [game.series_id]);
+      series = seriesResult.rows[0];
+  }
 
   const participantsResult = await dbClient.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
   const teamsData = {};
@@ -853,12 +971,12 @@ async function getAndProcessGameData(gameId, dbClient) {
   }
 
   if (game.status === 'pending') {
-    return { game, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
+    return { game, series, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
   }
 
   const stateResult = await dbClient.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
   if (stateResult.rows.length === 0) {
-    return { game, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
+    return { game, series, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
   }
   const currentState = stateResult.rows[0];
 
@@ -893,7 +1011,7 @@ async function getAndProcessGameData(gameId, dbClient) {
     if (pitcher) processPlayers([pitcher], allCardsResult.rows);
   }
 
-  return { game, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
+  return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
 }
 
 // GET A SPECIFIC GAME'S STATE (now processed)
@@ -1004,6 +1122,15 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       }
       
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+
+      // --- NEW: Check for Game Over ---
+      if (finalState.gameOver) {
+        await client.query(
+          `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+          [gameId]
+        );
+        await handleSeriesProgression(gameId, client);
+      }
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
@@ -1151,6 +1278,15 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             }
 
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+
+            // --- NEW: Check for Game Over ---
+            if (finalState.gameOver) {
+              await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+                [gameId]
+              );
+              await handleSeriesProgression(gameId, client);
+            }
         }
     }
     
@@ -1821,13 +1957,71 @@ app.post('/api/games/:gameId/advance-runners', authenticateToken, async (req, re
   }
 });
 
+// --- HELPER: Determines the mandatory starting pitcher for a series game ---
+async function getMandatoryPitcher(gameId, userId, dbClient) {
+    const participantResult = await dbClient.query(
+      `SELECT roster_id FROM game_participants WHERE game_id = $1 AND user_id = $2`,
+      [gameId, userId]
+    );
+
+    if (participantResult.rows.length === 0) {
+      // This case should be handled by the calling route, but we'll be safe.
+      return null;
+    }
+    const rosterId = participantResult.rows[0].roster_id;
+
+    let mandatoryPitcherId = null;
+    const gameDetailsResult = await dbClient.query('SELECT series_id, game_in_series FROM games WHERE game_id = $1', [gameId]);
+
+    if (gameDetailsResult.rows.length > 0) {
+        const { series_id, game_in_series } = gameDetailsResult.rows[0];
+
+        if (series_id && game_in_series > 3) {
+            if (game_in_series === 4) {
+                const previousStartersResult = await dbClient.query(
+                    `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
+                     FROM game_participants gp
+                     JOIN games g ON g.game_id = gp.game_id
+                     WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series IN (1, 2, 3) AND gp.lineup IS NOT NULL`,
+                    [series_id, userId]
+                );
+                const previousStarterIds = previousStartersResult.rows.map(r => r.pitcher_id);
+
+                const rosterSPsResult = await dbClient.query(
+                    `SELECT card_id FROM roster_cards WHERE roster_id = $1 AND assignment = 'SP'`,
+                    [rosterId]
+                );
+                const rosterSPIds = rosterSPsResult.rows.map(r => r.card_id);
+
+                const game4Starter = rosterSPIds.find(id => !previousStarterIds.includes(id));
+                if (game4Starter) {
+                    mandatoryPitcherId = game4Starter;
+                }
+            } else { // Games 5, 6, 7
+                const sourceGameNumber = game_in_series - 4;
+                const sourceGameStarterResult = await dbClient.query(
+                    `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
+                     FROM game_participants gp
+                     JOIN games g ON g.game_id = gp.game_id
+                     WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series = $3`,
+                    [series_id, userId, sourceGameNumber]
+                );
+                if (sourceGameStarterResult.rows.length > 0) {
+                    mandatoryPitcherId = sourceGameStarterResult.rows[0].pitcher_id;
+                }
+            }
+        }
+    }
+    return mandatoryPitcherId;
+}
+
+
 // GET A USER'S PARTICIPANT INFO FOR A SPECIFIC GAME
 // in server.js
 app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const userId = req.user.userId;
   try {
-    // Step 1: Find the user's roster_id for this specific game.
     const participantResult = await pool.query(
       `SELECT roster_id FROM game_participants WHERE game_id = $1 AND user_id = $2`,
       [gameId, userId]
@@ -1838,9 +2032,9 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
     }
     const rosterId = participantResult.rows[0].roster_id;
 
-    // Step 2: Now that we have the roster_id, we can return it.
-    // The SetLineupView will use this ID to call the /api/rosters/:rosterId endpoint.
-    res.json({ roster_id: rosterId });
+    const mandatoryPitcherId = await getMandatoryPitcher(gameId, userId, pool);
+
+    res.json({ roster_id: rosterId, mandatoryPitcherId });
 
   } catch (error) {
     console.error(`Error fetching participant info for game ${gameId}:`, error);

@@ -176,13 +176,13 @@ async function fetchAvailableTeams() {
   }
 
   // in src/stores/auth.js
-async function createGame(rosterId) {
+async function createGame(rosterId, seriesType) {
   if (!token.value) return;
   try {
     const response = await fetch(`${API_URL}/api/games`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` },
-      body: JSON.stringify({ roster_id: rosterId, home_or_away: 'home', league_designation: 'AL' })
+      body: JSON.stringify({ roster_id: rosterId, home_or_away: 'home', league_designation: 'AL', series_type: seriesType })
     });
     if (!response.ok) throw new Error('Failed to create game');
 

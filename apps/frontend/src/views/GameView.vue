@@ -10,6 +10,7 @@ import BaseballDiamond from '@/components/BaseballDiamond.vue';
 
 const showSubModal = ref(false);
 const route = useRoute();
+const router = useRouter();
 const gameStore = useGameStore();
 const authStore = useAuthStore();
 const gameId = route.params.id;
@@ -17,6 +18,8 @@ const initialLoadComplete = ref(false);
 const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
+const seriesUpdateMessage = ref('');
+const nextGameId = ref(null);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -506,6 +509,14 @@ watch(isBetweenHalfInnings, (newValue) => {
   gameStore.setIsBetweenHalfInnings(newValue);
 }, { immediate: true });
 
+const isGameOver = computed(() => gameStore.game?.status === 'completed');
+
+function proceedToNextGame() {
+    if (nextGameId.value) {
+        router.push(`/game/${nextGameId.value}/lineup`);
+    }
+}
+
 function hexToRgba(hex, alpha = 0.95) {
   if (!hex || !/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
     return `rgba(200, 200, 200, ${alpha})`; // Fallback for invalid colors
@@ -775,16 +786,37 @@ onMounted(async () => {
     console.log('--- 3. GameView: game-updated event received from socket. ---');
     gameStore.updateGameData(data);
   });
+
+  socket.on('series-next-game-ready', (data) => {
+    const series = gameStore.series;
+    const myTeamIsSeriesHome = authStore.user.userId === series.series_home_user_id;
+    const myWins = myTeamIsSeriesHome ? data.home_wins : data.away_wins;
+    const opponentWins = myTeamIsSeriesHome ? data.away_wins : data.home_wins;
+
+    seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
+    nextGameId.value = data.nextGameId;
+  });
 });
 
 onUnmounted(() => {
   gameStore.resetGameState();
   socket.off('game-updated');
+  socket.off('series-next-game-ready');
   socket.disconnect();
 });
 </script>
 
 <template>
+  <div v-if="isGameOver" class="game-over-modal">
+    <div class="game-over-content">
+        <h2>Game Over</h2>
+        <p v-if="seriesUpdateMessage">{{ seriesUpdateMessage }}</p>
+        <p v-else>This game is complete.</p>
+        <button v-if="nextGameId" @click="proceedToNextGame">Proceed to Next Game's Lineup</button>
+        <RouterLink v-else to="/dashboard" class="button-link">Return to Dashboard</RouterLink>
+    </div>
+  </div>
+
   <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
     <div @click.stop><PlayerCard :player="selectedCard" /></div>
   </div>
@@ -1218,5 +1250,43 @@ onUnmounted(() => {
 @keyframes flash {
   0%, 100% { opacity: 0; }
   25%, 75% { opacity: 1; }
+}
+
+.game-over-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.game-over-content {
+  background-color: white;
+  padding: 2rem 3rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.game-over-content h2 {
+  margin-top: 0;
+}
+
+.game-over-content button, .game-over-content .button-link {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+    color: white;
+    background-color: #28a745;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-decoration: none;
 }
 </style>

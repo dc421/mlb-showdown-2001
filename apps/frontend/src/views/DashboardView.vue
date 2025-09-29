@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { socket } from '@/services/socket';
@@ -7,6 +7,7 @@ import GameScorecard from '@/components/GameScorecard.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const seriesType = ref('exhibition'); // Default to exhibition
 
 const myTeamDisplayName = computed(() => {
   if (!authStore.user?.team) return '';
@@ -24,7 +25,8 @@ const gamesToJoin = computed(() => {
 
 function handleCreateGame() {
   if (authStore.myRoster) {
-    authStore.createGame(authStore.myRoster.roster_id);
+    // Pass the selected series type to the store action
+    authStore.createGame(authStore.myRoster.roster_id, seriesType.value);
   } else {
     alert('You must create a roster before you can create a game.');
   }
@@ -81,6 +83,11 @@ onUnmounted(() => {
       </div>
       <div class="panel">
         <h2>Active Games</h2>
+        <div class="series-options">
+            <label><input type="radio" v-model="seriesType" value="exhibition"> Exhibition</label>
+            <label><input type="radio" v-model="seriesType" value="regular_season"> Regular Season (7 Games)</label>
+            <label><input type="radio" v-model="seriesType" value="playoff"> Playoff (Best of 7)</label>
+        </div>
         <button @click="handleCreateGame" :disabled="!authStore.myRoster" class="action-btn">+ Create New Game</button>
         <ul v-if="authStore.myGames.length > 0" class="game-list">
             <li v-for="game in authStore.myGames" :key="game.game_id">
@@ -178,6 +185,15 @@ onUnmounted(() => {
 .game-list li a:hover { background-color: #f0f0f0; }
 .status { text-transform: capitalize; color: #555; }
 .turn-indicator { font-weight: bold; color: #28a745; }
+
+.series-options {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+}
 
 @media (max-width: 768px) {
   .team-header {

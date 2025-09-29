@@ -147,15 +147,30 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
     events.push(`HOME TEAM WINS! WALK-OFF!`);
   }
 
-  // --- Handle Inning Change ---
+  // --- Handle Inning Change & Game Over Check ---
   if (newState.outs >= 3 && !newState.gameOver) {
-    newState.inningChanged = true; // Signal to the server
-    const wasTop = newState.isTopInning;
-    newState.isTopInning = !newState.isTopInning;
-    if (newState.isTopInning) newState.inning++;
-    newState.outs = 0;
-    newState.bases = { first: null, second: null, third: null };
-    // The inning change event itself is now created in server.js
+    const isGameOver = (
+      // Case 1: End of the 9th or later (bottom half), and it's not a tie.
+      newState.inning >= 9 && !newState.isTopInning && newState.homeScore !== newState.awayScore
+    ) || (
+      // Case 2: End of the top of the 9th or later, and home team is already ahead.
+      newState.inning >= 9 && newState.isTopInning && newState.homeScore > newState.awayScore
+    );
+
+    if (isGameOver) {
+      newState.gameOver = true;
+      newState.winningTeam = newState.homeScore > newState.awayScore ? 'home' : 'away';
+      events.push(`That's the ballgame! Final Score: Away ${newState.awayScore}, Home ${newState.homeScore}.`);
+    } else {
+      // It's just an inning change, not the end of the game
+      newState.inningChanged = true; // Signal to the server
+      const wasTop = newState.isTopInning;
+      newState.isTopInning = !newState.isTopInning;
+      if (newState.isTopInning) newState.inning++;
+      newState.outs = 0;
+      newState.bases = { first: null, second: null, third: null };
+      // The inning change event itself is now created in server.js
+    }
   }
   
   return { newState, events };

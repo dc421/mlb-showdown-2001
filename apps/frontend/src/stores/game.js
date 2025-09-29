@@ -6,13 +6,14 @@ const teams = ref({ home: null, away: null });
 
 export const useGameStore = defineStore('game', () => {
   const game = ref(null);
+  const series = ref(null);
   const gameState = ref(null);
   const gameEvents = ref([]);
   const batter = ref(null);
   const pitcher = ref(null);
   const lineups = ref({ home: null, away: null });
   const rosters = ref({ home: [], away: [] });
-  const teams = ref({ home: null, away: null }); // <-- ADD THIS LINE
+  const teams = ref({ home: null, away: null });
   const setupState = ref(null);
 
 // in src/stores/game.js
@@ -34,6 +35,7 @@ async function fetchGame(gameId) {
       
       
       game.value = data.game;
+      series.value = data.series;
       gameState.value = data.gameState.state_data;
       gameEvents.value = data.gameEvents;
       batter.value = data.batter;
@@ -359,6 +361,7 @@ async function resetRolls(gameId) {
   function updateGameData(data) {
     console.log('📥 STORE: Received game data from socket.');
     if (data.game) game.value = data.game;
+    if (data.series) series.value = data.series;
     if (data.gameState) gameState.value = data.gameState.state_data;
     if (data.gameEvents) gameEvents.value = data.gameEvents;
     if (data.batter) batter.value = data.batter;
@@ -370,6 +373,7 @@ async function resetRolls(gameId) {
 
   function resetGameState() {
     game.value = null;
+    series.value = null;
     gameState.value = null;
     gameEvents.value = [];
     batter.value = null;
@@ -383,7 +387,7 @@ async function resetRolls(gameId) {
     isBetweenHalfInnings.value = false;
   }
 
-  return { game, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
+  return { game, series, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay,
     isBetweenHalfInnings, setIsBetweenHalfInnings,
