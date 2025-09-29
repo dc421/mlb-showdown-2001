@@ -465,13 +465,10 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         }
       };
 
-      await client.query(`INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)`, [gameId, 1, initialGameState]);
-      
-      const homeRosterCards = await client.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [homeParticipant.roster_id]);
-      const startingPitcherCard = homeRosterCards.rows.find(c => c.card_id === homeParticipant.lineup.startingPitcher);
+      await client.query(`INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)`, [gameId, 1, initialGameState, false, false]);
       
       const allCardsResult = await pool.query('SELECT name, team FROM cards_player');
-      processPlayers([startingPitcherCard], allCardsResult.rows);
+      processPlayers([pitcher], allCardsResult.rows);
 
       const awayTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [awayParticipant.user_id]);
       const homeTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [homeParticipant.user_id]);
@@ -483,7 +480,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
             <img src="${awayTeamLogo}" class="team-logo-small" alt="Team Logo">
             <b>Top 1st</b>
         </div>
-        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${startingPitcherCard.displayName}</div>
+        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${pitcher.displayName}</div>
       `;
       // --- ADD THIS LOG ---
     console.log(`🔫 SERVER: Creating initial event for game ${gameId}:`, inningChangeEvent);
@@ -579,7 +576,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         }
     }
 
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
     
     await client.query('COMMIT');
@@ -611,7 +608,7 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
     // Create a new state with the updated defensive setting
     const newState = { ...currentState, infieldIn: infieldIn };
     
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
     
     // Notify the room that the game state has changed
@@ -1076,7 +1073,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         const originalScore = currentState.awayScore + currentState.homeScore;
         let combinedLogMessage = events.join(' ');
 
-        if (finalState.inningChanged) {
+        if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
           combinedLogMessage += ` <strong>Outs: 3</strong>`;
         } else if (finalState.outs > originalOuts) {
           combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
@@ -1088,7 +1085,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
-        if (finalState.inningChanged) {
+        if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
           const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
           const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
           const home_team_user_id = game.rows[0].home_team_user_id;
@@ -1117,7 +1114,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
             <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
           `;
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
-          delete finalState.inningChanged;
         }
       }
       
@@ -1133,7 +1129,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       }
     }
     
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, finalState, finalState.isBetweenHalfInningsHome, finalState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
     const gameData = await getAndProcessGameData(gameId, client);
     io.to(gameId).emit('game-updated', gameData);
@@ -1232,7 +1228,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               const originalScore = currentState.awayScore + currentState.homeScore;
               let combinedLogMessage = events.join(' ');
 
-              if (finalState.inningChanged) {
+              if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
                 combinedLogMessage += ` <strong>Outs: 3</strong>`;
               } else if (finalState.outs > originalOuts) {
                 combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
@@ -1244,7 +1240,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
 
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
-              if (finalState.inningChanged) {
+              if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
                 const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
                 const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
                 const home_team_user_id = game.rows[0].home_team_user_id;
@@ -1273,7 +1269,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                   <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
                 `;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
-                delete finalState.inningChanged;
               }
             }
 
@@ -1290,7 +1285,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         }
     }
     
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, finalState, finalState.isBetweenHalfInningsHome, finalState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
     const gameData = await getAndProcessGameData(gameId, client);
     io.to(gameId).emit('game-updated', gameData);
@@ -1316,7 +1311,7 @@ app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
     
     // The only job is to change the status to reveal the outcome.
 
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, finalState, finalState.isBetweenHalfInningsHome, finalState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
     
     const gameData = await getAndProcessGameData(gameId, client);
@@ -1355,10 +1350,16 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         outs: newState.outsBeforePlay 
        };
 
-      const inningDidNotChange = originalState.isTopInning === newState.isTopInning;
-      if (inningDidNotChange) {
-        const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-        newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
+      // This logic correctly advances the batting order for the team that just batted.
+      const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+      newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
+
+      // Reset the between-innings flags now that the new at-bat is set up.
+      if (newState.isBetweenHalfInningsHome) {
+        newState.isBetweenHalfInningsHome = false;
+      }
+      if (newState.isBetweenHalfInningsAway) {
+        newState.isBetweenHalfInningsAway = false;
       }
       
       // 3. Create a fresh scorecard for the new at-bat.
@@ -1387,7 +1388,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
     }
     
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
     
     const gameData = await getAndProcessGameData(gameId, client);
@@ -1470,7 +1471,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
         
         // Clear the decision-making part of the play
         newState.currentPlay.decisions = []; 
-        await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+        await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
         
         await client.query('COMMIT');
         const gameData = await getAndProcessGameData(gameId, client);
@@ -1569,7 +1570,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
       newState.bases = { first: null, second: null, third: null };
         }
 
-        await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+        await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
         for (const logMessage of events) {
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', logMessage]);
         }
@@ -1648,7 +1649,7 @@ app.post('/api/games/:gameId/infield-in-play', authenticateToken, async (req, re
       }
     }
 
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     for (const logMessage of events) {
       // FIX 2: Added the user_id back into the event log query.
       await client.query(
@@ -1734,7 +1735,7 @@ app.post('/api/games/:gameId/tag-up', authenticateToken, async (req, res) => {
       }
     }
     
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     for (const logMessage of events) {
       // FIX 2: Added the user_id back into the event log query.
       await client.query(
@@ -1776,7 +1777,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     
     // Pass the turn to the defensive player
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     
     await client.query('COMMIT');
     const gameData = await getAndProcessGameData(gameId, client);
@@ -1855,7 +1856,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
     console.log('Final Bases to be Saved:', JSON.stringify(newState.bases));
     
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     for (const logMessage of events) {
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'steal', logMessage]);
     }
@@ -1937,7 +1938,7 @@ app.post('/api/games/:gameId/advance-runners', authenticateToken, async (req, re
       // This is now handled by the inningChangeEvent logic
     }
 
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     for (const logMessage of events) {
       await client.query(`INSERT INTO game_events (game_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4)`, [gameId, currentTurn + 1, 'baserunning', logMessage]);
     }

@@ -34,7 +34,7 @@ router.post('/games/:gameId/set-state', authenticateToken, async (req, res) => {
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [partialState.current_turn_user_id, gameId]);
         }
 
-        await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+        await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
         
         await client.query('COMMIT');
         io.to(gameId).emit('game-updated'); // Notify clients of the change

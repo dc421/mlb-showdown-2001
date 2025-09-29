@@ -165,11 +165,17 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
       // It's just an inning change, not the end of the game
       newState.inningChanged = true; // Signal to the server
       const wasTop = newState.isTopInning;
-      newState.isTopInning = !newState.isTopInning;
-      if (newState.isTopInning) newState.inning++;
-      newState.outs = 0;
-      newState.bases = { first: null, second: null, third: null };
-      // The inning change event itself is now created in server.js
+      
+      if (newState.isTopInning) { // Away team finished batting
+      newState.isBetweenHalfInningsAway = true;
+    } else { // Home team finished batting
+      newState.isBetweenHalfInningsHome = true;
+    }
+    newState.isTopInning = !newState.isTopInning;
+    if (newState.isTopInning) newState.inning++;
+    newState.outs = 0;
+    newState.bases = { first: null, second: null, third: null };
+    // The inning change event itself is now created in server.js
     }
   }
   

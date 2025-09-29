@@ -91,7 +91,7 @@ const statusText = computed(() => {
           <span class="inning">{{ inningDescription }}</span>
         </div>
       </div>
-      <div class="line-2">
+      <div class="line-2" v-if="game.opponent">
         <span class="status" v-if="isUsersTurn">Your Turn!</span>
         <span class="status not-your-turn" v-else>{{ statusText }}</span>
 

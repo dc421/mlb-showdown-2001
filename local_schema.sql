@@ -132,7 +132,9 @@ CREATE TABLE public.game_states (
     game_id integer NOT NULL,
     turn_number integer NOT NULL,
     state_data jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now()
+    created_at timestamp with time zone DEFAULT now(),
+    is_between_half_innings_home boolean DEFAULT false,
+    is_between_half_innings_away boolean DEFAULT false
 );
 
 

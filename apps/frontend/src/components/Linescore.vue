@@ -29,8 +29,8 @@ const linescore = computed(() => {
         }
         else if (event.log_message.includes('inning-change-message')) {
           if (inningMarkersFound > 0) {
-              if (isTop) { scores.away.push(awayRunsInning); }
-              else { scores.home.push(homeRunsInning); }
+              if (isTop) { scores.away.push(awayRunsInInning); }
+              else { scores.home.push(homeRunsInInning); }
           }
           inningMarkersFound++;
           awayRunsInInning = 0;
@@ -47,7 +47,7 @@ const linescore = computed(() => {
   } else {
     if(scores.away.length === scores.home.length) {
       // When we're in the bottom of an inning, the away team's runs for this inning are final.
-      // The awayRunsInning variable should have been reset to 0 by the last inning-change event.
+      // The awayRunsInInning variable should have been reset to 0 by the last inning-change event.
       // Pushing 0 is the correct action.
       scores.away.push(0);
     }
@@ -105,7 +105,7 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
 .linescore-table th,
 .linescore-table td {
   text-align: center;
-  padding: 0.1rem 0.4rem;
+  padding: 0.1rem 0.1rem;
   min-width: 25px;
 }
 .linescore-table th {

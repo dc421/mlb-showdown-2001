@@ -174,6 +174,23 @@ const amIDefensivePlayer = computed(() => {
     return !amIOffensivePlayer.value;
 });
 
+const isBetweenHalfInnings = computed(() => {
+  if (!gameStore.gameState) return false;
+  return gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome;
+});
+
+// NEW: Display-only computeds for the inning changeover
+const amIDisplayOffensivePlayer = computed(() => {
+  if (isBetweenHalfInnings.value) {
+    return !amIOffensivePlayer.value;
+  }
+  return amIOffensivePlayer.value;
+});
+
+const amIDisplayDefensivePlayer = computed(() => {
+  return !amIDisplayOffensivePlayer.value;
+});
+
 // UI State Computeds
 const pitcherOnlySetActions = computed(() => {
   if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
@@ -227,29 +244,24 @@ const canAttemptSteal = computed(() => {
 });
 
 const showNextHitterButton = computed(() => {
-  // Rule 1: If I've already clicked "Next Hitter", never show the button.
   if (amIReadyForNext.value) {
     return false;
   }
 
-  // Rule 2: If I'm the batter and I haven't rolled for my swing yet, don't show the button.
+  // Case 1: Inning is over. Both players see the button.
+  if (isBetweenHalfInnings.value) {
+    return true;
+  }
+
+  // Don't show if they haven't rolled for their swing yet.
   if (amIOffensivePlayer.value && !haveIRolledForSwing.value) {
     return false;
   }
   
-  // Rule 3: The at-bat must be fully resolved (both players have acted).
   const atBatIsResolved = bothPlayersSetAction.value;
-
-  // Exception to Rule 3: Or, the other player has already moved on.
   const opponentIsReady = opponentReadyForNext.value;
 
-  // Show the button if the at-bat is resolved OR the opponent is already ready.
-  if (atBatIsResolved || opponentIsReady) {
-    return true;
-  }
-
-  // In all other cases, hide the button.
-  return false;
+  return atBatIsResolved || opponentIsReady;
 });
 
 const outfieldDefense = computed(() => {
@@ -368,7 +380,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
     // In the template, the swing result is shown if `isSwingResultVisible || haveIRolledForSwing`.
     // For the offensive player, `isSwingResultVisible` is always false, so the result
     // only appears when `haveIRolledForSwing` becomes true (i.e., when they click the button).
-    if (amIDefensivePlayer.value) {
+    if (amIDisplayDefensivePlayer.value) {
       // If we've already seen the result (e.g. page refresh), show it immediately.
       if (hasSeenResult.value) {
         isSwingResultVisible.value = true;
@@ -466,7 +478,7 @@ const basesToDisplay = computed(() => {
 });
 
 const outsToDisplay = computed(() => {
-  if (gameStore.isBetweenHalfInnings) {
+  if (isBetweenHalfInnings.value) {
     return 3;
   }
   if (shouldHidePlayOutcome.value) {
@@ -487,7 +499,6 @@ watch(outsToDisplay, (newOuts) => {
     gameStore.setDisplayOuts(newOuts);
   }
 }, { immediate: true }); // 'immediate' runs the watcher once on component load
-
 
 const isBetweenHalfInnings = computed(() => {
   // The primary condition is that the current user has not clicked "Next Hitter" yet.
@@ -517,6 +528,7 @@ function proceedToNextGame() {
     }
 }
 
+ 
 function hexToRgba(hex, alpha = 0.95) {
   if (!hex || !/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
     return `rgba(200, 200, 200, ${alpha})`; // Fallback for invalid colors
@@ -688,27 +700,27 @@ const outcomeBatter = computed(() => {
 
 
 const controlledPlayer = computed(() => {
-  return amIOffensivePlayer.value ? batterToDisplay.value : pitcherToDisplay.value;
+  return amIDisplayOffensivePlayer.value ? batterToDisplay.value : pitcherToDisplay.value;
 });
 
 const opponentPlayer = computed(() => {
-  return amIOffensivePlayer.value ? pitcherToDisplay.value : batterToDisplay.value;
+  return amIDisplayOffensivePlayer.value ? pitcherToDisplay.value : batterToDisplay.value;
 });
 
 const controlledPlayerRole = computed(() => {
-  return amIOffensivePlayer.value ? 'Batter' : 'Pitcher';
+  return amIDisplayOffensivePlayer.value ? 'Batter' : 'Pitcher';
 });
 
 const opponentPlayerRole = computed(() => {
-  return amIOffensivePlayer.value ? 'Pitcher' : 'Batter';
+  return amIDisplayOffensivePlayer.value ? 'Pitcher' : 'Batter';
 });
 
 const controlledPlayerTeamColors = computed(() => {
-  return amIOffensivePlayer.value ? batterTeamColors.value : pitcherTeamColors.value;
+  return amIDisplayOffensivePlayer.value ? batterTeamColors.value : pitcherTeamColors.value;
 });
 
 const opponentPlayerTeamColors = computed(() => {
-  return amIOffensivePlayer.value ? pitcherTeamColors.value : batterTeamColors.value;
+  return amIDisplayOffensivePlayer.value ? pitcherTeamColors.value : batterTeamColors.value;
 });
 
 const showAdvantage = computed(() => {
@@ -720,7 +732,7 @@ const showAdvantage = computed(() => {
 const controlledPlayerHasAdvantage = computed(() => {
   if (!showAdvantage.value) return null;
   const advantageGoesTo = atBatToDisplay.value.pitchRollResult?.advantage;
-  if (amIOffensivePlayer.value) {
+  if (amIDisplayOffensivePlayer.value) {
     return advantageGoesTo === 'batter';
   } else {
     return advantageGoesTo === 'pitcher';
@@ -730,7 +742,7 @@ const controlledPlayerHasAdvantage = computed(() => {
 const opponentPlayerHasAdvantage = computed(() => {
   if (!showAdvantage.value) return null;
   const advantageGoesTo = atBatToDisplay.value.pitchRollResult?.advantage;
-  if (amIOffensivePlayer.value) {
+  if (amIDisplayOffensivePlayer.value) {
     return advantageGoesTo === 'pitcher';
   } else {
     return advantageGoesTo === 'batter';
@@ -740,7 +752,7 @@ const opponentPlayerHasAdvantage = computed(() => {
 const pitchResultClasses = computed(() => {
   const classes = ['result-box'];
   // Pitcher is the controlled player (on the left) if I am the defensive player.
-  if (amIDefensivePlayer.value) {
+  if (amIDisplayDefensivePlayer.value) {
     classes.push('result-box-left');
   } else {
     classes.push('result-box-right');
@@ -751,7 +763,7 @@ const pitchResultClasses = computed(() => {
 const swingResultClasses = computed(() => {
   const classes = ['result-box'];
   // Batter is the controlled player (on the left) if I am the offensive player.
-  if (amIOffensivePlayer.value) {
+  if (amIDisplayOffensivePlayer.value) {
     classes.push('result-box-left');
   } else {
     classes.push('result-box-right');
@@ -831,10 +843,10 @@ onUnmounted(() => {
           <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
-            !(!bothPlayersSetAction.value && amIOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
+            !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIOffensivePlayer && haveIRolledForSwing))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
+          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
@@ -846,20 +858,20 @@ onUnmounted(() => {
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- Main Action Buttons -->
-            <button v-if="amIDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-            <button v-if="amIOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
-            <button v-else-if="amIOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-            <button v-if="showNextHitterButton && (isSwingResultVisible || (amIOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+            <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+            <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
+            <button v-else-if="amIDisplayOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+            <button v-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
             <!-- Secondary Action Buttons -->
             <div v-if="!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction">
-                <button v-if="amIDefensivePlayer && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                <button v-if="amIOffensivePlayer && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                <button v-if="amIDisplayDefensivePlayer && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
+                <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.awayPlayerReadyForNext && !gameStore.gameState.homePlayerReadyForNext" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
             </div>
 
             <!-- Waiting Indicators -->
-            <div v-if="amIOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">Waiting for pitch...</div>
-            <div v-if="(amIDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">Waiting for swing...</div>
+            <div v-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">Waiting for pitch...</div>
+            <div v-if="(amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">Waiting for swing...</div>
         </div>
 
         <!-- Player Cards Wrapper -->
@@ -1226,7 +1238,7 @@ onUnmounted(() => {
   border: 1px solid;
   text-align: center;
   position: absolute; /* Position relative to the diamond container */
-  top: 25px;
+  top: 20px;
 }
 .result-box-left { left: 8px; }
 .result-box-right { right: 12px; }
