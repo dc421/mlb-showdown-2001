@@ -105,7 +105,7 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
 .linescore-table th,
 .linescore-table td {
   text-align: center;
-  padding: 0.1rem 0.4rem;
+  padding: 0.1rem 0.1rem;
   min-width: 25px;
 }
 .linescore-table th {
