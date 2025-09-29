@@ -125,5 +125,19 @@ const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME
   color: #ffc107;
   font-weight: bold;
 }
+
+@media (max-width: 768px) {
+  .linescore-table {
+    font-size: 0.9em;
+  }
+  .linescore-table th,
+  .linescore-table td {
+    min-width: unset;
+    padding: 0.1rem;
+  }
+  .linescore-table td:first-child {
+    min-width: unset;
+  }
+}
 </style>
 
