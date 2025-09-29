@@ -581,28 +581,40 @@ app.get('/api/games', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
     const gamesResult = await pool.query(
-      `SELECT g.game_id, g.status, g.current_turn_user_id 
+      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id
        FROM games g JOIN game_participants gp ON g.game_id = gp.game_id 
        WHERE gp.user_id = $1 ORDER BY g.created_at DESC`,
       [userId]
     );
 
-    // For each game, find the opponent and get their team info
-    const gamesWithOpponent = [];
+    const processedGames = [];
     for (const game of gamesResult.rows) {
-        const opponentResult = await pool.query(
-            `SELECT t.city, t.name, t.display_format
+        const participantsResult = await pool.query(
+            `SELECT u.user_id, t.city, t.name, t.abbreviation, t.display_format
              FROM game_participants gp 
              JOIN users u ON gp.user_id = u.user_id 
              JOIN teams t ON u.team_id = t.team_id 
-             WHERE gp.game_id = $1 AND gp.user_id != $2`,
-            [game.game_id, userId]
+             WHERE gp.game_id = $1`,
+            [game.game_id]
         );
+
+        let opponent = null;
+        let home_team_abbr = 'HOME';
+        let away_team_abbr = 'AWAY';
         
-        let opponent = opponentResult.rows.length > 0 ? opponentResult.rows[0] : null;
-        if (opponent) {
-            const format = opponent.display_format || '{city} {name}';
-            opponent.full_display_name = format.replace('{city}', opponent.city).replace('{name}', opponent.name);
+        const homeUserId = Number(game.home_team_user_id);
+
+        for (const p of participantsResult.rows) {
+            if (Number(p.user_id) === homeUserId) {
+                home_team_abbr = p.abbreviation;
+            } else {
+                away_team_abbr = p.abbreviation;
+            }
+
+            if (Number(p.user_id) !== userId) {
+                const format = p.display_format || '{city} {name}';
+                opponent = { ...p, full_display_name: format.replace('{city}', p.city).replace('{name}', p.name) };
+            }
         }
 
         let gameState = null;
@@ -616,10 +628,21 @@ app.get('/api/games', authenticateToken, async (req, res) => {
             }
         }
 
-        gamesWithOpponent.push({ ...game, opponent, gameState });
+        const isUserTurn = Number(game.current_turn_user_id) === userId;
+        let status_text = game.status.replace('_', ' ');
+        if (game.status === 'in_progress' && isUserTurn) {
+            status_text = 'Your Turn!';
+        } else if (game.status === 'pending') {
+            status_text = 'Waiting for opponent';
+        } else if (game.status === 'lineups') {
+            status_text = 'Set your lineup';
+        }
+
+
+        processedGames.push({ ...game, opponent, gameState, home_team_abbr, away_team_abbr, status_text });
     }
 
-    res.json(gamesWithOpponent);
+    res.json(processedGames);
   } catch (error) {
     console.error('Error fetching user games:', error);
     res.status(500).json({ message: 'Server error while fetching games.' });
