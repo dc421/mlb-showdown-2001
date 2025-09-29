@@ -86,9 +86,6 @@ onUnmounted(() => {
             <li v-for="game in authStore.myGames" :key="game.game_id">
                 <RouterLink :to="game.status === 'pending' ? `/game/${game.game_id}/setup` : (game.status === 'lineups' ? `/game/${game.game_id}/lineup` : `/game/${game.game_id}`)">
                     <GameScorecard :game="game" />
-                    <span v-if="Number(game.current_turn_user_id) === authStore.user?.userId" class="turn-indicator">
-                        Your Turn!
-                    </span>
                 </RouterLink>
             </li>
         </ul>

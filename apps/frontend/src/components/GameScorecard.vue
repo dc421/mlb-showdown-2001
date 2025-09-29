@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps({
   game: {
@@ -8,9 +9,16 @@ const props = defineProps({
   },
 });
 
+const authStore = useAuthStore();
 const gameState = computed(() => props.game.gameState);
-const awayTeamAbbr = computed(() => props.game.away_team?.abbreviation || 'AWAY');
-const homeTeamAbbr = computed(() => props.game.home_team?.abbreviation || 'HOME');
+const isUsersTurn = computed(() => Number(props.game.current_turn_user_id) === authStore.user?.userId);
+
+const awayTeamAbbr = computed(() => {
+    return props.game.away_team_abbr || 'AWAY';
+});
+const homeTeamAbbr = computed(() => {
+    return props.game.home_team_abbr || 'HOME';
+});
 
 const scoreText = computed(() => {
   if (!gameState.value) return '';
@@ -50,26 +58,35 @@ const outsText = computed(() => {
   const outs = gameState.value.outs;
   return `${outs} ${outs === 1 ? 'out' : 'outs'}`;
 });
+
+const isPreGame = computed(() => {
+    return ['pending', 'lineups'].includes(props.game.status);
+})
 </script>
 
 <template>
   <div class="game-scorecard">
-    <div v-if="game.status === 'in_progress' && gameState" class="game-details">
+    <div v-if="(game.status === 'in_progress' && gameState) || isPreGame" class="game-details">
       <div class="line-1">
         <div class="opponent-info">
           <span v-if="game.opponent">vs. {{ game.opponent.full_display_name }}</span>
-          <span v-else>Waiting for opponent...</span>
+          <span v-else-if="isPreGame">Waiting for opponent...</span>
         </div>
-        <div class="score-inning">
+        <div class="score-inning" v-if="game.status === 'in_progress' && gameState">
           <span>{{ scoreText }}</span>
           <span>{{ inningDescription }}</span>
         </div>
       </div>
       <div class="line-2">
-        <span class="status">{{ game.status_text }}</span>
-        <div class="state">
+        <span class="status" v-if="isUsersTurn">Your Turn!</span>
+        <span class="status" v-else>{{ game.status_text }}</span>
+
+        <div class="state" v-if="game.status === 'in_progress' && gameState">
             <span class="runners">{{ runnersOnBaseText }}</span>
-            <span class="outs">{{ outsText }}</span>
+            <span class="outs" v-if="outsText">
+                <template v-if="runnersOnBaseText">, </template>
+                <i>{{ outsText }}</i>
+            </span>
         </div>
       </div>
     </div>
@@ -106,13 +123,17 @@ const outsText = computed(() => {
 
 .state {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.25rem;
     align-items: baseline;
 }
 
-.runners, .outs {
+.runners {
   font-style: italic;
   font-size: 0.9rem;
+}
+
+.outs {
+    font-size: 0.9rem;
 }
 
 .game-status {
