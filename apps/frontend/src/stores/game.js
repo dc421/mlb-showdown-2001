@@ -331,15 +331,10 @@ async function resetRolls(gameId) {
 // --- ADD THIS LINE ---
   const displayOuts = ref(0);
   const isOutcomeHidden = ref(false);
-  const isBetweenHalfInnings = ref(false);
 
   // --- ADD THIS ACTION ---
   function setDisplayOuts(count) {
     displayOuts.value = count;
-  }
-
-  function setIsBetweenHalfInnings(value) {
-    isBetweenHalfInnings.value = value;
   }
 
   function setOutcomeHidden(value) {
@@ -380,13 +375,11 @@ async function resetRolls(gameId) {
     setupState.value = null;
     displayOuts.value = 0;
     isOutcomeHidden.value = false;
-    isBetweenHalfInnings.value = false;
   }
 
   return { game, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay,
-    isBetweenHalfInnings, setIsBetweenHalfInnings,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
     resetGameState
