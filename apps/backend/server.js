@@ -999,7 +999,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
             <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
           `;
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
-          delete finalState.inningChanged;
         }
       }
       
@@ -1146,7 +1145,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                   <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
                 `;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
-                delete finalState.inningChanged;
               }
             }
 
@@ -1219,8 +1217,17 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         outs: newState.outsBeforePlay 
        };
 
-      const inningDidNotChange = originalState.isTopInning === newState.isTopInning;
-      if (inningDidNotChange) {
+      // This logic correctly advances the batting order for the team that just batted.
+      if (newState.inningChanged) {
+        // The inning flipped. The team that just batted is the one that is now on defense.
+        // If it's the top of the inning, the home team just batted.
+        // If it's the bottom of the inning, the away team just batted.
+        const teamThatJustBattedKey = newState.isTopInning ? 'homeTeam' : 'awayTeam';
+        newState[teamThatJustBattedKey].battingOrderPosition = (newState[teamThatJustBattedKey].battingOrderPosition + 1) % 9;
+        // Reset the flag now that we've handled the special case.
+        newState.inningChanged = false;
+      } else {
+        // The inning did not change, so the team currently on offense is the one that just batted.
         const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
         newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
       }
