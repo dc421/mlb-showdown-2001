@@ -61,7 +61,18 @@ const outsText = computed(() => {
 
 const isPreGame = computed(() => {
     return ['pending', 'lineups'].includes(props.game.status);
-})
+});
+
+const statusText = computed(() => {
+  const text = props.game.status_text;
+  if (text === 'in progress') {
+    return 'In Progress';
+  }
+  if (text === 'Waiting for opponent') {
+    return 'Waiting for opponent...';
+  }
+  return text;
+});
 </script>
 
 <template>
@@ -74,12 +85,12 @@ const isPreGame = computed(() => {
         </div>
         <div class="score-inning" v-if="game.status === 'in_progress' && gameState">
           <span>{{ scoreText }}</span>
-          <span>{{ inningDescription }}</span>
+          <span class="inning">{{ inningDescription }}</span>
         </div>
       </div>
       <div class="line-2">
         <span class="status" v-if="isUsersTurn">Your Turn!</span>
-        <span class="status" v-else>{{ game.status_text }}</span>
+        <span class="status not-your-turn" v-else>{{ statusText }}</span>
 
         <div class="state" v-if="game.status === 'in_progress' && gameState">
             <span class="runners">{{ runnersOnBaseText }}</span>
@@ -91,7 +102,7 @@ const isPreGame = computed(() => {
       </div>
     </div>
     <div v-else class="game-status">
-       <span class="status">{{ game.status_text }}</span>
+       <span class="status">{{ statusText }}</span>
     </div>
   </div>
 </template>
@@ -121,9 +132,12 @@ const isPreGame = computed(() => {
   font-size: 0.9rem;
 }
 
+.inning {
+    font-weight: bold;
+}
+
 .state {
     display: flex;
-    gap: 0.25rem;
     align-items: baseline;
 }
 
@@ -146,5 +160,11 @@ const isPreGame = computed(() => {
     /* Assuming status text like 'Your Turn!' might be colored */
     color: green;
     font-weight: bold;
+}
+
+.status.not-your-turn {
+    color: black;
+    font-style: italic;
+    font-weight: normal;
 }
 </style>
