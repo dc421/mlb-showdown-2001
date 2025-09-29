@@ -41,7 +41,6 @@ const isGamePage = computed(() => route.name === 'game');
   background-color: #343a40;
   padding: 0.5rem 1rem;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   position: sticky;
   top: 0;
@@ -80,6 +79,7 @@ const isGamePage = computed(() => route.name === 'game');
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin: 0 auto;
 }
 
 .nav-right {
