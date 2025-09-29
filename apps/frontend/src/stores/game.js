@@ -34,8 +34,8 @@ async function fetchGame(gameId) {
       
       
       game.value = data.game;
-      gameState.value = data.gameState.state_data;
-      gameEvents.value = data.gameEvents;
+      gameState.value = data.gameState?.state_data || null;
+      gameEvents.value = data.gameEvents || [];
       batter.value = data.batter;
       pitcher.value = data.pitcher;
       lineups.value = data.lineups;

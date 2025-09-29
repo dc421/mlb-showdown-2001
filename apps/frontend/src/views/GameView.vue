@@ -171,6 +171,11 @@ const amIDefensivePlayer = computed(() => {
     return !amIOffensivePlayer.value;
 });
 
+const isBetweenHalfInnings = computed(() => {
+  if (!gameStore.gameState) return false;
+  return gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome;
+});
+
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
   if (isBetweenHalfInnings.value) {
@@ -491,12 +496,6 @@ watch(outsToDisplay, (newOuts) => {
     gameStore.setDisplayOuts(newOuts);
   }
 }, { immediate: true }); // 'immediate' runs the watcher once on component load
-
-
-const isBetweenHalfInnings = computed(() => {
-  if (!gameStore.gameState) return false;
-  return gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome;
-});
 
 function hexToRgba(hex, alpha = 0.95) {
   if (!hex || !/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {

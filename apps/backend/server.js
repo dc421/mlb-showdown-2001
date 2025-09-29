@@ -371,11 +371,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
 
       await client.query(`INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)`, [gameId, 1, initialGameState, false, false]);
       
-      const homeRosterCards = await client.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [homeParticipant.roster_id]);
-      const startingPitcherCard = homeRosterCards.rows.find(c => c.card_id === homeParticipant.lineup.startingPitcher);
-      
       const allCardsResult = await pool.query('SELECT name, team FROM cards_player');
-      processPlayers([startingPitcherCard], allCardsResult.rows);
+      processPlayers([pitcher], allCardsResult.rows);
 
       const awayTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [awayParticipant.user_id]);
       const homeTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [homeParticipant.user_id]);
@@ -387,7 +384,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
             <img src="${awayTeamLogo}" class="team-logo-small" alt="Team Logo">
             <b>Top 1st</b>
         </div>
-        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${startingPitcherCard.displayName}</div>
+        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${pitcher.displayName}</div>
       `;
       // --- ADD THIS LOG ---
     console.log(`🔫 SERVER: Creating initial event for game ${gameId}:`, inningChangeEvent);
