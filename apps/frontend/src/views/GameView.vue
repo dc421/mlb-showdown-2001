@@ -1202,6 +1202,21 @@ onUnmounted(() => {
 
 /* Indicators & Flashes */
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
-.score-update-flash { font-size: 1.25rem; font-weight: bold; color: black; text-align: center; }
+.score-update-flash {
+  position: absolute;
+  bottom: -40px; /* Position it below the container */
+  left: 0;
+  right: 0;
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: black;
+  text-align: center;
+  animation: flash 1.5s ease-out;
+  pointer-events: none; /* Prevent it from intercepting clicks */
+}
 
+@keyframes flash {
+  0%, 100% { opacity: 0; }
+  25%, 75% { opacity: 1; }
+}
 </style>
