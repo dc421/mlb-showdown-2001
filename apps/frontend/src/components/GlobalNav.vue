@@ -86,6 +86,8 @@ const isGamePage = computed(() => route.name === 'game');
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-basis: 200px;
+  justify-content: flex-end;
 }
 
 @media (max-width: 768px) {
