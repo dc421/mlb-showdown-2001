@@ -149,8 +149,11 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
 
   // --- Handle Inning Change ---
   if (newState.outs >= 3 && !newState.gameOver) {
-    newState.inningChanged = true; // Signal to the server
-    const wasTop = newState.isTopInning;
+    if (newState.isTopInning) { // Away team finished batting
+      newState.isBetweenHalfInningsAway = true;
+    } else { // Home team finished batting
+      newState.isBetweenHalfInningsHome = true;
+    }
     newState.isTopInning = !newState.isTopInning;
     if (newState.isTopInning) newState.inning++;
     newState.outs = 0;
