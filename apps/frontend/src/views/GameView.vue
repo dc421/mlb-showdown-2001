@@ -500,26 +500,6 @@ watch(outsToDisplay, (newOuts) => {
   }
 }, { immediate: true }); // 'immediate' runs the watcher once on component load
 
-const isBetweenHalfInnings = computed(() => {
-  // The primary condition is that the current user has not clicked "Next Hitter" yet.
-  // If they have, it's never between innings for them.
-  if (amIReadyForNext.value) {
-    return false;
-  }
-  // Get the game events that are currently visible to the user.
-  const events = gameStore.gameEventsToDisplay;
-  if (!events || events.length === 0) {
-    return false;
-  }
-  // The definitive sign of a half-inning change is the last visible log message.
-  const lastEvent = events[events.length - 1];
-  return lastEvent?.log_message?.includes('Outs: 3');
-});
-
-watch(isBetweenHalfInnings, (newValue) => {
-  gameStore.setIsBetweenHalfInnings(newValue);
-}, { immediate: true });
-
 const isGameOver = computed(() => gameStore.game?.status === 'completed');
 
 function proceedToNextGame() {
