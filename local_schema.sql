@@ -174,7 +174,9 @@ CREATE TABLE public.games (
     current_turn_user_id integer,
     home_team_user_id integer,
     use_dh boolean,
-    setup_rolls jsonb
+    setup_rolls jsonb,
+    series_id integer,
+    game_in_series integer
 );
 
 
@@ -248,6 +250,46 @@ ALTER SEQUENCE public.rosters_roster_id_seq OWNER TO postgres;
 --
 
 ALTER SEQUENCE public.rosters_roster_id_seq OWNED BY public.rosters.roster_id;
+
+
+--
+-- Name: series; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.series (
+    id integer NOT NULL,
+    series_type character varying(50) NOT NULL,
+    series_home_user_id integer,
+    series_away_user_id integer,
+    home_wins integer DEFAULT 0,
+    away_wins integer DEFAULT 0,
+    status character varying(50) DEFAULT 'in_progress'::character varying,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.series OWNER TO postgres;
+
+--
+-- Name: series_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.series_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.series_id_seq OWNER TO postgres;
+
+--
+-- Name: series_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.series_id_seq OWNED BY public.series.id;
 
 
 --
@@ -366,6 +408,13 @@ ALTER TABLE ONLY public.rosters ALTER COLUMN roster_id SET DEFAULT nextval('publ
 
 
 --
+-- Name: series id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series ALTER COLUMN id SET DEFAULT nextval('public.series_id_seq'::regclass);
+
+
+--
 -- Name: teams team_id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -441,6 +490,14 @@ ALTER TABLE ONLY public.roster_cards
 
 ALTER TABLE ONLY public.rosters
     ADD CONSTRAINT rosters_pkey PRIMARY KEY (roster_id);
+
+
+--
+-- Name: series series_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series
+    ADD CONSTRAINT series_pkey PRIMARY KEY (id);
 
 
 --
@@ -556,6 +613,14 @@ ALTER TABLE ONLY public.games
 
 
 --
+-- Name: games games_series_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.games
+    ADD CONSTRAINT games_series_id_fkey FOREIGN KEY (series_id) REFERENCES public.series(id) ON DELETE SET NULL;
+
+
+--
 -- Name: roster_cards roster_cards_card_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -580,6 +645,22 @@ ALTER TABLE ONLY public.rosters
 
 
 --
+-- Name: series series_series_away_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series
+    ADD CONSTRAINT series_series_away_user_id_fkey FOREIGN KEY (series_away_user_id) REFERENCES public.users(user_id);
+
+
+--
+-- Name: series series_series_home_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.series
+    ADD CONSTRAINT series_series_home_user_id_fkey FOREIGN KEY (series_home_user_id) REFERENCES public.users(user_id);
+
+
+--
 -- Name: teams teams_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -592,4 +673,3 @@ ALTER TABLE ONLY public.teams
 --
 
 \unrestrict 1V1dWVecbswLWuesPvMDhXXXQFC3MADdk9IIDsjuQglsKL6FNpHkbkxedlagenc
-

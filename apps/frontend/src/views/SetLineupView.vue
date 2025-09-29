@@ -14,6 +14,7 @@ const gameId = route.params.id;
 const startingPitcher = ref(null);
 const battingOrder = ref([]);
 const hasSubmitted = ref(false); // New state for the waiting screen
+const mandatoryPitcherId = ref(null); // To store the required pitcher ID
 const useDh = computed(() => gameStore.game?.use_dh !== false);
 
 const defensivePositions = computed(() => {
@@ -146,10 +147,21 @@ onMounted(async () => {
   console.log('2. Fetched participant info:', participantInfo);
 
   if (participantInfo && participantInfo.roster_id) {
+    if (participantInfo.mandatoryPitcherId) {
+        mandatoryPitcherId.value = participantInfo.mandatoryPitcherId;
+    }
+
     console.log('3. Roster ID found. Fetching roster details for:', participantInfo.roster_id);
     await authStore.fetchRosterDetails(participantInfo.roster_id);
     console.log('4. Roster details fetch complete. Calling autoPopulateLineup...');
     autoPopulateLineup();
+
+    if (mandatoryPitcherId.value) {
+        const pitcher = startingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
+        if (pitcher) {
+            startingPitcher.value = pitcher;
+        }
+    }
   } else {
     console.error('CRITICAL ERROR: No participant info or roster_id found for this game.');
   }
@@ -188,12 +200,15 @@ onUnmounted(() => {
         </div>
         <div class="panel">
           <h2>Starting Pitcher</h2>
-          <select v-model="startingPitcher" class="pitcher-select">
+          <select v-model="startingPitcher" class="pitcher-select" :disabled="mandatoryPitcherId">
             <option :value="null" disabled>Select an SP...</option>
             <option v-for="p in startingPitchers" :key="p.card_id" :value="p">
               {{ p.displayName }}
             </option>
           </select>
+          <p v-if="mandatoryPitcherId" class="rotation-notice">
+            Pitching rotation is set for this game.
+          </p>
           <h2>Batting Order ({{ battingOrder.length }} / 9)</h2>
           <div class="lineup-slots">
             <div v-for="(spot, index) in battingOrder" :key="spot.player.card_id" class="lineup-item">
@@ -246,4 +261,5 @@ onUnmounted(() => {
   .submit-btn:disabled { background-color: #ccc; cursor: not-allowed; }
   .subtitle { text-align: center; color: #dc3545; font-weight: bold; margin-top: -1rem; margin-bottom: 1rem; }
   .waiting-message { text-align: center; }
+  .rotation-notice { font-style: italic; color: #555; font-size: 0.9rem; text-align: center; margin-top: -0.5rem; margin-bottom: 1rem; }
 </style>

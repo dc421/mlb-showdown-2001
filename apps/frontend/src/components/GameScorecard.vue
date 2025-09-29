@@ -80,7 +80,10 @@ const statusText = computed(() => {
     <div v-if="(game.status === 'in_progress' && gameState) || isPreGame" class="game-details">
       <div class="line-1">
         <div class="opponent-info">
-          <span v-if="game.opponent">vs. {{ game.opponent.full_display_name }}</span>
+          <span v-if="game.opponent">
+            <span v-if="game.game_in_series" class="game-number">Game {{ game.game_in_series }}</span>
+            vs. {{ game.opponent.full_display_name }}
+          </span>
           <span v-else-if="isPreGame">Waiting for opponent...</span>
         </div>
         <div class="score-inning" v-if="game.status === 'in_progress' && gameState">
@@ -124,6 +127,11 @@ const statusText = computed(() => {
 
 .opponent-info {
   font-weight: bold;
+}
+
+.game-number {
+    font-weight: bold;
+    margin-right: 0.5rem;
 }
 
 .score-inning {
