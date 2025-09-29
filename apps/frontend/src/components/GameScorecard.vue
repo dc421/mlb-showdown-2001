@@ -1,6 +1,5 @@
 <script setup>
 import { computed } from 'vue';
-import OutsDisplay from './OutsDisplay.vue';
 
 const props = defineProps({
   game: {
@@ -12,6 +11,11 @@ const props = defineProps({
 const gameState = computed(() => props.game.gameState);
 const awayTeamAbbr = computed(() => props.game.away_team?.abbreviation || 'AWAY');
 const homeTeamAbbr = computed(() => props.game.home_team?.abbreviation || 'HOME');
+
+const scoreText = computed(() => {
+  if (!gameState.value) return '';
+  return `${awayTeamAbbr.value} ${gameState.value.awayScore}, ${homeTeamAbbr.value} ${gameState.value.homeScore}`;
+});
 
 const inningDescription = computed(() => {
   if (!gameState.value) return '';
@@ -40,30 +44,37 @@ const runnersOnBaseText = computed(() => {
     }
     return ''; // Should not be reached
 });
+
+const outsText = computed(() => {
+  if (!gameState.value) return '';
+  const outs = gameState.value.outs;
+  return `${outs} ${outs === 1 ? 'out' : 'outs'}`;
+});
 </script>
 
 <template>
   <div class="game-scorecard">
-    <div class="opponent-info">
-      <span v-if="game.opponent">vs. {{ game.opponent.full_display_name }}</span>
-      <span v-else>Waiting for opponent...</span>
-    </div>
-
     <div v-if="game.status === 'in_progress' && gameState" class="game-details">
-      <div class="score-inning">
-        <div class="score">
-          <span>{{ awayTeamAbbr }}: {{ gameState.awayScore }}</span>
-          <span>{{ homeTeamAbbr }}: {{ gameState.homeScore }}</span>
+      <div class="line-1">
+        <div class="opponent-info">
+          <span v-if="game.opponent">vs. {{ game.opponent.full_display_name }}</span>
+          <span v-else>Waiting for opponent...</span>
         </div>
-        <div class="inning">{{ inningDescription }}</div>
+        <div class="score-inning">
+          <span>{{ scoreText }}</span>
+          <span>{{ inningDescription }}</span>
+        </div>
       </div>
-      <div class="game-state">
-        <div class="runners">{{ runnersOnBaseText }}</div>
-        <OutsDisplay :outs="gameState.outs" :labelColor="'black'" />
+      <div class="line-2">
+        <span class="status">{{ game.status_text }}</span>
+        <div class="state">
+            <span class="runners">{{ runnersOnBaseText }}</span>
+            <span class="outs">{{ outsText }}</span>
+        </div>
       </div>
     </div>
     <div v-else class="game-status">
-       <span class="status">{{ game.status }}</span>
+       <span class="status">{{ game.status_text }}</span>
     </div>
   </div>
 </template>
@@ -72,7 +83,14 @@ const runnersOnBaseText = computed(() => {
 .game-scorecard {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem; /* Reduced gap */
+  width: 100%;
+}
+
+.line-1, .line-2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   width: 100%;
 }
 
@@ -80,36 +98,19 @@ const runnersOnBaseText = computed(() => {
   font-weight: bold;
 }
 
-.game-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .score-inning {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.score {
-  display: flex;
-  gap: 1rem;
+  gap: 0.5rem;
   font-size: 0.9rem;
 }
 
-.inning {
-  font-size: 0.9rem;
+.state {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
 }
 
-.game-state {
-  display: flex;
-  flex-direction: column; /* Changed to stack runners and outs */
-  align-items: flex-end; /* Align to the right */
-  gap: 0.25rem;
-}
-
-.runners {
+.runners, .outs {
   font-style: italic;
   font-size: 0.9rem;
 }
@@ -118,5 +119,11 @@ const runnersOnBaseText = computed(() => {
     text-transform: capitalize;
     color: #555;
     font-style: italic;
+}
+
+.status {
+    /* Assuming status text like 'Your Turn!' might be colored */
+    color: green;
+    font-weight: bold;
 }
 </style>
