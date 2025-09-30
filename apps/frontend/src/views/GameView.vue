@@ -369,6 +369,11 @@ const opponentReadyForNext = computed(() => {
 });
 
 const atBatToDisplay = computed(() => {
+    if (!gameStore.gameState) {
+      // During component teardown or initial load, gameState can be null.
+      // Return a default, safe structure to prevent cascading errors.
+      return { batterAction: null, pitcherAction: null, pitchRollResult: null, swingRollResult: null };
+    }
     if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
         return gameStore.gameState.lastCompletedAtBat;
     }
