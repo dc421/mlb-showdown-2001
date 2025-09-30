@@ -179,6 +179,15 @@ const isBetweenHalfInnings = computed(() => {
   return gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome;
 });
 
+// NEW: A display-only computed to handle inning-change visuals
+const isDisplayTopInning = computed(() => {
+  if (!gameStore.gameState) return null;
+  if (isBetweenHalfInnings.value) {
+    return !gameStore.gameState.isTopInning;
+  }
+  return gameStore.gameState.isTopInning;
+});
+
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
   if (isBetweenHalfInnings.value) {
@@ -332,8 +341,8 @@ const groupedGameLog = computed(() => {
   return groups.reverse();
 });
 
-const pitcherTeamColors = computed(() => gameStore.gameState?.isTopInning ? homeTeamColors.value : awayTeamColors.value);
-const batterTeamColors = computed(() => gameStore.gameState?.isTopInning ? awayTeamColors.value : homeTeamColors.value);
+const pitcherTeamColors = computed(() => isDisplayTopInning.value ? homeTeamColors.value : awayTeamColors.value);
+const batterTeamColors = computed(() => isDisplayTopInning.value ? awayTeamColors.value : homeTeamColors.value);
 const pitcherResultTextColor = computed(() => getContrastingTextColor(pitcherTeamColors.value.primary));
 const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamColors.value.primary));
 
