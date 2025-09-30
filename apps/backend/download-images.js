@@ -41,7 +41,7 @@ function generateImageUrl(setName, cardNumber) {
   }
 
   if (imageId > 0) {
-    return `https://www.tcdb.com/Images/Large/Baseball/${setId}/${setId}-27${imageId}Fr.jpg`;
+    return `https://www.tcdb.com/Images/Cards/Baseball/${setId}/${setId}-${imageId}Fr.jpg`;
   }
   return null;
 }
