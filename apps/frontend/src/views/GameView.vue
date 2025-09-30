@@ -418,6 +418,13 @@ watch(bothPlayersSetAction, (isRevealing) => {
   // view from being reset when their OPPONENT clicks "Next Hitter".
 }, { immediate: true });
 
+watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
+    if (newAction === 'intentional_walk' && amIOffensivePlayer.value) {
+        haveIRolledForSwing.value = true;
+        localStorage.setItem(rollStorageKey, 'true');
+    }
+});
+
 const nextBatterInLineup = computed(() => {
   if (!gameStore.gameState || !gameStore.lineups) return null;
 
@@ -833,7 +840,7 @@ onUnmounted(() => {
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
-              Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll }}</strong>
+              Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
           <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
