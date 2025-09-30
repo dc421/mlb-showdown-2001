@@ -1175,14 +1175,15 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const events = [];
 
     if (action === 'intentional_walk') {
-        const { newState, events: walkEvents } = applyOutcome(currentState, 'BB', batter, pitcher);
+        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher);
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
+        finalState.currentAtBat.pitchRollResult = { roll: 'IBB', outcome: 'IBB' };
 
-        for (const logMessage of events) { 
+        for (const logMessage of walkEvents) {
           let finalLog = logMessage;
-          if ((finalState.awayScore + finalState.homeScore) > originalScore) {
+          if ((finalState.awayScore + finalState.homeScore) > (currentState.awayScore + currentState.homeScore)) {
               finalLog += ` <strong>(Score: ${finalState.awayScore}-${finalState.homeScore})</strong>`;
           }
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'walk', finalLog]);

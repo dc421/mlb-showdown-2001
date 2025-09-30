@@ -103,6 +103,13 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
         newState.currentPlay = { hitType: '2B', decisions: [{ runner: runnerFromThird, from: 3 }] };
       }
   }
+  else if (outcome === 'IBB') {
+    events.push(`${batter.displayName} is intentionally walked.`);
+    if (newState.bases.first && newState.bases.second && newState.bases.third) { scoreRun(newState.bases.third); }
+    if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
+    if (newState.bases.first) { newState.bases.second = newState.bases.first; }
+    newState.bases.first = runnerData;
+  }
   else if (outcome === 'BB') {
     events.push(`${batter.displayName} walks.`);
     if (newState.bases.first && newState.bases.second && newState.bases.third) { scoreRun(newState.bases.third); }
