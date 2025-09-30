@@ -37,7 +37,7 @@ async function fetchGame(gameId) {
       game.value = data.game;
       
       series.value = data.series;
-      gameState.value = data.gameState.state_data;
+      gameState.value = data.gameState ? data.gameState.state_data : null;
       gameEvents.value = data.gameEvents;
       
       batter.value = data.batter;
