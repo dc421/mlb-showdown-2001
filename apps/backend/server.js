@@ -1350,9 +1350,22 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         outs: newState.outsBeforePlay 
        };
 
-      // This logic correctly advances the batting order for the team that just batted.
-      const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-      newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
+      // --- THIS IS THE FIX ---
+      // Determine which team's batting order needs to be advanced.
+      // If we are between innings, we advance the order for the team that JUST finished batting.
+      // Otherwise, it's a normal mid-inning batter change for the current offensive team.
+      let teamToAdvance;
+      if (newState.isBetweenHalfInningsAway) {
+        // The away team just finished batting. Advance their order.
+        teamToAdvance = 'awayTeam';
+      } else if (newState.isBetweenHalfInningsHome) {
+        // The home team just finished batting. Advance their order.
+        teamToAdvance = 'homeTeam';
+      } else {
+        // Not an inning change, so advance the current offensive team.
+        teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+      }
+      newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
       // Reset the between-innings flags now that the new at-bat is set up.
       if (newState.isBetweenHalfInningsHome) {
