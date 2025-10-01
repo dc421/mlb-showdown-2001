@@ -310,8 +310,23 @@ const awayTeamColors = computed(() => {
     }
 });
 
+const eventsForLog = computed(() => {
+    const hideTwoEvents = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
+
+    if (hideTwoEvents) {
+        // This is our special case. The backend sends the full event log.
+        // We need to manually hide the last two: the 3rd out result and the inning change message.
+        return gameStore.gameEvents.slice(0, gameStore.gameEvents.length - 2);
+    }
+
+    // For all other scenarios, we use the existing logic from the store,
+    // which correctly handles hiding the outcome for the defensive player
+    // or the offensive player during a normal at-bat.
+    return gameStore.gameEventsToDisplay;
+});
+
 const groupedGameLog = computed(() => {
-  if (!gameStore.gameEvents || gameStore.gameEvents.length === 0) {
+  if (!eventsForLog.value || eventsForLog.value.length === 0) {
     return [];
   }
 
@@ -319,7 +334,7 @@ const groupedGameLog = computed(() => {
   let currentGroup = { header: 'Pre-Game', plays: [] };
 
   // Go through events in chronological order
-  gameStore.gameEventsToDisplay.forEach(event => {
+  eventsForLog.value.forEach(event => {
     // A log message with the 'inning-change-message' class indicates a new half-inning
     if (event.log_message && event.log_message.includes('inning-change-message')) {
       // If the current group has plays, save it before starting a new one
@@ -487,6 +502,14 @@ const basesToDisplay = computed(() => {
 });
 
 const outsToDisplay = computed(() => {
+  // NEW: Special condition for the offensive player between innings, before they have rolled.
+  // Show the state of the game as it was before the 3rd out was recorded.
+  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
+  if (isOffensivePlayerBetweenInnings) {
+    // We want to show the number of outs from the *previous* at-bat.
+    return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
+  }
+
   if (isBetweenHalfInnings.value) {
     return 3;
   }
