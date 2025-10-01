@@ -12,11 +12,11 @@ const dbConfig = process.env.NODE_ENV === 'production'
       },
     }
   : { // For local development
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_DATABASE,
-      password: process.env.DB_PASSWORD,
-      port: process.env.DB_PORT,
+      user: process.env.PGUSER,
+      host: process.env.PGHOST,
+      database: process.env.PGDATABASE,
+      password: process.env.PGPASSWORD,
+      port: process.env.PGPORT,
     };
 const pool = new Pool(dbConfig);
 
@@ -84,6 +84,29 @@ async function ingestData() {
       }
     }
     
+    const playerTeamCounts = {};
+    for (const player of uniquePlayers.values()) {
+      const name = `${player.First} ${player.Last}`;
+      const team = player.Tm;
+      const key = `${name}|${team}`;
+      playerTeamCounts[key] = (playerTeamCounts[key] || 0) + 1;
+    }
+
+    function formatPositions(positions) {
+      if (!positions || positions.length === 0) return 'P';
+      const outfield = new Set();
+      const infield = new Set();
+      positions.forEach(pos => {
+        if (['LF', 'CF', 'RF', 'LFRF'].includes(pos)) {
+          outfield.add('OF');
+        } else {
+          infield.add(pos);
+        }
+      });
+      const allPos = [...infield, ...outfield];
+      return allPos.sort().join('/');
+    }
+
     for (const row of uniquePlayers.values()) {
       const isPitcher = !!row.Ctl;
       const fielding_ratings = {};
@@ -93,23 +116,44 @@ async function ingestData() {
           });
       }
 
+      const name = `${row.First} ${row.Last}`;
+      const team = row.Tm;
+      const set = row.Set;
+      const nameTeamKey = `${name}|${team}`;
+
+      let displayName;
+      if (playerTeamCounts[nameTeamKey] > 1) {
+        if (isPitcher) {
+          // For ambiguous pitchers, use their role (SP/RP)
+          const role = parseInt(row.IP, 10) > 3 ? 'SP' : 'RP';
+          displayName = `${name} (${role})`;
+        } else {
+          // For ambiguous position players, use their positions
+          const posString = formatPositions(row.positions);
+          displayName = `${name} (${posString})`;
+        }
+      } else {
+        displayName = `${name} (${team})`;
+      }
+
       const card = {
-        name: `${row.First} ${row.Last}`,
-        team: row.Tm,
-        set_name: row.Set,
-        card_number: parseInt(row.Num, 10), // <-- ADD THIS LINE
+        name: name,
+        display_name: displayName,
+        team: team,
+        set_name: set,
+        card_number: parseInt(row.Num, 10),
         year: 2001,
-        points: parseInt(row.Pts, 10) || null,
         on_base: isPitcher ? null : parseInt(row.OB, 10) || null,
         control: isPitcher ? (parseInt(row.Ctl, 10) || 0) : null,
         ip: isPitcher ? parseInt(row.IP, 10) || null : null,
         speed: isPitcher ? null : row.Spd,
         fielding_ratings: isPitcher ? null : fielding_ratings,
         chart_data: createChartData(row, isPitcher),
+        points: parseInt(row.Pts, 10) || null, // Keep points for migration
       };
       
-      const insertQuery = `INSERT INTO cards_player (name, team, set_name, card_number, year, points, on_base, control, ip, speed, fielding_ratings, chart_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`;
-      const values = [card.name, card.team, card.set_name, card.card_number, card.year, card.points, card.on_base, card.control, card.ip, card.speed, card.fielding_ratings, card.chart_data];
+      const insertQuery = `INSERT INTO cards_player (name, display_name, team, set_name, card_number, year, on_base, control, ip, speed, fielding_ratings, chart_data, points) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`;
+      const values = [card.name, card.display_name, card.team, card.set_name, card.card_number, card.year, card.on_base, card.control, card.ip, card.speed, card.fielding_ratings, card.chart_data, card.points];
       await client.query(insertQuery, values);
     }
 

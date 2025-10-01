@@ -137,12 +137,10 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function processPlayers(playersToProcess, allPlayers) {
-    const nameCounts = {};
-    allPlayers.forEach(p => { nameCounts[p.name] = (nameCounts[p.name] || 0) + 1; });
+function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
         if (!p) return;
-        p.displayName = nameCounts[p.name] > 1 ? `${p.name} (${p.team})` : p.name;
+        // displayName is now pre-calculated and stored in the database as display_name
         if (p.control !== null) {
             p.displayPosition = Number(p.ip) > 3 ? 'SP' : 'RP';
         } else {
@@ -467,8 +465,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
 
       await client.query(`INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)`, [gameId, 1, initialGameState, false, false]);
       
-      const allCardsResult = await pool.query('SELECT name, team FROM cards_player');
-      processPlayers([pitcher], allCardsResult.rows);
+      processPlayers([pitcher]);
 
       const awayTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [awayParticipant.user_id]);
       const homeTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [homeParticipant.user_id]);
@@ -742,14 +739,43 @@ app.get('/api/games', authenticateToken, async (req, res) => {
   }
 });
 
-// GET ALL PLAYER CARDS (now processed)
+// GET ALL POINT SETS
+app.get('/api/point-sets', authenticateToken, async (req, res) => {
+  try {
+    // Order by created_at descending to have the newest sets first
+    const pointSetsResult = await pool.query('SELECT * FROM point_sets ORDER BY created_at DESC');
+    res.json(pointSetsResult.rows);
+  } catch (error) {
+    console.error('Error fetching point sets:', error);
+    res.status(500).json({ message: 'Server error while fetching point sets.' });
+  }
+});
+
+// GET ALL PLAYER CARDS (now with points from a specific set)
 app.get('/api/cards/player', authenticateToken, async (req, res) => {
-    console.log('4. Backend received request for /api/cards/player.');
+    const { point_set_id } = req.query;
+
+    if (!point_set_id) {
+        return res.status(400).json({ message: 'A point_set_id is required.' });
+    }
+
     try {
-        const allCardsResult = await pool.query('SELECT * FROM cards_player ORDER BY name');
-        const processedCards = processPlayers(allCardsResult.rows, allCardsResult.rows);
+        const query = `
+            SELECT
+                cp.*,
+                ppv.points
+            FROM cards_player cp
+            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id
+            WHERE ppv.point_set_id = $1
+            ORDER BY cp.display_name;
+        `;
+        const allCardsResult = await pool.query(query, [point_set_id]);
+        const processedCards = processPlayers(allCardsResult.rows);
         res.json(processedCards);
-    } catch (error) { res.status(500).json({ message: 'Server error fetching player cards.' }); }
+    } catch (error) {
+        console.error('Error fetching player cards with points:', error);
+        res.status(500).json({ message: 'Server error fetching player cards.' });
+    }
 });
 
 // GAME SETUP & PLAY
@@ -991,9 +1017,9 @@ async function getAndProcessGameData(gameId, dbClient) {
       if (p.lineup?.battingOrder) {
         const lineupWithDetails = p.lineup.battingOrder.map(spot => ({ ...spot, player: fullRosterCards.find(c => c.card_id === spot.card_id) }));
         const spCard = fullRosterCards.find(c => c.card_id === p.lineup.startingPitcher);
-        processPlayers(lineupWithDetails.map(l => l.player), allCardsResult.rows);
-        processPlayers(fullRosterCards, allCardsResult.rows);
-        if (spCard) processPlayers([spCard], allCardsResult.rows);
+        processPlayers(lineupWithDetails.map(l => l.player));
+        processPlayers(fullRosterCards);
+        if (spCard) processPlayers([spCard]);
 
         if (p.user_id === game.home_team_user_id) {
           lineups.home = { battingOrder: lineupWithDetails, startingPitcher: spCard };
@@ -1004,8 +1030,8 @@ async function getAndProcessGameData(gameId, dbClient) {
         }
       }
     }
-    if (batter) processPlayers([batter], allCardsResult.rows);
-    if (pitcher) processPlayers([pitcher], allCardsResult.rows);
+    if (batter) processPlayers([batter]);
+    if (pitcher) processPlayers([pitcher]);
   }
 
   return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
@@ -1046,7 +1072,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction) {
       const { batter, pitcher } = await getActivePlayers(gameId, finalState);
-      processPlayers([batter, pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
+      processPlayers([batter, pitcher]);
 
       let outcome = 'OUT';
       let swingRoll = 0;
@@ -1099,7 +1125,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
           const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
           const pitcher = pitcherResult.rows[0];
-          processPlayers([pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
+          processPlayers([pitcher]);
 
           const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
           const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
@@ -1155,7 +1181,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const currentTurn = stateResult.rows[0].turn_number;
 
     const { batter, pitcher, offensiveTeam } = await getActivePlayers(gameId, currentState);
-    processPlayers([batter, pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
+    processPlayers([batter, pitcher]);
     
     // --- Pitcher Fatigue Logic ---
     if (!currentState.pitcherStats) { currentState.pitcherStats = {}; }
@@ -1255,7 +1281,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
                 const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
                 const pitcher = pitcherResult.rows[0];
-                processPlayers([pitcher], (await pool.query('SELECT name, team FROM cards_player')).rows);
+                processPlayers([pitcher]);
 
                 const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
                 const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
