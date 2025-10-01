@@ -1,5 +1,6 @@
 require('dotenv').config();
 const fs = require('fs');
+const path = require('path');
 const csv = require('csv-parser');
 const { Pool } = require('pg');
 
@@ -33,8 +34,10 @@ async function importPoints() {
     const { rows: [{ point_set_id }] } = await client.query("SELECT point_set_id FROM point_sets WHERE name = $1", [pointSetName]);
 
     const records = [];
+    const csvPath = path.join(__dirname, 'prices.csv');
+
     await new Promise((resolve, reject) => {
-      fs.createReadStream('apps/backend/prices.csv')
+      fs.createReadStream(csvPath)
         .pipe(csv())
         .on('data', (row) => records.push(row))
         .on('end', resolve)
