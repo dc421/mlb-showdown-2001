@@ -21,7 +21,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   };
   
   // --- HANDLE OUTCOMES ---
-  if (outcome === 'SAC BUNT') {
+  if (outcome === 'BUNT') {
     const { first, second, third } = state.bases;
     // Bases Loaded: Fielder's choice, out at home.
     if (first && second && third) {
