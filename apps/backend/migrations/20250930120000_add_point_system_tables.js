@@ -14,25 +14,30 @@ exports.up = async (pgm) => {
     },
   });
 
-  pgm.createTable('player_point_values', {
-    player_point_value_id: 'id',
-    card_id: {
-      type: 'integer',
-      notNull: true,
-      references: '"cards_player"(card_id)',
-      onDelete: 'CASCADE',
+  pgm.createTable(
+    'player_point_values',
+    {
+      player_point_value_id: { type: 'serial' },
+      card_id: {
+        type: 'integer',
+        notNull: true,
+        references: '"cards_player"(card_id)',
+        onDelete: 'CASCADE',
+      },
+      point_set_id: {
+        type: 'integer',
+        notNull: true,
+        references: '"point_sets"(point_set_id)',
+        onDelete: 'CASCADE',
+      },
+      points: { type: 'integer', notNull: true },
     },
-    point_set_id: {
-      type: 'integer',
-      notNull: true,
-      references: '"point_sets"(point_set_id)',
-      onDelete: 'CASCADE',
-    },
-    points: { type: 'integer', notNull: true },
-  });
-  pgm.addConstraint('player_point_values', 'player_point_values_pkey', {
-    primaryKey: ['card_id', 'point_set_id'],
-  });
+    {
+      constraints: {
+        primaryKey: ['card_id', 'point_set_id'],
+      },
+    }
+  );
 
   pgm.addColumns('cards_player', {
     display_name: { type: 'varchar(255)', unique: true },
