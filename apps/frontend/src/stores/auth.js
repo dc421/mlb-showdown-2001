@@ -7,6 +7,8 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(JSON.parse(localStorage.getItem('user')) || null);
 const myRoster = ref(null);
   const allPlayers = ref([]);
+  const pointSets = ref([]);
+  const selectedPointSetId = ref(null);
   const myGames = ref([]);
   const openGames = ref([]);
   const activeRosterCards = ref([]);
@@ -73,6 +75,24 @@ const myRoster = ref(null);
     router.push('/login');
   }
 
+  async function fetchPointSets() {
+    if (!token.value) return;
+    try {
+      const response = await fetch(`${API_URL}/api/point-sets`, {
+        headers: { 'Authorization': `Bearer ${token.value}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch point sets');
+      const sets = await response.json();
+      pointSets.value = sets;
+      // Default to the newest set if one isn't already selected
+      if (sets.length > 0 && !selectedPointSetId.value) {
+        selectedPointSetId.value = sets[0].point_set_id;
+      }
+    } catch (error) {
+      console.error('Failed to fetch point sets:', error);
+    }
+  }
+
   // in src/stores/auth.js
 async function fetchMyRoster() {
     if (!token.value) return;
@@ -87,21 +107,20 @@ async function fetchMyRoster() {
     }
   }
 
-  async function fetchAllPlayers() {
-  console.log('2. fetchAllPlayers action in auth.js was called.');
-  if (!token.value) return;
-  try {
-    const response = await fetch(`${API_URL}/api/cards/player`, {
-      headers: { 'Authorization': `Bearer ${token.value}` }
-    });
-    console.log('3. Received response from server with status:', response.status);
-    if (!response.ok) throw new Error('Failed to fetch player cards');
-    
-    const players = await response.json();
-    allPlayers.value = players;
-  } catch (error) {
-    console.error('Failed to fetch players:', error);
-  }
+  async function fetchAllPlayers(pointSetId) {
+    if (!token.value || !pointSetId) return;
+    try {
+      const response = await fetch(`${API_URL}/api/cards/player?point_set_id=${pointSetId}`, {
+        headers: { 'Authorization': `Bearer ${token.value}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch player cards');
+
+      const players = await response.json();
+      allPlayers.value = players;
+    } catch (error) {
+      console.error('Failed to fetch players:', error);
+      allPlayers.value = []; // Clear players on error to prevent using stale data
+    }
 }
 
 async function fetchAvailableTeams() {
@@ -287,8 +306,10 @@ async function submitLineup(gameId, lineupData) {
 
   return { 
     token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
+    pointSets, selectedPointSetId,
     isAuthenticated, login, register, logout, myRoster,fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
-    submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams
+    submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
+    fetchPointSets
   }
 })

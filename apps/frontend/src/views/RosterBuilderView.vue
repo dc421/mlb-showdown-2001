@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import PlayerCard from '@/components/PlayerCard.vue'; // Import the PlayerCard component
@@ -204,31 +204,60 @@ async function saveRoster() {
   await authStore.saveRoster(rosterData);
 }
 
-// in src/views/RosterBuilderView.vue
+function clearRoster() {
+  roster.value = {
+    lineup: { C: null, '1B': null, '2B': null, SS: null, '3B': null, LF: null, CF: null, RF: null, DH: null },
+    pitchingStaff: [],
+    bench: [],
+  };
+}
+
+watch(() => authStore.selectedPointSetId, async (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    // Fetch new player data with updated points
+    await authStore.fetchAllPlayers(newId);
+
+    // Create a map of the new player data for easy lookup
+    const playerMap = new Map(authStore.allPlayers.map(p => [p.card_id, p]));
+
+    // Create a new roster object to avoid reactivity issues, repopulating it with the updated player objects
+    const updatedRoster = {
+        lineup: { C: null, '1B': null, '2B': null, SS: null, '3B': null, LF: null, CF: null, RF: null, DH: null },
+        pitchingStaff: [],
+        bench: []
+    };
+
+    // Lineup
+    for (const pos in roster.value.lineup) {
+        const player = roster.value.lineup[pos];
+        if (player) updatedRoster.lineup[pos] = playerMap.get(player.card_id) || null;
+    }
+    // Pitching Staff
+    roster.value.pitchingStaff.forEach(player => {
+        if (player) updatedRoster.pitchingStaff.push(playerMap.get(player.card_id));
+    });
+    // Bench
+    roster.value.bench.forEach(player => {
+        if (player) updatedRoster.bench.push(playerMap.get(player.card_id));
+    });
+
+    // Assign the updated roster back to the ref
+    roster.value = updatedRoster;
+  }
+});
+
 onMounted(async () => {
-  if (authStore.allPlayers.length === 0) {
-    await authStore.fetchAllPlayers();
+  await authStore.fetchPointSets();
+
+  if (authStore.selectedPointSetId) {
+    await authStore.fetchAllPlayers(authStore.selectedPointSetId);
   }
   
+  await authStore.fetchMyRoster();
+
   if (authStore.myRoster && authStore.myRoster.cards) {
     const savedCards = authStore.myRoster.cards;
-
-    // --- THIS IS THE FIX ---
-    // We must process the saved cards to create the displayName and displayPosition properties
-    const allPlayersForContext = authStore.allPlayers;
-    const nameCounts = {};
-    allPlayersForContext.forEach(p => { nameCounts[p.name] = (nameCounts[p.anme] || 0) + 1; });
-
-    savedCards.forEach(p => {
-        p.displayName = nameCounts[p.name] > 1 ? `${p.name} (${p.team})` : p.name;
-        if (p.control !== null) {
-            p.displayPosition = Number(p.ip) > 3 ? 'SP' : 'RP';
-        } else {
-            const positions = p.fielding_ratings ? Object.keys(p.fielding_ratings).join(',') : 'DH';
-            p.displayPosition = positions.replace(/LFRF/g, 'LF/RF');
-        }
-    });
-    // --- End of Fix ---
+    const playerMap = new Map(authStore.allPlayers.map(p => [p.card_id, p]));
 
     const newRoster = {
         lineup: { C: null, '1B': null, '2B': null, SS: null, '3B': null, LF: null, CF: null, RF: null, DH: null },
@@ -236,17 +265,21 @@ onMounted(async () => {
         bench: []
     };
 
-    savedCards.forEach(card => {
-        if (card.assignment === 'PITCHING_STAFF') {
-            newRoster.pitchingStaff.push(card);
-        } else if (card.assignment === 'BENCH') {
-            newRoster.bench.push(card);
-        } else if (card.assignment in newRoster.lineup) {
-            newRoster.lineup[card.assignment] = card;
+    savedCards.forEach(savedCard => {
+        const fullPlayer = playerMap.get(savedCard.card_id);
+        if (fullPlayer) {
+            if (savedCard.assignment === 'PITCHING_STAFF') {
+                newRoster.pitchingStaff.push(fullPlayer);
+            } else if (savedCard.assignment === 'BENCH') {
+                newRoster.bench.push(fullPlayer);
+            } else if (savedCard.assignment in newRoster.lineup) {
+                newRoster.lineup[savedCard.assignment] = fullPlayer;
+            }
         }
     });
-
     roster.value = newRoster;
+  } else {
+    clearRoster();
   }
 });
 </script>
@@ -260,19 +293,26 @@ onMounted(async () => {
     <div class="available-players-section panel">
       <div class="panel-header">
         <h2>Available Players</h2>
-        <select v-model="filterPosition">
-          <option value="ALL">All Positions</option>
-          <option value="SP">SP</option>
-          <option value="RP">RP</option>
-          <option value="C">C</option>
-          <option value="1B">1B</option>
-          <option value="2B">2B</option>
-          <option value="SS">SS</option>
-          <option value="3B">3B</option>
-          <option value="LF/RF">LF/RF</option>
-          <option value="CF">CF</option>
-          <option value="DH">DH-Only</option>
-        </select>
+        <div class="filters">
+          <select v-model="authStore.selectedPointSetId" title="Select Point Set">
+            <option v-for="set in authStore.pointSets" :key="set.point_set_id" :value="set.point_set_id">
+              {{ set.name }}
+            </option>
+          </select>
+          <select v-model="filterPosition" title="Filter by Position">
+            <option value="ALL">All Positions</option>
+            <option value="SP">SP</option>
+            <option value="RP">RP</option>
+            <option value="C">C</option>
+            <option value="1B">1B</option>
+            <option value="2B">2B</option>
+            <option value="SS">SS</option>
+            <option value="3B">3B</option>
+            <option value="LF/RF">LF/RF</option>
+            <option value="CF">CF</option>
+            <option value="DH">DH-Only</option>
+          </select>
+        </div>
       </div>
       <div class="player-list drop-zone" @dragover.prevent @drop="removePlayer(draggedItem.player)">
         <div 
@@ -283,7 +323,7 @@ onMounted(async () => {
           @dragstart="onDragStart($event, player, 'available')">
           
           <div class="player-info">
-            <span class="player-name">{{ player.displayName }} ({{ player.displayPosition }})</span>
+            <span class="player-name">{{ player.display_name }} ({{ player.displayPosition }})</span>
             <span class="view-icon" @click.stop="selectedCard = player" title="View Card">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </span>
@@ -312,7 +352,7 @@ onMounted(async () => {
                     <div v-for="(player, pos) in roster.lineup" :key="pos" class="lineup-position drop-zone" @dragover.prevent @drop="onDrop($event, 'lineup', pos)">
                         <strong>{{ pos }}:</strong>
                         <div v-if="player" class="player-chip" draggable="true" @dragstart="onDragStart($event, player, 'lineup', pos)" @click="removePlayer(player)" :class="{ 'illegal-placement': !isPlayerEligibleForPosition(player, pos) }">
-                            {{ player.displayName }} <small>({{player.displayPosition}} | {{player.points}} pts)</small>
+                            {{ player.display_name }} <small>({{player.displayPosition}} | {{player.points}} pts)</small>
                         </div>
                     </div>
                 </div>
@@ -323,20 +363,20 @@ onMounted(async () => {
                   <strong>Starting Pitchers ({{ startingPitchersOnRoster.length }}/4):</strong>
                   <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'pitchingStaff')">
                       <div v-for="p in startingPitchersOnRoster" :key="p.card_id" class="player-chip" draggable="true" @dragstart="onDragStart($event, p, 'pitchingStaff')" @click="removePlayer(p)">
-                        {{ p.displayName }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
+                        {{ p.display_name }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
                       </div>
                   </div>
                   <strong>Bullpen ({{ bullpenOnRoster.length }}):</strong>
                   <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'pitchingStaff')">
                       <div v-for="p in bullpenOnRoster" :key="p.card_id" class="player-chip" draggable="true" @dragstart="onDragStart($event, p, 'pitchingStaff')" @click="removePlayer(p)">
-                        {{ p.displayName }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
+                        {{ p.display_name }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
                       </div>
                   </div>
                 </div>
                 <h3>Bench ({{ benchPlayers.length }})</h3>
                 <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'bench')">
                     <div v-for="p in benchPlayers" :key="p.card_id" class="player-chip" draggable="true" @dragstart="onDragStart($event, p, 'bench')" @click="removePlayer(p)">
-                      {{ p.displayName }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
+                      {{ p.display_name }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
                     </div>
                 </div>
             </div>
@@ -350,6 +390,7 @@ onMounted(async () => {
 .available-players-section { grid-row: 1 / 3; display: flex; flex-direction: column; background: #f4f6f8; padding: 1rem; border-radius: 8px; overflow: hidden; }
 .roster-section { grid-row: 1 / 3; display: flex; flex-direction: column; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.filters { display: flex; gap: 0.5rem; }
 .player-list { flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; background: white; border-radius: 4px; }
 .player-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; cursor: grab; border-bottom: 1px solid #eee; }
 .player-info { display: flex; align-items: center; gap: 0.5rem; }
