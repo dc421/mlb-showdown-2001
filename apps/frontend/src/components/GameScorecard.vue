@@ -131,7 +131,6 @@ const statusText = computed(() => {
 
 .game-number {
     font-weight: bold;
-    margin-right: 0.5rem;
 }
 
 .score-inning {
