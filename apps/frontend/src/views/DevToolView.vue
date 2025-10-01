@@ -18,6 +18,8 @@ const awayScore = ref(0);
 const runnerOnFirst = ref(null);
 const runnerOnSecond = ref(null);
 const runnerOnThird = ref(null);
+const pitchRoll = ref(null);
+const swingRoll = ref(null);
 
 const homeRoster = computed(() => gameStore.rosters.home || []);
 const awayRoster = computed(() => gameStore.rosters.away || []);
@@ -43,6 +45,14 @@ function handleSubmit() {
             battingOrderPosition: Number(homeBOP.value) - 1 // Convert from 1-indexed to 0-indexed
         }
     };
+
+    if (pitchRoll.value) {
+        partialState.pitchRoll = Number(pitchRoll.value);
+    }
+    if (swingRoll.value) {
+        partialState.swingRoll = Number(swingRoll.value);
+    }
+
     gameStore.setGameState(gameId, partialState);
 }
 
@@ -92,6 +102,18 @@ onMounted(() => {
             <div class="form-group">
                 <label>Home Team Batter #</label>
                 <input type="number" v-model="homeBOP" min="1" max="9" />
+            </div>
+        </div>
+
+        <h3>Rolls</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Pitch Roll (1-20)</label>
+                <input type="number" v-model="pitchRoll" min="1" max="20" />
+            </div>
+            <div class="form-group">
+                <label>Swing Roll (1-100)</label>
+                <input type="number" v-model="swingRoll" min="1" max="100" />
             </div>
         </div>
 
