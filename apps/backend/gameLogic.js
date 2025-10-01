@@ -21,7 +21,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   };
   
   // --- HANDLE OUTCOMES ---
-  if (outcome === 'SAC BUNT') {
+  if (outcome === 'BUNT') {
     events.push(`${batter.displayName} lays down a sacrifice bunt.`);
     newState.outs++;
     if (newState.outs < 3) {

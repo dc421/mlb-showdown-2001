@@ -1053,7 +1053,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       const advantage = finalState.currentAtBat.pitchRollResult.advantage;
 
       if (action === 'bunt') {
-          outcome = 'SAC BUNT';
+          outcome = 'BUNT';
       } else { // 'swing'
           swingRoll = Math.floor(Math.random() * 20) + 1;
           const chartHolder = advantage === 'pitcher' ? pitcher : batter;
@@ -1204,7 +1204,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             let outcome = 'OUT';
             let swingRoll = 0;
             if (finalState.currentAtBat.batterAction === 'bunt') {
-                outcome = 'SAC BUNT';
+                outcome = 'BUNT';
             } else {
                 swingRoll = Math.floor(Math.random() * 20) + 1;
                 const chartHolder = advantage === 'pitcher' ? pitcher : batter;
