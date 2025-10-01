@@ -22,13 +22,48 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   
   // --- HANDLE OUTCOMES ---
   if (outcome === 'SAC BUNT') {
-    events.push(`${batter.displayName} lays down a sacrifice bunt.`);
-    newState.outs++;
-    if (newState.outs < 3) {
-      if (newState.bases.third) { scoreRun(newState.bases.third); }
-      if (newState.bases.second) { newState.bases.third = newState.bases.second; }
-      if (newState.bases.first) { newState.bases.second = newState.bases.first; }
-      newState.bases.first = null;
+    const { first, second, third } = state.bases;
+    // Bases Loaded: Fielder's choice, out at home.
+    if (first && second && third) {
+      events.push(`${batter.displayName} bunts into a fielder's choice, the runner from third is out at home.`);
+      newState.outs++;
+      if (newState.outs < 3) {
+        newState.bases.third = second;
+        newState.bases.second = first;
+        newState.bases.first = runnerData;
+      }
+    }
+    // Runner on 3rd (and maybe 2nd): Runners hold.
+    else if (third && second && !first) {
+      events.push(`${batter.displayName} lays down a bunt, but the runners hold.`);
+      newState.outs++;
+      newState.bases.first = null; // Batter is out
+    }
+    // Runner on 3rd (and maybe 1st): Runner on 3rd holds.
+    else if (third && first && !second) {
+      events.push(`${batter.displayName} lays down a sacrifice bunt. The runner on first advances.`);
+      newState.outs++;
+      if (newState.outs < 3) {
+        newState.bases.second = first;
+        newState.bases.first = null; // Batter is out
+      }
+    }
+    // Runner on 3rd only: Runner holds.
+    else if (third && !first && !second) {
+      events.push(`${batter.displayName} lays down a bunt, but the runner on third holds.`);
+      newState.outs++;
+      newState.bases.first = null; // Batter is out
+    }
+    // Standard sacrifice bunt cases
+    else {
+      events.push(`${batter.displayName} lays down a sacrifice bunt.`);
+      newState.outs++;
+      if (newState.outs < 3) {
+        // Note: scoreRun is not possible here based on preceding logic
+        if (second) { newState.bases.third = second; }
+        if (first) { newState.bases.second = first; }
+        newState.bases.first = null; // Batter is out
+      }
     }
   }
   else if (outcome.includes('GB')) {
