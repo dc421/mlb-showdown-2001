@@ -83,24 +83,6 @@ async function setGameState(gameId, partialState) {
   }
 }
 
-async function applyDevOutcome(gameId, outcome) {
-  const auth = useAuthStore();
-  if (!auth.token) return;
-  try {
-    await fetch(`${auth.API_URL}/api/dev/games/${gameId}/apply-outcome`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
-      body: JSON.stringify({ outcome })
-    });
-    // The game-updated event will refresh the UI automatically
-  } catch (error) {
-    console.error("Error applying dev outcome:", error);
-  }
-}
-
 async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
@@ -406,7 +388,6 @@ async function resetRolls(gameId) {
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
-    resetGameState,
-    applyDevOutcome
+    resetGameState
   };
 })
