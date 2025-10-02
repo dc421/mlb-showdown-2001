@@ -26,7 +26,23 @@ const choices = ref({});
 
 const selectedCard = ref(null);
 const playerToSubIn = ref(null);
-const baserunningChoices = ref({});
+const runnerDecisionChoices = ref({});
+
+const isAdvancementOrTagUpDecision = computed(() => {
+    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
+        return false;
+    }
+    const type = gameStore.gameState.currentPlay.type;
+    return type === 'ADVANCE' || type === 'TAG_UP';
+});
+
+const isDefensiveThrowDecision = computed(() => {
+    if (!amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
+        return false;
+    }
+    const { type, payload } = gameStore.gameState.currentPlay;
+    return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
+});
 // NEW: Local state for the checkbox
 
 const infieldIn = ref(gameStore.gameState?.infieldIn || false);
@@ -237,20 +253,20 @@ watch(shouldHidePlayOutcome, (newValue) => {
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
 
 const canAttemptSteal = computed(() => {
-  if (!amIOffensivePlayer.value || !gameStore.gameState || !gameStore.gameState.currentAtBat) {
-    return false;
-  }
-  // Can only steal after the pitch but before the swing
-  if (!gameStore.gameState.currentAtBat.pitcherAction || gameStore.gameState.currentAtBat.batterAction) {
-    return false;
-  }
-  const { bases } = gameStore.gameState;
-  // Can steal 2nd if runner on 1st and 2nd is empty
-  const canStealSecond = bases.first && !bases.second;
-  // Can steal 3rd if runner on 2nd and 3rd is empty
-  const canStealThird = bases.second && !bases.third;
-  return canStealSecond || canStealThird;
+    // Stealing is an offensive action, must be their turn, and no other play can be in progress.
+    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState || gameStore.gameState.currentPlay) {
+        return false;
+    }
+    const { bases } = gameStore.gameState;
+    const canStealSecond = bases.first && !bases.second;
+    const canStealThird = bases.second && !bases.third;
+    // It's possible to steal if at least one of these conditions is met.
+    return canStealSecond || canStealThird;
 });
+
+const canStealSecond = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && !gameStore.gameState.bases.second);
+const canStealThird = computed(() => canAttemptSteal.value && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
+const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
 
 const showNextHitterButton = computed(() => {
   if (amIReadyForNext.value) {
@@ -565,9 +581,14 @@ function hexToRgba(hex, alpha = 0.95) {
   return `rgba(${[(c>>16)&255, (c>>8)&255, c&255].join(',')},${alpha})`;
 }
 
-function handleInitiateSteal() {
-    gameStore.initiateSteal(gameId);
+function handleInitiateSteal(decisions) {
+    gameStore.initiateSteal(gameId, decisions);
 }
+
+function handleResolveSteal(throwTo) {
+    gameStore.resolveSteal(gameId, throwTo);
+}
+
 function handlePitch(action = null) {
   console.log('1. GameView: handlePitch function was called.');
   gameStore.submitPitch(gameId, action);
@@ -596,46 +617,38 @@ function handleNextHitter() {
   gameStore.nextHitter(gameId);
 }
 
-// in GameView.vue
-function handleThrowForSteal() {
-  console.log('1. "Roll for Throw" button was clicked.');
-  gameStore.resolveSteal(gameId);
+function handleRunnerDecisions() {
+    gameStore.submitBaserunningDecisions(gameId, runnerDecisionChoices.value);
+    runnerDecisionChoices.value = {}; // Reset choices
 }
-function confirmBaserunning() {
-  console.log('1. "Confirm Decisions" button clicked. Sending:', baserunningChoices.value);
-  gameStore.advanceRunners(gameId, baserunningChoices.value);
-  baserunningChoices.value = {};
-}
-function confirmTagUp() {
-    gameStore.submitTagUp(gameId, tagUpChoices.value);
-    tagUpChoices.value = {}; // Reset choices
-}
-function confirmOffensiveDecisions() {
-    gameStore.submitBaserunningDecisions(gameId, baserunningChoices.value);
-    baserunningChoices.value = {};
-}
-function makeDefensiveThrow(base) {
+
+function handleDefensiveThrow(base) {
     gameStore.resolveDefensiveThrow(gameId, base);
 }
 
-function handleStealAttempt(fromBase) {
-  if (!canAttemptSteal.value) {
-      console.log('Steal aborted: canAttemptSteal is false.');
-      return;
-  }
-  if (confirm(`Are you sure you want to attempt to steal from base ${fromBase}?`)) {
-      gameStore.initiateSteal(gameId, fromBase);
-  }
-}
 
-const isStealAttemptInProgress = computed(() => !!gameStore.gameState.stealAttempt);
+const isStealAttemptInProgress = computed(() => gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT');
+
+const isInfieldInDecision = computed(() => {
+    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_PLAY';
+});
+
+const isPitcherTired = (pitcher) => {
+    if (!pitcher || !gameStore.gameState?.pitcherStats) {
+        return false;
+    }
+    const stats = gameStore.gameState.pitcherStats[pitcher.card_id];
+    if (!stats) {
+        return false;
+    }
+    const fatigueThreshold = pitcher.ip - Math.floor(stats.runs / 3);
+    return stats.ip > fatigueThreshold;
+};
 
 // in GameView.vue <script setup>
 
 function handleInfieldInDecision(sendRunner) {
-
-    gameStore.submitInfieldInDecision(gameId, sendRunner);
-
+    gameStore.submitInfieldInDecision(gameId, sendRunner);
 }
 
 
@@ -864,7 +877,7 @@ onUnmounted(() => {
 
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
-          <BaseballDiamond :bases="basesToDisplay" :canSteal="canAttemptSteal" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" @attempt-steal="handleStealAttempt" />
+          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
@@ -882,20 +895,68 @@ onUnmounted(() => {
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- Main Action Buttons -->
-            <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-            <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
-            <button v-else-if="amIDisplayOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-            <button v-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+            <div v-if="isAdvancementOrTagUpDecision">
+                <h3>Runner Decisions</h3>
+                <p>Select which runners to send:</p>
+                <div v-for="decision in gameStore.gameState.currentPlay.payload.decisions" :key="decision.from" class="decision-checkbox">
+                    <label>
+                        <input type="checkbox" v-model="runnerDecisionChoices[decision.from]" />
+                        Send {{ decision.runner.name }} (from {{ decision.from }}B)
+                    </label>
+                </div>
+                <button @click="handleRunnerDecisions" class="tactile-button">Confirm Decisions</button>
+            </div>
+            <div v-else-if="isDefensiveThrowDecision">
+                <h3>Defensive Throw</h3>
+                <p>Opponent is sending runners! Choose where to throw:</p>
+                <button v-for="(sent, fromBase) in gameStore.gameState.currentPlay.payload.choices"
+                        :key="fromBase"
+                        v-if="sent"
+                        @click="handleDefensiveThrow(parseInt(fromBase, 10) + 1)"
+                        class="tactile-button">
+                    Throw to {{ parseInt(fromBase, 10) + 1 }}B
+                </button>
+            </div>
+            <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
+                <h3>Opponent is stealing!</h3>
+                <p>Choose which base to throw to:</p>
+                <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+            </div>
+            <div v-else-if="isStealAttemptInProgress && amIOffensivePlayer">
+                <div class="waiting-text">Waiting for opponent to throw...</div>
+            </div>
+            <div v-else-if="isInfieldInDecision">
+                <h3>Infield In Play</h3>
+                <p>The defense has the infield in. What will the runner on third do?</p>
+                <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
+                <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+            </div>
+            <div v-else>
+                <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+                <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
+                <button v-else-if="amIDisplayOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+                <button v-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
-            <!-- Secondary Action Buttons -->
-            <div>
-                <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                <!-- Secondary Action Buttons -->
+                <div class="secondary-actions">
+                    <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
+                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="infield-in-checkbox">
+                        <label>
+                            <input type="checkbox" v-model="infieldIn" />
+                            Infield In
+                        </label>
+                    </div>
+                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                    <button v-if="canStealSecond" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
+                    <button v-if="canStealThird" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
+                    <button v-if="canDoubleSteal" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
+                </div>
             </div>
 
             <!-- Waiting Indicators -->
-            <div v-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction" class="waiting-text">Waiting for pitch...</div>
-            <div v-if="(amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)" class="turn-indicator">Waiting for swing...</div>
+            <div v-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
+            <div v-if="(amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="turn-indicator">Waiting for swing...</div>
         </div>
 
         <!-- Player Cards Wrapper -->
@@ -946,7 +1007,7 @@ onUnmounted(() => {
           <div v-if="leftPanelData.pitcher" class="pitcher-info"
                :class="{'sub-target': playerToSubIn && leftPanelData.isMyTeam}"
                @click="executeSubstitution(leftPanelData.pitcher, 'P')">
-              <hr /><strong :style="{ color: leftPanelData.colors.primary }">Pitching:</strong> {{ leftPanelData.pitcher.name }}
+              <hr /><strong :style="{ color: leftPanelData.colors.primary }">Pitching:</strong> {{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
@@ -1007,7 +1068,7 @@ onUnmounted(() => {
           <div v-if="rightPanelData.pitcher" class="pitcher-info"
                :class="{'sub-target': playerToSubIn && rightPanelData.isMyTeam}"
                @click="executeSubstitution(rightPanelData.pitcher, 'P')">
-              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Pitching:</strong> {{ rightPanelData.pitcher.name }}
+              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Pitching:</strong> {{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span>
           </div>
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
@@ -1200,6 +1261,7 @@ onUnmounted(() => {
 .lineup-panel li { cursor: pointer; padding: 2px 0; }
 .lineup-panel li:hover { text-decoration: underline; }
 .pitcher-info { font-weight: bold; margin-top: 0.5rem; }
+.tired-indicator { color: #dc3545; font-weight: bold; font-style: italic; }
 .lineup-panel li.sub-target, .pitcher-info.sub-target { background-color: #ffc107; cursor: crosshair; }
 .lineup-panel ul li.selected { background-color: #007bff; color: white; }
 .now-batting { background-color: #fff8e1; font-weight: bold; font-style: normal !important; color: #000 !important; }
@@ -1249,6 +1311,15 @@ onUnmounted(() => {
   background-color: #F0F0F0;
   width: 100%;
   margin: 0;
+}
+.secondary-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+.infield-in-checkbox {
+    text-align: center;
 }
 .action-button:hover, .tactile-button:hover { background-color: #E4E4E4; }
 .action-button:active, .tactile-button:active { background-color: #C4C4C4; box-shadow: none; }
