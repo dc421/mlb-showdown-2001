@@ -1,13 +1,16 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
-const dbConfig = {
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  password: process.env.PGPASSWORD,
-  port: process.env.PGPORT,
-};
+// Use DATABASE_URL if available (for Render), otherwise fall back to .env variables
+const dbConfig = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL }
+  : {
+      user: process.env.PGUSER,
+      host: process.env.PGHOST,
+      database: process.env.PGDATABASE,
+      password: process.env.PGPASSWORD,
+      port: process.env.PGPORT,
+    };
 
 const pool = new Pool(dbConfig);
 
