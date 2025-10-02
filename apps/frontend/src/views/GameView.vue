@@ -530,17 +530,8 @@ const basesToDisplay = computed(() => {
 });
 
 const outsToDisplay = computed(() => {
-  // NEW: Special condition for the offensive player between innings, before they have rolled.
-  // Show the state of the game as it was before the 3rd out was recorded.
-  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
-  if (isOffensivePlayerBetweenInnings) {
-    // We want to show the number of outs from the *previous* at-bat.
-    return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
-  }
-
-  if (isBetweenHalfInnings.value) {
-    return 3;
-  }
+  // NEW: Always prioritize hiding the outcome if needed. This prevents the
+  // UI from jumping to 3 outs before the final out is revealed.
   if (shouldHidePlayOutcome.value) {
     if (opponentReadyForNext.value) {
       return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
@@ -548,7 +539,20 @@ const outsToDisplay = computed(() => {
       return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
     }
   }
-  
+
+  // Special condition for the offensive player between innings, before they have rolled.
+  // Show the state of the game as it was before the 3rd out was recorded.
+  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
+  if (isOffensivePlayerBetweenInnings) {
+    // We want to show the number of outs from the *previous* at-bat.
+    return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
+  }
+
+  // If the inning is over and the outcome is not hidden, show 3 outs.
+  if (isBetweenHalfInnings.value) {
+    return 3;
+  }
+
   // Otherwise, show the current, live number of outs.
   return gameStore.gameState?.outs;
 });

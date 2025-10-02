@@ -349,7 +349,15 @@ async function resetRolls(gameId) {
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
     if (isOutcomeHidden.value) {
-      // The backend guarantees the last event is the one to hide
+      // If the outcome is hidden and we are now between innings, it means the
+      // last play resulted in the 3rd out. We need to hide TWO events: the
+      // play outcome itself, and the subsequent "inning change" event.
+      const isBetween = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
+      if (isBetween) {
+        return gameEvents.value.slice(0, gameEvents.value.length - 2);
+      }
+      // In all other "outcome hidden" cases (e.g., offense waiting to roll),
+      // we only need to hide the single outcome event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
     return gameEvents.value;
