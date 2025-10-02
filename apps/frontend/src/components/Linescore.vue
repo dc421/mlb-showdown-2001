@@ -41,14 +41,16 @@ const linescore = computed(() => {
   });
   
   if (gameStore.isBetweenHalfInnings) {
-    // In this specific state, don't add the optimistic '0' for the next inning
+    // In this specific state, the inning is over. Add the final score.
+    if (isTop) {
+      scores.away.push(awayRunsInInning);
+    } else {
+      scores.home.push(homeRunsInInning);
+    }
   } else if (isTop) {
     scores.away.push(awayRunsInInning);
   } else {
     if(scores.away.length === scores.home.length) {
-      // When we're in the bottom of an inning, the away team's runs for this inning are final.
-      // The awayRunsInInning variable should have been reset to 0 by the last inning-change event.
-      // Pushing 0 is the correct action.
       scores.away.push(0);
     }
     scores.home.push(homeRunsInInning);
@@ -84,7 +86,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.away" 
             :key="`away-${index}`"
-            :class="{ 'current-inning': gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning }"
+            :class="{ 'current-inning': gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning && !gameStore.isBetweenHalfInnings }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ awayTotalRuns }}</td>
@@ -94,7 +96,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.home" 
             :key="`home-${index}`"
-            :class="{ 'current-inning': !gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning }"
+            :class="{ 'current-inning': !gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning && !gameStore.isBetweenHalfInnings }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ homeTotalRuns }}</td>

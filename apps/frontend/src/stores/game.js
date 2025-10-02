@@ -392,9 +392,14 @@ async function resetRolls(gameId) {
     isOutcomeHidden.value = false;
   }
 
+  const isBetweenHalfInnings = computed(() => {
+    if (!gameState.value) return false;
+    return gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
+  });
+
   return { game, series, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
-    displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay,
+    displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
     resetGameState

@@ -190,15 +190,11 @@ const amIDefensivePlayer = computed(() => {
     return !amIOffensivePlayer.value;
 });
 
-const isBetweenHalfInnings = computed(() => {
-  if (!gameStore.gameState) return false;
-  return gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome;
-});
 
 // NEW: A display-only computed to handle inning-change visuals
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
-  if (isBetweenHalfInnings.value) {
+  if (gameStore.isBetweenHalfInnings) {
     return !gameStore.gameState.isTopInning;
   }
   return gameStore.gameState.isTopInning;
@@ -206,7 +202,7 @@ const isDisplayTopInning = computed(() => {
 
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
-  if (isBetweenHalfInnings.value) {
+  if (gameStore.isBetweenHalfInnings) {
     return !amIOffensivePlayer.value;
   }
   return amIOffensivePlayer.value;
@@ -274,7 +270,7 @@ const showNextHitterButton = computed(() => {
   }
 
   // Case 1: Inning is over. Both players see the button.
-  if (isBetweenHalfInnings.value) {
+  if (gameStore.isBetweenHalfInnings) {
     if (amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value) {
     return false;
   } else{
@@ -326,7 +322,7 @@ const awayTeamColors = computed(() => {
 });
 
 const eventsForLog = computed(() => {
-    const hideTwoEvents = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
+    const hideTwoEvents = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && gameStore.isBetweenHalfInnings;
 
     if (hideTwoEvents) {
         // This is our special case. The backend sends the full event log.
@@ -541,7 +537,7 @@ const outsToDisplay = computed(() => {
 
   // Special condition for the offensive player between innings, before they have rolled.
   // Show the state of the game as it was before the 3rd out was recorded.
-  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
+  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && gameStore.isBetweenHalfInnings;
   if (isOffensivePlayerBetweenInnings) {
     if (opponentReadyForNext.value) {
       return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
@@ -551,7 +547,7 @@ const outsToDisplay = computed(() => {
   }
 
   // If the inning is over and the outcome is not hidden, show 3 outs.
-  if (isBetweenHalfInnings.value) {
+  if (gameStore.isBetweenHalfInnings) {
     return 3;
   }
 
