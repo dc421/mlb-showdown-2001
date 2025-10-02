@@ -141,6 +141,7 @@ function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
         if (!p) return;
         // displayName is now pre-calculated and stored in the database as display_name
+        p.displayName = p.display_name;
         if (p.control !== null) {
             p.displayPosition = Number(p.ip) > 3 ? 'SP' : 'RP';
         } else {
