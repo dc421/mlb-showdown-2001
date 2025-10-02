@@ -69,7 +69,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   else if (outcome.includes('GB')) {
     if (state.infieldIn && newState.outs < 2 && newState.bases.third) {
         events.push(`${batter.displayName} hits a ground ball with the infield in...`);
-        newState.currentPlay = { type: 'INFIELD_IN_PLAY', payload: { runner: newState.bases.third, batter: runnerData } };
+        newState.currentPlay = { type: 'INFIELD_IN', runner: newState.bases.third, batter: runnerData };
     }
     else if (newState.outs <= 1 && newState.bases.first) {
         const dpRoll = Math.floor(Math.random() * 20) + 1;
@@ -101,16 +101,11 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
     newState.outs++;
     if (newState.outs < 3 && (newState.bases.first || newState.bases.second || newState.bases.third)) {
         events.push(`${batter.displayName} flies out.`);
-        newState.currentPlay = {
-            type: 'TAG_UP',
-            payload: {
-                decisions: [
-                    { runner: state.bases.third, from: 3 },
-                    { runner: state.bases.second, from: 2 },
-                    { runner: state.bases.first, from: 1 },
-                ].filter(d => d.runner)
-            }
-        };
+        newState.currentPlay = { hitType: 'FB', decisions: [
+            { runner: state.bases.third, from: 3 },
+            { runner: state.bases.second, from: 2 },
+            { runner: state.bases.first, from: 1 },
+        ].filter(d => d.runner) };
     } else {
         events.push(`${batter.displayName} flies out.`);
     }
@@ -130,7 +125,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
           newState.bases.first = null;
           events.push(`${batter.displayName} steals second base!`);
       } else if (decisions.length > 0) {
-          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: decisions, hitType: '1B' } };
+          newState.currentPlay = { hitType: '1B', decisions: decisions };
       }
   }
   else if (outcome === '2B') {
@@ -140,7 +135,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
       if (newState.bases.first) { newState.bases.third = newState.bases.first; newState.bases.first = null; }
       newState.bases.second = runnerData;
       if (runnerFromThird) {
-        newState.currentPlay = { type: 'ADVANCE', payload: { decisions: [{ runner: runnerFromThird, from: 3 }], hitType: '2B' } };
+        newState.currentPlay = { hitType: '2B', decisions: [{ runner: runnerFromThird, from: 3 }] };
       }
   }
   else if (outcome === 'IBB') {

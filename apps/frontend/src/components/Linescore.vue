@@ -59,14 +59,6 @@ const linescore = computed(() => {
 
 const awayTeamAbbr = computed(() => gameStore.teams?.away?.abbreviation || 'AWAY');
 const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME');
-
-const awayTotalRuns = computed(() => {
-  return linescore.value.scores.away.reduce((total, runs) => total + runs, 0);
-});
-
-const homeTotalRuns = computed(() => {
-  return linescore.value.scores.home.reduce((total, runs) => total + runs, 0);
-});
 </script>
 
 <template>
@@ -87,7 +79,7 @@ const homeTotalRuns = computed(() => {
             :class="{ 'current-inning': gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
-          <td>{{ awayTotalRuns }}</td>
+          <td>{{ gameStore.gameState?.awayScore }}</td>
         </tr>
         <tr>
           <td>{{ homeTeamAbbr }}</td>
@@ -97,7 +89,7 @@ const homeTotalRuns = computed(() => {
             :class="{ 'current-inning': !gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
-          <td>{{ homeTotalRuns }}</td>
+          <td>{{ gameStore.gameState?.homeScore }}</td>
         </tr>
       </tbody>
     </table>

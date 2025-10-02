@@ -280,27 +280,26 @@ async function declareHomeTeam(gameId, homeTeamUserId) {
   }
 }
 
-async function initiateSteal(gameId, decisions) {
+async function initiateSteal(gameId, fromBase) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
       await fetch(`${auth.API_URL}/api/games/${gameId}/initiate-steal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
-        body: JSON.stringify({ decisions })
+        body: JSON.stringify({ fromBase })
       });
     } catch (error) { console.error("Error initiating steal:", error); }
   }
 
 
-async function resolveSteal(gameId, throwTo) {
+async function resolveSteal(gameId) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
       await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-steal`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
-        body: JSON.stringify({ throwTo })
+        headers: { 'Authorization': `Bearer ${auth.token}` }
       });
     } catch (error) { console.error("Error resolving steal:", error); }
   }
