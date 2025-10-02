@@ -323,7 +323,7 @@ onMounted(async () => {
           @dragstart="onDragStart($event, player, 'available')">
           
           <div class="player-info">
-            <span class="player-name">{{ player.display_name }} ({{ player.displayPosition }})</span>
+            <span class="player-name">{{ player.displayName }} ({{ player.displayPosition }})</span>
             <span class="view-icon" @click.stop="selectedCard = player" title="View Card">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </span>
@@ -352,7 +352,7 @@ onMounted(async () => {
                     <div v-for="(player, pos) in roster.lineup" :key="pos" class="lineup-position drop-zone" @dragover.prevent @drop="onDrop($event, 'lineup', pos)">
                         <strong>{{ pos }}:</strong>
                         <div v-if="player" class="player-chip" draggable="true" @dragstart="onDragStart($event, player, 'lineup', pos)" @click="removePlayer(player)" :class="{ 'illegal-placement': !isPlayerEligibleForPosition(player, pos) }">
-                            {{ player.display_name }} <small>({{player.displayPosition}} | {{player.points}} pts)</small>
+                            {{ player.displayName }} <small>({{player.displayPosition}} | {{player.points}} pts)</small>
                         </div>
                     </div>
                 </div>
@@ -363,20 +363,20 @@ onMounted(async () => {
                   <strong>Starting Pitchers ({{ startingPitchersOnRoster.length }}/4):</strong>
                   <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'pitchingStaff')">
                       <div v-for="p in startingPitchersOnRoster" :key="p.card_id" class="player-chip" draggable="true" @dragstart="onDragStart($event, p, 'pitchingStaff')" @click="removePlayer(p)">
-                        {{ p.display_name }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
+                        {{ p.displayName }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
                       </div>
                   </div>
                   <strong>Bullpen ({{ bullpenOnRoster.length }}):</strong>
                   <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'pitchingStaff')">
                       <div v-for="p in bullpenOnRoster" :key="p.card_id" class="player-chip" draggable="true" @dragstart="onDragStart($event, p, 'pitchingStaff')" @click="removePlayer(p)">
-                        {{ p.display_name }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
+                        {{ p.displayName }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
                       </div>
                   </div>
                 </div>
                 <h3>Bench ({{ benchPlayers.length }})</h3>
                 <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'bench')">
                     <div v-for="p in benchPlayers" :key="p.card_id" class="player-chip" draggable="true" @dragstart="onDragStart($event, p, 'bench')" @click="removePlayer(p)">
-                      {{ p.display_name }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
+                      {{ p.displayName }} <small>({{p.displayPosition}} | {{p.points}} pts)</small>
                     </div>
                 </div>
             </div>
