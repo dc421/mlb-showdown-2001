@@ -144,6 +144,7 @@ const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey))
 
 
 const scoreChangeMessage = ref('');
+const scoreUpdateVisible = ref(false);
 
 // in GameView.vue
 watch([() => gameStore.gameState?.awayScore, () => gameStore.gameState?.homeScore], ([newAwayScore, newHomeScore], [oldAwayScore, oldHomeScore]) => {
@@ -173,6 +174,12 @@ const runScoredOnPlay = computed(() => {
   const lastEvent = gameStore.gameEvents[gameStore.gameEvents.length - 1];
   // Check if its message contains the word "scores!"
   return lastEvent.log_message?.includes('scores!');
+});
+
+watch(runScoredOnPlay, (hasScored) => {
+    if (hasScored) {
+        scoreUpdateVisible.value = true;
+    }
 });
 
 // in GameView.vue
@@ -608,6 +615,7 @@ function handleNextHitter() {
   isSwingResultVisible.value = false;
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
+  scoreUpdateVisible.value = false;
 
   if (!opponentReadyForNext.value) {
     anticipatedBatter.value = nextBatterInLineup.value;
@@ -887,7 +895,7 @@ onUnmounted(() => {
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
-          <div v-if="runScoredOnPlay && !shouldHidePlayOutcome" class="score-update-flash" v-html="scoreChangeMessage"></div>
+          <div v-if="scoreUpdateVisible" class="score-update-flash" v-html="scoreChangeMessage"></div>
       </div>
 
       <!-- PLAYER CARDS & ACTIONS -->
@@ -1343,20 +1351,14 @@ onUnmounted(() => {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
 .score-update-flash {
   position: absolute;
-  bottom: -40px; /* Position it below the container */
+  bottom: 10px; /* Position it below the container */
   left: 0;
   right: 0;
   font-size: 1.25rem;
   font-weight: bold;
   color: black;
   text-align: center;
-  animation: flash 1.5s ease-out;
   pointer-events: none; /* Prevent it from intercepting clicks */
-}
-
-@keyframes flash {
-  0%, 100% { opacity: 0; }
-  25%, 75% { opacity: 1; }
 }
 
 .game-over-modal {
