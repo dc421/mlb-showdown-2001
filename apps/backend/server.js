@@ -647,8 +647,18 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     
     newState[teamKey].used_player_ids.push(playerOutId);
 
-    if (position === 'P') {
+    // If the player being subbed out is the current batter, update the batter in the currentAtBat
+    if (newState.currentAtBat.batter.card_id === playerOutId) {
+        newState.currentAtBat.batter = playerInCard;
+    }
+
+    // If the player being subbed out is the current pitcher, update the pitcher in the currentAtBat
+    if (newState.currentAtBat.pitcher.card_id === playerOutId) {
         newState.currentAtBat.pitcher = playerInCard;
+    }
+
+    if (position === 'P') {
+        participant.lineup.startingPitcher = playerInCard.card_id;
         logMessage = `${teamKey === 'homeTeam' ? 'Home' : 'Away'} brings in ${playerInCard.name} to relieve ${playerOutCard.name}.`;
     } else {
         const lineup = participant.lineup.battingOrder;
@@ -660,7 +670,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         }
     }
 
-    await client.query('UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3', [JSON.stringify({ battingOrder: participant.lineup.battingOrder, startingPitcher: participant.lineup.startingPitcher }), gameId, userId]);
+    await client.query('UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3', [JSON.stringify(participant.lineup), gameId, userId]);
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
     
