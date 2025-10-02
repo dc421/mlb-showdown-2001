@@ -223,7 +223,7 @@ const pitcherOnlySetActions = computed(() => {
 });
 
 const isOffenseWaitingToRoll = computed(() => {
-  return amIOffensivePlayer.value && !haveIRolledForSwing.value && !amIReadyForNext.value && 
+  return amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && !amIReadyForNext.value && 
   (bothPlayersSetAction.value || opponentReadyForNext.value)
 })
 
