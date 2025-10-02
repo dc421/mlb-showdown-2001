@@ -275,12 +275,11 @@ const showNextHitterButton = computed(() => {
 
   // Case 1: Inning is over. Both players see the button.
   if (isBetweenHalfInnings.value) {
-    return true;
-  }
-
-  // Don't show if they haven't rolled for their swing yet.
-  if (amIOffensivePlayer.value && !haveIRolledForSwing.value) {
+    if (amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value) {
     return false;
+  } else{
+  return true;
+  }
   }
   
   const atBatIsResolved = bothPlayersSetAction.value;
@@ -544,8 +543,11 @@ const outsToDisplay = computed(() => {
   // Show the state of the game as it was before the 3rd out was recorded.
   const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && isBetweenHalfInnings.value;
   if (isOffensivePlayerBetweenInnings) {
-    // We want to show the number of outs from the *previous* at-bat.
-    return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
+    if (opponentReadyForNext.value) {
+      return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
+    } else {
+      return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
+    }
   }
 
   // If the inning is over and the outcome is not hidden, show 3 outs.
@@ -952,9 +954,9 @@ onUnmounted(() => {
                         </label>
                     </div>
                     <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-                    <button v-if="canStealSecond" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
-                    <button v-if="canStealThird" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
-                    <button v-if="canDoubleSteal" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
+                    <button v-if="canStealSecond && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
+                    <button v-if="canStealThird && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
+                    <button v-if="canDoubleSteal && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
                 </div>
             </div>
 
