@@ -10,7 +10,7 @@
     "migrate:create": "node-pg-migrate -r dotenv/config create",
     "migrate:up": "node-pg-migrate -r dotenv/config up",
     "import:points": "node import-points.js",
-    "update:names": "node update-display-names.js"
+    "update:names": "echo 'This script is not intended to be run as part of the build process.'"
   },
   "keywords": [],
   "author": "",
