@@ -38,12 +38,14 @@ async function updateDisplayNames() {
   try {
     await client.query('BEGIN');
 
-    // 1. Fetch all player cards, including IP for pitchers
+    // 1. Fetch all player cards
     const { rows: allPlayers } = await client.query('SELECT card_id, name, team, ip, control, fielding_ratings FROM cards_player');
 
-    // 2. Identify ambiguous players (multiple cards for the same team)
+    // 2. Identify league-wide name duplicates and same-team card duplicates
+    const nameCounts = {};
     const playerTeamCounts = {};
     allPlayers.forEach(player => {
+      nameCounts[player.name] = (nameCounts[player.name] || 0) + 1;
       const key = `${player.name}|${player.team}`;
       playerTeamCounts[key] = (playerTeamCounts[key] || 0) + 1;
     });
@@ -56,18 +58,21 @@ async function updateDisplayNames() {
       const isPitcher = player.control !== null;
 
       let newDisplayName;
+      // Case 1: Multiple cards for the same player on one team (e.g., different series)
       if (playerTeamCounts[nameTeamKey] > 1) {
         if (isPitcher) {
-          // For ambiguous pitchers, use their role (SP/RP)
           const role = player.ip > 3 ? 'SP' : 'RP';
           newDisplayName = `${name} (${role})`;
         } else {
-          // For ambiguous position players, use their positions
           const posString = formatPositions(player.fielding_ratings);
           newDisplayName = `${name} (${posString})`;
         }
-      } else {
+      // Case 2: Player name is not unique across the league
+      } else if (nameCounts[name] > 1) {
         newDisplayName = `${name} (${team})`;
+      // Case 3: Unique player
+      } else {
+        newDisplayName = name;
       }
 
       // 4. Execute the update
