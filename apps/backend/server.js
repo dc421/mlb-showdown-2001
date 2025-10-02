@@ -711,20 +711,36 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
 
 // GET A SPECIFIC ROSTER AND ITS CARDS (Protected Route)
 app.get('/api/rosters/:rosterId', authenticateToken, async (req, res) => {
-  const { rosterId } = req.params;
-  console.log(`5. Backend received request for roster ID: ${rosterId}`);
-  try {
-    const rosterCards = await pool.query(
-      `SELECT cp.*, rc.is_starter, rc.assignment, cp.image_url FROM cards_player cp
-       JOIN roster_cards rc ON cp.card_id = rc.card_id
-        WHERE rc.roster_id = $1`,
-      [rosterId]
-    );
-    res.json(rosterCards.rows);
-  } catch (error) {
-    console.error(`Error fetching roster ${rosterId}:`, error);
-    res.status(500).json({ message: 'Server error fetching roster details.' });
-  }
+    const { rosterId } = req.params;
+    const { point_set_id } = req.query; // <-- New: Get point_set_id from query
+
+    if (!point_set_id) {
+        return res.status(400).json({ message: 'A point_set_id is required.' });
+    }
+
+    try {
+        const rosterCardsQuery = `
+            SELECT
+                cp.*,
+                rc.is_starter,
+                rc.assignment,
+                ppv.points
+            FROM cards_player cp
+            JOIN roster_cards rc ON cp.card_id = rc.card_id
+            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
+            WHERE rc.roster_id = $1
+        `;
+        const rosterCardsResult = await pool.query(rosterCardsQuery, [rosterId, point_set_id]);
+
+        // This is the fix: Process the players before sending them back.
+        const processedCards = processPlayers(rosterCardsResult.rows);
+
+        res.json(processedCards);
+
+    } catch (error) {
+        console.error(`Error fetching roster ${rosterId}:`, error);
+        res.status(500).json({ message: 'Server error fetching roster details.' });
+    }
 });
 
 // GET ALL PENDING GAMES (Updated)

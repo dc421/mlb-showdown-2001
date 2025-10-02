@@ -234,43 +234,22 @@ async function joinGame(gameId, rosterId) {
   }
 }
 
-// in src/stores/auth.js
-async function fetchRosterDetails(rosterId) {
-  if (!token.value) return;
-  try {
-    // This is new: Ensure the master player list is available for context.
-    if (allPlayers.value.length === 0) {
-      await fetchAllPlayers();
+async function fetchRosterDetails(rosterId, pointSetId) {
+    if (!token.value || !rosterId || !pointSetId) return;
+    try {
+        const response = await fetch(`${API_URL}/api/rosters/${rosterId}?point_set_id=${pointSetId}`, {
+            headers: { 'Authorization': `Bearer ${token.value}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch roster details');
+
+        // The backend now returns fully processed players with displayName, displayPosition, and points.
+        const rosterPlayers = await response.json();
+
+        activeRosterCards.value = rosterPlayers;
+
+    } catch (error) {
+        console.error('Failed to fetch roster details:', error);
     }
-
-    const response = await fetch(`${API_URL}/api/rosters/${rosterId}`, {
-      headers: { 'Authorization': `Bearer ${token.value}` }
-    });
-    if (!response.ok) throw new Error('Failed to fetch roster details');
-    const rosterPlayers = await response.json();
-
-    // This is new: Create a map of name counts from the master list.
-    const nameCounts = {};
-    allPlayers.value.forEach(p => { nameCounts[p.name] = (nameCounts[p.name] || 0) + 1; });
-
-    // Process each player on the active roster
-    rosterPlayers.forEach(p => {
-      // THIS IS THE FIX: Add the displayName property.
-      p.displayName = nameCounts[p.name] > 1 ? `${p.name} (${p.team})` : p.name;
-      
-      // Keep the existing logic for displayPosition.
-      if (p.control !== null) {
-        p.displayPosition = Number(p.ip) > 3 ? 'SP' : 'RP';
-      } else {
-        const positions = p.fielding_ratings ? Object.keys(p.fielding_ratings).join(',') : 'DH';
-        p.displayPosition = positions.replace(/LFRF/g, 'LF/RF');
-      }
-    });
-
-    activeRosterCards.value = rosterPlayers;
-  } catch (error) {
-    console.error('Failed to fetch roster details:', error);
-  }
 }
 
 

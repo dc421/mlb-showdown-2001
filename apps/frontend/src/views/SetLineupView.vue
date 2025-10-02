@@ -139,38 +139,40 @@ async function handleSubmission() {
 
 // in SetLineupView.vue
 onMounted(async () => {
-  console.log('1. SetLineupView has mounted for game ID:', gameId);
-  socket.emit('join-game-room', gameId);
-  await gameStore.fetchGame(gameId); // Fetches basic game info like DH rule
+    socket.emit('join-game-room', gameId);
+    await gameStore.fetchGame(gameId);
 
-  const participantInfo = await authStore.fetchMyParticipantInfo(gameId);
-  console.log('2. Fetched participant info:', participantInfo);
-
-  if (participantInfo && participantInfo.roster_id) {
-    if (participantInfo.mandatoryPitcherId) {
-        mandatoryPitcherId.value = participantInfo.mandatoryPitcherId;
+    // This is the fix: Ensure point sets are loaded before proceeding.
+    if (authStore.pointSets.length === 0) {
+        await authStore.fetchPointSets();
     }
 
-    console.log('3. Roster ID found. Fetching roster details for:', participantInfo.roster_id);
-    await authStore.fetchRosterDetails(participantInfo.roster_id);
-    console.log('4. Roster details fetch complete. Calling autoPopulateLineup...');
-    autoPopulateLineup();
+    // Now that we're sure a point set is selected, we can fetch the roster.
+    const participantInfo = await authStore.fetchMyParticipantInfo(gameId);
 
-    if (mandatoryPitcherId.value) {
-        const pitcher = startingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
-        if (pitcher) {
-            startingPitcher.value = pitcher;
+    if (participantInfo && participantInfo.roster_id && authStore.selectedPointSetId) {
+        if (participantInfo.mandatoryPitcherId) {
+            mandatoryPitcherId.value = participantInfo.mandatoryPitcherId;
         }
-    }
-  } else {
-    console.error('CRITICAL ERROR: No participant info or roster_id found for this game.');
-  }
 
-  socket.on('game-starting', () => {
-    // ADD THIS LOG
-    console.log("--- FRONTEND: Received 'game-starting' event! Redirecting... ---");
-    router.push(`/game/${gameId}`);
-  });
+        // Pass the selectedPointSetId to the action.
+        await authStore.fetchRosterDetails(participantInfo.roster_id, authStore.selectedPointSetId);
+
+        autoPopulateLineup();
+
+        if (mandatoryPitcherId.value) {
+            const pitcher = startingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
+            if (pitcher) {
+                startingPitcher.value = pitcher;
+            }
+        }
+    } else {
+        console.error('CRITICAL ERROR: Missing participant info, roster_id, or selectedPointSetId.');
+    }
+
+    socket.on('game-starting', () => {
+        router.push(`/game/${gameId}`);
+    });
 });
 
 onUnmounted(() => {
