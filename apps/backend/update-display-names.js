@@ -28,7 +28,12 @@ function formatPositions(fieldingRatings) {
   });
 
   const allPos = [...infield, ...outfield];
-  return allPos.sort().join('/');
+  const posString = allPos.sort().join('/');
+
+  if (posString === 'OF/SS') {
+    return 'SS/OF';
+  }
+  return posString;
 }
 
 async function updateDisplayNames() {
