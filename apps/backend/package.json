@@ -9,7 +9,8 @@
     "dev": "node server.js",
     "migrate:create": "node-pg-migrate -r dotenv/config create",
     "migrate:up": "node-pg-migrate -r dotenv/config up",
-    "import:points": "node import-points.js"
+    "import:points": "node import-points.js",
+    "update:names": "node update-display-names.js"
   },
   "keywords": [],
   "author": "",
