@@ -345,6 +345,18 @@ const outfieldDefense = computed(() => {
         }, 0);
 });
 
+const infieldDefense = computed(() => {
+    if (!gameStore.gameState || !gameStore.lineups) return 0;
+    const defensiveLineup = gameStore.gameState.isTopInning ? gameStore.lineups.home : gameStore.lineups.away;
+    if (!defensiveLineup?.battingOrder) return 0;
+    return defensiveLineup.battingOrder
+        .filter(spot => ['1B', '2B', '3B', 'SS'].includes(spot.position))
+        .reduce((sum, spot) => {
+            const rating = spot.player.fielding_ratings[spot.position] || 0;
+            return sum + rating;
+        }, 0);
+});
+
 // in GameView.vue
 const catcherArm = computed(() => {
     if (!gameStore.gameState || !gameStore.lineups) return 0;
@@ -903,6 +915,11 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
+          <div class="defensive-ratings">
+              <div>C+{{ catcherArm }}</div>
+              <div>IF+{{ infieldDefense }}</div>
+              <div>OF+{{ outfieldDefense }}</div>
+          </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
@@ -1408,6 +1425,17 @@ onUnmounted(() => {
 .result-box-left { left: 8px; }
 .result-box-right { right: 12px; }
 .result-box .outcome-text { font-size: 2.5rem; line-height: 1; }
+
+.defensive-ratings {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 5px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
 
 /* Indicators & Flashes */
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
