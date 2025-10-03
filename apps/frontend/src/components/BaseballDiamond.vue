@@ -60,6 +60,13 @@ const emit = defineEmits(['attempt-steal']);
   transform: translate(-50%, -50%); /* Center the card on the coordinates */
 }
 
+@media (max-width: 480px) {
+  .runner-slot {
+    width: 60px;
+    height: 84px;
+  }
+}
+
 .button-slot {
   position: absolute;
   width: 70px;
