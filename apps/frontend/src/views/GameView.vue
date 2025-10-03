@@ -357,18 +357,16 @@ const awayTeamColors = computed(() => {
 });
 
 const eventsForLog = computed(() => {
-    const hideTwoEvents = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && gameStore.isBetweenHalfInnings;
-
-    if (hideTwoEvents) {
-        // This is our special case. The backend sends the full event log.
-        // We need to manually hide the last two: the 3rd out result and the inning change message.
-        return gameStore.gameEvents.slice(0, gameStore.gameEvents.length - 2);
-    }
-
-    // For all other scenarios, we use the existing logic from the store,
-    // which correctly handles hiding the outcome for the defensive player
-    // or the offensive player during a normal at-bat.
+    // This logic is now centralized in the store's `gameEventsToDisplay` computed property.
     return gameStore.gameEventsToDisplay;
+});
+
+watch(() => gameStore.isBetweenHalfInnings, (newValue) => {
+  if (newValue) {
+    // When the inning ends, set the flag that we are waiting for the user
+    // to click "Next Hitter". This triggers the log truncation in the store.
+    gameStore.setAwaitingNextHitter(true);
+  }
 });
 
 const groupedGameLog = computed(() => {
@@ -651,6 +649,7 @@ function handleNextHitter() {
   }
   haveIRolledForSwing.value = false;
   localStorage.removeItem(rollStorageKey);
+  gameStore.setAwaitingNextHitter(false);
   gameStore.nextHitter(gameId);
 }
 
