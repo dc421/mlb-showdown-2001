@@ -157,8 +157,8 @@ const homeTotalRuns = computed(() => {
   }
   .linescore-table th,
   .linescore-table td {
-    min-width: 20px;
-    padding: 0.1rem;
+    min-width: 22px;
+    padding: 0.1rem 0.2rem;
   }
   .linescore-table td:first-child {
     min-width: unset;
