@@ -1011,7 +1011,7 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && isMyTurn" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && (amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp))" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
