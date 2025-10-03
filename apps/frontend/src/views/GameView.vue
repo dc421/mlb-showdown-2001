@@ -175,6 +175,13 @@ const rightPanelData = computed(() => {
     };
 });
 
+const usedPlayerIds = computed(() => {
+    if (!gameStore.gameState) return new Set();
+    const homeUsed = gameStore.gameState.homeTeam?.used_player_ids || [];
+    const awayUsed = gameStore.gameState.awayTeam?.used_player_ids || [];
+    return new Set([...homeUsed, ...awayUsed]);
+});
+
 const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey)) || false);
 
 
@@ -338,6 +345,18 @@ const outfieldDefense = computed(() => {
         }, 0);
 });
 
+const infieldDefense = computed(() => {
+    if (!gameStore.gameState || !gameStore.lineups) return 0;
+    const defensiveLineup = gameStore.gameState.isTopInning ? gameStore.lineups.home : gameStore.lineups.away;
+    if (!defensiveLineup?.battingOrder) return 0;
+    return defensiveLineup.battingOrder
+        .filter(spot => ['1B', '2B', '3B', 'SS'].includes(spot.position))
+        .reduce((sum, spot) => {
+            const rating = spot.player.fielding_ratings[spot.position] || 0;
+            return sum + rating;
+        }, 0);
+});
+
 // in GameView.vue
 const catcherArm = computed(() => {
     if (!gameStore.gameState || !gameStore.lineups) return 0;
@@ -364,19 +383,10 @@ const awayTeamColors = computed(() => {
 });
 
 const eventsForLog = computed(() => {
-    const hideTwoEvents = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && gameStore.isBetweenHalfInnings;
-
-    if (hideTwoEvents) {
-        // This is our special case. The backend sends the full event log.
-        // We need to manually hide the last two: the 3rd out result and the inning change message.
-        return gameStore.gameEvents.slice(0, gameStore.gameEvents.length - 2);
-    }
-
-    // For all other scenarios, we use the existing logic from the store,
-    // which correctly handles hiding the outcome for the defensive player
-    // or the offensive player during a normal at-bat.
+    // This logic is now centralized in the store's `gameEventsToDisplay` computed property.
     return gameStore.gameEventsToDisplay;
 });
+
 
 const groupedGameLog = computed(() => {
   if (!eventsForLog.value || eventsForLog.value.length === 0) {
@@ -554,47 +564,17 @@ const showResolvedState = computed(() => {
 
 // in GameView.vue
 const basesToDisplay = computed(() => {
-  if (shouldHidePlayOutcome.value) {
-    if (opponentReadyForNext.value) {
-      return gameStore.gameState?.lastCompletedAtBat?.basesBeforePlay || { first: null, second: null, third: null };
-    } else {
-      return gameStore.gameState?.currentAtBat?.basesBeforePlay || { first: null, second: null, third: null };
-    }
-  }
-
-  // Otherwise, show the current, live bases.
-  return gameStore.gameState?.bases;
+  // Now simply returns the bases from the authoritative displayGameState.
+  return gameStore.displayGameState?.bases || { first: null, second: null, third: null };
 });
 
 const outsToDisplay = computed(() => {
-  // NEW: Always prioritize hiding the outcome if needed. This prevents the
-  // UI from jumping to 3 outs before the final out is revealed.
-  if (shouldHidePlayOutcome.value) {
-    if (opponentReadyForNext.value) {
-      return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
-    } else {
-      return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
-    }
-  }
-
-  // Special condition for the offensive player between innings, before they have rolled.
-  // Show the state of the game as it was before the 3rd out was recorded.
-  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && gameStore.isBetweenHalfInnings;
-  if (isOffensivePlayerBetweenInnings) {
-    if (opponentReadyForNext.value) {
-      return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
-    } else {
-      return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
-    }
-  }
-
-  // If the inning is over and the outcome is not hidden, show 3 outs.
+  // If the inning is over, always show 3 outs. This handles the post-reveal state.
   if (gameStore.isBetweenHalfInnings) {
     return 3;
   }
-
-  // Otherwise, show the current, live number of outs.
-  return gameStore.gameState?.outs;
+  // Otherwise, trust the authoritative displayGameState for the correct out count.
+  return gameStore.displayGameState?.outs ?? 0;
 });
 
 // This watcher automatically updates the store whenever the correct number of outs changes
@@ -896,6 +876,11 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
+          <div class="defensive-ratings">
+              <div>C+{{ catcherArm }}</div>
+              <div>IF+{{ infieldDefense }}</div>
+              <div>OF+{{ outfieldDefense }}</div>
+          </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
@@ -1011,7 +996,7 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && isMyTurn" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && (amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp))" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
@@ -1048,8 +1033,8 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
               <ul>
                   <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p">{{ p.displayName }} ({{p.ip}} IP)</span>
-                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam"
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
                             @click.stop="handleSubstitution(p)"
                             class="sub-icon">
                           ⇄
@@ -1061,8 +1046,8 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
                   <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p">{{ p.displayName }} ({{p.displayPosition}})</span>
-                       <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam"
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
+                       <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
                             @click.stop="handleSubstitution(p)"
                             class="sub-icon">
                           ⇄
@@ -1123,16 +1108,16 @@ onUnmounted(() => {
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
               <ul>
-                  <li v-for="p in rightPanelData.bullpen" :key="p.card_id" @click="selectedCard = p">
-                      {{ p.displayName }} ({{p.ip}} IP)
+                  <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
                   </li>
               </ul>
           </div>
           <div v-if="rightPanelData.bench.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bench:</strong>
               <ul>
-                  <li v-for="p in rightPanelData.bench" :key="p.card_id" @click="selectedCard = p">
-                      {{ p.displayName }} ({{p.displayPosition}})
+                  <li v-for="p in rightPanelData.bench" :key="p.card_id" class="lineup-item">
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
                   </li>
               </ul>
           </div>
@@ -1332,6 +1317,15 @@ onUnmounted(() => {
 }
 .now-batting { background-color: #fff8e1; font-weight: bold; font-style: normal !important; color: #000 !important; }
 .next-up { background-color: #e9ecef; color: #000 !important; }
+.is-used {
+  color: #6c757d; /* A muted text color */
+  text-decoration: line-through;
+  pointer-events: none; /* Prevent clicking on used players */
+}
+.is-used > span:first-child {
+  cursor: default;
+}
+
 
 .replacement-player span:first-child {
   font-style: italic;
@@ -1408,6 +1402,17 @@ onUnmounted(() => {
 .result-box-left { left: 8px; }
 .result-box-right { right: 12px; }
 .result-box .outcome-text { font-size: 2.5rem; line-height: 1; }
+
+.defensive-ratings {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 5px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
 
 /* Indicators & Flashes */
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
