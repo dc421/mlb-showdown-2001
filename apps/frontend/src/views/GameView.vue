@@ -1055,11 +1055,23 @@ onUnmounted(() => {
                   </li>
               </ul>
           </div>
-          <div v-if="isSubModeActive && leftPanelData.isMyTeam">
+          <div v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Defaults:</strong>
               <ul>
-                  <li @click="selectPlayerToSubIn(REPLACEMENT_PITCHER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_PITCHER.card_id}">Use Replacement Pitcher</li>
-                  <li @click="selectPlayerToSubIn(REPLACEMENT_HITTER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_HITTER.card_id}">Use Replacement Hitter</li>
+                  <li class="lineup-item replacement-player">
+                      <span>Replacement Pitcher</span>
+                       <span @click.stop="handleSubstitution(REPLACEMENT_PITCHER)"
+                            class="sub-icon">
+                          ⇄
+                      </span>
+                  </li>
+                  <li class="lineup-item replacement-player">
+                      <span>Replacement Hitter</span>
+                       <span @click.stop="handleSubstitution(REPLACEMENT_HITTER)"
+                            class="sub-icon">
+                          ⇄
+                      </span>
+                  </li>
               </ul>
           </div>
       </div>
@@ -1314,6 +1326,10 @@ onUnmounted(() => {
   cursor: default;
 }
 
+
+.replacement-player span:first-child {
+  font-style: italic;
+}
 
 /* Game Log Specifics */
 .event-log ul { list-style: none; padding: 0; margin-top: 0; overflow-y: auto; }
