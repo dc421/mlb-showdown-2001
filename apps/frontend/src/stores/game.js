@@ -336,6 +336,7 @@ async function resetRolls(gameId) {
 // --- ADD THIS LINE ---
   const displayOuts = ref(0);
   const isOutcomeHidden = ref(false);
+  const isAwaitingNextHitter = ref(false);
 
   // --- ADD THIS ACTION ---
   function setDisplayOuts(count) {
@@ -346,17 +347,19 @@ async function resetRolls(gameId) {
     isOutcomeHidden.value = value;
   }
 
+  function setAwaitingNextHitter(value) {
+    isAwaitingNextHitter.value = value;
+  }
+
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
+    if (isAwaitingNextHitter.value) {
+      // When waiting for the user to click "Next Hitter" after the 3rd out,
+      // hide the final outcome AND the inning change message.
+      return gameEvents.value.slice(0, gameEvents.value.length - 2);
+    }
     if (isOutcomeHidden.value) {
-      // If the outcome is hidden and we are now between innings, it means the
-      // last play resulted in the 3rd out. We need to hide TWO events: the
-      // play outcome itself, and the subsequent "inning change" event.
-      const isBetween = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
-      if (isBetween) {
-        return gameEvents.value.slice(0, gameEvents.value.length - 2);
-      }
-      // In all other "outcome hidden" cases (e.g., offense waiting to roll),
+      // In all other "outcome hidden" cases (e.g., defense waiting for reveal),
       // we only need to hide the single outcome event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
@@ -390,6 +393,7 @@ async function resetRolls(gameId) {
     setupState.value = null;
     displayOuts.value = 0;
     isOutcomeHidden.value = false;
+    isAwaitingNextHitter.value = false;
   }
 
   const isBetweenHalfInnings = computed(() => {
@@ -400,6 +404,7 @@ async function resetRolls(gameId) {
   return { game, series, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
+    isAwaitingNextHitter, setAwaitingNextHitter,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
     resetGameState
