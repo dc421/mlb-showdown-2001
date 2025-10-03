@@ -1077,7 +1077,7 @@ onUnmounted(() => {
                   </li>
               </ul>
           </div>
-          <div v-if="leftPanelData.isMyTeam && isMyTurn">
+          <div v-if="isSubModeActive && leftPanelData.isMyTeam">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Defaults:</strong>
               <ul>
                   <li @click="selectPlayerToSubIn(REPLACEMENT_PITCHER)" :class="{selected: playerToSubIn?.card_id === REPLACEMENT_PITCHER.card_id}">Use Replacement Pitcher</li>
