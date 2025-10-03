@@ -108,7 +108,8 @@ const isGamePage = computed(() => route.name === 'game');
   .nav-center {
     flex-grow: 1; /* Allow this to fill available space */
     min-width: 0; /* Critical for flex-grow in a flex container */
-    justify-content: space-between; /* Pushes Linescore and Outs apart */
+    justify-content: center; /* Center the items */
+    gap: 1rem; /* Add some space between items */
   }
 
   /* REMOVED: The transform was causing the overlap issue.
@@ -122,6 +123,10 @@ const isGamePage = computed(() => route.name === 'game');
     display: none;
   }
 
+  .global-nav.game-page-active .nav-team-logo {
+    display: none;
+  }
+
   /* Ensure the outs are visible against the dark background */
   .nav-center :deep(.outs-display) {
     background-color: transparent; /* Or whatever matches the nav */
@@ -129,7 +134,6 @@ const isGamePage = computed(() => route.name === 'game');
   }
 
   .nav-center :deep(.linescore-table) {
-    flex: 1 1 0;
     min-width: 0;
   }
 }
