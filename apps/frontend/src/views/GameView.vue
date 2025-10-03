@@ -175,6 +175,13 @@ const rightPanelData = computed(() => {
     };
 });
 
+const usedPlayerIds = computed(() => {
+    if (!gameStore.gameState) return new Set();
+    const homeUsed = gameStore.gameState.homeTeam?.used_player_ids || [];
+    const awayUsed = gameStore.gameState.awayTeam?.used_player_ids || [];
+    return new Set([...homeUsed, ...awayUsed]);
+});
+
 const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey)) || false);
 
 
@@ -1048,8 +1055,8 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
               <ul>
                   <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p">{{ p.displayName }} ({{p.ip}} IP)</span>
-                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam"
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
                             @click.stop="handleSubstitution(p)"
                             class="sub-icon">
                           ⇄
@@ -1061,8 +1068,8 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
                   <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p">{{ p.displayName }} ({{p.displayPosition}})</span>
-                       <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam"
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
+                       <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
                             @click.stop="handleSubstitution(p)"
                             class="sub-icon">
                           ⇄
@@ -1111,16 +1118,16 @@ onUnmounted(() => {
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
               <ul>
-                  <li v-for="p in rightPanelData.bullpen" :key="p.card_id" @click="selectedCard = p">
-                      {{ p.displayName }} ({{p.ip}} IP)
+                  <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
                   </li>
               </ul>
           </div>
           <div v-if="rightPanelData.bench.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bench:</strong>
               <ul>
-                  <li v-for="p in rightPanelData.bench" :key="p.card_id" @click="selectedCard = p">
-                      {{ p.displayName }} ({{p.displayPosition}})
+                  <li v-for="p in rightPanelData.bench" :key="p.card_id" class="lineup-item">
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
                   </li>
               </ul>
           </div>
@@ -1320,6 +1327,15 @@ onUnmounted(() => {
 }
 .now-batting { background-color: #fff8e1; font-weight: bold; font-style: normal !important; color: #000 !important; }
 .next-up { background-color: #e9ecef; color: #000 !important; }
+.is-used {
+  color: #6c757d; /* A muted text color */
+  text-decoration: line-through;
+  pointer-events: none; /* Prevent clicking on used players */
+}
+.is-used > span:first-child {
+  cursor: default;
+}
+
 
 /* Game Log Specifics */
 .event-log ul { list-style: none; padding: 0; margin-top: 0; overflow-y: auto; }
