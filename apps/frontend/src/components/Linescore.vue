@@ -5,55 +5,64 @@ import { useGameStore } from '@/stores/game';
 const gameStore = useGameStore();
 
 const linescore = computed(() => {
-  // Use the direct store state: gameState
-  const innings = Array.from({ length: Math.max(9, gameStore.gameState?.inning || 0) }, (_, i) => i + 1);
-  const scores = { away: [], home: [] };
-
-  // Use the direct store state: gameEvents, not gameEventsToDisplay
-  if (!gameStore.gameEventsToDisplay || !gameStore.gameState) {
-    return { innings, scores };
+  const state = gameStore.displayGameState;
+  if (!state || !gameStore.gameEventsToDisplay) {
+    return { innings: Array.from({ length: 9 }, (_, i) => i + 1), scores: { away: [], home: [] } };
   }
+
+  const innings = Array.from({ length: Math.max(9, state.inning || 0) }, (_, i) => i + 1);
+  const scores = { away: [], home: [] };
 
   let awayRunsInInning = 0;
   let homeRunsInInning = 0;
   let isTop = true;
   let inningMarkersFound = 0;
 
-  // Use the direct store state: gameEvents, not gameEventsToDisplay
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
-        if (event.log_message.includes('scores!')) {
-          const runsScored = (event.log_message.match(/scores!/g) || []).length;
-          if (isTop) { awayRunsInInning += runsScored; }
-          else { homeRunsInInning += runsScored; }
+      if (event.log_message.includes('scores!')) {
+        const runsScored = (event.log_message.match(/scores!/g) || []).length;
+        if (isTop) {
+          awayRunsInInning += runsScored;
+        } else {
+          homeRunsInInning += runsScored;
         }
-        else if (event.log_message.includes('inning-change-message')) {
-          if (inningMarkersFound > 0) {
-              if (isTop) { scores.away.push(awayRunsInInning); }
-              else { scores.home.push(homeRunsInInning); }
+      } else if (event.log_message.includes('inning-change-message')) {
+        if (inningMarkersFound > 0) {
+          if (isTop) {
+            scores.away.push(awayRunsInInning);
+          } else {
+            scores.home.push(homeRunsInInning);
           }
-          inningMarkersFound++;
-          awayRunsInInning = 0;
-          homeRunsInInning = 0;
-          isTop = event.log_message.includes('Top');
         }
+        inningMarkersFound++;
+        awayRunsInInning = 0;
+        homeRunsInInning = 0;
+        isTop = event.log_message.includes('Top');
+      }
     }
   });
-  
+
+  // Add the current (or last) inning's score to the array
   if (gameStore.isBetweenHalfInnings) {
-    // In this specific state, the inning is over. Add the final score.
+    // If the inning just ended, `isTop` will reflect the inning that just finished.
     if (isTop) {
       scores.away.push(awayRunsInInning);
     } else {
       scores.home.push(homeRunsInInning);
     }
-  } else if (isTop) {
-    scores.away.push(awayRunsInInning);
   } else {
-    if(scores.away.length === scores.home.length) {
-      scores.away.push(0);
+    // If we're in the middle of an inning
+    if (isTop) {
+      scores.away.push(awayRunsInInning);
+    } else {
+      // For the home team, if we are in the middle of their half-inning,
+      // we need to ensure the away team has a score for this inning first (can be 0).
+      if (scores.away.length === scores.home.length) {
+         scores.away.push(0); // This logic might need review, but preserves original behavior
+      }
+      scores.home.push(homeRunsInInning);
     }
-    scores.home.push(homeRunsInInning);
   }
 
   return { innings, scores };
@@ -63,11 +72,13 @@ const awayTeamAbbr = computed(() => gameStore.teams?.away?.abbreviation || 'AWAY
 const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME');
 
 const awayTotalRuns = computed(() => {
-  return linescore.value.scores.away.reduce((total, runs) => total + runs, 0);
+  // Always trust the game state for the total score.
+  return gameStore.displayGameState?.awayScore ?? 0;
 });
 
 const homeTotalRuns = computed(() => {
-  return linescore.value.scores.home.reduce((total, runs) => total + runs, 0);
+  // Always trust the game state for the total score.
+  return gameStore.displayGameState?.homeScore ?? 0;
 });
 </script>
 
@@ -78,7 +89,7 @@ const homeTotalRuns = computed(() => {
           <th></th>
           <th v-for="inning in linescore.innings"
               :key="inning"
-              :class="{ 'current-inning': inning === gameStore.gameState?.inning && !gameStore.isBetweenHalfInnings }">
+              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !gameStore.isBetweenHalfInnings }">
               {{ inning }}
           </th>
           <th>R</th>
@@ -90,7 +101,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.away" 
             :key="`away-${index}`"
-            :class="{ 'current-inning': gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isBetweenHalfInnings }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ awayTotalRuns }}</td>
@@ -100,7 +111,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.home" 
             :key="`home-${index}`"
-            :class="{ 'current-inning': !gameStore.gameState?.isTopInning && (index + 1) === gameStore.gameState?.inning && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isBetweenHalfInnings }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ homeTotalRuns }}</td>
