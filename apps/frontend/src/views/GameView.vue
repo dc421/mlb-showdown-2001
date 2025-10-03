@@ -368,6 +368,21 @@ const catcherArm = computed(() => {
     return catcher?.player.fielding_ratings['C'] || 0;
 });
 
+const catcherArmDisplay = computed(() => {
+    const value = catcherArm.value;
+    return `C ${value >= 0 ? '+' : ''}${value}`;
+});
+
+const infieldDefenseDisplay = computed(() => {
+    const value = infieldDefense.value;
+    return `IF ${value >= 0 ? '+' : ''}${value}`;
+});
+
+const outfieldDefenseDisplay = computed(() => {
+    const value = outfieldDefense.value;
+    return `OF ${value >= 0 ? '+' : ''}${value}`;
+});
+
 // --- NEW: Computed properties to get team color data ---
 const homeTeamColors = computed(() => {
     return {
@@ -877,9 +892,9 @@ onUnmounted(() => {
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
           <div class="defensive-ratings">
-              <div>C+{{ catcherArm }}</div>
-              <div>IF+{{ infieldDefense }}</div>
-              <div>OF+{{ outfieldDefense }}</div>
+            <div class="rating-box">{{ catcherArmDisplay }}</div>
+            <div class="rating-box">{{ infieldDefenseDisplay }}</div>
+            <div class="rating-box">{{ outfieldDefenseDisplay }}</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
@@ -1405,13 +1420,24 @@ onUnmounted(() => {
 
 .defensive-ratings {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background: rgba(255, 255, 255, 0.8);
-  padding: 5px;
-  border-radius: 4px;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 6px;
+  border-radius: 6px;
   font-size: 0.9rem;
   font-weight: bold;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.rating-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #212529;
 }
 
 /* Indicators & Flashes */
