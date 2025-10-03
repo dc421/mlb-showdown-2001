@@ -375,13 +375,6 @@ const eventsForLog = computed(() => {
     return gameStore.gameEventsToDisplay;
 });
 
-watch(() => gameStore.isBetweenHalfInnings, (newValue) => {
-  if (newValue) {
-    // When the inning ends, set the flag that we are waiting for the user
-    // to click "Next Hitter". This triggers the log truncation in the store.
-    gameStore.setAwaitingNextHitter(true);
-  }
-});
 
 const groupedGameLog = computed(() => {
   if (!eventsForLog.value || eventsForLog.value.length === 0) {
@@ -559,47 +552,17 @@ const showResolvedState = computed(() => {
 
 // in GameView.vue
 const basesToDisplay = computed(() => {
-  if (shouldHidePlayOutcome.value) {
-    if (opponentReadyForNext.value) {
-      return gameStore.gameState?.lastCompletedAtBat?.basesBeforePlay || { first: null, second: null, third: null };
-    } else {
-      return gameStore.gameState?.currentAtBat?.basesBeforePlay || { first: null, second: null, third: null };
-    }
-  }
-
-  // Otherwise, show the current, live bases.
-  return gameStore.gameState?.bases;
+  // Now simply returns the bases from the authoritative displayGameState.
+  return gameStore.displayGameState?.bases || { first: null, second: null, third: null };
 });
 
 const outsToDisplay = computed(() => {
-  // NEW: Always prioritize hiding the outcome if needed. This prevents the
-  // UI from jumping to 3 outs before the final out is revealed.
-  if (shouldHidePlayOutcome.value) {
-    if (opponentReadyForNext.value) {
-      return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
-    } else {
-      return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
-    }
-  }
-
-  // Special condition for the offensive player between innings, before they have rolled.
-  // Show the state of the game as it was before the 3rd out was recorded.
-  const isOffensivePlayerBetweenInnings = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && gameStore.isBetweenHalfInnings;
-  if (isOffensivePlayerBetweenInnings) {
-    if (opponentReadyForNext.value) {
-      return gameStore.gameState?.lastCompletedAtBat?.outsBeforePlay || 0;
-    } else {
-      return gameStore.gameState?.currentAtBat?.outsBeforePlay || 0;
-    }
-  }
-
-  // If the inning is over and the outcome is not hidden, show 3 outs.
+  // If the inning is over, always show 3 outs. This handles the post-reveal state.
   if (gameStore.isBetweenHalfInnings) {
     return 3;
   }
-
-  // Otherwise, show the current, live number of outs.
-  return gameStore.gameState?.outs;
+  // Otherwise, trust the authoritative displayGameState for the correct out count.
+  return gameStore.displayGameState?.outs ?? 0;
 });
 
 // This watcher automatically updates the store whenever the correct number of outs changes
@@ -664,7 +627,6 @@ function handleNextHitter() {
   }
   haveIRolledForSwing.value = false;
   localStorage.removeItem(rollStorageKey);
-  gameStore.setAwaitingNextHitter(false);
   gameStore.nextHitter(gameId);
 }
 

@@ -336,8 +336,6 @@ async function resetRolls(gameId) {
 // --- ADD THIS LINE ---
   const displayOuts = ref(0);
   const isOutcomeHidden = ref(false);
-  const isAwaitingNextHitter = ref(false);
-
   // --- ADD THIS ACTION ---
   function setDisplayOuts(count) {
     displayOuts.value = count;
@@ -347,22 +345,22 @@ async function resetRolls(gameId) {
     isOutcomeHidden.value = value;
   }
 
-  function setAwaitingNextHitter(value) {
-    isAwaitingNextHitter.value = value;
-  }
-
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
-    if (isAwaitingNextHitter.value) {
-      // When waiting for the user to click "Next Hitter" after the 3rd out,
-      // hide the final outcome AND the inning change message.
-      return gameEvents.value.slice(0, gameEvents.value.length - 2);
-    }
+
+    // The only time we truncate the log is when the outcome of a play is actively being hidden.
     if (isOutcomeHidden.value) {
-      // In all other "outcome hidden" cases (e.g., defense waiting for reveal),
-      // we only need to hide the single outcome event.
+      // If the REAL state is between innings, it means the last play was the third out.
+      // The server sends two events: the play and the inning change message.
+      // We need to hide both to avoid spoiling the outcome.
+      if (gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome) {
+        return gameEvents.value.slice(0, gameEvents.value.length - 2);
+      }
+      // Otherwise, it's a normal mid-inning play, just hide the last event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
+
+    // If the outcome is not hidden, always show the full log.
     return gameEvents.value;
   });
 
@@ -393,18 +391,34 @@ async function resetRolls(gameId) {
     setupState.value = null;
     displayOuts.value = 0;
     isOutcomeHidden.value = false;
-    isAwaitingNextHitter.value = false;
   }
 
   const isBetweenHalfInnings = computed(() => {
-    if (!gameState.value) return false;
-    return gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
+    if (!displayGameState.value) return false;
+    return displayGameState.value.isBetweenHalfInningsAway || displayGameState.value.isBetweenHalfInningsHome;
   });
 
-  return { game, series, gameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
+  const displayGameState = computed(() => {
+    // If the outcome is hidden, and a previous state exists, show the previous state.
+    if (isOutcomeHidden.value && gameState.value?.lastCompletedAtBat) {
+      // Return a constructed state object that mimics the main gameState structure
+      // but uses the data from before the play was revealed.
+      return {
+        ...gameState.value, // Carry over non-critical parts of the state
+        bases: gameState.value.lastCompletedAtBat.basesBeforePlay,
+        outs: gameState.value.lastCompletedAtBat.outsBeforePlay,
+        homeScore: gameState.value.lastCompletedAtBat.homeScoreBeforePlay,
+        awayScore: gameState.value.lastCompletedAtBat.awayScoreBeforePlay,
+        // Keep the current inning, but use the old score and out count
+      };
+    }
+    // Otherwise, return the current, live game state.
+    return gameState.value;
+  });
+
+  return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
-    isAwaitingNextHitter, setAwaitingNextHitter,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
     resetGameState
