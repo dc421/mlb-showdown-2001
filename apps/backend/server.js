@@ -100,15 +100,22 @@ async function getActivePlayers(gameId, currentState) {
 async function getOutfieldDefense(defensiveParticipant) {
     if (!defensiveParticipant?.lineup?.battingOrder) return 0;
     const lineup = defensiveParticipant.lineup.battingOrder;
-    const outfielderCardIds = lineup.filter(spot => ['LF', 'CF', 'RF'].includes(spot.position)).map(spot => spot.card_id);
-    if (outfielderCardIds.length === 0) return 0;
-    const cardsResult = await pool.query('SELECT fielding_ratings FROM cards_player WHERE card_id = ANY($1::int[])', [outfielderCardIds]);
+    const outfielders = lineup.filter(spot => ['LF', 'CF', 'RF'].includes(spot.position));
+    if (outfielders.length === 0) return 0;
+
+    const outfielderCardIds = outfielders.map(spot => spot.card_id);
+    const cardsResult = await pool.query('SELECT card_id, fielding_ratings FROM cards_player WHERE card_id = ANY($1::int[])', [outfielderCardIds]);
+    const cardsById = cardsResult.rows.reduce((acc, card) => {
+        acc[card.card_id] = card;
+        return acc;
+    }, {});
+
     let totalDefense = 0;
-    cardsResult.rows.forEach(card => {
-        const ratings = card.fielding_ratings;
-        if (ratings.LF) totalDefense += ratings.LF;
-        if (ratings.CF) totalDefense += ratings.CF;
-        if (ratings.RF) totalDefense += ratings.RF;
+    outfielders.forEach(spot => {
+        const card = cardsById[spot.card_id];
+        if (card && card.fielding_ratings && card.fielding_ratings[spot.position]) {
+            totalDefense += card.fielding_ratings[spot.position];
+        }
     });
     return totalDefense;
 }
@@ -116,15 +123,21 @@ async function getOutfieldDefense(defensiveParticipant) {
 async function getInfieldDefense(defensiveParticipant) {
     if (!defensiveParticipant?.lineup?.battingOrder) return 0;
     const lineup = defensiveParticipant.lineup.battingOrder;
-    const infielderCardIds = lineup.filter(spot => ['C', '1B', '2B', 'SS', '3B'].includes(spot.position)).map(spot => spot.card_id);
-    if (infielderCardIds.length === 0) return 0;
-    const cardsResult = await pool.query('SELECT fielding_ratings FROM cards_player WHERE card_id = ANY($1::int[])', [infielderCardIds]);
+    const infielders = lineup.filter(spot => ['C', '1B', '2B', 'SS', '3B'].includes(spot.position));
+    if (infielders.length === 0) return 0;
+
+    const infielderCardIds = infielders.map(spot => spot.card_id);
+    const cardsResult = await pool.query('SELECT card_id, fielding_ratings FROM cards_player WHERE card_id = ANY($1::int[])', [infielderCardIds]);
+    const cardsById = cardsResult.rows.reduce((acc, card) => {
+        acc[card.card_id] = card;
+        return acc;
+    }, {});
+
     let totalDefense = 0;
-    cardsResult.rows.forEach(card => {
-        const ratings = card.fielding_ratings;
-        const ratingValues = Object.values(ratings);
-        if (ratingValues.length > 0) {
-            totalDefense += ratingValues[0];
+    infielders.forEach(spot => {
+        const card = cardsById[spot.card_id];
+        if (card && card.fielding_ratings && card.fielding_ratings[spot.position]) {
+            totalDefense += card.fielding_ratings[spot.position];
         }
     });
     return totalDefense;
