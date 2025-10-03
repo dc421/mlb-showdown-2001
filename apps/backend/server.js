@@ -657,6 +657,17 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         newState.currentAtBat.pitcher = playerInCard;
     }
 
+    // --- NEW: Handle pinch-runner substitutions ---
+    if (newState.bases.first && newState.bases.first.card_id === playerOutId) {
+        newState.bases.first = playerInCard;
+    }
+    if (newState.bases.second && newState.bases.second.card_id === playerOutId) {
+        newState.bases.second = playerInCard;
+    }
+    if (newState.bases.third && newState.bases.third.card_id === playerOutId) {
+        newState.bases.third = playerInCard;
+    }
+
     if (position === 'P') {
         participant.lineup.startingPitcher = playerInCard.card_id;
         logMessage = `${teamKey === 'homeTeam' ? 'Home' : 'Away'} brings in ${playerInCard.name} to relieve ${playerOutCard.name}.`;
