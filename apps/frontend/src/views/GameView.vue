@@ -887,8 +887,14 @@ onUnmounted(() => {
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
+            <!-- PITCHER SELECTION STATE -->
+            <div v-if="gameStore.gameState?.awaitingPitcherSelection" class="waiting-text">
+                <h3>Awaiting Pitcher</h3>
+                <p>You must substitute in a new pitcher to continue.</p>
+            </div>
+
             <!-- Main Action Buttons -->
-            <div v-if="isAdvancementOrTagUpDecision">
+            <div v-else-if="isAdvancementOrTagUpDecision">
                 <h3>Runner Decisions</h3>
                 <p>Select which runners to send:</p>
                 <div v-for="decision in gameStore.gameState.currentPlay.payload.decisions" :key="decision.from" class="decision-checkbox">
@@ -957,23 +963,33 @@ onUnmounted(() => {
           <!-- USER-CONTROLLED PLAYER -->
           <div class="player-container">
             <PlayerCard
+              v-if="controlledPlayer"
               :player="controlledPlayer"
               :role="controlledPlayerRole"
               :is-controlled-player="true"
               :has-advantage="controlledPlayerHasAdvantage"
               :primary-color="controlledPlayerTeamColors.primary"
             />
+            <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
+                <span class="tbd-role">{{ controlledPlayerRole }}</span>
+                <span class="tbd-name">TBD</span>
+            </div>
           </div>
 
           <!-- OPPONENT PLAYER -->
           <div class="player-container">
             <PlayerCard
+              v-if="opponentPlayer"
               :player="opponentPlayer"
               :role="opponentPlayerRole"
               :is-controlled-player="false"
               :has-advantage="opponentPlayerHasAdvantage"
               :primary-color="opponentPlayerTeamColors.primary"
             />
+             <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
+                <span class="tbd-role">{{ opponentPlayerRole }}</span>
+                <span class="tbd-name">TBD</span>
+            </div>
           </div>
         </div>
       </div>
@@ -986,7 +1002,7 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && (amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp))" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
@@ -1005,19 +1021,19 @@ onUnmounted(() => {
                   </span>
               </li>
           </ol>
-          <div v-if="leftPanelData.pitcher"
-               class="pitcher-info"
-               :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id}">
-              <hr />
-              <span @click="selectedCard = leftPanelData.pitcher">
-                  <strong :style="{ color: leftPanelData.colors.primary }">Pitching:</strong> {{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span>
-              </span>
-              <span v-if="isSubModeActive && leftPanelData.isMyTeam && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id)"
-                    @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
-                    class="sub-icon"
-                    :class="{ 'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id }">
-                  ⇄
-              </span>
+          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}">
+            <hr />
+            <span @click="selectedCard = leftPanelData.pitcher">
+                <strong :style="{ color: leftPanelData.colors.primary }">Pitching:</strong>
+                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-else>TBD</template>
+            </span>
+            <span v-if="isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id)"
+                  @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
+                  class="sub-icon"
+                  :class="{ 'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id }">
+                ⇄
+            </span>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
@@ -1092,8 +1108,11 @@ onUnmounted(() => {
                   {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})
               </li>
           </ol>
-          <div v-if="rightPanelData.pitcher" class="pitcher-info" @click="selectedCard = rightPanelData.pitcher">
-              <hr /><strong :style="{ color: rightPanelData.colors.primary }">Pitching:</strong> {{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span>
+          <div class="pitcher-info" @click="selectedCard = rightPanelData.pitcher">
+              <hr />
+              <strong :style="{ color: rightPanelData.colors.primary }">Pitching:</strong>
+              <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+              <template v-else>TBD</template>
           </div>
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
@@ -1223,6 +1242,32 @@ onUnmounted(() => {
   }
   .player-container {
     flex: 1 1 45%;
+  min-width: 280px; /* Prevent wrapping too early */
+}
+
+.tbd-pitcher-card {
+    border: 4px solid #343a40; /* Default border color */
+    border-radius: 10px;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    width: 100%;
+    max-width: 320px;
+    height: 446px; /* Match PlayerCard height */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+}
+.tbd-role {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #6c757d;
+}
+.tbd-name {
+    font-size: 2rem;
+    font-weight: bold;
   }
 }
 
