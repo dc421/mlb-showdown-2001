@@ -398,22 +398,57 @@ async function resetRolls(gameId) {
     return displayGameState.value.isBetweenHalfInningsAway || displayGameState.value.isBetweenHalfInningsHome;
   });
 
+  const shouldHidePlayOutcome = computed(() => {
+    const auth = useAuthStore();
+    if (isOutcomeHidden.value) return true;
+
+    const isBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
+    if (!isBetweenInnings) return false;
+
+    // Defensive check: ensure all required data is loaded.
+    if (!gameState.value?.lastCompletedAtBat || !game.value || !auth.user) {
+      return false;
+    }
+
+    const lastBatterTeamId = gameState.value.lastCompletedAtBat.batterTeamId;
+
+    // Determine the user's team ID directly from the game object to avoid race conditions.
+    let myTeamId = null;
+    if (game.value.home_team_user_id === auth.user.id) {
+      myTeamId = game.value.home_team_id;
+    } else if (game.value.away_team_user_id === auth.user.id) {
+      myTeamId = game.value.away_team_id;
+    }
+
+    if (!myTeamId) return false;
+
+    // Was the last batter on the user's team? If so, hide the outcome.
+    return lastBatterTeamId === myTeamId;
+  });
+
   const displayGameState = computed(() => {
-    // If the outcome is hidden, and a previous state exists, show the previous state.
-    if (isOutcomeHidden.value && gameState.value?.lastCompletedAtBat) {
-      // Return a constructed state object that mimics the main gameState structure
-      // but uses the data from before the play was revealed.
+    // If we should hide the outcome, construct the "paused" state from the last at-bat.
+    if (shouldHidePlayOutcome.value && gameState.value?.lastCompletedAtBat) {
       return {
-        ...gameState.value, // Carry over non-critical parts of the state
+        ...gameState.value,
         bases: gameState.value.lastCompletedAtBat.basesBeforePlay,
         outs: gameState.value.lastCompletedAtBat.outsBeforePlay,
         homeScore: gameState.value.lastCompletedAtBat.homeScoreBeforePlay,
         awayScore: gameState.value.lastCompletedAtBat.awayScoreBeforePlay,
-        // Keep the current inning, but use the old score and out count
       };
     }
-    // Otherwise, return the current, live game state.
-    return gameState.value;
+
+    // If the game state is loaded, return it.
+    if (gameState.value) {
+      return gameState.value;
+    }
+
+    // CRITICAL: If game state is null (e.g., on initial load), return a default,
+    // safe object to prevent the component from crashing before data arrives.
+    return {
+      inning: 1, isTop: true, outs: 0, homeScore: 0, awayScore: 0, bases: {},
+      isBetweenHalfInningsAway: false, isBetweenHalfInningsHome: false
+    };
   });
 
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
