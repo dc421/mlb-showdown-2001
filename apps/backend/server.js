@@ -113,8 +113,15 @@ async function getOutfieldDefense(defensiveParticipant) {
     let totalDefense = 0;
     outfielders.forEach(spot => {
         const card = cardsById[spot.card_id];
-        if (card && card.fielding_ratings && card.fielding_ratings[spot.position]) {
-            totalDefense += card.fielding_ratings[spot.position];
+        if (card && card.fielding_ratings) {
+            // Check for specific position rating first (e.g., 'LF')
+            if (card.fielding_ratings[spot.position] !== undefined) {
+                totalDefense += card.fielding_ratings[spot.position];
+            }
+            // If it's a corner OF spot and no specific rating, check for 'LFRF'
+            else if ((spot.position === 'LF' || spot.position === 'RF') && card.fielding_ratings['LFRF'] !== undefined) {
+                totalDefense += card.fielding_ratings['LFRF'];
+            }
         }
     });
     return totalDefense;
@@ -148,8 +155,25 @@ async function getInfieldDefense(defensiveParticipant) {
     let totalDefense = 0;
     infielders.forEach(spot => {
         const card = cardsById[spot.card_id];
-        if (card && card.fielding_ratings && card.fielding_ratings[spot.position]) {
-            totalDefense += card.fielding_ratings[spot.position];
+        if (card && card.fielding_ratings) {
+            if (spot.position === '1B') {
+                if (card.fielding_ratings['1B'] !== undefined) {
+                    totalDefense += card.fielding_ratings['1B'];
+                } else {
+                    // Player is out of position at 1B.
+                    // Check if they are a DH (no ratings at all).
+                    if (Object.keys(card.fielding_ratings).length === 0) {
+                        totalDefense -= 2; // -2 for a DH at 1B
+                    } else {
+                        totalDefense -= 1; // -1 for any other non-1B player
+                    }
+                }
+            } else {
+                // For 2B, 3B, SS, they must have the rating to be placed there.
+                if (card.fielding_ratings[spot.position] !== undefined) {
+                    totalDefense += card.fielding_ratings[spot.position];
+                }
+            }
         }
     });
     return totalDefense;
