@@ -1,6 +1,7 @@
 // server.js - DEFINITIVE FINAL VERSION
+const path = require('path');
 if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
+  require('dotenv').config({ path: path.join(__dirname, '.env') });
 }
 const express = require('express');
 const http = require('http');
@@ -644,6 +645,10 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const participant = participantResult.rows[0];
     const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
 
+    // Get the team's city for the log message
+    const teamResult = await client.query('SELECT city FROM teams WHERE user_id = $1', [userId]);
+    const teamCity = teamResult.rows[0].city;
+
     if (newState[teamKey].used_player_ids.includes(playerInId)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
     }
@@ -695,14 +700,14 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
     if (position === 'P') {
         participant.lineup.startingPitcher = playerInCard.card_id;
-        logMessage = `${teamKey === 'homeTeam' ? 'Home' : 'Away'} brings in ${playerInCard.name} to relieve ${playerOutCard.name}.`;
+        logMessage = `${teamCity} brings in ${playerInCard.name} to relieve ${playerOutCard.name}.`;
     } else {
         const lineup = participant.lineup.battingOrder;
         const spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
         if (spotIndex > -1) {
             lineup[spotIndex].card_id = playerInCard.card_id;
             lineup[spotIndex].position = position; // Update position
-            logMessage = `${teamKey === 'homeTeam' ? 'Home' : 'Away'} substitutes ${playerInCard.name} for ${playerOutCard.name}. ${playerInCard.name} will now play ${position}.`;
+            logMessage = `${teamCity} substitutes ${playerInCard.name} for ${playerOutCard.name}. ${playerInCard.name} will now play ${position}.`;
         }
     }
 
