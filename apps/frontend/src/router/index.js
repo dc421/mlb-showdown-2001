@@ -9,6 +9,7 @@ import SetLineupView from '../views/SetLineupView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import GameSetupView from '../views/GameSetupView.vue';
 import DevToolView from '../views/DevToolView.vue' // <-- ADD THIS
+import OfficialRulesView from '../views/OfficialRulesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -58,6 +59,12 @@ const router = createRouter({
       path: '/dev-tool/:id',
       name: 'dev-tool',
       component: DevToolView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/official-rules',
+      name: 'official-rules',
+      component: OfficialRulesView,
       meta: { requiresAuth: true }
     },
     {

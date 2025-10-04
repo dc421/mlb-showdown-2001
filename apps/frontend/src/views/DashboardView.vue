@@ -110,6 +110,10 @@ onUnmounted(() => {
         <p v-else>No open games to join.</p>
       </div>
     </main>
+
+    <footer class="dashboard-footer">
+      <RouterLink to="/official-rules">Official MLB Showdown Rules</RouterLink>
+    </footer>
   </div>
 </template>
 
@@ -203,6 +207,13 @@ onUnmounted(() => {
   .team-info h1 {
     font-size: 2rem;
   }
+}
+
+.dashboard-footer {
+  text-align: center;
+  padding: 2rem;
+  margin-top: 2rem;
+  border-top: 1px solid #eee;
 }
 </style>
 
