@@ -120,10 +120,22 @@ async function getOutfieldDefense(defensiveParticipant) {
     return totalDefense;
 }
 
+async function getCatcherArm(defensiveParticipant) {
+    if (!defensiveParticipant?.lineup?.battingOrder) return 0;
+    const lineup = defensiveParticipant.lineup.battingOrder;
+    const catcher = lineup.find(spot => spot.position === 'C');
+    if (!catcher) return 0;
+
+    const cardResult = await pool.query('SELECT fielding_ratings FROM cards_player WHERE card_id = $1', [catcher.card_id]);
+    if (cardResult.rows.length === 0 || !cardResult.rows[0].fielding_ratings) return 0;
+
+    return cardResult.rows[0].fielding_ratings['C'] || 0;
+}
+
 async function getInfieldDefense(defensiveParticipant) {
     if (!defensiveParticipant?.lineup?.battingOrder) return 0;
     const lineup = defensiveParticipant.lineup.battingOrder;
-    const infielders = lineup.filter(spot => ['C', '1B', '2B', 'SS', '3B'].includes(spot.position));
+    const infielders = lineup.filter(spot => ['1B', '2B', 'SS', '3B'].includes(spot.position));
     if (infielders.length === 0) return 0;
 
     const infielderCardIds = infielders.map(spot => spot.card_id);
@@ -1148,6 +1160,12 @@ async function getAndProcessGameData(gameId, dbClient) {
     const activePlayers = await getActivePlayers(gameId, currentState.state_data);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
+    const defensiveRatings = {
+        catcherArm: await getCatcherArm(activePlayers.defensiveTeam),
+        infieldDefense: await getInfieldDefense(activePlayers.defensiveTeam),
+        outfieldDefense: await getOutfieldDefense(activePlayers.defensiveTeam),
+    };
+    currentState.state_data.defensiveRatings = defensiveRatings;
 
     for (const p of participantsResult.rows) {
       const rosterCardsResult = await dbClient.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [p.roster_id]);
@@ -1209,8 +1227,9 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction) {
-      const { batter, pitcher } = await getActivePlayers(gameId, finalState);
+      const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
+      const infieldDefense = await getInfieldDefense(defensiveTeam);
 
       let outcome = 'OUT';
       let swingRoll = 0;
@@ -1226,7 +1245,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
               if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
           }
       }
-      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher);
+      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1363,6 +1382,8 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         if (finalState.currentAtBat.batterAction) {
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
+            const { defensiveTeam } = await getActivePlayers(gameId, finalState);
+            const infieldDefense = await getInfieldDefense(defensiveTeam);
             const originalOuts = finalState.outs;
             const originalScore = finalState.awayScore + finalState.homeScore;
             let outcome = 'OUT';
@@ -1377,7 +1398,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher);
+            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1691,9 +1712,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const fromBaseOfThrow = throwTo - 1;
     const runner = newState.bases[baseMap[fromBaseOfThrow]];
     if (runner) {
-      const catcherInfo = defensiveTeam.lineup.battingOrder.find(p => p.position === 'C');
-      const catcherCard = await pool.query('SELECT fielding_ratings FROM cards_player WHERE card_id = $1', [catcherInfo.card_id]);
-      const catcherArm = catcherCard.rows[0].fielding_ratings['C'] || 0;
+      const catcherArm = await getCatcherArm(defensiveTeam);
       const d20Roll = Math.floor(Math.random() * 20) + 1;
       const defenseTotal = catcherArm + d20Roll;
 

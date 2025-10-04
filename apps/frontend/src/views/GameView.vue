@@ -333,40 +333,11 @@ const showNextHitterButton = computed(() => {
   return atBatIsResolved || opponentIsReady;
 });
 
-const outfieldDefense = computed(() => {
-    if (!gameStore.gameState || !gameStore.lineups) return 0;
-    const defensiveLineup = gameStore.gameState.isTopInning ? gameStore.lineups.home : gameStore.lineups.away;
-    if (!defensiveLineup?.battingOrder) return 0;
-    return defensiveLineup.battingOrder
-        .filter(spot => ['LF', 'CF', 'RF'].includes(spot.position))
-        .reduce((sum, spot) => {
-            const rating = spot.player.fielding_ratings[spot.position] || 0;
-            return sum + rating;
-        }, 0);
-});
+const outfieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.outfieldDefense ?? 0);
 
-const infieldDefense = computed(() => {
-    if (!gameStore.gameState || !gameStore.lineups) return 0;
-    const defensiveLineup = gameStore.gameState.isTopInning ? gameStore.lineups.home : gameStore.lineups.away;
-    if (!defensiveLineup?.battingOrder) return 0;
-    return defensiveLineup.battingOrder
-        .filter(spot => ['1B', '2B', '3B', 'SS'].includes(spot.position))
-        .reduce((sum, spot) => {
-            const rating = spot.player.fielding_ratings[spot.position] || 0;
-            return sum + rating;
-        }, 0);
-});
+const infieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.infieldDefense ?? 0);
 
-// in GameView.vue
-const catcherArm = computed(() => {
-    if (!gameStore.gameState || !gameStore.lineups) return 0;
-    const defensiveLineup = gameStore.gameState.isTopInning ? gameStore.lineups.home.battingOrder : gameStore.lineups.away.battingOrder;
-    if (!defensiveLineup) return 0;
-
-    const catcher = defensiveLineup.find(spot => spot.position === 'C');
-    // The rating is stored in the fielding_ratings object under the 'C' key
-    return catcher?.player.fielding_ratings['C'] || 0;
-});
+const catcherArm = computed(() => gameStore.gameState?.defensiveRatings?.catcherArm ?? 0);
 
 const catcherArmDisplay = computed(() => {
     const value = catcherArm.value;
