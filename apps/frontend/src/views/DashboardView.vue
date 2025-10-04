@@ -112,7 +112,7 @@ onUnmounted(() => {
     </main>
 
     <footer class="dashboard-footer">
-      <RouterLink to="/official-rules">Official MLB Showdown Rules</RouterLink>
+      <RouterLink to="/official-rules">Official MLB Showdown 2001 Advanced Rules</RouterLink>
     </footer>
   </div>
 </template>
