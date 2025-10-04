@@ -634,6 +634,10 @@ function handlePitch(action = null) {
 }
 function handleOffensiveAction(action) {
   console.log('1. GameView: handleOffensiveAction was called with action:', action);
+  if (action === 'bunt') {
+    haveIRolledForSwing.value = true;
+    localStorage.setItem(rollStorageKey, 'true');
+  }
   gameStore.submitAction(gameId, action);
 }
 
