@@ -427,8 +427,10 @@ async function resetRolls(gameId) {
   });
 
   const displayGameState = computed(() => {
-    // If we should hide the outcome, construct the "paused" state from the last at-bat.
-    if (shouldHidePlayOutcome.value && gameState.value?.lastCompletedAtBat) {
+    const isBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
+
+    // If we should hide the outcome AND it's between innings, roll back the state.
+    if (shouldHidePlayOutcome.value && isBetweenInnings && gameState.value?.lastCompletedAtBat) {
       return {
         ...gameState.value,
         bases: gameState.value.lastCompletedAtBat.basesBeforePlay,
@@ -438,7 +440,7 @@ async function resetRolls(gameId) {
       };
     }
 
-    // If the game state is loaded, return it.
+    // In ALL other cases (including mid-inning hidden outcomes), return the current state if it exists.
     if (gameState.value) {
       return gameState.value;
     }
