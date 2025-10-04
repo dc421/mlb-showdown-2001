@@ -8,6 +8,11 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
     pitcherOfRecordId: pitcher.card_id 
   };
 
+  // If the batter is a pitcher, set their speed to 'C' (10)
+  if (runnerData.control !== null) {
+    runnerData.speed = 'C';
+  }
+
   const scoreRun = (runnerOnBase) => {
     if (!runnerOnBase) return;
     newState[scoreKey]++;
