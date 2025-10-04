@@ -64,7 +64,7 @@ async function handleSubstitution(playerIn) {
 const runnerDecisionChoices = ref({});
 
 const isAdvancementOrTagUpDecision = computed(() => {
-    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
+    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !haveIRolledForSwing.value) {
         return false;
     }
     const type = gameStore.gameState.currentPlay.type;
