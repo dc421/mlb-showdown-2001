@@ -879,9 +879,9 @@ onUnmounted(() => {
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
           <div class="defensive-ratings">
-            <div class="rating-box">{{ catcherArmDisplay }}</div>
-            <div class="rating-box">{{ infieldDefenseDisplay }}</div>
-            <div class="rating-box">{{ outfieldDefenseDisplay }}</div>
+            <div>{{ catcherArmDisplay }}</div>
+            <div>{{ infieldDefenseDisplay }}</div>
+            <div>{{ outfieldDefenseDisplay }}</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && gameStore.opponentReadyForNext) &&
@@ -1474,21 +1474,16 @@ onUnmounted(() => {
   bottom: 8px;
   left: 8px;
   display: flex;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.85);
-  padding: 6px;
-  border-radius: 6px;
+  flex-direction: column;
+  background: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 4px;
   font-size: 0.9rem;
   font-weight: bold;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.rating-box {
-  background-color: #f8f9fa;
   border: 1px solid #dee2e6;
-  padding: 4px 8px;
-  border-radius: 4px;
   color: #212529;
+  text-align: center;
 }
 
 /* Indicators & Flashes */
