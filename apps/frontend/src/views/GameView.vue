@@ -1471,8 +1471,8 @@ onUnmounted(() => {
 
 .defensive-ratings {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
+  bottom: 50px;
+  left: 30px;
   display: flex;
   flex-direction: column;
   background: #f8f9fa;
@@ -1480,7 +1480,7 @@ onUnmounted(() => {
   border-radius: 4px;
   font-size: 0.9rem;
   font-weight: bold;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 0px 0px rgba(0,0,0,0.1);
   border: 1px solid #dee2e6;
   color: #212529;
   text-align: center;
