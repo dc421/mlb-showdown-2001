@@ -1034,7 +1034,7 @@ onUnmounted(() => {
           <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}">
             <hr />
             <span @click="selectedCard = leftPanelData.pitcher">
-                <strong :style="{ color: leftPanelData.colors.primary }">Pitching:</strong>
+                <strong :style="{ color: leftPanelData.colors.primary }">Pitching: </strong>
                 <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
                 <template v-else>TBD</template>
             </span>
@@ -1117,15 +1117,17 @@ onUnmounted(() => {
                       'now-batting': ((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
                       'next-up': !((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex
                   }"
-                  @click="selectedCard = spot.player">
-                  {{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})
+                  class="lineup-item">
+                  <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info" @click="selectedCard = rightPanelData.pitcher">
+          <div class="pitcher-info">
               <hr />
-              <strong :style="{ color: rightPanelData.colors.primary }">Pitching:</strong>
-              <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
-              <template v-else>TBD</template>
+              <span @click="selectedCard = rightPanelData.pitcher">
+                <strong :style="{ color: rightPanelData.colors.primary }">Pitching: </strong>
+                <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-else>TBD</template>
+              </span>
           </div>
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
