@@ -140,13 +140,13 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   }
   else if (outcome === '2B') {
       events.push(`${batter.displayName} hits a DOUBLE!`);
-      const runnerFromThird = state.bases.third;
+      const runnerFromThird = state.bases.first;
       if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
       if (newState.bases.second) { scoreRun(newState.bases.second); newState.bases.second = null; }
       if (newState.bases.first) { newState.bases.third = newState.bases.first; newState.bases.first = null; }
       newState.bases.second = runnerData;
       if (runnerFromThird) {
-        newState.currentPlay = { type: 'ADVANCE', payload: { decisions: [{ runner: runnerFromThird, from: 3 }], hitType: '2B' } };
+        newState.currentPlay = { type: 'ADVANCE', payload: { decisions: [{ runner: runnerFromThird, from: 1 }], hitType: '2B' } };
       }
   }
   else if (outcome === 'IBB') {
