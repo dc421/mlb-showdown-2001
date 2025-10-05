@@ -858,8 +858,15 @@ app.get('/api/rosters/:rosterId', authenticateToken, async (req, res) => {
 app.get('/api/games/open', authenticateToken, async (req, res) => {
   try {
     const openGamesQuery = await pool.query(
-      `SELECT g.game_id, t.city, t.name, t.display_format, u.user_id as host_user_id
+      `SELECT
+         g.game_id,
+         t.city,
+         t.name,
+         t.display_format,
+         u.user_id as host_user_id,
+         COALESCE(s.series_type, 'exhibition') as series_type
        FROM games g 
+       LEFT JOIN series s ON g.series_id = s.id
        JOIN game_participants gp ON g.game_id = gp.game_id
        JOIN users u ON gp.user_id = u.user_id
        JOIN teams t ON u.team_id = t.team_id

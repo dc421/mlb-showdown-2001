@@ -23,6 +23,18 @@ const gamesToJoin = computed(() => {
     return authStore.openGames.filter(game => game.host_user_id !== authStore.user.userId);
 });
 
+function getGameTypeName(seriesType) {
+  switch (seriesType) {
+    case 'regular_season':
+      return 'Regular Season Series';
+    case 'playoff':
+      return 'Playoff Series';
+    case 'exhibition':
+    default:
+      return 'Exhibition';
+  }
+}
+
 function handleCreateGame() {
   if (authStore.myRoster) {
     // Pass the selected series type to the store action
@@ -103,7 +115,7 @@ onUnmounted(() => {
          <ul v-if="authStore.openGames.length > 0" class="game-list">
          <!-- in DashboardView.vue template -->
 <li v-for="game in gamesToJoin" :key="game.game_id">
-  <span>Game vs. {{ game.full_display_name }}</span>
+  <span>{{ getGameTypeName(game.series_type) }} vs. {{ game.full_display_name }}</span>
   <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster">Join</button>
 </li>
         </ul>
