@@ -398,10 +398,8 @@ async function resetRolls(gameId) {
     return displayGameState.value.isBetweenHalfInningsAway || displayGameState.value.isBetweenHalfInningsHome;
   });
 
-  const shouldHidePlayOutcome = computed(() => {
+  const shouldHideEndOfInningOutcome = computed(() => {
     const auth = useAuthStore();
-    if (isOutcomeHidden.value) return true;
-
     const isBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
     if (!isBetweenInnings) return false;
 
@@ -427,30 +425,35 @@ async function resetRolls(gameId) {
   });
 
   const displayGameState = computed(() => {
-    const isBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
-
-    // If we should hide the outcome AND it's between innings, roll back the state.
-    if (shouldHidePlayOutcome.value && isBetweenInnings && gameState.value?.lastCompletedAtBat) {
+    if (!gameState.value) {
+      // Return a default, safe object to prevent crashes.
       return {
-        ...gameState.value,
-        bases: gameState.value.lastCompletedAtBat.basesBeforePlay,
-        outs: gameState.value.lastCompletedAtBat.outsBeforePlay,
-        homeScore: gameState.value.lastCompletedAtBat.homeScoreBeforePlay,
-        awayScore: gameState.value.lastCompletedAtBat.awayScoreBeforePlay,
+        inning: 1, isTop: true, outs: 0, homeScore: 0, awayScore: 0, bases: {},
+        isBetweenHalfInningsAway: false, isBetweenHalfInningsHome: false
       };
     }
 
-    // In ALL other cases (including mid-inning hidden outcomes), return the current state if it exists.
-    if (gameState.value) {
-      return gameState.value;
+    const isBetweenInnings = gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
+    const shouldRollback = isOutcomeHidden.value || shouldHideEndOfInningOutcome.value;
+
+    if (shouldRollback) {
+      const rollbackSource = isBetweenInnings
+        ? gameState.value.lastCompletedAtBat
+        : gameState.value.currentAtBat;
+
+      if (rollbackSource && rollbackSource.basesBeforePlay) {
+        return {
+          ...gameState.value,
+          bases: rollbackSource.basesBeforePlay,
+          outs: rollbackSource.outsBeforePlay,
+          homeScore: rollbackSource.homeScoreBeforePlay,
+          awayScore: rollbackSource.awayScoreBeforePlay,
+        };
+      }
     }
 
-    // CRITICAL: If game state is null (e.g., on initial load), return a default,
-    // safe object to prevent the component from crashing before data arrives.
-    return {
-      inning: 1, isTop: true, outs: 0, homeScore: 0, awayScore: 0, bases: {},
-      isBetweenHalfInningsAway: false, isBetweenHalfInningsHome: false
-    };
+    // In all other cases, return the current state.
+    return gameState.value;
   });
 
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
