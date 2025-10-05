@@ -182,7 +182,6 @@ const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey))
 
 
 const scoreChangeMessage = ref('');
-const scoreUpdateVisible = ref(false);
 
 // in GameView.vue
 watch([() => gameStore.gameState?.awayScore, () => gameStore.gameState?.homeScore], ([newAwayScore, newHomeScore], [oldAwayScore, oldHomeScore]) => {
@@ -214,10 +213,9 @@ const runScoredOnPlay = computed(() => {
   return lastEvent.log_message?.includes('scores!');
 });
 
-watch(runScoredOnPlay, (hasScored) => {
-    if (hasScored) {
-        scoreUpdateVisible.value = true;
-    }
+const scoreUpdateVisible = computed(() => {
+  const swingIsVisible = isSwingResultVisible.value || (amIDisplayOffensivePlayer.value && haveIRolledForSwing.value);
+  return runScoredOnPlay.value && swingIsVisible;
 });
 
 // in GameView.vue
