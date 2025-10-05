@@ -1490,7 +1490,7 @@ onUnmounted(() => {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
 .score-update-flash {
   position: absolute;
-  bottom: 20px; /* Position it below the container */
+  bottom: 375px; /* Position it below the container */
   left: 0;
   right: 0;
   font-size: 1.25rem;
