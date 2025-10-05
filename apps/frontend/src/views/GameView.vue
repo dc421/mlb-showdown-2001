@@ -572,6 +572,32 @@ watch(outsToDisplay, (newOuts) => {
 
 const isGameOver = computed(() => gameStore.game?.status === 'completed');
 
+const seriesStatusText = computed(() => {
+  const game = gameStore.game;
+  const series = gameStore.series;
+  const teams = gameStore.teams;
+
+  if (!game || !series) {
+    return 'Exhibition';
+  }
+
+  const gameNumber = game.game_in_series;
+  const homeWins = series.home_wins;
+  const awayWins = series.away_wins;
+
+  if (homeWins === awayWins) {
+    return `Game ${gameNumber}, Tied ${homeWins}-${awayWins}`;
+  }
+
+  const homeTeamAbbr = teams.home?.abbreviation || 'HOME';
+  const awayTeamAbbr = teams.away?.abbreviation || 'AWAY';
+
+  const leadingTeamAbbr = homeWins > awayWins ? homeTeamAbbr : awayTeamAbbr;
+  const leadingWins = Math.max(homeWins, awayWins);
+  const trailingWins = Math.min(homeWins, awayWins);
+  return `Game ${gameNumber}, ${leadingTeamAbbr} leads ${leadingWins}-${trailingWins}`;
+});
+
 function proceedToNextGame() {
     if (nextGameId.value) {
         router.push(`/game/${nextGameId.value}/lineup`);
@@ -1084,7 +1110,10 @@ onUnmounted(() => {
 
       <!-- Game Log -->
       <div class="event-log">
-        <h2>Game Log</h2>
+        <div class="log-header">
+          <h2>Game Log</h2>
+          <span class="series-status">{{ seriesStatusText }}</span>
+        </div>
         <div v-for="(group, groupIndex) in groupedGameLog" :key="`group-${groupIndex}`" class="inning-group">
           <div class="inning-header" v-html="group.header"></div>
           <ul>
@@ -1367,6 +1396,22 @@ onUnmounted(() => {
 }
 
 /* Game Log Specifics */
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 0.5rem;
+}
+.log-header h2 {
+  margin: 0;
+}
+.series-status {
+  font-style: italic;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
 .event-log ul { list-style: none; padding: 0; margin-top: 0; overflow-y: auto; }
 .event-log li { padding: 0.5rem; border-bottom: 1px solid #eee; }
 .inning-group { margin-bottom: 1rem; }
