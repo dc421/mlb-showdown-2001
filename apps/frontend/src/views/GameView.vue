@@ -101,12 +101,8 @@ const batterLineupInfo = computed(() => {
     return lineup[pos];
 });
 
-const myTeam = computed(() => {
-    if (!authStore.user || !gameStore.game) return null;
-    return authStore.user.userId === gameStore.game.home_team_user_id ? 'home' : 'away';
-});
-const myLineup = computed(() => myTeam.value ? gameStore.lineups[myTeam.value] : null);
-const myRoster = computed(() => myTeam.value ? gameStore.rosters[myTeam.value] : []);
+const myLineup = computed(() => gameStore.myTeam ? gameStore.lineups[gameStore.myTeam] : null);
+const myRoster = computed(() => gameStore.myTeam ? gameStore.rosters[gameStore.myTeam] : []);
 
 const myBenchAndBullpen = computed(() => {
     if (!myLineup.value?.battingOrder || !myRoster.value) return [];
@@ -136,7 +132,7 @@ const awayBenchAndBullpen = computed(() => {
 });
 
 const leftPanelData = computed(() => {
-    const isHome = myTeam.value === 'home';
+    const isHome = gameStore.myTeam === 'home';
     const teamData = isHome ? gameStore.teams.home : gameStore.teams.away;
     const lineupData = isHome ? gameStore.lineups.home : gameStore.lineups.away;
     const benchAndBullpen = isHome ? homeBenchAndBullpen.value : awayBenchAndBullpen.value;
@@ -151,12 +147,12 @@ const leftPanelData = computed(() => {
         bench: benchAndBullpen.filter(p => p.control === null),
         colors: colors,
         isMyTeam: true,
-        teamKey: myTeam.value
+        teamKey: gameStore.myTeam
     };
 });
 
 const rightPanelData = computed(() => {
-    const isHome = myTeam.value === 'home';
+    const isHome = gameStore.myTeam === 'home';
     const teamData = isHome ? gameStore.teams.away : gameStore.teams.home;
     const lineupData = isHome ? gameStore.lineups.away : gameStore.lineups.home;
     const benchAndBullpen = isHome ? awayBenchAndBullpen.value : homeBenchAndBullpen.value;
@@ -171,7 +167,7 @@ const rightPanelData = computed(() => {
         bench: benchAndBullpen.filter(p => p.control === null),
         colors: colors,
         isMyTeam: false,
-        teamKey: myTeam.value === 'home' ? 'away' : 'home'
+        teamKey: gameStore.myTeam === 'home' ? 'away' : 'home'
     };
 });
 
@@ -269,7 +265,7 @@ const pitcherOnlySetActions = computed(() => {
 
 const isOffenseWaitingToRoll = computed(() => {
   return amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && !amIReadyForNext.value && 
-  (bothPlayersSetAction.value || opponentReadyForNext.value)
+  (bothPlayersSetAction.value || gameStore.opponentReadyForNext)
 })
 
 const isDefenseWaitingForReveal = computed(() => {
@@ -328,7 +324,7 @@ const showNextHitterButton = computed(() => {
   }
   
   const atBatIsResolved = bothPlayersSetAction.value;
-  const opponentIsReady = opponentReadyForNext.value;
+  const opponentIsReady = gameStore.opponentReadyForNext;
 
   return atBatIsResolved || opponentIsReady;
 });
@@ -415,20 +411,10 @@ const isSwingResultVisible = ref(false);
 // in GameView.vue
 const amIReadyForNext = computed(() => {
     if (!gameStore.gameState || !authStore.user) return false;
-    if (myTeam.value === 'home') {
+    if (gameStore.myTeam === 'home') {
         return gameStore.gameState.homePlayerReadyForNext;
     } else {
         return gameStore.gameState.awayPlayerReadyForNext;
-    }
-});
-
-// in GameView.vue
-const opponentReadyForNext = computed(() => {
-    if (!gameStore.gameState || !authStore.user) return false;
-    if (myTeam.value === 'home') {
-        return gameStore.gameState.awayPlayerReadyForNext;
-    } else {
-        return gameStore.gameState.homePlayerReadyForNext;
     }
 });
 
@@ -438,7 +424,7 @@ const atBatToDisplay = computed(() => {
       // Return a default, safe structure to prevent cascading errors.
       return { batterAction: null, pitcherAction: null, pitchRollResult: null, swingRollResult: null };
     }
-    if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
+    if (!amIReadyForNext.value && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat;
     }
     return gameStore.gameState.currentAtBat;
@@ -524,7 +510,7 @@ const batterToDisplay = computed(() => {
     if (!gameStore.gameState) {
         return null;
     }
-    if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
+    if (!amIReadyForNext.value && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     return gameStore.gameState.currentAtBat.batter;
@@ -532,7 +518,7 @@ const batterToDisplay = computed(() => {
 
 const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
-    if (!amIReadyForNext.value && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) {
+    if (!amIReadyForNext.value && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.pitcher;
     }
     // In all other cases, show the data for the current at-bat.
@@ -624,7 +610,7 @@ function handleNextHitter() {
   localStorage.removeItem(seenResultStorageKey);
   scoreUpdateVisible.value = false;
 
-  if (!opponentReadyForNext.value) {
+  if (!gameStore.opponentReadyForNext) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
   haveIRolledForSwing.value = false;
@@ -872,7 +858,7 @@ onUnmounted(() => {
             <div class="rating-box">{{ outfieldDefenseDisplay }}</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
-           (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && opponentReadyForNext) &&
+           (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && gameStore.opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>

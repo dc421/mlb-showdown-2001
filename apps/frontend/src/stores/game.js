@@ -393,6 +393,21 @@ async function resetRolls(gameId) {
     isOutcomeHidden.value = false;
   }
 
+  const myTeam = computed(() => {
+    const auth = useAuthStore();
+    if (!auth.user || !game.value) return null;
+    return Number(auth.user.userId) === Number(game.value.home_team_user_id) ? 'home' : 'away';
+  });
+
+  const opponentReadyForNext = computed(() => {
+    if (!gameState.value || !myTeam.value) return false;
+    if (myTeam.value === 'home') {
+        return gameState.value.awayPlayerReadyForNext;
+    } else {
+        return gameState.value.homePlayerReadyForNext;
+    }
+  });
+
   const isBetweenHalfInnings = computed(() => {
     if (!displayGameState.value) return false;
     return displayGameState.value.isBetweenHalfInningsAway || displayGameState.value.isBetweenHalfInningsHome;
@@ -437,7 +452,7 @@ async function resetRolls(gameId) {
     const shouldRollback = isOutcomeHidden.value || shouldHideEndOfInningOutcome.value;
 
     if (shouldRollback) {
-      const rollbackSource = isBetweenInnings
+      const rollbackSource = (isBetweenInnings || opponentReadyForNext.value)
         ? gameState.value.lastCompletedAtBat
         : gameState.value.currentAtBat;
 
@@ -461,6 +476,8 @@ async function resetRolls(gameId) {
     displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
-    resetGameState
+    resetGameState,
+    myTeam,
+    opponentReadyForNext
   };
 })
