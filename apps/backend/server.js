@@ -1850,8 +1850,9 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         } else {
             newState.currentPlay = null;
-            const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-            newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
+            // THIS IS THE BUG. The batter is advanced here AND in the next-hitter call.
+            // const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+            // newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         }
         
@@ -1943,8 +1944,6 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         }
 
         newState.currentPlay = null;
-        const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-        newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
 
         if (newState.outs >= 3) {
             newState.isTopInning = !newState.isTopInning;
@@ -2012,8 +2011,6 @@ app.post('/api/games/:gameId/resolve-infield-in-play', authenticateToken, async 
         }
 
         newState.currentPlay = null;
-        const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-        newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
 
         if (newState.outs >= 3) {
             newState.isTopInning = !newState.isTopInning;
