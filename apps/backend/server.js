@@ -1619,7 +1619,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         teamToAdvance = 'homeTeam';
       } else {
         // Not an inning change, so advance the current offensive team.
-        teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';z
+        teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
       }
       newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
