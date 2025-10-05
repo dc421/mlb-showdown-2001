@@ -479,7 +479,7 @@ watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
 });
 
 const nextBatterInLineup = computed(() => {
-  if (!gameStore.gameState || !gameStore.lineups) return null;
+  if (!gameStore.gameState || !gameStore.lineups?.home || !gameStore.lineups?.away) return null;
 
   const isTop = gameStore.gameState.isTopInning;
   const offensiveTeamState = isTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
