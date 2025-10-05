@@ -717,28 +717,23 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
     // 2. Update currentAtBat (for pinch hitters and relief pitchers)
     if (newState.awaitingPitcherSelection) {
-        // We are in a mandatory substitution state.
-        // We expect the player being subbed out is the one in the pitcher's spot in the lineup.
         if (playerInCard.control !== null) {
-            // A valid pitcher was selected.
             newState.awaitingPitcherSelection = false;
             newState.currentAtBat.pitcher = playerInCard;
-            wasReliefPitcher = true; // Use the relief pitcher log message
+            wasReliefPitcher = true;
         } else {
-            // A non-pitcher was selected. The state remains waiting.
-            // The lineup will update, but the pitcher for the at-bat is still null.
             newState.awaitingPitcherSelection = true;
         }
     }
     else if (newState.currentAtBat.batter.card_id === playerOutId) {
         wasPinchHitter = true;
         newState.currentAtBat.batter = playerInCard;
-        // Check for the specific pinch-hitter-for-pitcher scenario
-        if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
-             newState.currentAtBat.pitcher = null; // Key change: Pitcher is now TBD
+        // Check if the player being pinch-hit for is actually the pitcher.
+        if (playerOutCard.control !== null) {
+             newState.currentAtBat.pitcher = null; // Pitcher is removed from the field.
+             newState.awaitingPitcherSelection = true; // A new pitcher must be selected.
         }
     } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
-        // This case handles a pitcher being replaced when they are not at bat (e.g., between innings)
         wasReliefPitcher = true;
         newState.currentAtBat.pitcher = playerInCard;
     }
@@ -751,15 +746,20 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
     if (spotIndex > -1) {
         lineup[spotIndex].card_id = playerInCard.card_id;
-        // Only update the defensive position if it's a substitution for a batter/fielder,
-        // not just a pinch-runner who hasn't taken the field.
-        if (!wasPinchRunner || wasPinchHitter) {
+        // If we're now waiting for a pitcher, it means a PH came in for the P.
+        // Their position in the lineup is 'PH' until they are replaced or moved.
+        if (newState.awaitingPitcherSelection && wasPinchHitter) {
+            lineup[spotIndex].position = 'PH';
+        }
+        // Only update the defensive position for other substitutions,
+        // not for a pinch-runner who hasn't taken the field yet.
+        else if (!wasPinchRunner || wasPinchHitter) {
             lineup[spotIndex].position = position;
         }
     }
 
     // 4. Determine the correct log message based on the actions taken
-    if (wasPinchHitter && newState.currentAtBat.pitcher === null) {
+    if (wasPinchHitter && newState.awaitingPitcherSelection) {
         logMessage = `${teamName} brings in ${playerInCard.name} to pinch hit for ${playerOutCard.name}.`;
     } else if (wasPinchRunner) {
         logMessage = `${teamName} brings in ${playerInCard.name} to pinch run for ${playerOutCard.name}.`;
