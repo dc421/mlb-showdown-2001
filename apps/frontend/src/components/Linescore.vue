@@ -43,23 +43,17 @@ const linescore = computed(() => {
     }
   });
 
-  // Add the current (or last) inning's score to the array
-  if (gameStore.isBetweenHalfInnings) {
-    // If the inning just ended, `isTop` will reflect the inning that just finished.
-    if (isTop) {
-      scores.away.push(awayRunsInInning);
-    } else {
-      scores.home.push(homeRunsInInning);
-    }
-  } else {
-    // If we're in the middle of an inning
+  // Add the score for the current, in-progress inning.
+  // Do not add anything if the game is between half-innings, as the inning-change event
+  // has already correctly logged the score for the completed inning.
+  if (!gameStore.isBetweenHalfInnings) {
     if (isTop) {
       scores.away.push(awayRunsInInning);
     } else {
       // For the home team, if we are in the middle of their half-inning,
       // we need to ensure the away team has a score for this inning first (can be 0).
       if (scores.away.length === scores.home.length) {
-         scores.away.push(0); // This logic might need review, but preserves original behavior
+        scores.away.push(0);
       }
       scores.home.push(homeRunsInInning);
     }
@@ -72,13 +66,14 @@ const awayTeamAbbr = computed(() => gameStore.teams?.away?.abbreviation || 'AWAY
 const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME');
 
 const awayTotalRuns = computed(() => {
-  // Always trust the game state for the total score.
-  return gameStore.displayGameState?.awayScore ?? 0;
+  // Sum the per-inning scores from the linescore to ensure consistency,
+  // especially when the game state is being rolled back.
+  return linescore.value.scores.away.reduce((total, runs) => total + runs, 0);
 });
 
 const homeTotalRuns = computed(() => {
-  // Always trust the game state for the total score.
-  return gameStore.displayGameState?.homeScore ?? 0;
+  // Sum the per-inning scores from the linescore to ensure consistency.
+  return linescore.value.scores.home.reduce((total, runs) => total + runs, 0);
 });
 </script>
 
