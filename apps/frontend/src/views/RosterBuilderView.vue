@@ -19,6 +19,18 @@ const roster = ref({
 });
 
 // --- COMPUTED PROPERTIES ---
+const filteredPointSets = computed(() => {
+  const allowedNames = ["Original Pts", "Upcoming Season", "8/4/25 Season"];
+  return authStore.pointSets
+    .filter(set => allowedNames.includes(set.name))
+    .map(set => {
+      if (set.name === "8/4/25 Season") {
+        return { ...set, name: "Current Season" };
+      }
+      return set;
+    });
+});
+
 const allPlayersOnRoster = computed(() => [
     ...Object.values(roster.value.lineup).filter(p => p),
     ...roster.value.pitchingStaff,
@@ -295,7 +307,7 @@ onMounted(async () => {
         <h2>Available Players</h2>
         <div class="filters">
           <select v-model="authStore.selectedPointSetId" title="Select Point Set">
-            <option v-for="set in authStore.pointSets" :key="set.point_set_id" :value="set.point_set_id">
+            <option v-for="set in filteredPointSets" :key="set.point_set_id" :value="set.point_set_id">
               {{ set.name }}
             </option>
           </select>
