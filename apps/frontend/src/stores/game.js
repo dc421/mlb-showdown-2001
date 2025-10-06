@@ -463,6 +463,10 @@ async function resetRolls(gameId) {
           outs: rollbackSource.outsBeforePlay,
           homeScore: rollbackSource.homeScoreBeforePlay,
           awayScore: rollbackSource.awayScoreBeforePlay,
+          // When rolling back a third out, we must also reset the between-innings flags
+          // to prevent the UI from changing (e.g., linescore color) before the outcome is shown.
+          isBetweenHalfInningsAway: false,
+          isBetweenHalfInningsHome: false,
         };
       }
     }
