@@ -1021,72 +1021,73 @@ onUnmounted(() => {
                       'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex,
                       'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id
                   }"
+                  :style="playerToSubOut && spot.player && playerToSubOut.player.card_id === spot.player.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
                   class="lineup-item">
-                  <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
                   <span v-if="isSubModeActive && leftPanelData.isMyTeam && (!playerToSubOut || playerToSubOut.player.card_id === spot.player.card_id)"
                         @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{ 'active': playerToSubOut?.player.card_id === spot.player.card_id }">
                       ⇄
                   </span>
+                  <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}">
+          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}" :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
             <hr />
-            <span @click="selectedCard = leftPanelData.pitcher">
-                <strong :style="{ color: leftPanelData.colors.primary }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
-                <template v-else>TBD</template>
-            </span>
             <span v-if="isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id)"
                   @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
                   class="sub-icon"
                   :class="{ 'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id }">
                 ⇄
             </span>
+            <span @click="selectedCard = leftPanelData.pitcher">
+                <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: leftPanelData.colors.primary }">Pitching: </strong>
+                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-else>TBD</template>
+            </span>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
               <ul>
-                  <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                  <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
                       <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
                             @click.stop="handleSubstitution(p)"
                             class="sub-icon">
                           ⇄
                       </span>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
                   </li>
               </ul>
           </div>
           <div v-if="leftPanelData.bench.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
-                  <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
-                       <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
+                  <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
+                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
                             @click.stop="handleSubstitution(p)"
                             class="sub-icon">
                           ⇄
                       </span>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
                   </li>
               </ul>
           </div>
           <div v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Defaults:</strong>
               <ul>
-                  <li class="lineup-item replacement-player">
-                      <span>Replacement Pitcher</span>
+                  <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_PITCHER)"
                             class="sub-icon">
                           ⇄
                       </span>
+                      <span>Replacement Pitcher</span>
                   </li>
-                  <li class="lineup-item replacement-player">
-                      <span>Replacement Hitter</span>
+                  <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_HITTER)"
                             class="sub-icon">
                           ⇄
                       </span>
+                      <span>Replacement Hitter</span>
                   </li>
               </ul>
           </div>
@@ -1333,15 +1334,20 @@ onUnmounted(() => {
 .lineup-header span:first-of-type { flex-grow: 1; } /* Pushes the icon to the right */
 .sub-icon {
   cursor: pointer;
-  font-size: 1.5rem;
-  padding: 0 0.5rem;
+  font-size: 1.2rem; /* Smaller icon */
   border-radius: 5px;
   transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
 }
-.sub-icon:hover {
-  background-color: #e9ecef;
+.sub-icon:hover:not(.active) {
+  background-color: rgba(0,0,0,0.05);
 }
 .sub-icon.active {
+  /* This is for the main toggle button */
   background-color: #ffc107;
   color: #000;
 }
@@ -1349,21 +1355,35 @@ onUnmounted(() => {
 .lineup-panel ol, .lineup-panel ul { padding-left: 0; margin: 0.5rem 0; list-style: none; }
 .lineup-item, .pitcher-info {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  padding: 2px 0;
+  padding: 4px 8px;
+  gap: 0.5rem;
+  border-radius: 6px;
+  margin: 1px -8px; /* Counteract padding to make selection full-width */
+  transition: background-color 0.2s, color 0.2s;
 }
-.lineup-item > span:first-child, .pitcher-info > span:first-child {
+.lineup-item > span:not(.sub-icon), .pitcher-info > span:not(.sub-icon) {
   cursor: pointer;
+  flex-grow: 1;
 }
-.lineup-item > span:first-child:hover, .pitcher-info > span:first-child:hover {
+.lineup-item > span:not(.sub-icon):hover, .pitcher-info > span:not(.sub-icon):hover {
   text-decoration: underline;
 }
 .pitcher-info { font-weight: bold; margin-top: 0.5rem; }
 .tired-indicator { color: #dc3545; font-weight: bold; font-style: italic; }
 .is-sub-target {
-  background-color: #ffc107 !important;
-  color: #000;
+  /* Now handled by inline :style binding for dynamic team colors */
+}
+.is-sub-target .sub-icon {
+    /* When a row is highlighted, we might not want a separate hover on the icon */
+    background-color: transparent;
+}
+.is-sub-target .tired-indicator {
+    color: white; /* Make tired indicator visible on dark backgrounds */
+}
+.is-sub-in-candidate:hover {
+    background-color: #e9ecef;
 }
 .now-batting { background-color: #fff8e1; font-weight: bold; font-style: normal !important; color: #000 !important; }
 .next-up { background-color: #e9ecef; color: #000 !important; }
