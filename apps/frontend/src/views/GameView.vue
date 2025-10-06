@@ -898,7 +898,7 @@ onUnmounted(() => {
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- PITCHER SELECTION STATE -->
-            <div v-if="gameStore.gameState?.awaitingPitcherSelection" class="waiting-text">
+            <div v-if="gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer" class="waiting-text">
                 <h3>Awaiting Pitcher</h3>
                 <p>You must substitute in a new pitcher to continue.</p>
             </div>
