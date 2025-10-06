@@ -1023,10 +1023,12 @@ onUnmounted(() => {
                   }"
                   :style="playerToSubOut && spot.player && playerToSubOut.player.card_id === spot.player.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
                   class="lineup-item">
-                  <span v-if="isSubModeActive && leftPanelData.isMyTeam && (!playerToSubOut || playerToSubOut.player.card_id === spot.player.card_id)"
-                        @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
+                  <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
-                        :class="{ 'active': playerToSubOut?.player.card_id === spot.player.card_id }">
+                        :class="{
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && (!playerToSubOut || playerToSubOut.player.card_id === spot.player.card_id),
+                            'active': playerToSubOut?.player.card_id === spot.player.card_id
+                        }">
                       ⇄
                   </span>
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
@@ -1034,10 +1036,12 @@ onUnmounted(() => {
           </ol>
           <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}" :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
             <hr />
-            <span v-if="isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id)"
-                  @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
+            <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
                   class="sub-icon"
-                  :class="{ 'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id }">
+                  :class="{
+                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id),
+                      'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id
+                  }">
                 ⇄
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
@@ -1050,9 +1054,9 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
               <ul>
                   <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
-                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
-                            @click.stop="handleSubstitution(p)"
-                            class="sub-icon">
+                      <span @click.stop="handleSubstitution(p)"
+                            class="sub-icon"
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
@@ -1063,9 +1067,9 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
                   <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
-                      <span v-if="isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id)"
-                            @click.stop="handleSubstitution(p)"
-                            class="sub-icon">
+                      <span @click.stop="handleSubstitution(p)"
+                            class="sub-icon"
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
@@ -1342,8 +1346,12 @@ onUnmounted(() => {
   justify-content: center;
   width: 24px;
   height: 24px;
+  visibility: hidden; /* Hide by default, but reserve space */
 }
-.sub-icon:hover:not(.active) {
+.sub-icon.visible, .sub-icon.active {
+  visibility: visible; /* Make visible when conditions are met */
+}
+.sub-icon.visible:hover:not(.active) {
   background-color: rgba(0,0,0,0.05);
 }
 .sub-icon.active {
