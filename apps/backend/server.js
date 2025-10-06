@@ -84,9 +84,12 @@ async function getActivePlayers(gameId, currentState) {
         const batterQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
         const pitcherQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
         
+        const potentialPitcherCard = pitcherQuery.rows[0];
+        const finalPitcher = (potentialPitcherCard && potentialPitcherCard.control !== null) ? potentialPitcherCard : null;
+
         return {
             batter: batterQuery.rows[0],
-            pitcher: pitcherQuery.rows[0],
+            pitcher: finalPitcher,
             offensiveTeam: offensiveParticipant,
             defensiveTeam: defensiveParticipant,
         };
@@ -731,7 +734,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         // Check if the player being pinch-hit for is actually the pitcher.
         if (playerOutCard.control !== null) {
              newState.currentAtBat.pitcher = null; // Pitcher is removed from the field.
-             newState.awaitingPitcherSelection = true; // A new pitcher must be selected.
+             // newState.awaitingPitcherSelection = true; // A new pitcher must be selected.
         }
     } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
         wasReliefPitcher = true;
@@ -746,9 +749,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
     if (spotIndex > -1) {
         lineup[spotIndex].card_id = playerInCard.card_id;
-        // If we're now waiting for a pitcher, it means a PH came in for the P.
-        // Their position in the lineup is 'PH' until they are replaced or moved.
-        if (newState.awaitingPitcherSelection && wasPinchHitter) {
+        // If a pinch hitter just came in for the pitcher, mark their position as 'PH'.
+        // The pitcher is now null in the currentAtBat.
+        if (wasPinchHitter && newState.currentAtBat.pitcher === null) {
             lineup[spotIndex].position = 'PH';
         }
         // Only update the defensive position for other substitutions,
@@ -759,7 +762,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     // 4. Determine the correct log message based on the actions taken
-    if (wasPinchHitter && newState.awaitingPitcherSelection) {
+    if (wasPinchHitter && newState.currentAtBat.pitcher === null) {
         logMessage = `${teamName} brings in ${playerInCard.name} to pinch hit for ${playerOutCard.name}.`;
     } else if (wasPinchRunner) {
         logMessage = `${teamName} brings in ${playerInCard.name} to pinch run for ${playerOutCard.name}.`;
