@@ -68,7 +68,7 @@ async function ingestData() {
     const uniquePlayers = new Map();
 
     for (const playerRow of allPlayersRaw) {
-      const name = `${playerRow.First} ${playerRow.Last}`;
+      const name = [playerRow.First, playerRow.Last].filter(Boolean).join(' ');
       const key = `${name}|${playerRow.Set}|${playerRow.Num}`;
       if (uniquePlayers.has(key)) {
         const existingPlayer = uniquePlayers.get(key);
@@ -86,7 +86,7 @@ async function ingestData() {
     
     const playerTeamCounts = {};
     for (const player of uniquePlayers.values()) {
-      const name = `${player.First} ${player.Last}`;
+      const name = [player.First, player.Last].filter(Boolean).join(' ');
       const team = player.Tm;
       const key = `${name}|${team}`;
       playerTeamCounts[key] = (playerTeamCounts[key] || 0) + 1;
@@ -116,7 +116,7 @@ async function ingestData() {
           });
       }
 
-      const name = `${row.First} ${row.Last}`;
+      const name = [row.First, row.Last].filter(Boolean).join(' ');
       const team = row.Tm;
       const set = row.Set;
       const nameTeamKey = `${name}|${team}`;
