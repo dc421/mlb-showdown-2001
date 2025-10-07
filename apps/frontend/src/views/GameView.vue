@@ -261,31 +261,44 @@ const pitcherOnlySetActions = computed(() => {
   return !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction;
 });
 
-const isOffenseWaitingToRoll = computed(() => {
-  return amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value && !amIReadyForNext.value && 
-  (bothPlayersSetAction.value || gameStore.opponentReadyForNext)
-})
-
-const isDefenseWaitingForReveal = computed(() => {
-  return amIDefensivePlayer.value &&
-    bothPlayersSetAction.value &&
-    !isSwingResultVisible.value
-});
-
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
-const shouldHidePlayOutcome = computed(() => {
-  // Scenario 1: The offensive player has not yet clicked "ROLL FOR SWING".
-  // Both actions are in, but the local `haveIRolledForSwing` flag is false.
-  const offenseWaiting = isOffenseWaitingToRoll.value;
+// This refactored computed property avoids the reactive loop by not depending on `displayGameState`.
+const shouldHideCurrentAtBatOutcome = computed(() => {
+  // If the game state or current at-bat isn't available, there's nothing to hide.
+  if (!gameStore.gameState?.currentAtBat) return false;
 
-  // Scenario 2: The defensive player is waiting for the 900ms reveal delay.
-  const defenseWaiting = isDefenseWaitingForReveal.value;
+  const atBatIsResolved = !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
 
-  return offenseWaiting || defenseWaiting;
+  // If the at-bat isn't resolved, no outcome exists yet to be hidden.
+  if (!atBatIsResolved) return false;
+
+  // The opponent has already clicked "Next Hitter", so we shouldn't hide our own view.
+  if (gameStore.opponentReadyForNext) return false;
+
+  // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
+  const isOffensivePlayerWaitingToRoll = amIOffensivePlayer.value && !haveIRolledForSwing.value;
+  if (isOffensivePlayerWaitingToRoll) {
+    return true;
+  }
+
+  // Scenario 2: Defensive player acted second and is waiting for the 900ms reveal timer.
+  const isDefensivePlayerWaitingForReveal = amIDefensivePlayer.value &&
+                                            gameStore.gameState.defensivePlayerWentSecond &&
+                                            !isSwingResultVisible.value;
+  if (isDefensivePlayerWaitingForReveal) {
+    return true;
+  }
+
+  // In all other cases, the outcome should be visible.
+  return false;
 });
 
-// NEW: Watch this computed and update the central store state
-watch(shouldHidePlayOutcome, (newValue) => {
+
+// Watch the new computed property and update the central store state.
+// This is the link that tells the store whether to provide a "rolled-back" game state.
+watch(shouldHideCurrentAtBatOutcome, (newValue) => {
+  // Guard against both the initial load and unmount race conditions.
+  if (!initialLoadComplete.value || !gameStore.gameState) return;
   gameStore.setOutcomeHidden(newValue);
 }, { immediate: true });
 
@@ -325,6 +338,15 @@ const showNextHitterButton = computed(() => {
   const opponentIsReady = gameStore.opponentReadyForNext;
 
   return atBatIsResolved || opponentIsReady;
+});
+
+const showRollForSwingButton = computed(() => {
+    if (!amIDisplayOffensivePlayer.value || haveIRolledForSwing.value) {
+        return false;
+    }
+    // Show the button only when the at-bat is freshly resolved,
+    // and the opponent has not already clicked "Next Hitter".
+    return bothPlayersSetAction.value && !gameStore.opponentReadyForNext;
 });
 
 const outfieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.outfieldDefense ?? 0);
@@ -430,28 +452,23 @@ const atBatToDisplay = computed(() => {
 
 
 const bothPlayersSetAction = computed(() => {
-    if (!gameStore.gameState || !gameStore.gameState.currentAtBat) return false;
-    return !!atBatToDisplay.value.batterAction && !!atBatToDisplay.value.pitcherAction;
+    // This logic must be based on the *actual* current at-bat, not the one for display.
+    if (!gameStore.gameState?.currentAtBat) return false;
+    return !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
 });
 
 // in GameView.vue
 watch(bothPlayersSetAction, (isRevealing) => {
+  // Guard against both the initial load and unmount race conditions.
+  if (!initialLoadComplete.value || !gameStore.gameState) return;
+
   if (isRevealing) {
-    // NOTE: This watcher ONLY handles the visibility logic for the DEFENSIVE player.
-    // The offensive player's visibility is handled separately and more simply.
-    // In the template, the swing result is shown if `isSwingResultVisible || haveIRolledForSwing`.
-    // For the offensive player, `isSwingResultVisible` is always false, so the result
-    // only appears when `haveIRolledForSwing` becomes true (i.e., when they click the button).
     if (amIDisplayDefensivePlayer.value) {
-      // If we've already seen the result (e.g. page refresh), show it immediately.
       if (hasSeenResult.value) {
         isSwingResultVisible.value = true;
         return;
       }
-
-      const defensivePlayerSecond = gameStore.gameState?.defensivePlayerWentSecond;
-
-      // The special case: defensive player is last and it's their turn to see the delay.
+      const defensivePlayerSecond = gameStore.gameState.defensivePlayerWentSecond;
       if (defensivePlayerSecond) {
         setTimeout(() => {
           isSwingResultVisible.value = true;
@@ -459,16 +476,12 @@ watch(bothPlayersSetAction, (isRevealing) => {
           localStorage.setItem(seenResultStorageKey, 'true');
         }, 900);
       } else {
-        // Defensive player went first, show result immediately.
         isSwingResultVisible.value = true;
         hasSeenResult.value = true;
         localStorage.setItem(seenResultStorageKey, 'true');
       }
     }
   }
-  // The `else` block was removed. The responsibility for resetting the result view
-  // has been moved to the `handleNextHitter` function. This prevents a player's
-  // view from being reset when their OPPONENT clicks "Next Hitter".
 }, { immediate: true });
 
 watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
@@ -539,20 +552,10 @@ const basesToDisplay = computed(() => {
 });
 
 const outsToDisplay = computed(() => {
-  // If the inning is over, always show 3 outs. This handles the post-reveal state.
-  if (gameStore.isBetweenHalfInnings) {
-    return 3;
-  }
-  // Otherwise, trust the authoritative displayGameState for the correct out count.
+  // This now fully trusts the authoritative `displayGameState` to provide the correct
+  // out count at all times, whether the state is rolled back or not.
   return gameStore.displayGameState?.outs ?? 0;
 });
-
-// This watcher automatically updates the store whenever the correct number of outs changes
-watch(outsToDisplay, (newOuts) => {
-  if (newOuts !== null && newOuts !== undefined) {
-    gameStore.setDisplayOuts(newOuts);
-  }
-}, { immediate: true }); // 'immediate' runs the watcher once on component load
 
 const isGameOver = computed(() => gameStore.game?.status === 'completed');
 
@@ -944,7 +947,7 @@ onUnmounted(() => {
             <div v-else>
                 <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
-                <button v-else-if="amIDisplayOffensivePlayer && !haveIRolledForSwing && (bothPlayersSetAction || opponentReadyForNext)" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
+                <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <button v-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->

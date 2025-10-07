@@ -24,8 +24,8 @@ const isGamePage = computed(() => route.name === 'game');
     <div class="nav-center">
       <Linescore v-if="isGamePage && gameStore.gameState && gameStore.gameEvents.length > 0" />
       <OutsDisplay
-        v-if="isGamePage && gameStore.gameState"
-        :outs="gameStore.displayOuts"
+        v-if="isGamePage && gameStore.displayGameState"
+        :outs="gameStore.displayGameState.outs"
       />
     </div>
 
