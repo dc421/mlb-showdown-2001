@@ -237,17 +237,13 @@ const amIDefensivePlayer = computed(() => {
 // NEW: A display-only computed to handle inning-change visuals
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
-  if (gameStore.isBetweenHalfInnings) {
-    return !gameStore.gameState.isTopInning;
-  }
+  // Always show the inning that just happened, even if we are between innings
   return gameStore.gameState.isTopInning;
 });
 
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
-  if (gameStore.isBetweenHalfInnings) {
-    return !amIOffensivePlayer.value;
-  }
+  // Always show the offensive player from the inning that just happened
   return amIOffensivePlayer.value;
 });
 
@@ -948,7 +944,7 @@ onUnmounted(() => {
                 <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <button v-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+                <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
