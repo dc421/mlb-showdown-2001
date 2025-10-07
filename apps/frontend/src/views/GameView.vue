@@ -346,7 +346,7 @@ const showRollForSwingButton = computed(() => {
     }
     // Show the button only when the at-bat is freshly resolved,
     // and the opponent has not already clicked "Next Hitter".
-    return bothPlayersSetAction.value && !gameStore.opponentReadyForNext;
+    return bothPlayersSetAction.value || gameStore.opponentReadyForNext;
 });
 
 const outfieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.outfieldDefense ?? 0);
