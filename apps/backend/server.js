@@ -1561,6 +1561,109 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
 });
 
 // in server.js
+app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req, res) => {
+  const { gameId } = req.params;
+  const userId = req.user.userId;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    const currentState = stateResult.rows[0].state_data;
+    const currentTurn = stateResult.rows[0].turn_number;
+
+    if (!currentState.awaitingDoublePlayRoll) {
+      return res.status(400).json({ message: 'Not awaiting a double play roll.' });
+    }
+
+    let newState = JSON.parse(JSON.stringify(currentState));
+    const { batter, pitcher, defensiveTeam, offensiveTeam } = await getActivePlayers(gameId, newState);
+    const infieldDefense = await getInfieldDefense(defensiveTeam);
+
+    const dpRoll = Math.floor(Math.random() * 20) + 1;
+    const isDoublePlay = (infieldDefense + dpRoll) >= batter.speed;
+    const outcome = isDoublePlay ? 'DOUBLE_PLAY' : 'FIELDERS_CHOICE';
+
+    const runnerData = { ...batter, pitcherOfRecordId: pitcher.card_id };
+    const events = [];
+    const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+    const scoreRun = (runnerOnBase) => {
+      if (!runnerOnBase) return;
+      newState[scoreKey]++;
+      events.push(`${runnerOnBase.name} scores!`);
+    };
+
+    if (isDoublePlay) {
+      events.push(`It's a DOUBLE PLAY!`);
+      newState.outs += 2;
+      newState.bases.first = null;
+    } else {
+      events.push(`Batter is SAFE, out at second. Fielder's choice.`);
+      newState.outs++;
+      if (newState.outs < 3 && !currentState.infieldIn) {
+        if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
+        if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
+      }
+      newState.bases.first = runnerData;
+    }
+
+    newState.doublePlayDetails = {
+      roll: dpRoll,
+      defense: infieldDefense,
+      target: batter.speed,
+      outcome: outcome
+    };
+
+    newState.awaitingDoublePlayRoll = false;
+
+    // Pass the turn to the offensive player to click "Next Hitter"
+    await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+
+    // --- Handle Inning Change & Game Over Check ---
+    if (newState.outs >= 3 && !newState.gameOver) {
+      const isGameOver = (
+        (newState.inning >= 9 && !newState.isTopInning && newState.homeScore !== newState.awayScore) ||
+        (newState.inning >= 9 && newState.isTopInning && newState.homeScore > newState.awayScore)
+      );
+
+      if (isGameOver) {
+        newState.gameOver = true;
+        newState.winningTeam = newState.homeScore > newState.awayScore ? 'home' : 'away';
+        events.push(`That's the ballgame!`);
+        await client.query(`UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`, [gameId]);
+        await handleSeriesProgression(gameId, client);
+      } else {
+        newState.inningChanged = true;
+        if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
+        else { newState.isBetweenHalfInningsHome = true; }
+        newState.isTopInning = !newState.isTopInning;
+        if (newState.isTopInning) newState.inning++;
+        newState.outs = 0;
+        newState.bases = { first: null, second: null, third: null };
+      }
+    }
+
+    if (events.length > 0) {
+      let combinedLogMessage = events.join(' ');
+      await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
+    }
+
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
+    await client.query('COMMIT');
+
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
+    res.sendStatus(200);
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error resolving double play for game ${gameId}:`, error);
+    res.status(500).json({ message: 'Server error during double play resolution.' });
+  } finally {
+    client.release();
+  }
+});
+
 app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const client = await pool.connect();

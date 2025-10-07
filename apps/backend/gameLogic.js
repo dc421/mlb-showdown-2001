@@ -77,21 +77,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
         newState.currentPlay = { type: 'INFIELD_IN_PLAY', payload: { runner: newState.bases.third, batter: runnerData } };
     }
     else if (newState.outs <= 1 && newState.bases.first) {
-        const dpRoll = Math.floor(Math.random() * 20) + 1;
-        if ((infieldDefense + dpRoll) >= batter.speed) {
-            events.push(`${batter.displayName} hits into a double play!`);
-            newState.outs += 2;
-            newState.bases.first = null;
-        } else {
-            events.push(`${batter.displayName} grounds into a fielder's choice. Out at second.`);
-            newState.outs++;
-            if (newState.outs < 3 && !state.infieldIn) {
-              if (newState.bases.third) { scoreRun(newState.bases.third); }
-              if (newState.bases.second) { newState.bases.third = newState.bases.second; }
-              newState.bases.second = null;
-            }
-            newState.bases.first = runnerData;
-        }
+        events.push(`${batter.displayName} hits a ground ball...`);
+        newState.awaitingDoublePlayRoll = true;
     } else {
         events.push(`${batter.displayName} grounds out.`);
         newState.outs++;
