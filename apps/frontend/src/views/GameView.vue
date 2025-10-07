@@ -238,17 +238,13 @@ const amIDefensivePlayer = computed(() => {
 // NEW: A display-only computed to handle inning-change visuals
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
-  if (gameStore.isBetweenHalfInnings) {
-    return !gameStore.gameState.isTopInning;
-  }
+  // Always show the inning that just happened, even if we are between innings
   return gameStore.gameState.isTopInning;
 });
 
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
-  if (gameStore.isBetweenHalfInnings) {
-    return !amIOffensivePlayer.value;
-  }
+  // Always show the offensive player from the inning that just happened
   return amIOffensivePlayer.value;
 });
 
@@ -356,7 +352,7 @@ const showRollForSwingButton = computed(() => {
     }
     // Show the button only when the at-bat is freshly resolved,
     // and the opponent has not already clicked "Next Hitter".
-    return bothPlayersSetAction.value && !gameStore.opponentReadyForNext;
+    return bothPlayersSetAction.value || gameStore.opponentReadyForNext;
 });
 
 const showRollForDoublePlayButton = computed(() => {
@@ -989,7 +985,7 @@ onUnmounted(() => {
                 <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <button v-else-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+                <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
@@ -1056,7 +1052,7 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
@@ -1089,7 +1085,7 @@ onUnmounted(() => {
                 ⇄
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
-                <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: leftPanelData.colors.primary }">Pitching: </strong>
+                <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: black }">Pitching: </strong>
                 <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
                 <template v-else>TBD</template>
             </span>
@@ -1173,7 +1169,7 @@ onUnmounted(() => {
           <div class="pitcher-info">
               <hr />
               <span @click="selectedCard = rightPanelData.pitcher">
-                <strong :style="{ color: rightPanelData.colors.primary }">Pitching: </strong>
+                <strong :style="{ color: black }">Pitching: </strong>
                 <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
                 <template v-else>TBD</template>
               </span>
@@ -1388,8 +1384,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 18px;
   visibility: hidden; /* Hide by default, but reserve space */
 }
 .sub-icon.visible, .sub-icon.active {
@@ -1409,10 +1405,10 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  padding: 4px 8px;
+  padding: 2px 8px;
   gap: 0.5rem;
   border-radius: 6px;
-  margin: 1px -8px; /* Counteract padding to make selection full-width */
+  margin: 0px -8px; /* Counteract padding to make selection full-width */
   transition: background-color 0.2s, color 0.2s;
 }
 .lineup-item > span:not(.sub-icon), .pitcher-info > span:not(.sub-icon) {
@@ -1422,7 +1418,7 @@ onUnmounted(() => {
 .lineup-item > span:not(.sub-icon):hover, .pitcher-info > span:not(.sub-icon):hover {
   text-decoration: underline;
 }
-.pitcher-info { font-weight: bold; margin-top: 0.5rem; }
+.pitcher-info { font-weight: bold; margin-top: 0.5rem; margin-left: -1.2rem}
 .tired-indicator { color: #dc3545; font-weight: bold; font-style: italic; }
 .is-sub-target {
   /* Now handled by inline :style binding for dynamic team colors */
