@@ -698,7 +698,12 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const playerOutCard = playerOutResult.rows[0];
     
     newState[teamKey].used_player_ids.push(playerOutId);
-    const teamName = teamKey === 'homeTeam' ? 'Home' : 'Away';
+
+    // Get the correct user ID for the team being substituted
+    const teamUserId = newState[teamKey].userId;
+    // Get the team's city for a more descriptive log message
+    const teamResult = await client.query('SELECT city FROM teams WHERE user_id = $1', [teamUserId]);
+    const teamName = teamResult.rows[0]?.city || (teamKey === 'homeTeam' ? 'Home' : 'Away');
 
     let wasPinchRunner = false;
     let wasPinchHitter = false;
