@@ -7,6 +7,7 @@ import { socket } from '@/services/socket';
 import { getContrastingTextColor } from '@/utils/colors';
 import PlayerCard from '@/components/PlayerCard.vue';
 import BaseballDiamond from '@/components/BaseballDiamond.vue';
+import ThrowRollResult from '@/components/ThrowRollResult.vue';
 
 const showSubModal = ref(false);
 const route = useRoute();
@@ -264,8 +265,15 @@ const pitcherOnlySetActions = computed(() => {
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
 // This refactored computed property avoids the reactive loop by not depending on `displayGameState`.
 const shouldHideCurrentAtBatOutcome = computed(() => {
+  if (!gameStore.gameState) return false;
+
+  // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll result.
+  if (gameStore.gameState.awaitingDoublePlayRoll) {
+    return true;
+  }
+
   // If the game state or current at-bat isn't available, there's nothing to hide.
-  if (!gameStore.gameState?.currentAtBat) return false;
+  if (!gameStore.gameState.currentAtBat) return false;
 
   const atBatIsResolved = !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
 
@@ -321,6 +329,8 @@ const canStealThird = computed(() => canAttemptSteal.value && gameStore.gameStat
 const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
 
 const showNextHitterButton = computed(() => {
+  if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
+
   if (amIReadyForNext.value) {
     return false;
   }
@@ -347,6 +357,30 @@ const showRollForSwingButton = computed(() => {
     // Show the button only when the at-bat is freshly resolved,
     // and the opponent has not already clicked "Next Hitter".
     return bothPlayersSetAction.value && !gameStore.opponentReadyForNext;
+});
+
+const showRollForDoublePlayButton = computed(() => {
+  return gameStore.gameState?.awaitingDoublePlayRoll && amIDefensivePlayer.value;
+});
+
+const isWaitingForDoublePlayResolution = computed(() => {
+  return gameStore.gameState?.awaitingDoublePlayRoll && amIOffensivePlayer.value;
+});
+
+function handleResolveDoublePlay() {
+  gameStore.resolveDoublePlay(gameId);
+}
+
+watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
+  if (isAwaiting && amIOffensivePlayer.value) {
+    setTimeout(() => {
+      handleResolveDoublePlay();
+    }, 900);
+  }
+});
+
+const showThrowRollResult = computed(() => {
+  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll;
 });
 
 const outfieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.outfieldDefense ?? 0);
@@ -879,6 +913,11 @@ onUnmounted(() => {
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
+          <ThrowRollResult
+            v-if="showThrowRollResult"
+            :details="gameStore.gameState.doublePlayDetails"
+            :teamColors="pitcherTeamColors"
+          />
           <div class="defensive-ratings">
             <div>{{ catcherArmDisplay }}</div>
             <div>{{ infieldDefenseDisplay }}</div>
@@ -945,10 +984,12 @@ onUnmounted(() => {
                 <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
             </div>
             <div v-else>
-                <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
+                <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleResolveDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
+                <div v-else-if="isWaitingForDoublePlayResolution" class="waiting-text">Waiting for throw...</div>
+                <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+                <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
-                <button v-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+                <button v-else-if="showNextHitterButton && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">

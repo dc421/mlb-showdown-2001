@@ -217,6 +217,17 @@ async function submitSwing(gameId, action = null) {
     }
   }
 
+async function resolveDoublePlay(gameId) {
+  const auth = useAuthStore();
+  if (!auth.token) return;
+  try {
+    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-double-play`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${auth.token}` }
+    });
+  } catch (error) { console.error("Error resolving double play:", error); }
+}
+
   async function nextHitter(gameId) {
   const auth = useAuthStore();
   if (!auth.token) return;
@@ -453,7 +464,7 @@ async function resetRolls(gameId) {
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
-    submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
+    submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
     updateGameData,
     resetGameState,
     myTeam,
