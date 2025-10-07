@@ -298,8 +298,9 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
 // Watch the new computed property and update the central store state.
 // This is the link that tells the store whether to provide a "rolled-back" game state.
 watch(shouldHideCurrentAtBatOutcome, (newValue) => {
-  // Guard against both the initial load and unmount race conditions.
-  if (!initialLoadComplete.value || !gameStore.gameState) return;
+  // Guard against unmount race conditions where the watcher might fire after
+  // the store has been cleared but before the component is fully gone.
+  if (!gameStore.gameState) return;
   gameStore.setOutcomeHidden(newValue);
 }, { immediate: true });
 
