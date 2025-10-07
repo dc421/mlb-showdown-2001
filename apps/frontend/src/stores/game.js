@@ -333,13 +333,7 @@ async function resetRolls(gameId) {
   }
 }
 
-// --- ADD THIS LINE ---
-  const displayOuts = ref(0);
   const isOutcomeHidden = ref(false);
-  // --- ADD THIS ACTION ---
-  function setDisplayOuts(count) {
-    displayOuts.value = count;
-  }
 
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
@@ -348,19 +342,26 @@ async function resetRolls(gameId) {
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
 
-    // The only time we truncate the log is when the outcome of a play is actively being hidden.
+    const isActuallyBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
+
+    // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value) {
-      // If the REAL state is between innings, it means the last play was the third out.
-      // The server sends two events: the play and the inning change message.
-      // We need to hide both to avoid spoiling the outcome.
-      if (gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome) {
+      // If it's a third-out play, hide both the play result and the inning change message.
+      if (isActuallyBetweenInnings) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
-      // Otherwise, it's a normal mid-inning play, just hide the last event.
+      // Otherwise, it's a normal mid-inning play; just hide the last event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
-    // If the outcome is not hidden, always show the full log.
+    // Condition 2: The outcome has been revealed, but the user hasn't clicked "Next Hitter" yet.
+    // We need to continue hiding just the inning change message. This applies to both players
+    // viewing the third-out result before the state advances.
+    if (isActuallyBetweenInnings) {
+        return gameEvents.value.slice(0, gameEvents.value.length - 1);
+    }
+
+    // In all other cases (e.g., mid-inning play revealed, or after "Next Hitter" is clicked), show the full log.
     return gameEvents.value;
   });
 
@@ -413,32 +414,6 @@ async function resetRolls(gameId) {
     return displayGameState.value.isBetweenHalfInningsAway || displayGameState.value.isBetweenHalfInningsHome;
   });
 
-  const shouldHideEndOfInningOutcome = computed(() => {
-    const auth = useAuthStore();
-    const isBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
-    if (!isBetweenInnings) return false;
-
-    // Defensive check: ensure all required data is loaded.
-    if (!gameState.value?.lastCompletedAtBat || !game.value || !auth.user) {
-      return false;
-    }
-
-    const lastBatterTeamId = gameState.value.lastCompletedAtBat.batterTeamId;
-
-    // Determine the user's team ID directly from the game object to avoid race conditions.
-    let myTeamId = null;
-    if (game.value.home_team_user_id === auth.user.id) {
-      myTeamId = game.value.home_team_id;
-    } else if (game.value.away_team_user_id === auth.user.id) {
-      myTeamId = game.value.away_team_id;
-    }
-
-    if (!myTeamId) return false;
-
-    // Was the last batter on the user's team? If so, hide the outcome.
-    return lastBatterTeamId === myTeamId;
-  });
-
   const displayGameState = computed(() => {
     if (!gameState.value) {
       // Return a default, safe object to prevent crashes.
@@ -448,13 +423,13 @@ async function resetRolls(gameId) {
       };
     }
 
-    const isBetweenInnings = gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
-    const shouldRollback = isOutcomeHidden.value || shouldHideEndOfInningOutcome.value;
+    // `isOutcomeHidden` is the single source of truth, controlled by the view.
+    // If it's true, we must show the state of the game *before* the current play's outcome was known.
+    if (isOutcomeHidden.value) {
 
-    if (shouldRollback) {
-      const rollbackSource = (isBetweenInnings || opponentReadyForNext.value)
-        ? gameState.value.lastCompletedAtBat
-        : gameState.value.currentAtBat;
+      // The `currentAtBat` object always holds the "before" state of the play in progress.
+      // This is the correct source to roll back to, even for a third-out play.
+      const rollbackSource = gameState.value.currentAtBat;
 
       if (rollbackSource && rollbackSource.basesBeforePlay) {
         return {
@@ -471,13 +446,13 @@ async function resetRolls(gameId) {
       }
     }
 
-    // In all other cases, return the current state.
+    // In all other cases, return the current, authoritative state from the server.
     return gameState.value;
   });
 
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
-    displayOuts, setDisplayOuts, isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
+    isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,
     updateGameData,
     resetGameState,
