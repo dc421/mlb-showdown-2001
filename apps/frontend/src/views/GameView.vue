@@ -274,10 +274,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   const atBatIsResolved = !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
 
   // If the at-bat isn't resolved, no outcome exists yet to be hidden.
-  if (!atBatIsResolved) return false;
-
-  // The opponent has already clicked "Next Hitter", so we shouldn't hide our own view.
-  if (gameStore.opponentReadyForNext) return false;
+  if (!atBatIsResolved && !gameStore.opponentReadyForNext) return false;
 
   // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
   const isOffensivePlayerWaitingToRoll = amIOffensivePlayer.value && !haveIRolledForSwing.value;
@@ -328,6 +325,10 @@ const showNextHitterButton = computed(() => {
   if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
 
   if (amIReadyForNext.value) {
+    return false;
+  }
+
+  if (!haveIRolledForSwing.value && amIDisplayOffensivePlayer.value) {
     return false;
   }
 
