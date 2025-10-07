@@ -84,9 +84,14 @@ const myRoster = ref(null);
       if (!response.ok) throw new Error('Failed to fetch point sets');
       const sets = await response.json();
       pointSets.value = sets;
-      // Default to the newest set if one isn't already selected
+      // Default to "Current Season" (i.e., "8/4/25 Season") if available, otherwise newest set.
       if (sets.length > 0 && !selectedPointSetId.value) {
-        selectedPointSetId.value = sets[0].point_set_id;
+        const currentSeasonSet = sets.find(set => set.name === "8/4/25 Season");
+        if (currentSeasonSet) {
+          selectedPointSetId.value = currentSeasonSet.point_set_id;
+        } else {
+          selectedPointSetId.value = sets[0].point_set_id; // Fallback
+        }
       }
     } catch (error) {
       console.error('Failed to fetch point sets:', error);
