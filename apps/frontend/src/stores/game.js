@@ -440,7 +440,7 @@ async function resetRolls(gameId) {
 
       // The `currentAtBat` object always holds the "before" state of the play in progress.
       // This is the correct source to roll back to, even for a third-out play.
-      const rollbackSource = gameState.value.currentAtBat;
+      const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
 
       if (rollbackSource && rollbackSource.basesBeforePlay) {
         return {
