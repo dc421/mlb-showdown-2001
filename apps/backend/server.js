@@ -591,6 +591,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         awayPlayerReadyForNext: false,
         homePlayerReadyForNext: false,
+        isBetweenHalfInningsAway: false,
+        isBetweenHalfInningsHome: false,
         lastCompletedAtBat: null,
         currentAtBat: {
             batter: batter,
