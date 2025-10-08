@@ -238,14 +238,21 @@ const amIDefensivePlayer = computed(() => {
 // NEW: A display-only computed to handle inning-change visuals
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
-  // Always show the inning that just happened, even if we are between innings
+  // If we are between innings, the "isTopInning" flag has already flipped to the *next*
+  // inning. For display purposes, we want to show the state of the inning that just
+  // concluded, so we flip it back.
+  if (gameStore.isBetweenHalfInnings) {
+    return !gameStore.gameState.isTopInning;
+  }
   return gameStore.gameState.isTopInning;
 });
 
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
-  // Always show the offensive player from the inning that just happened
-  return gameStore.isBetweenHalfInnings ? amIDefensivePlayer.value : amIOffensivePlayer.value;
+  if (!authStore.user || !gameStore.gameState) return false;
+  // The offensive team is the away team if it's the top of the inning for display purposes.
+  const offensiveTeam = isDisplayTopInning.value ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+  return Number(authStore.user.userId) === Number(offensiveTeam.userId);
 });
 
 const amIDisplayDefensivePlayer = computed(() => {
@@ -381,11 +388,19 @@ const showThrowRollResult = computed(() => {
   return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !haveIRolledForSwing.value;
 });
 
-const outfieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.outfieldDefense ?? 0);
+const defensiveRatingsToDisplay = computed(() => {
+  if (!gameStore.gameState) return { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 };
+  // If we are displaying the top of the inning, the HOME team is on defense.
+  return isDisplayTopInning.value
+    ? gameStore.gameState.homeDefensiveRatings
+    : gameStore.gameState.awayDefensiveRatings;
+});
 
-const infieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.infieldDefense ?? 0);
+const outfieldDefense = computed(() => defensiveRatingsToDisplay.value?.outfieldDefense ?? 0);
 
-const catcherArm = computed(() => gameStore.gameState?.defensiveRatings?.catcherArm ?? 0);
+const infieldDefense = computed(() => defensiveRatingsToDisplay.value?.infieldDefense ?? 0);
+
+const catcherArm = computed(() => defensiveRatingsToDisplay.value?.catcherArm ?? 0);
 
 const catcherArmDisplay = computed(() => {
     const value = catcherArm.value;

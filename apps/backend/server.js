@@ -1251,12 +1251,20 @@ async function getAndProcessGameData(gameId, dbClient) {
     const activePlayers = await getActivePlayers(gameId, currentState.state_data);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
-    const defensiveRatings = {
-        catcherArm: await getCatcherArm(activePlayers.defensiveTeam),
-        infieldDefense: await getInfieldDefense(activePlayers.defensiveTeam),
-        outfieldDefense: await getOutfieldDefense(activePlayers.defensiveTeam),
+    const homeParticipant = participantsResult.rows.find(p => p.user_id === game.home_team_user_id);
+    const awayParticipant = participantsResult.rows.find(p => p.user_id !== game.home_team_user_id);
+
+    currentState.state_data.homeDefensiveRatings = {
+        catcherArm: await getCatcherArm(homeParticipant),
+        infieldDefense: await getInfieldDefense(homeParticipant),
+        outfieldDefense: await getOutfieldDefense(homeParticipant),
     };
-    currentState.state_data.defensiveRatings = defensiveRatings;
+
+    currentState.state_data.awayDefensiveRatings = {
+        catcherArm: await getCatcherArm(awayParticipant),
+        infieldDefense: await getInfieldDefense(awayParticipant),
+        outfieldDefense: await getOutfieldDefense(awayParticipant),
+    };
 
     for (const p of participantsResult.rows) {
       const rosterResult = await dbClient.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, p.user_id]);
