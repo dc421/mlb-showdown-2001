@@ -1,6 +1,7 @@
 // server.js - DEFINITIVE FINAL VERSION
+const path = require('path');
 if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
+  require('dotenv').config({ path: path.join(__dirname, '.env') });
 }
 const express = require('express');
 const http = require('http');
@@ -557,6 +558,16 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
 
       const homeParticipant = allParticipants.rows.find(p => Number(p.user_id) === Number(homePlayerId));
       const awayParticipant = allParticipants.rows.find(p => Number(p.user_id) !== Number(homePlayerId));
+
+      // --- NEW: Snapshot the rosters for this game ---
+      const homeRosterCardsResult = await client.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [homeParticipant.roster_id]);
+      const homeRosterData = homeRosterCardsResult.rows;
+      await client.query(`INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)`, [gameId, homeParticipant.user_id, JSON.stringify(homeRosterData)]);
+
+      const awayRosterCardsResult = await client.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [awayParticipant.roster_id]);
+      const awayRosterData = awayRosterCardsResult.rows;
+      await client.query(`INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)`, [gameId, awayParticipant.user_id, JSON.stringify(awayRosterData)]);
+      // --- END NEW ---
       
       await client.query(
         `UPDATE games SET status = 'in_progress', current_turn_user_id = $1 WHERE game_id = $2`,
@@ -1248,8 +1259,8 @@ async function getAndProcessGameData(gameId, dbClient) {
     currentState.state_data.defensiveRatings = defensiveRatings;
 
     for (const p of participantsResult.rows) {
-      const rosterCardsResult = await dbClient.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [p.roster_id]);
-      const fullRosterCards = rosterCardsResult.rows;
+      const rosterResult = await dbClient.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, p.user_id]);
+      const fullRosterCards = rosterResult.rows[0]?.roster_data || [];
       if (p.lineup?.battingOrder) {
         const lineupWithDetails = p.lineup.battingOrder.map(spot => ({ ...spot, player: fullRosterCards.find(c => c.card_id === spot.card_id) }));
         const spCard = fullRosterCards.find(c => c.card_id === p.lineup.startingPitcher);
