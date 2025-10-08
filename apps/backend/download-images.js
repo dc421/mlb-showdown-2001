@@ -4,9 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 
-// --- Constants from Python script ---
-const BASE_SET_OFFSET = 5859; // So that card #1 maps to image ID 5860
-const PENNANT_RUN_OFFSET = 6371; // So that card #1 maps to image ID 6372
 
 // --- Database Connection ---
 const pool = new Pool({
@@ -28,47 +25,40 @@ async function fetchPlayerData() {
   }
 }
 
-function generateImageUrl(setName, cardNumber) {
-  let imageId = 0;
+function generateCardPageUrl(setName, cardNumber) {
   let setId = 0;
 
   if (setName === 'Base') {
-    imageId = BASE_SET_OFFSET + cardNumber;
     setId = 8115;
   } else if (setName === 'PR') {
-    imageId = PENNANT_RUN_OFFSET + cardNumber;
     setId = 8117;
   }
 
-  if (imageId > 0) {
-    return `https://www.tcdb.com/Images/Cards/Baseball/${setId}/${setId}-${imageId}Fr.jpg`;
+  if (setId > 0) {
+    return `https://www.tcdb.com/ViewCard.cfm/sid/${setId}/cn/${cardNumber}`;
   }
   return null;
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function downloadImage(page, url, filepath) {
-  await page.goto(url, { waitUntil: 'networkidle0' });
+async function downloadImage(page, cardPageUrl, filepath) {
+  // 1. Go to the card's main page
+  await page.goto(cardPageUrl, { waitUntil: 'networkidle0' });
 
+  // 2. Find the image source URL from the specific image element
   const imageSrc = await page.evaluate(() => {
-    const img = document.querySelector('img');
+    const img = document.querySelector('#card_img_front');
     return img ? img.src : null;
   });
 
   if (!imageSrc) {
-    throw new Error('Could not find image source on page');
+    throw new Error(`Could not find image source on page: ${cardPageUrl}`);
   }
 
-  // The src might be a data URI or a URL.
-  if (imageSrc.startsWith('data:image/')) {
-    const buffer = Buffer.from(imageSrc.split(',')[1], 'base64');
-    fs.writeFileSync(filepath, buffer);
-  } else {
-    // It's a URL, fetch it using the same page to maintain session/cookies.
-    const viewSource = await page.goto(imageSrc);
-    fs.writeFileSync(filepath, await viewSource.buffer());
-  }
+  // 3. Download the image from the extracted source URL
+  const viewSource = await page.goto(imageSrc);
+  fs.writeFileSync(filepath, await viewSource.buffer());
 }
 
 async function updateCardImagePath(client, cardId, imagePath) {
@@ -94,12 +84,12 @@ async function main() {
     const players = await fetchPlayerData();
     let successCount = 0;
     for (const player of players) {
-      const imageUrl = generateImageUrl(player.set_name, player.card_number);
-      if (imageUrl) {
+      const cardPageUrl = generateCardPageUrl(player.set_name, player.card_number);
+      if (cardPageUrl) {
         const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
         try {
           console.log(`Downloading image for card ${player.card_id}...`);
-          await downloadImage(page, imageUrl, imagePath);
+          await downloadImage(page, cardPageUrl, imagePath);
           console.log(` -> Saved to ${imagePath}`);
 
           await updateCardImagePath(client, player.card_id, imagePath);
