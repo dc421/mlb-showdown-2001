@@ -17,7 +17,7 @@ const pool = new Pool({
 async function fetchPlayerData() {
   const client = await pool.connect();
   try {
-    const res = await client.query('SELECT card_id, set_name, card_number FROM cards_player');
+    const res = await client.query('SELECT card_id, name, set_name, card_number FROM cards_player');
     console.log(`Found ${res.rows.length} players. Starting download process...`);
     return res.rows;
   } finally {
@@ -25,38 +25,50 @@ async function fetchPlayerData() {
   }
 }
 
-function generateCardPageUrl(setName, cardNumber) {
-  let setId = 0;
-
-  if (setName === 'Base') {
-    setId = 8115;
-  } else if (setName === 'PR') {
-    setId = 8117;
-  }
-
-  if (setId > 0) {
-    return `https://www.tcdb.com/ViewCard.cfm/sid/${setId}/cn/${cardNumber}`;
-  }
-  return null;
-}
-
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function downloadImage(page, cardPageUrl, filepath) {
-  // 1. Go to the card's main page
+async function findAndDownloadImage(page, player, filepath) {
+  const searchName = player.name;
+  const targetSet = player.set_name === 'Base' ? '2001 MLB Showdown' : '2001 MLB Showdown Pennant Run';
+
+  // 1. Navigate to search page and perform search
+  await page.goto('https://www.tcdb.com/Search.cfm', { waitUntil: 'networkidle0' });
+  await page.type('#Search', searchName);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle0' }),
+    page.click('input[type="submit"][value="Search"]'),
+  ]);
+
+  // 2. Find the correct card link from the search results
+  const cardPageUrl = await page.evaluate((name, set) => {
+    const rows = Array.from(document.querySelectorAll('.dataTable tbody tr'));
+    for (const row of rows) {
+      const linkElement = row.querySelector('td:nth-child(2) a');
+      const setText = row.querySelector('td:nth-child(3)').innerText;
+      if (linkElement && linkElement.innerText.trim() === name && setText.trim() === set) {
+        return linkElement.href;
+      }
+    }
+    return null;
+  }, searchName, targetSet);
+
+  if (!cardPageUrl) {
+    throw new Error(`Could not find card for '${searchName}' in set '${targetSet}'`);
+  }
+
+  // 3. Navigate to the card page
   await page.goto(cardPageUrl, { waitUntil: 'networkidle0' });
 
-  // 2. Find the image source URL from the specific image element
+  // 4. Extract the image source and download
   const imageSrc = await page.evaluate(() => {
     const img = document.querySelector('#card_img_front');
     return img ? img.src : null;
   });
 
   if (!imageSrc) {
-    throw new Error(`Could not find image source on page: ${cardPageUrl}`);
+    throw new Error(`Could not find image on card page: ${cardPageUrl}`);
   }
 
-  // 3. Download the image from the extracted source URL
   const viewSource = await page.goto(imageSrc);
   fs.writeFileSync(filepath, await viewSource.buffer());
 }
@@ -84,23 +96,16 @@ async function main() {
     const players = await fetchPlayerData();
     let successCount = 0;
     for (const player of players) {
-      const cardPageUrl = generateCardPageUrl(player.set_name, player.card_number);
-      if (cardPageUrl) {
-        const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
-        try {
-          console.log(`Downloading image for card ${player.card_id}...`);
-          await downloadImage(page, cardPageUrl, imagePath);
-          console.log(` -> Saved to ${imagePath}`);
-
-          await updateCardImagePath(client, player.card_id, imagePath);
-          console.log(` -> Updated database for card ${player.card_id}`);
-          successCount++;
-
-          // Wait for 3 seconds before the next download
-          await delay(3000);
-        } catch (error) {
-          console.error(`Failed to process card ${player.card_id}: ${error.message}`);
-        }
+      const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
+      try {
+        console.log(`Processing card ${player.card_id} for ${player.name}...`);
+        await findAndDownloadImage(page, player, imagePath);
+        await updateCardImagePath(client, player.card_id, imagePath);
+        console.log(` -> Successfully processed card ${player.card_id}`);
+        successCount++;
+        await delay(3000); // Politeness delay
+      } catch (error) {
+        console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
       }
     }
     console.log(`\nSuccessfully downloaded and updated ${successCount} of ${players.length} card images.`);
