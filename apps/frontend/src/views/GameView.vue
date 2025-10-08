@@ -277,7 +277,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!atBatIsResolved && !gameStore.opponentReadyForNext) return false;
 
   // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
-  const isOffensivePlayerWaitingToRoll = amIOffensivePlayer.value && !haveIRolledForSwing.value;
+  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value;
   if (isOffensivePlayerWaitingToRoll) {
     return true;
   }

@@ -421,8 +421,8 @@ async function resetRolls(gameId) {
   });
 
   const isBetweenHalfInnings = computed(() => {
-    if (!displayGameState.value) return false;
-    return displayGameState.value.isBetweenHalfInningsAway || displayGameState.value.isBetweenHalfInningsHome;
+    if (!gameState.value) return false;
+    return gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
   });
 
   const displayGameState = computed(() => {
