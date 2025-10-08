@@ -401,7 +401,6 @@ async function resetRolls(gameId) {
     rosters.value = { home: [], away: [] };
     teams.value = { home: null, away: null };
     setupState.value = null;
-    displayOuts.value = 0;
     isOutcomeHidden.value = false;
   }
 
@@ -425,6 +424,17 @@ async function resetRolls(gameId) {
     return gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
   });
 
+  const displayOuts = computed(() => {
+    if (!gameState.value) return 0;
+    // When the inning is over but the user hasn't clicked "Next Hitter" yet,
+    // the server reports 0 outs for the *next* inning. We want to show 3
+    // to represent the end of the *previous* inning.
+    if (isBetweenHalfInnings.value && gameState.value.outs === 0) {
+      return 3;
+    }
+    return gameState.value.outs;
+  });
+
   const displayGameState = computed(() => {
     if (!gameState.value) {
       // Return a default, safe object to prevent crashes.
@@ -446,7 +456,9 @@ async function resetRolls(gameId) {
         return {
           ...gameState.value,
           bases: rollbackSource.basesBeforePlay,
-          outs: rollbackSource.outsBeforePlay,
+          // We use displayOuts here as well to ensure the "3 outs" logic is respected
+          // even when we're looking at a rolled-back state.
+          outs: displayOuts.value,
           homeScore: rollbackSource.homeScoreBeforePlay,
           awayScore: rollbackSource.awayScoreBeforePlay,
           // When rolling back a third out, we must also reset the between-innings flags
@@ -458,12 +470,15 @@ async function resetRolls(gameId) {
     }
 
     // In all other cases, return the current, authoritative state from the server.
-    return gameState.value;
+    return {
+      ...gameState.value,
+      outs: displayOuts.value,
+    };
   });
 
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
-    isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings,
+    isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
     updateGameData,
     resetGameState,
