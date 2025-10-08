@@ -8,5 +8,8 @@
   "scripts": {
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0"
   }
 }

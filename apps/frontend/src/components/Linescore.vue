@@ -43,10 +43,27 @@ const linescore = computed(() => {
     }
   });
 
-  // Add the score for the current, in-progress inning.
-  // Do not add anything if the game is between half-innings, as the inning-change event
-  // has already correctly logged the score for the completed inning.
-  if (!gameStore.isBetweenHalfInnings) {
+  // After processing all visible events, we handle the state of the score.
+
+  // Case 1: We are between half-innings. The final "inning change" event is hidden,
+  // so we need to manually add the score for the inning that just concluded.
+  if (gameStore.isBetweenHalfInnings) {
+    // The `isBetweenHalfInningsAway` flag means the away team just finished batting.
+    if (gameStore.gameState?.isBetweenHalfInningsAway) {
+      scores.away.push(awayRunsInInning);
+    }
+    // The `isBetweenHalfInningsHome` flag means the home team just finished batting.
+    else if (gameStore.gameState?.isBetweenHalfInningsHome) {
+      // Before adding the home score, ensure the away team has a score for this inning.
+      // This is crucial for innings where the away team didn't score.
+      if (scores.away.length === scores.home.length) {
+          scores.away.push(0);
+      }
+      scores.home.push(homeRunsInInning);
+    }
+  }
+  // Case 2: We are in the middle of an inning. Add the current, in-progress score.
+  else {
     if (isTop) {
       scores.away.push(awayRunsInInning);
     } else {
