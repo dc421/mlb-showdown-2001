@@ -378,7 +378,7 @@ watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
 });
 
 const showThrowRollResult = computed(() => {
-  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll;
+  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !haveIRolledForSwing.value;
 });
 
 const outfieldDefense = computed(() => gameStore.gameState?.defensiveRatings?.outfieldDefense ?? 0);

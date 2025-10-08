@@ -23,11 +23,11 @@ const outcomeText = computed(() => {
 });
 
 const rollInfo = computed(() => {
-    return `Roll: ${props.details.roll} + Def: ${props.details.defense} = ${props.details.roll + props.details.defense}`;
+    return `Throw: ${props.details.roll} +${props.details.defense}`;
 });
 
 const targetInfo = computed(() => {
-    return `Target: ${props.details.target}`;
+    return `${props.details.target}`;
 });
 
 </script>
@@ -42,17 +42,16 @@ const targetInfo = computed(() => {
 <style scoped>
 .throw-roll-result {
   position: absolute;
-  bottom: 20px;
-  left: 50%;
+  bottom: 40px;
+  left: 70%;
   transform: translateX(-50%);
   padding: 0.5rem 1rem;
-  border: 2px solid;
-  border-radius: 8px;
+  border: 1px solid;
+  border-radius: 0px;
   text-align: center;
-  font-weight: bold;
   font-size: 1rem;
   z-index: 10;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0px 0px rgba(0, 0, 0, 0.2);
   white-space: nowrap;
 }
 
