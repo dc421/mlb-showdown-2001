@@ -55,7 +55,9 @@ async function downloadImage(url, filepath) {
     method: 'GET',
     responseType: 'stream',
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+      'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
       'Referer': 'https://www.tcdb.com/'
     }
   });
@@ -99,8 +101,8 @@ async function main() {
           console.log(` -> Updated database for card ${player.card_id}`);
           successCount++;
 
-          // Wait for 2 seconds before the next download
-          await delay(2000);
+          // Wait for 3 seconds before the next download
+          await delay(3000);
         } catch (error) {
           console.error(`Failed to process card ${player.card_id}: ${error.message}`);
         }
