@@ -424,6 +424,19 @@ async function resetRolls(gameId) {
     return gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
   });
 
+  const isEffectivelyBetweenHalfInnings = computed(() => {
+    if (!gameState.value) return false;
+
+    const hasBetweenInningsFlags = gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
+
+    const outsHaveReset = opponentReadyForNext.value &&
+                          gameState.value.currentAtBat &&
+                          gameState.value.lastCompletedAtBat &&
+                          gameState.value.currentAtBat.outsBeforePlay < gameState.value.lastCompletedAtBat.outsBeforePlay;
+
+    return hasBetweenInningsFlags || outsHaveReset;
+  });
+
   const displayOuts = computed(() => {
     if (!gameState.value) return 0;
     // When the inning is over but the user hasn't clicked "Next Hitter" yet,
@@ -483,6 +496,7 @@ async function resetRolls(gameId) {
     updateGameData,
     resetGameState,
     myTeam,
-    opponentReadyForNext
+    opponentReadyForNext,
+    isEffectivelyBetweenHalfInnings
   };
 })

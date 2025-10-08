@@ -8,9 +8,13 @@ import router from './router'
 
 const app = createApp(App)
 
-// These two lines are the most important part.
-// They tell Vue to use Pinia and the router.
-app.use(createPinia())
-app.use(router)
+const pinia = createPinia();
+app.use(pinia);
+app.use(router);
 
-app.mount('#app')
+// Expose the store to the window object in development/testing environments
+if (import.meta.env.DEV) {
+  window.pinia = pinia;
+}
+
+app.mount('#app');

@@ -241,7 +241,7 @@ const isDisplayTopInning = computed(() => {
   // If we are between innings, the "isTopInning" flag has already flipped to the *next*
   // inning. For display purposes, we want to show the state of the inning that just
   // concluded, so we flip it back.
-  if (gameStore.isBetweenHalfInnings) {
+  if (gameStore.isEffectivelyBetweenHalfInnings) {
     return !gameStore.gameState.isTopInning;
   }
   return gameStore.gameState.isTopInning;
