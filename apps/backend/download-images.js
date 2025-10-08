@@ -33,10 +33,10 @@ async function findAndDownloadImage(page, player, filepath) {
 
   // 1. Navigate to search page and perform search
   await page.goto('https://www.tcdb.com/Search.cfm', { waitUntil: 'networkidle0' });
-  await page.type('#Search', searchName);
+  await page.type('input[name="Search"]', searchName);
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.click('input[type="submit"][value="Search"]'),
+    page.click('button[type="submit"]'),
   ]);
 
   // 2. Find the correct card link from the search results
