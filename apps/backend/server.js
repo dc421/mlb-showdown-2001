@@ -1730,6 +1730,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         outs: newState.outsBeforePlay 
        };
 
+      // NEW: Clear the double play details from the previous play
+      delete newState.doublePlayDetails;
+
       // --- THIS IS THE FIX ---
       // Determine which team's batting order needs to be advanced.
       // If we are between innings, we advance the order for the team that JUST finished batting.
