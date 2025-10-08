@@ -245,7 +245,7 @@ const isDisplayTopInning = computed(() => {
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
   // Always show the offensive player from the inning that just happened
-  return amIOffensivePlayer.value;
+  return gameStore.isBetweenHalfInnings ? amIDefensivePlayer.value : amIOffensivePlayer.value;
 });
 
 const amIDisplayDefensivePlayer = computed(() => {
