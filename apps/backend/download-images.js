@@ -32,13 +32,13 @@ async function findAndDownloadImage(page, player, filepath) {
   const targetSet = player.set_name === 'Base' ? '2001 MLB Showdown' : '2001 MLB Showdown Pennant Run';
 
   // 1. Navigate to search page and perform search
-  await page.goto('https://www.tcdb.com/Search.cfm', { waitUntil: 'networkidle0' });
+  await page.goto('https://www.tcdb.com/Search.cfm', { waitUntil: 'networkidle2' });
   await page.waitForSelector('input[name="Search"]');
   await page.type('input[name="Search"]', searchName);
 
   await page.waitForSelector('input[type="submit"][value="Search"]');
   await page.click('input[type="submit"][value="Search"]');
-  await page.waitForNavigation({ waitUntil: 'networkidle0' });
+  await page.waitForNavigation({ waitUntil: 'networkidle2' });
 
   // 2. Find the correct card link from the search results
   const cardPageUrl = await page.evaluate((name, set) => {
@@ -58,7 +58,7 @@ async function findAndDownloadImage(page, player, filepath) {
   }
 
   // 3. Navigate to the card page
-  await page.goto(cardPageUrl, { waitUntil: 'networkidle0' });
+  await page.goto(cardPageUrl, { waitUntil: 'networkidle2' });
 
   // 4. Extract the image source and download
   const imageSrc = await page.evaluate(() => {
