@@ -353,22 +353,22 @@ async function resetRolls(gameId) {
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
 
-    const isActuallyBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
+    // Use the more robust computed property.
+    const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value) {
       // If it's a third-out play, hide both the play result and the inning change message.
-      if (isActuallyBetweenInnings) {
+      if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
       // Otherwise, it's a normal mid-inning play; just hide the last event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
-    // Condition 2: The outcome has been revealed, but the user hasn't clicked "Next Hitter" yet.
-    // We need to continue hiding just the inning change message. This applies to both players
-    // viewing the third-out result before the state advances.
-    if (isActuallyBetweenInnings) {
+    // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
+    // We need to continue hiding just the inning change message.
+    if (isEffectivelyBetween && !amIReadyForNext.value) {
         return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
@@ -416,6 +416,15 @@ async function resetRolls(gameId) {
         return gameState.value.awayPlayerReadyForNext;
     } else {
         return gameState.value.homePlayerReadyForNext;
+    }
+  });
+
+  const amIReadyForNext = computed(() => {
+    if (!gameState.value || !myTeam.value) return false;
+    if (myTeam.value === 'home') {
+        return gameState.value.homePlayerReadyForNext;
+    } else {
+        return gameState.value.awayPlayerReadyForNext;
     }
   });
 
@@ -497,6 +506,7 @@ async function resetRolls(gameId) {
     resetGameState,
     myTeam,
     opponentReadyForNext,
+    amIReadyForNext,
     isEffectivelyBetweenHalfInnings
   };
 })
