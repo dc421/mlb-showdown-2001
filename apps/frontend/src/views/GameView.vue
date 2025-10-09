@@ -1022,7 +1022,7 @@ onUnmounted(() => {
 
             <!-- Waiting Indicators -->
             <div v-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
-            <div v-if="(amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="turn-indicator">Waiting for swing...</div>
+            <div v-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
         </div>
 
         <!-- Player Cards Wrapper -->
