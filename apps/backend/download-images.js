@@ -32,8 +32,10 @@ async function findAndDownloadImage(page, player, filepath) {
   const targetSet = player.set_name === 'Base' ? '2001 MLB Showdown' : '2001 MLB Showdown Pennant Run';
 
   // 1. Navigate to search page and perform search
-  await page.goto('https://www.tcdb.com/Search.cfm', { waitUntil: 'networkidle2' });
-  await page.waitForSelector('input[name="Search"]');
+  await page.goto('https://www.tcdb.com/', { waitUntil: 'networkidle2' });
+  await page.waitForSelector('#search-icon-header');
+  await page.click('#search-icon-header');
+  await page.waitForSelector('input[name="Search"]', { visible: true });
   await page.type('input[name="Search"]', searchName);
 
   await page.waitForSelector('input[type="submit"][value="Search"]');
