@@ -94,16 +94,29 @@ async function getActivePlayers(gameId, currentState) {
         const offensiveTeamState = currentState.isTopInning ? currentState.awayTeam : currentState.homeTeam;
         
         const batterInfo = offensiveParticipant.lineup.battingOrder[offensiveTeamState.battingOrderPosition];
-        const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
+        let batter;
+        if (batterInfo.card_id === -1) {
+            batter = REPLACEMENT_HITTER_CARD;
+        } else {
+            const batterQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
+            batter = batterQuery.rows[0];
+        }
 
-        const batterQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
-        const pitcherQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
+        // --- THIS IS THE FIX ---
+        // The pitcher should be the one currently in the game state, not always the starter.
+        const pitcherInfo = currentState.currentAtBat.pitcher;
+        let pitcher;
+        if (pitcherInfo.card_id === -2) {
+            pitcher = REPLACEMENT_PITCHER_CARD;
+        } else {
+            const pitcherQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherInfo.card_id]);
+            pitcher = pitcherQuery.rows[0];
+        }
         
-        const potentialPitcherCard = pitcherQuery.rows[0];
-        const finalPitcher = (potentialPitcherCard && potentialPitcherCard.control !== null) ? potentialPitcherCard : null;
+        const finalPitcher = (pitcher && pitcher.control !== null) ? pitcher : null;
 
         return {
-            batter: batterQuery.rows[0],
+            batter: batter,
             pitcher: finalPitcher,
             offensiveTeam: offensiveParticipant,
             defensiveTeam: defensiveParticipant,
