@@ -108,37 +108,56 @@ async function main() {
   await page.setDefaultNavigationTimeout(60000);
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
+  let players;
   try {
-    const players = await fetchPlayerData();
-    let successCount = 0;
-    for (const player of players) {
-      const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
-      try {
-        console.log(`Processing card ${player.card_id} for ${player.name}...`);
-        await findAndDownloadImage(page, player, imagePath);
-        await updateCardImagePath(client, player.card_id, imagePath);
-        console.log(` -> Successfully processed card ${player.card_id}`);
-        successCount++;
-        await delay(3000); // Politeness delay
-      } catch (error) {
-        console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
-        const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        console.error(` -> Screenshot saved to ${screenshotPath}.`);
-        console.error(' -> Stopping script after first error for debugging.');
-        throw error; // Re-throw to exit the main try block and close resources
-      }
-    }
-    console.log(`
-Successfully downloaded and updated ${successCount} of ${players.length} card images.`);
-  } catch (error) {
-    // This catch block will now catch the re-thrown error from the loop
-    console.error('\nAn error occurred, shutting down gracefully.');
-  } finally {
+    players = await fetchPlayerData();
+  } catch (dbError) {
+    console.error("Failed to fetch player data:", dbError);
     await browser.close();
     client.release();
     await pool.end();
+    return;
   }
+
+  let successCount = 0;
+  // We will loop through players but stop after the first error for debugging.
+  for (const player of players) {
+    const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
+    try {
+      console.log(`Processing card ${player.card_id} for ${player.name}...`);
+      await findAndDownloadImage(page, player, imagePath);
+      await updateCardImagePath(client, player.card_id, imagePath);
+      console.log(` -> Successfully processed card ${player.card_id}`);
+      successCount++;
+      await delay(3000); // Politeness delay
+    } catch (error) {
+      // This is the correct place for the error handling logic
+      console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
+      
+      const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      console.error(` -> Screenshot saved to ${screenshotPath}.`);
+
+      const htmlPath = path.join(__dirname, `error_page_${player.card_id}.html`);
+      const htmlContent = await page.content();
+      fs.writeFileSync(htmlPath, htmlContent);
+      console.error(` -> HTML content saved to ${htmlPath}.`);
+
+      console.error(' -> Stopping script after first error for debugging.');
+      break; // Exit the loop to stop the script
+    }
+  }
+  
+  if (successCount > 0 && successCount === players.length) {
+      console.log(`\nSuccessfully downloaded and updated ${successCount} of ${players.length} card images.`);
+  } else if (successCount > 0) {
+      console.log(`\nScript finished. Processed ${successCount} players before stopping with an error.`);
+  }
+
+  // Cleanup
+  await browser.close();
+  client.release();
+  await pool.end();
 }
 
 main();
