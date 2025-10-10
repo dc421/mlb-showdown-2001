@@ -451,7 +451,7 @@ async function resetRolls(gameId) {
     // When the inning is over but the user hasn't clicked "Next Hitter" yet,
     // the server reports 0 outs for the *next* inning. We want to show 3
     // to represent the end of the *previous* inning.
-    if ((isBetweenHalfInnings.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
+    if ((isBetweenHalfInnings.value && !haveIRolledForSwing.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
       return 3;
     }
     return gameState.value.outs;

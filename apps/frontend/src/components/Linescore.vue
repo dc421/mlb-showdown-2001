@@ -101,7 +101,7 @@ const homeTotalRuns = computed(() => {
           <th></th>
           <th v-for="inning in linescore.innings"
               :key="inning"
-              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings }">
+              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }">
               {{ inning }}
           </th>
           <th>R</th>
@@ -113,7 +113,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.away" 
             :key="`away-${index}`"
-            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings }"
+            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ awayTotalRuns }}</td>
@@ -123,7 +123,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.home" 
             :key="`home-${index}`"
-            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings }"
+            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ homeTotalRuns }}</td>
