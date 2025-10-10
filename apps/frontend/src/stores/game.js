@@ -345,30 +345,45 @@ async function resetRolls(gameId) {
 }
 
   const isOutcomeHidden = ref(false);
+  const haveIRolledForSwing = ref(false);
 
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
   }
 
+  function setHaveIRolledForSwing(value) {
+    haveIRolledForSwing.value = value;
+    // Also persist this to localStorage to survive reloads
+    const gameId = game.value?.id;
+    if (gameId) {
+        const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
+        if (value) {
+            localStorage.setItem(rollStorageKey, JSON.stringify(true));
+        } else {
+            localStorage.removeItem(rollStorageKey);
+        }
+    }
+  }
+
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
 
-    const isActuallyBetweenInnings = gameState.value?.isBetweenHalfInningsAway || gameState.value?.isBetweenHalfInningsHome;
+    // Use the more robust computed property.
+    const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value) {
       // If it's a third-out play, hide both the play result and the inning change message.
-      if (isActuallyBetweenInnings) {
+      if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
       // Otherwise, it's a normal mid-inning play; just hide the last event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
-    // Condition 2: The outcome has been revealed, but the user hasn't clicked "Next Hitter" yet.
-    // We need to continue hiding just the inning change message. This applies to both players
-    // viewing the third-out result before the state advances.
-    if (isActuallyBetweenInnings) {
+    // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
+    // We need to continue hiding just the inning change message.
+    if (isEffectivelyBetween && !amIReadyForNext.value) {
         return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
@@ -402,6 +417,7 @@ async function resetRolls(gameId) {
     teams.value = { home: null, away: null };
     setupState.value = null;
     isOutcomeHidden.value = false;
+    haveIRolledForSwing.value = false;
   }
 
   const myTeam = computed(() => {
@@ -416,6 +432,15 @@ async function resetRolls(gameId) {
         return gameState.value.awayPlayerReadyForNext;
     } else {
         return gameState.value.homePlayerReadyForNext;
+    }
+  });
+
+  const amIReadyForNext = computed(() => {
+    if (!gameState.value || !myTeam.value) return false;
+    if (myTeam.value === 'home') {
+        return gameState.value.homePlayerReadyForNext;
+    } else {
+        return gameState.value.awayPlayerReadyForNext;
     }
   });
 
@@ -442,7 +467,7 @@ async function resetRolls(gameId) {
     // When the inning is over but the user hasn't clicked "Next Hitter" yet,
     // the server reports 0 outs for the *next* inning. We want to show 3
     // to represent the end of the *previous* inning.
-    if ((isBetweenHalfInnings.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
+    if ((isBetweenHalfInnings.value && !haveIRolledForSwing.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
       return 3;
     }
     return gameState.value.outs;
@@ -492,11 +517,13 @@ async function resetRolls(gameId) {
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
+    haveIRolledForSwing, setHaveIRolledForSwing,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
     updateGameData,
     resetGameState,
     myTeam,
     opponentReadyForNext,
+    amIReadyForNext,
     isEffectivelyBetweenHalfInnings
   };
 })

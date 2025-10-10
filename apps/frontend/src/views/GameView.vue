@@ -16,7 +16,6 @@ const gameStore = useGameStore();
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
-const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
@@ -179,7 +178,7 @@ const usedPlayerIds = computed(() => {
     return new Set([...homeUsed, ...awayUsed]);
 });
 
-const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey)) || false);
+const haveIRolledForSwing = computed(() => gameStore.haveIRolledForSwing);
 
 
 const scoreChangeMessage = ref('');
@@ -332,7 +331,7 @@ const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameSta
 const showNextHitterButton = computed(() => {
   if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
 
-  if (amIReadyForNext.value) {
+  if (gameStore.amIReadyForNext) {
     return false;
   }
 
@@ -475,23 +474,13 @@ const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamC
 
 const isSwingResultVisible = ref(false);
 
-// in GameView.vue
-const amIReadyForNext = computed(() => {
-    if (!gameStore.gameState || !authStore.user) return false;
-    if (gameStore.myTeam === 'home') {
-        return gameStore.gameState.homePlayerReadyForNext;
-    } else {
-        return gameStore.gameState.awayPlayerReadyForNext;
-    }
-});
-
 const atBatToDisplay = computed(() => {
     if (!gameStore.gameState) {
       // During component teardown or initial load, gameState can be null.
       // Return a default, safe structure to prevent cascading errors.
       return { batterAction: null, pitcherAction: null, pitchRollResult: null, swingRollResult: null };
     }
-    if (!amIReadyForNext.value && gameStore.opponentReadyForNext) {
+    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat;
     }
     return gameStore.gameState.currentAtBat;
@@ -533,8 +522,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
 
 watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
     if (newAction === 'intentional_walk' && amIOffensivePlayer.value) {
-        haveIRolledForSwing.value = true;
-        localStorage.setItem(rollStorageKey, 'true');
+        gameStore.setHaveIRolledForSwing(true);
     }
 });
 
@@ -568,7 +556,7 @@ const batterToDisplay = computed(() => {
     if (!gameStore.gameState) {
         return null;
     }
-    if (!amIReadyForNext.value && gameStore.opponentReadyForNext) {
+    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     return gameStore.gameState.currentAtBat.batter;
@@ -576,7 +564,7 @@ const batterToDisplay = computed(() => {
 
 const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
-    if (!amIReadyForNext.value && gameStore.opponentReadyForNext) {
+    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.pitcher;
     }
     // In all other cases, show the data for the current at-bat.
@@ -666,15 +654,13 @@ function handlePitch(action = null) {
 function handleOffensiveAction(action) {
   console.log('1. GameView: handleOffensiveAction was called with action:', action);
   if (action === 'bunt') {
-    haveIRolledForSwing.value = true;
-    localStorage.setItem(rollStorageKey, 'true');
+    gameStore.setHaveIRolledForSwing(true);
   }
   gameStore.submitAction(gameId, action);
 }
 
 function handleSwing(action = null) {
-  haveIRolledForSwing.value = true; // Set the flag immediately
-  localStorage.setItem(rollStorageKey, 'true');
+  gameStore.setHaveIRolledForSwing(true); // Set the flag immediately
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
@@ -687,8 +673,7 @@ function handleNextHitter() {
   if (!gameStore.opponentReadyForNext) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
-  haveIRolledForSwing.value = false;
-  localStorage.removeItem(rollStorageKey);
+  gameStore.setHaveIRolledForSwing(false);
   gameStore.nextHitter(gameId);
 }
 
@@ -810,7 +795,7 @@ const opponentPlayerTeamColors = computed(() => {
 
 const showAdvantage = computed(() => {
   return atBatToDisplay.value.pitchRollResult &&
-         (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && !bothPlayersCaughtUp.value) &&
+         (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && !bothPlayersCaughtUp.value) &&
          !(!bothPlayersSetAction.value && amIOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction);
 });
 
@@ -859,6 +844,14 @@ const swingResultClasses = computed(() => {
 // in GameView.vue
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
+
+  // Initialize haveIRolledForSwing from localStorage on component mount
+  const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
+  const storedRoll = JSON.parse(localStorage.getItem(rollStorageKey)) || false;
+  if (storedRoll) {
+      gameStore.setHaveIRolledForSwing(true);
+  }
+
   initialLoadComplete.value = true;
 
   // NEW: Check if we are returning to a completed at-bat
@@ -937,7 +930,7 @@ onUnmounted(() => {
             <div>{{ outfieldDefenseDisplay }}</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
-           (gameStore.gameState.currentAtBat.pitchRollResult || !amIReadyForNext.value && gameStore.opponentReadyForNext) &&
+           (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
@@ -999,24 +992,24 @@ onUnmounted(() => {
             <div v-else>
                 <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleResolveDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
                 <div v-else-if="isWaitingForDoublePlayResolution" class="waiting-text">Waiting for throw...</div>
-                <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
+                <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+                <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
-                    <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="infield-in-checkbox">
+                    <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
+                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="infield-in-checkbox">
                         <label>
                             <input type="checkbox" v-model="infieldIn" />
                             Infield In
                         </label>
                     </div>
-                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-                    <button v-if="canStealSecond && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
-                    <button v-if="canStealThird && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
-                    <button v-if="canDoubleSteal && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
+                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                    <button v-if="canStealSecond && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
+                    <button v-if="canStealThird && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
+                    <button v-if="canDoubleSteal && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
                 </div>
             </div>
 
@@ -1069,7 +1062,7 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
@@ -1138,14 +1131,16 @@ onUnmounted(() => {
               <ul>
                   <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_PITCHER)"
-                            class="sub-icon">
+                            class="sub-icon"
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam }">
                           ⇄
                       </span>
                       <span>Replacement Pitcher</span>
                   </li>
                   <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_HITTER)"
-                            class="sub-icon">
+                            class="sub-icon"
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam }">
                           ⇄
                       </span>
                       <span>Replacement Hitter</span>

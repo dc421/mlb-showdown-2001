@@ -33,18 +33,21 @@ async function findAndDownloadImage(page, player, filepath) {
 
   // 1. Navigate to search page and perform search
   await page.goto('https://www.tcdb.com/', { waitUntil: 'domcontentloaded' });
+  
+  await page.waitForSelector('#search-icon-header');
+  await page.click('#search-icon-header');
+  
+  await page.waitForSelector('input[name="Search"]', { visible: true });
+  await page.type('input[name="Search"]', searchName);
 
-  // Wait for the search input field and type the player's name
-  await page.waitForSelector('input[name="q"]', { visible: true });
-  await page.type('input[name="q"]', searchName);
-
-  // Click the search button and wait for navigation
+  // Clicks the search button and waits for the navigation to start.
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-    page.click('button[type="submit"]'),
+    page.click('input[type="submit"][value="Search"]'),
   ]);
 
   // 2. Find the correct card link from the search results
+  // Wait for the results table to be visible before scraping it.
   await page.waitForSelector('.dataTable tbody tr');
   const cardPageUrl = await page.evaluate((name, set) => {
     const rows = Array.from(document.querySelectorAll('.dataTable tbody tr'));
@@ -76,6 +79,11 @@ async function findAndDownloadImage(page, player, filepath) {
     throw new Error(`Could not find image on card page: ${cardPageUrl}`);
   }
 
+  // When going to the image source, it's better to wait for the response directly
+  const imagePage = await page.target().createCDPSession();
+  await imagePage.send('Page.navigate', {url: imageSrc});
+  // This is a more complex but reliable way to get the image buffer
+  // We'll skip it for now and stick to a simpler goto.
   const viewSource = await page.goto(imageSrc);
   fs.writeFileSync(filepath, await viewSource.buffer());
 }
@@ -97,7 +105,7 @@ async function main() {
   const client = await pool.connect();
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
-  await page.setDefaultNavigationTimeout(60000); // 60 seconds
+  await page.setDefaultNavigationTimeout(60000);
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
   try {
@@ -114,11 +122,18 @@ async function main() {
         await delay(3000); // Politeness delay
       } catch (error) {
         console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
+        const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        console.error(` -> Screenshot saved to ${screenshotPath}.`);
+        console.error(' -> Stopping script after first error for debugging.');
+        throw error; // Re-throw to exit the main try block and close resources
       }
     }
-    console.log(`\nSuccessfully downloaded and updated ${successCount} of ${players.length} card images.`);
+    console.log(`
+Successfully downloaded and updated ${successCount} of ${players.length} card images.`);
   } catch (error) {
-    console.error('An error occurred during the main process:', error);
+    // This catch block will now catch the re-thrown error from the loop
+    console.error('\nAn error occurred, shutting down gracefully.');
   } finally {
     await browser.close();
     client.release();
