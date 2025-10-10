@@ -464,6 +464,14 @@ async function resetRolls(gameId) {
 
   const displayOuts = computed(() => {
     if (!gameState.value) return 0;
+
+    if (isOutcomeHidden.value) {
+      if (gameState.value.currentAtBat) {
+        return gameState.value.currentAtBat.outsBeforePlay;
+      }
+      return 0; // Fallback if currentAtBat is not yet available
+    }
+
     // When the inning is over but the user hasn't clicked "Next Hitter" yet,
     // the server reports 0 outs for the *next* inning. We want to show 3
     // to represent the end of the *previous* inning.
