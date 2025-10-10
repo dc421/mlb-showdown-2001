@@ -32,17 +32,20 @@ async function findAndDownloadImage(page, player, filepath) {
   const targetSet = player.set_name === 'Base' ? '2001 MLB Showdown' : '2001 MLB Showdown Pennant Run';
 
   // 1. Navigate to search page and perform search
-  await page.goto('https://www.tcdb.com/', { waitUntil: 'networkidle2' });
-  await page.waitForSelector('#search-icon-header');
-  await page.click('#search-icon-header');
-  await page.waitForSelector('input[name="Search"]', { visible: true });
-  await page.type('input[name="Search"]', searchName);
+  await page.goto('https://www.tcdb.com/', { waitUntil: 'domcontentloaded' });
 
-  await page.waitForSelector('input[type="submit"][value="Search"]');
-  await page.click('input[type="submit"][value="Search"]');
-  await page.waitForNavigation({ waitUntil: 'networkidle2' });
+  // Wait for the search input field and type the player's name
+  await page.waitForSelector('input[name="q"]', { visible: true });
+  await page.type('input[name="q"]', searchName);
+
+  // Click the search button and wait for navigation
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    page.click('button[type="submit"]'),
+  ]);
 
   // 2. Find the correct card link from the search results
+  await page.waitForSelector('.dataTable tbody tr');
   const cardPageUrl = await page.evaluate((name, set) => {
     const rows = Array.from(document.querySelectorAll('.dataTable tbody tr'));
     for (const row of rows) {
@@ -60,9 +63,10 @@ async function findAndDownloadImage(page, player, filepath) {
   }
 
   // 3. Navigate to the card page
-  await page.goto(cardPageUrl, { waitUntil: 'networkidle2' });
+  await page.goto(cardPageUrl, { waitUntil: 'domcontentloaded' });
 
   // 4. Extract the image source and download
+  await page.waitForSelector('#card_img_front');
   const imageSrc = await page.evaluate(() => {
     const img = document.querySelector('#card_img_front');
     return img ? img.src : null;
@@ -93,6 +97,7 @@ async function main() {
   const client = await pool.connect();
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
+  await page.setDefaultNavigationTimeout(60000); // 60 seconds
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
   try {
