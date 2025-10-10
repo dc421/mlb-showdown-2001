@@ -345,9 +345,24 @@ async function resetRolls(gameId) {
 }
 
   const isOutcomeHidden = ref(false);
+  const haveIRolledForSwing = ref(false);
 
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
+  }
+
+  function setHaveIRolledForSwing(value) {
+    haveIRolledForSwing.value = value;
+    // Also persist this to localStorage to survive reloads
+    const gameId = game.value?.id;
+    if (gameId) {
+        const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
+        if (value) {
+            localStorage.setItem(rollStorageKey, JSON.stringify(true));
+        } else {
+            localStorage.removeItem(rollStorageKey);
+        }
+    }
   }
 
   const gameEventsToDisplay = computed(() => {
@@ -402,6 +417,7 @@ async function resetRolls(gameId) {
     teams.value = { home: null, away: null };
     setupState.value = null;
     isOutcomeHidden.value = false;
+    haveIRolledForSwing.value = false;
   }
 
   const myTeam = computed(() => {
@@ -451,7 +467,7 @@ async function resetRolls(gameId) {
     // When the inning is over but the user hasn't clicked "Next Hitter" yet,
     // the server reports 0 outs for the *next* inning. We want to show 3
     // to represent the end of the *previous* inning.
-    if ((isBetweenHalfInnings.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
+    if ((isBetweenHalfInnings.value && !haveIRolledForSwing.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
       return 3;
     }
     return gameState.value.outs;
@@ -501,6 +517,7 @@ async function resetRolls(gameId) {
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
+    haveIRolledForSwing, setHaveIRolledForSwing,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
     updateGameData,
     resetGameState,
