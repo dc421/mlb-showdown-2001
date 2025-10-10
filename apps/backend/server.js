@@ -13,6 +13,20 @@ const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
 const { applyOutcome } = require('./gameLogic');
 
+const REPLACEMENT_HITTER_CARD = {
+    card_id: -1, name: 'Replacement Hitter', display_name: 'Replacement Hitter', on_base: -10, speed: 'B',
+    points: 0,
+    fielding_ratings: { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0 },
+    chart_data: { '1-2': 'SO', '3-20': 'GB' },
+    control: null
+};
+const REPLACEMENT_PITCHER_CARD = {
+    card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1,
+    points: 0,
+    chart_data: { '1-3': 'PU', '4-8': 'SO', '9-12': 'GB', '13-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
+    fielding_ratings: {}
+};
+
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = [process.env.FRONTEND_URL, "http://localhost:5173"];
@@ -692,16 +706,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     let playerInCard;
 
     if (playerInId === 'replacement_hitter') {
-        playerInCard = { 
-            card_id: -1, name: 'Replacement Hitter', on_base: -10, speed: 'B', 
-            fielding_ratings: { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0 },
-            chart_data: { '1-2': 'SO', '3-20': 'GB' }
-        };
+        playerInCard = REPLACEMENT_HITTER_CARD;
     } else if (playerInId === 'replacement_pitcher') {
-        playerInCard = {
-            card_id: -2, name: 'Replacement Pitcher', control: -1, ip: 1,
-            chart_data: { '1-3': 'PU', '4-8': 'SO', '9-12': 'GB', '13-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'}
-        };
+        playerInCard = REPLACEMENT_PITCHER_CARD;
     } else {
         const playerInResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerInId]);
         playerInCard = playerInResult.rows[0];
@@ -1272,8 +1279,28 @@ async function getAndProcessGameData(gameId, dbClient) {
       const rosterResult = await dbClient.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, p.user_id]);
       const fullRosterCards = rosterResult.rows[0]?.roster_data || [];
       if (p.lineup?.battingOrder) {
-        const lineupWithDetails = p.lineup.battingOrder.map(spot => ({ ...spot, player: fullRosterCards.find(c => c.card_id === spot.card_id) }));
-        const spCard = fullRosterCards.find(c => c.card_id === p.lineup.startingPitcher);
+        const lineupWithDetails = p.lineup.battingOrder.map(spot => {
+            let playerCard;
+            if (spot.card_id === -1) {
+                playerCard = REPLACEMENT_HITTER_CARD;
+            } else if (spot.card_id === -2) {
+                playerCard = REPLACEMENT_PITCHER_CARD;
+            } else {
+                playerCard = fullRosterCards.find(c => c.card_id === spot.card_id);
+            }
+            return { ...spot, player: playerCard };
+        });
+
+        let spCard;
+        const spId = p.lineup.startingPitcher;
+        if (spId === -1) {
+            spCard = REPLACEMENT_HITTER_CARD;
+        } else if (spId === -2) {
+            spCard = REPLACEMENT_PITCHER_CARD;
+        } else {
+            spCard = fullRosterCards.find(c => c.card_id === spId);
+        }
+
         processPlayers(lineupWithDetails.map(l => l.player));
         processPlayers(fullRosterCards);
         if (spCard) processPlayers([spCard]);
