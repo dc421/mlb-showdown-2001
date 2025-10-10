@@ -384,7 +384,7 @@ watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
 });
 
 const showThrowRollResult = computed(() => {
-  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !haveIRolledForSwing.value;
+  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value);
 });
 
 const defensiveRatingsToDisplay = computed(() => {
