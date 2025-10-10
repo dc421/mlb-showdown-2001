@@ -1138,14 +1138,16 @@ onUnmounted(() => {
               <ul>
                   <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_PITCHER)"
-                            class="sub-icon">
+                            class="sub-icon"
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam }">
                           ⇄
                       </span>
                       <span>Replacement Pitcher</span>
                   </li>
                   <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_HITTER)"
-                            class="sub-icon">
+                            class="sub-icon"
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam }">
                           ⇄
                       </span>
                       <span>Replacement Hitter</span>
