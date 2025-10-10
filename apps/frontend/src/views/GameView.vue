@@ -16,7 +16,6 @@ const gameStore = useGameStore();
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
-const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
@@ -179,7 +178,7 @@ const usedPlayerIds = computed(() => {
     return new Set([...homeUsed, ...awayUsed]);
 });
 
-const haveIRolledForSwing = ref(JSON.parse(localStorage.getItem(rollStorageKey)) || false);
+const haveIRolledForSwing = computed(() => gameStore.haveIRolledForSwing);
 
 
 const scoreChangeMessage = ref('');
@@ -523,8 +522,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
 
 watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
     if (newAction === 'intentional_walk' && amIOffensivePlayer.value) {
-        haveIRolledForSwing.value = true;
-        localStorage.setItem(rollStorageKey, 'true');
+        gameStore.setHaveIRolledForSwing(true);
     }
 });
 
@@ -656,15 +654,13 @@ function handlePitch(action = null) {
 function handleOffensiveAction(action) {
   console.log('1. GameView: handleOffensiveAction was called with action:', action);
   if (action === 'bunt') {
-    haveIRolledForSwing.value = true;
-    localStorage.setItem(rollStorageKey, 'true');
+    gameStore.setHaveIRolledForSwing(true);
   }
   gameStore.submitAction(gameId, action);
 }
 
 function handleSwing(action = null) {
-  haveIRolledForSwing.value = true; // Set the flag immediately
-  localStorage.setItem(rollStorageKey, 'true');
+  gameStore.setHaveIRolledForSwing(true); // Set the flag immediately
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
@@ -677,8 +673,7 @@ function handleNextHitter() {
   if (!gameStore.opponentReadyForNext) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
-  haveIRolledForSwing.value = false;
-  localStorage.removeItem(rollStorageKey);
+  gameStore.setHaveIRolledForSwing(false);
   gameStore.nextHitter(gameId);
 }
 
@@ -849,6 +844,14 @@ const swingResultClasses = computed(() => {
 // in GameView.vue
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
+
+  // Initialize haveIRolledForSwing from localStorage on component mount
+  const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
+  const storedRoll = JSON.parse(localStorage.getItem(rollStorageKey)) || false;
+  if (storedRoll) {
+      gameStore.setHaveIRolledForSwing(true);
+  }
+
   initialLoadComplete.value = true;
 
   // NEW: Check if we are returning to a completed at-bat
