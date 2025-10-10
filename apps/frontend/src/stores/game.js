@@ -466,10 +466,20 @@ async function resetRolls(gameId) {
     if (!gameState.value) return 0;
 
     if (isOutcomeHidden.value) {
-      if (gameState.value.currentAtBat) {
-        return gameState.value.currentAtBat.outsBeforePlay;
+      // NEW LOGIC: When the outcome is hidden, we need to decide which "before" state to show.
+      // If the opponent has already seen the result and clicked "Next Hitter",
+      // we should show the state *before their action*, which is stored in lastCompletedAtBat.
+      if (opponentReadyForNext.value) {
+        if (gameState.value.lastCompletedAtBat) {
+          return gameState.value.lastCompletedAtBat.outsBeforePlay;
+        }
+      } else {
+        // Otherwise, we show the state before the current at-bat began.
+        if (gameState.value.currentAtBat) {
+          return gameState.value.currentAtBat.outsBeforePlay;
+        }
       }
-      return 0; // Fallback if currentAtBat is not yet available
+      return 0; // Fallback if neither at-bat object is available
     }
 
     // When the inning is over but the user hasn't clicked "Next Hitter" yet,
