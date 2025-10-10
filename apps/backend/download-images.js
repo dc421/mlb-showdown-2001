@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 
-
 // --- Database Connection ---
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -14,10 +13,17 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
+// --- Set ID Mapping ---
+const SET_IDS = {
+  '2001 MLB Showdown': '8115',
+  '2001 MLB Showdown Pennant Run': '8117',
+};
+
 async function fetchPlayerData() {
   const client = await pool.connect();
   try {
-    const res = await client.query('SELECT card_id, name, set_name, card_number FROM cards_player');
+    // Fetch card_id, name, and set_name to construct the URL
+    const res = await client.query('SELECT card_id, name, set_name FROM cards_player');
     console.log(`Found ${res.rows.length} players. Starting download process...`);
     return res.rows;
   } finally {
@@ -27,53 +33,31 @@ async function fetchPlayerData() {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function findAndDownloadImage(page, player, filepath) {
-  const searchName = player.name;
-  const targetSet = player.set_name === 'Base' ? '2001 MLB Showdown' : '2001 MLB Showdown Pennant Run';
-
-  // 1. Navigate to search page and perform search
-  await page.goto('https://www.tcdb.com/', { waitUntil: 'domcontentloaded' });
-
-  // Speculatively try to click a cookie consent button if it exists
-  try {
-    await page.waitForSelector('button.adthrive-act25-modal-accept', { timeout: 3000 });
-    await page.click('button.adthrive-act25-modal-accept');
-    await delay(1000); // Wait a moment for the banner to disappear
-  } catch (e) {
-    // Ignore if the button doesn't exist or another error occurs
-  }
-  
-  await page.waitForSelector('input[name="q"]', { visible: true });
-  await page.type('input[name="q"]', searchName);
-
-  // Clicks the search button and waits for the navigation to start.
-  await page.click('button[type="submit"]');
-  await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
-
-  // 2. Find the correct card link from the search results
-  // Wait for the results table to be visible before scraping it.
-  await page.waitForSelector('.dataTable tbody tr');
-  const cardPageUrl = await page.evaluate((name, set) => {
-    const rows = Array.from(document.querySelectorAll('.dataTable tbody tr'));
-    for (const row of rows) {
-      const linkElement = row.querySelector('td:nth-child(2) a');
-      const setText = row.querySelector('td:nth-child(3)').innerText;
-      if (linkElement && linkElement.innerText.trim() === name && setText.trim() === set) {
-        return linkElement.href;
-      }
-    }
-    return null;
-  }, searchName, targetSet);
-
-  if (!cardPageUrl) {
-    throw new Error(`Could not find card for '${searchName}' in set '${targetSet}'`);
+async function downloadImageDirectly(page, player, filepath) {
+  // Check if image already exists
+  if (fs.existsSync(filepath)) {
+    console.log(` -> Image for card ${player.card_id} (${player.name}) already exists. Skipping.`);
+    return;
   }
 
-  // 3. Navigate to the card page
+  const setId = SET_IDS[player.set_name];
+  if (!setId) {
+    throw new Error(`No Set ID found for set: "${player.set_name}"`);
+  }
+
+  const cardPageUrl = `https://www.tcdb.com/ViewCard.cfm/sid/${setId}/cid/${player.card_id}`;
+
+  console.log(` -> Navigating to ${cardPageUrl}`);
   await page.goto(cardPageUrl, { waitUntil: 'domcontentloaded' });
 
-  // 4. Extract the image source and download
-  await page.waitForSelector('#card_img_front');
+  // Handle potential CAPTCHA or other blocks
+  const pageTitle = await page.title();
+  if (pageTitle.includes('Pardon Our Interruption')) {
+      throw new Error('CAPTCHA or block detected.');
+  }
+
+  // Extract the image source and download
+  await page.waitForSelector('#card_img_front', { timeout: 15000 });
   const imageSrc = await page.evaluate(() => {
     const img = document.querySelector('#card_img_front');
     return img ? img.src : null;
@@ -83,22 +67,24 @@ async function findAndDownloadImage(page, player, filepath) {
     throw new Error(`Could not find image on card page: ${cardPageUrl}`);
   }
 
-  // When going to the image source, it's better to wait for the response directly
-  const imagePage = await page.target().createCDPSession();
-  await imagePage.send('Page.navigate', {url: imageSrc});
-  // This is a more complex but reliable way to get the image buffer
-  // We'll skip it for now and stick to a simpler goto.
-  const viewSource = await page.goto(imageSrc);
-  fs.writeFileSync(filepath, await viewSource.buffer());
+  console.log(` -> Found image source: ${imageSrc}`);
+
+  // Navigate to the image source and download the buffer
+  const viewSource = await page.goto(imageSrc, { waitUntil: 'networkidle0' });
+  const buffer = await viewSource.buffer();
+
+  fs.writeFileSync(filepath, buffer);
+  console.log(` -> Image saved to ${filepath}`);
 }
 
-async function updateCardImagePath(client, cardId, imagePath) {
-  const relativePath = `/card_images/${path.basename(imagePath)}`;
-  await client.query(
-    'UPDATE cards_player SET image_url = $1 WHERE card_id = $2',
-    [relativePath, cardId]
-  );
-}
+// Temporarily removed until download is confirmed working
+// async function updateCardImagePath(client, cardId, imagePath) {
+//   const relativePath = `/card_images/${path.basename(imagePath)}`;
+//   await client.query(
+//     'UPDATE cards_player SET image_url = $1 WHERE card_id = $2',
+//     [relativePath, cardId]
+//   );
+// }
 
 async function main() {
   const imagesDir = path.join(__dirname, 'card_images');
@@ -106,7 +92,9 @@ async function main() {
     fs.mkdirSync(imagesDir);
   }
 
-  const client = await pool.connect();
+  // No database updates for now, so we don't need a client yet.
+  // const client = await pool.connect();
+
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.setDefaultNavigationTimeout(60000);
@@ -115,32 +103,36 @@ async function main() {
   try {
     const players = await fetchPlayerData();
     let successCount = 0;
+
     for (const player of players) {
       const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
       try {
         console.log(`Processing card ${player.card_id} for ${player.name}...`);
-        await findAndDownloadImage(page, player, imagePath);
-        await updateCardImagePath(client, player.card_id, imagePath);
-        console.log(` -> Successfully processed card ${player.card_id}`);
+        await downloadImageDirectly(page, player, imagePath);
+        // await updateCardImagePath(client, player.card_id, imagePath); // Removed for now
         successCount++;
-        await delay(3000); // Politeness delay
+        await delay(2000); // Politeness delay
       } catch (error) {
         console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
         const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
+        const htmlPath = path.join(__dirname, `error_page_${player.card_id}.html`);
+
         await page.screenshot({ path: screenshotPath, fullPage: true });
+        const htmlContent = await page.content();
+        fs.writeFileSync(htmlPath, htmlContent);
+
         console.error(` -> Screenshot saved to ${screenshotPath}.`);
+        console.error(` -> HTML content saved to ${htmlPath}.`);
         console.error(' -> Stopping script after first error for debugging.');
         throw error; // Re-throw to exit the main try block and close resources
       }
     }
-    console.log(`
-Successfully downloaded and updated ${successCount} of ${players.length} card images.`);
+    console.log(`\nSuccessfully downloaded ${successCount} of ${players.length} card images.`);
   } catch (error) {
-    // This catch block will now catch the re-thrown error from the loop
     console.error('\nAn error occurred, shutting down gracefully.');
   } finally {
     await browser.close();
-    client.release();
+    // client.release(); // Not needed right now
     await pool.end();
   }
 }
