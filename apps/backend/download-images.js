@@ -33,18 +33,22 @@ async function findAndDownloadImage(page, player, filepath) {
 
   // 1. Navigate to search page and perform search
   await page.goto('https://www.tcdb.com/', { waitUntil: 'domcontentloaded' });
+
+  // Speculatively try to click a cookie consent button if it exists
+  try {
+    await page.waitForSelector('button.adthrive-act25-modal-accept', { timeout: 3000 });
+    await page.click('button.adthrive-act25-modal-accept');
+    await delay(1000); // Wait a moment for the banner to disappear
+  } catch (e) {
+    // Ignore if the button doesn't exist or another error occurs
+  }
   
-  await page.waitForSelector('#search-icon-header');
-  await page.click('#search-icon-header');
-  
-  await page.waitForSelector('input[name="Search"]', { visible: true });
-  await page.type('input[name="Search"]', searchName);
+  await page.waitForSelector('input[name="q"]', { visible: true });
+  await page.type('input[name="q"]', searchName);
 
   // Clicks the search button and waits for the navigation to start.
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-    page.click('input[type="submit"][value="Search"]'),
-  ]);
+  await page.click('button[type="submit"]');
+  await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
   // 2. Find the correct card link from the search results
   // Wait for the results table to be visible before scraping it.
