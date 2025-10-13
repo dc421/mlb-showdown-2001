@@ -289,7 +289,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   }
 
   // Scenario 2: Defensive player acted second and is waiting for the 900ms reveal timer.
-  const isDefensivePlayerWaitingForReveal = amIDefensivePlayer.value &&
+  const isDefensivePlayerWaitingForReveal = amIDisplayDefensivePlayer.value &&
                                             gameStore.gameState.defensivePlayerWentSecond &&
                                             !isSwingResultVisible.value;
   if (isDefensivePlayerWaitingForReveal) {
