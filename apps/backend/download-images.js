@@ -117,8 +117,8 @@ async function main() {
     const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
     try {
       console.log(`Processing card ${player.card_id} for ${player.name}...`);
-      await findAndDownloadImage(page, player, imagePath);
-      await updateCardImagePath(client, player.card_id, imagePath);
+      await downloadImageDirectly(page, player, imagePath);
+      // await updateCardImagePath(client, player.card_id, imagePath);
       console.log(` -> Successfully processed card ${player.card_id}`);
       successCount++;
       await delay(3000); // Politeness delay
@@ -148,7 +148,7 @@ async function main() {
 
   // Cleanup
   await browser.close();
-  client.release();
+  // client.release();
   await pool.end();
 }
 
