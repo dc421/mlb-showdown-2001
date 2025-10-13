@@ -64,7 +64,7 @@ async function handleSubstitution(playerIn) {
 const runnerDecisionChoices = ref({});
 
 const isAdvancementOrTagUpDecision = computed(() => {
-    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !haveIRolledForSwing.value) {
+    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !isSwingResultVisible.value) {
         return false;
     }
     const type = gameStore.gameState.currentPlay.type;
@@ -178,7 +178,6 @@ const usedPlayerIds = computed(() => {
     return new Set([...homeUsed, ...awayUsed]);
 });
 
-const haveIRolledForSwing = computed(() => gameStore.haveIRolledForSwing);
 
 
 const scoreChangeMessage = ref('');
@@ -214,7 +213,7 @@ const runScoredOnPlay = computed(() => {
 });
 
 const scoreUpdateVisible = computed(() => {
-  const swingIsVisible = isSwingResultVisible.value || (amIDisplayOffensivePlayer.value && haveIRolledForSwing.value);
+  const swingIsVisible = isSwingResultVisible.value || (amIDisplayOffensivePlayer.value && isSwingResultVisible.value);
   return runScoredOnPlay.value && swingIsVisible;
 });
 
@@ -283,7 +282,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!atBatIsResolved && !gameStore.opponentReadyForNext) return false;
 
   // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
-  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value;
+  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !isSwingResultVisible.value;
   if (isOffensivePlayerWaitingToRoll) {
     return true;
   }
@@ -335,13 +334,13 @@ const showNextHitterButton = computed(() => {
     return false;
   }
 
-  if (!haveIRolledForSwing.value && amIDisplayOffensivePlayer.value) {
+  if (!isSwingResultVisible.value && amIDisplayOffensivePlayer.value) {
     return false;
   }
 
   // Case 1: Inning is over. Both players see the button.
   if (gameStore.isBetweenHalfInnings) {
-    if (amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value) {
+    if (amIDisplayOffensivePlayer.value && !isSwingResultVisible.value) {
     return false;
   } else{
   return true;
@@ -355,7 +354,7 @@ const showNextHitterButton = computed(() => {
 });
 
 const showRollForSwingButton = computed(() => {
-    if (!amIDisplayOffensivePlayer.value || haveIRolledForSwing.value) {
+    if (!amIDisplayOffensivePlayer.value || isSwingResultVisible.value) {
         return false;
     }
     // Show the button only when the at-bat is freshly resolved,
@@ -384,7 +383,7 @@ watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
 });
 
 const showThrowRollResult = computed(() => {
-  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !haveIRolledForSwing.value);
+  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
 });
 
 const defensiveRatingsToDisplay = computed(() => {
@@ -472,7 +471,7 @@ const batterTeamColors = computed(() => isDisplayTopInning.value ? awayTeamColor
 const pitcherResultTextColor = computed(() => getContrastingTextColor(pitcherTeamColors.value.primary));
 const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamColors.value.primary));
 
-const isSwingResultVisible = ref(false);
+const isSwingResultVisible = computed(() => gameStore.isSwingResultVisible);
 
 const atBatToDisplay = computed(() => {
     if (!gameStore.gameState) {
@@ -501,18 +500,18 @@ watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
     if (amIDisplayDefensivePlayer.value) {
       if (hasSeenResult.value) {
-        isSwingResultVisible.value = true;
+        gameStore.setIsSwingResultVisible(true);
         return;
       }
       const defensivePlayerSecond = gameStore.gameState.defensivePlayerWentSecond;
       if (defensivePlayerSecond) {
         setTimeout(() => {
-          isSwingResultVisible.value = true;
+          gameStore.setIsSwingResultVisible(true);
           hasSeenResult.value = true;
           localStorage.setItem(seenResultStorageKey, 'true');
         }, 900);
       } else {
-        isSwingResultVisible.value = true;
+        gameStore.setIsSwingResultVisible(true);
         hasSeenResult.value = true;
         localStorage.setItem(seenResultStorageKey, 'true');
       }
@@ -522,7 +521,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
 
 watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
     if (newAction === 'intentional_walk' && amIOffensivePlayer.value) {
-        gameStore.setHaveIRolledForSwing(true);
+        gameStore.setIsSwingResultVisible(true);
     }
 });
 
@@ -575,7 +574,7 @@ const pitcherToDisplay = computed(() => {
 // in GameView.vue
 const showResolvedState = computed(() => {
   const atBatIsResolved = gameStore.gameState.currentAtBat?.batterAction && gameStore.gameState.currentAtBat?.pitcherAction
-  const waitingToSwing = amIOffensivePlayer.value && !haveIRolledForSwing.value;
+  const waitingToSwing = amIOffensivePlayer.value && !isSwingResultVisible.value;
   return atBatIsResolved && !waitingToSwing;
 });
 
@@ -654,18 +653,18 @@ function handlePitch(action = null) {
 function handleOffensiveAction(action) {
   console.log('1. GameView: handleOffensiveAction was called with action:', action);
   if (action === 'bunt') {
-    gameStore.setHaveIRolledForSwing(true);
+    gameStore.setIsSwingResultVisible(true);
   }
   gameStore.submitAction(gameId, action);
 }
 
 function handleSwing(action = null) {
-  gameStore.setHaveIRolledForSwing(true); // Set the flag immediately
+  gameStore.setIsSwingResultVisible(true); // Set the flag immediately
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
   // Reset the result visibility for the current player.
-  isSwingResultVisible.value = false;
+  gameStore.setIsSwingResultVisible(false);
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
   scoreUpdateVisible.value = false;
@@ -673,7 +672,7 @@ function handleNextHitter() {
   if (!gameStore.opponentReadyForNext) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
-  gameStore.setHaveIRolledForSwing(false);
+  gameStore.setIsSwingResultVisible(false);
   gameStore.nextHitter(gameId);
 }
 
@@ -845,11 +844,11 @@ const swingResultClasses = computed(() => {
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
 
-  // Initialize haveIRolledForSwing from localStorage on component mount
-  const rollStorageKey = `showdown-game-${gameId}-swing-rolled`;
-  const storedRoll = JSON.parse(localStorage.getItem(rollStorageKey)) || false;
-  if (storedRoll) {
-      gameStore.setHaveIRolledForSwing(true);
+  // Initialize isSwingResultVisible from localStorage on component mount
+  const storedResultSeen = JSON.parse(localStorage.getItem(seenResultStorageKey)) || false;
+  if (storedResultSeen) {
+      gameStore.setIsSwingResultVisible(true);
+      hasSeenResult.value = true;
   }
 
   initialLoadComplete.value = true;
@@ -857,9 +856,9 @@ onMounted(async () => {
   // NEW: Check if we are returning to a completed at-bat
   const atBat = atBatToDisplay.value;
   if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
-    const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !haveIRolledForSwing.value;
+    const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !isSwingResultVisible.value;
     if (!isOffensiveAndHasNotRolled) {
-      isSwingResultVisible.value = true;
+      gameStore.setIsSwingResultVisible(true);
       hasSeenResult.value = true;
       localStorage.setItem(seenResultStorageKey, 'true');
     }
@@ -934,7 +933,7 @@ onUnmounted(() => {
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIDisplayOffensivePlayer && haveIRolledForSwing))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
+          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIDisplayOffensivePlayer && isSwingResultVisible))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
