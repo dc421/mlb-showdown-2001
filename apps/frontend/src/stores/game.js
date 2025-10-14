@@ -500,35 +500,33 @@ async function resetRolls(gameId) {
       };
     }
 
-    // `isOutcomeHidden` is the single source of truth, controlled by the view.
-    // If it's true, we must show the state of the game *before* the current play's outcome was known.
+    // `isOutcomeHidden` is the single source of truth. If it's true, we MUST show the "before" state.
     if (isOutcomeHidden.value) {
-
-      // The `currentAtBat` object always holds the "before" state of the play in progress.
-      // This is the correct source to roll back to, even for a third-out play.
       const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
-
       if (rollbackSource && rollbackSource.basesBeforePlay) {
         return {
           ...gameState.value,
           bases: rollbackSource.basesBeforePlay,
-          // We use displayOuts here as well to ensure the "3 outs" logic is respected
-          // even when we're looking at a rolled-back state.
-          outs: displayOuts.value,
+          outs: displayOuts.value, // This correctly shows the "before" outs
           homeScore: rollbackSource.homeScoreBeforePlay,
           awayScore: rollbackSource.awayScoreBeforePlay,
-          // When rolling back a third out, we must also reset the between-innings flags
-          // to prevent the UI from changing (e.g., linescore color) before the outcome is shown.
           isBetweenHalfInningsAway: false,
           isBetweenHalfInningsHome: false,
         };
       }
     }
 
-    // In all other cases, return the current, authoritative state from the server.
+    // When the outcome is revealed but we are still showing 3 outs, we need to
+    // override the current (empty) bases with the bases from before the play.
+    const bases = displayOuts.value === 3
+      ? (opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay)
+      : gameState.value.bases;
+
+    // In all other cases, return the current, authoritative state from the server, but with our overrides.
     return {
       ...gameState.value,
       outs: displayOuts.value,
+      bases: bases,
     };
   });
 
