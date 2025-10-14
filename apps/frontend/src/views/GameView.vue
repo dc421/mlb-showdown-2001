@@ -192,10 +192,10 @@ watch([() => gameStore.gameState?.awayScore, () => gameStore.gameState?.homeScor
     let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
 
     if (newAwayScore > oldAwayScore) {
-      awayScoreDisplay = `${awayTeamName} <span style="color: #dc3545;">${newAwayScore}</span>`;
+      awayScoreDisplay = `${awayTeamName} <span style="color: #ffc107;">${newAwayScore}</span>`;
     }
     if (newHomeScore > oldHomeScore) {
-      homeScoreDisplay = `${homeTeamName} <span style="color: #dc3545;">${newHomeScore}</span>`;
+      homeScoreDisplay = `${homeTeamName} <span style="color: #ffc107;">${newHomeScore}</span>`;
     }
     
     scoreChangeMessage.value = `${awayScoreDisplay}, ${homeScoreDisplay}`;
@@ -1572,7 +1572,7 @@ onUnmounted(() => {
   bottom: 375px; /* Position it below the container */
   left: 0;
   right: 0;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: bold;
   color: black;
   text-align: center;

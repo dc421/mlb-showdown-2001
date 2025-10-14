@@ -2,7 +2,9 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 
 // --- Database Connection ---
 const pool = new Pool({
@@ -24,7 +26,7 @@ const SET_INFO = {
 async function fetchPlayerData() {
   const client = await pool.connect();
   try {
-    const res = await client.query('SELECT card_id, name, set_name, card_number FROM cards_player');
+    const res = await client.query('SELECT card_id, name, set_name, card_number FROM cards_player ORDER BY card_id ASC');
     console.log(`Found ${res.rows.length} players. Starting download process...`);
     return res.rows;
   } finally {
@@ -48,37 +50,36 @@ async function downloadImageDirectly(page, player, filepath) {
   const imageId = setInfo.offset + player.card_number;
   const cid = '27' + imageId;
 
+  // We only target the '/Large/' URL now
   const imageUrl = `https://www.tcdb.com/Images/Large/Baseball/${setInfo.setId}/${setInfo.setId}-${cid}Fr.jpg`;
-  console.log(` -> Navigating directly to image: ${imageUrl}`);
 
   try {
-    const response = await page.goto(imageUrl, { waitUntil: 'domcontentloaded' });
+    console.log(` -> Attempting to navigate to: ${imageUrl}`);
+    await page.goto(imageUrl, { waitUntil: 'domcontentloaded' });
+    let finalResponse;
 
-    // Check if the response is successful and the content type is an image
-    if (response.ok() && response.headers()['content-type'].startsWith('image/')) {
-      const buffer = await response.buffer();
+    // Look for and solve the Cloudflare challenge
+    try {
+      const iframe = await page.waitForSelector('iframe[src*="challenges.cloudflare.com"]', { timeout: 5000 });
+      const frame = await iframe.contentFrame();
+      const checkbox = await frame.waitForSelector('input[type="checkbox"]', { timeout: 5000 });
+      await checkbox.click();
+      finalResponse = await page.waitForNavigation({ waitUntil: 'networkidle0' });
+    } catch (e) {
+      finalResponse = await page.goto(imageUrl, { waitUntil: 'networkidle0' });
+    }
+    
+    // Check if the final page is an image
+    if (finalResponse.ok() && finalResponse.headers()['content-type'].startsWith('image/')) {
+      const buffer = await finalResponse.buffer();
       fs.writeFileSync(filepath, buffer);
-      console.log(` -> Image saved to ${filepath}`);
+      console.log(` -> Image successfully saved from ${imageUrl}`);
     } else {
-      // If we didn't get an image, it's likely the Cloudflare challenge page.
-      // We wait for a bit to let the page execute JavaScript.
-      console.log(' -> Potentially a challenge page, waiting for navigation...');
-      await page.waitForTimeout(8000); // Wait for 8 seconds for JS challenge
-
-      // After waiting, we can try to get the image content again.
-      // This time, we assume the browser has solved the challenge and the image is what's displayed.
-      const imageBuffer = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
-
-      // A simple check to see if we got a real image or a webpage screenshot
-      if (imageBuffer.length < 20000) { // Challenge page screenshots are usually small
-        throw new Error('Failed to bypass challenge page. The downloaded content is not a valid image.');
-      }
-
-      fs.writeFileSync(filepath, imageBuffer);
-      console.log(` -> Image saved via screenshot to ${filepath}`);
+      throw new Error(`Content was not an image. Content-Type: ${finalResponse.headers()['content-type']}`);
     }
   } catch (error) {
-    throw new Error(`Failed to download image from ${imageUrl}. Original error: ${error.message}`);
+    // If anything fails, throw an error up to the main loop to be logged
+    throw new Error(`Navigation or download failed. Original error: ${error.message}`);
   }
 }
 
@@ -97,10 +98,8 @@ async function main() {
   }
 
   const client = await pool.connect();
-  const browser = await puppeteer.launch({ headless: true });
-  const page = await browser.newPage();
-  await page.setDefaultNavigationTimeout(60000);
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+  // We launch the browser just once, outside the loop
+  const browser = await puppeteer.launch({ headless: false });
 
   let players;
   try {
@@ -114,38 +113,47 @@ async function main() {
   }
 
   let successCount = 0;
+  let failureCount = 0;
   for (const player of players) {
-    const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
+    let page; // Define page here to access it in the 'finally' block
     try {
+      // --- KEY CHANGE: A new page is created for every single player ---
+      page = await browser.newPage();
+      
+      // --- KEY CHANGE: Page settings are applied to each new page ---
+      await page.setViewport({ width: 1280, height: 800 });
+      await page.setDefaultNavigationTimeout(60000);
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+
       console.log(`Processing card ${player.card_id} for ${player.name}...`);
+      const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
+      
+      // We pass the new, clean page into the function
       await downloadImageDirectly(page, player, imagePath);
+      
       await updateCardImagePath(client, player.card_id, imagePath);
       console.log(` -> Successfully processed card ${player.card_id}`);
       successCount++;
-      const randomDelay = Math.floor(Math.random() * 2000) + 1000; // 1-3 seconds
-      await delay(randomDelay);
     } catch (error) {
       console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
-      
-      const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      console.error(` -> Screenshot saved to ${screenshotPath}.`);
-
-      const htmlPath = path.join(__dirname, `error_page_${player.card_id}.html`);
-      const htmlContent = await page.content();
-      fs.writeFileSync(htmlPath, htmlContent);
-      console.error(` -> HTML content saved to ${htmlPath}.`);
-
-      console.error(' -> Stopping script after first error for debugging.');
-      break;
+      failureCount++;
+      if (page && !page.isClosed()) {
+        const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+      }
+    } finally {
+      // --- KEY CHANGE: We always close the tab after we're done with it ---
+      if (page && !page.isClosed()) {
+        await page.close();
+      }
+      const randomDelay = Math.floor(Math.random() * 5000) + 3000;
+      console.log(`   ...waiting for ${Math.round(randomDelay / 1000)} seconds...`);
+      await delay(randomDelay);
     }
   }
   
-  if (successCount > 0 && successCount === players.length) {
-      console.log(`\nSuccessfully downloaded ${successCount} of ${players.length} card images.`);
-  } else if (successCount > 0) {
-      console.log(`\nScript finished. Processed ${successCount} players before stopping with an error.`);
-  }
+  // Your summary log can be improved to show failures
+  console.log(`\nScript finished. \nSuccessfully downloaded: ${successCount} \nFailed: ${failureCount}`);
 
   await browser.close();
   await pool.end();
