@@ -34,7 +34,7 @@ async function fetchPlayerData() {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function downloadImageWithFormula(page, player, filepath) {
+async function downloadImageDirectly(page, player, filepath) {
   if (fs.existsSync(filepath)) {
     console.log(` -> Image for card ${player.card_id} (${player.name}) already exists. Skipping.`);
     return;
@@ -48,20 +48,35 @@ async function downloadImageWithFormula(page, player, filepath) {
   const imageId = setInfo.offset + player.card_number;
   const cid = '27' + imageId;
 
-  // Construct the direct image URL
   const imageUrl = `https://www.tcdb.com/Images/Large/Baseball/${setInfo.setId}/${setInfo.setId}-${cid}Fr.jpg`;
   console.log(` -> Navigating directly to image: ${imageUrl}`);
 
   try {
-    const viewSource = await page.goto(imageUrl, { waitUntil: 'networkidle0' });
-    const buffer = await viewSource.buffer();
+    const response = await page.goto(imageUrl, { waitUntil: 'domcontentloaded' });
 
-    if (buffer.length < 1000) {
-      throw new Error('Downloaded file is too small to be a valid image. It might be an error page.');
+    // Check if the response is successful and the content type is an image
+    if (response.ok() && response.headers()['content-type'].startsWith('image/')) {
+      const buffer = await response.buffer();
+      fs.writeFileSync(filepath, buffer);
+      console.log(` -> Image saved to ${filepath}`);
+    } else {
+      // If we didn't get an image, it's likely the Cloudflare challenge page.
+      // We wait for a bit to let the page execute JavaScript.
+      console.log(' -> Potentially a challenge page, waiting for navigation...');
+      await page.waitForTimeout(8000); // Wait for 8 seconds for JS challenge
+
+      // After waiting, we can try to get the image content again.
+      // This time, we assume the browser has solved the challenge and the image is what's displayed.
+      const imageBuffer = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
+
+      // A simple check to see if we got a real image or a webpage screenshot
+      if (imageBuffer.length < 20000) { // Challenge page screenshots are usually small
+        throw new Error('Failed to bypass challenge page. The downloaded content is not a valid image.');
+      }
+
+      fs.writeFileSync(filepath, imageBuffer);
+      console.log(` -> Image saved via screenshot to ${filepath}`);
     }
-
-    fs.writeFileSync(filepath, buffer);
-    console.log(` -> Image saved to ${filepath}`);
   } catch (error) {
     throw new Error(`Failed to download image from ${imageUrl}. Original error: ${error.message}`);
   }
@@ -103,11 +118,12 @@ async function main() {
     const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
     try {
       console.log(`Processing card ${player.card_id} for ${player.name}...`);
-      await downloadImageWithFormula(page, player, imagePath);
+      await downloadImageDirectly(page, player, imagePath);
       await updateCardImagePath(client, player.card_id, imagePath);
       console.log(` -> Successfully processed card ${player.card_id}`);
       successCount++;
-      await delay(1500); // Politeness delay
+      const randomDelay = Math.floor(Math.random() * 2000) + 1000; // 1-3 seconds
+      await delay(randomDelay);
     } catch (error) {
       console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
       
