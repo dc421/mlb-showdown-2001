@@ -15,7 +15,9 @@ const pool = new Pool({
 
 // --- Set ID Mapping ---
 const SET_IDS = {
+  'Base': '8115',
   '2001 MLB Showdown': '8115',
+  'PR': '8117',
   '2001 MLB Showdown Pennant Run': '8117',
 };
 
