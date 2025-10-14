@@ -13,19 +13,18 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
-// --- Set ID Mapping ---
-const SET_IDS = {
-  'Base': '8115',
-  '2001 MLB Showdown': '8115',
-  'PR': '8117',
-  '2001 MLB Showdown Pennant Run': '8117',
+// --- Set ID and Offset Mapping ---
+const SET_INFO = {
+  'Base': { setId: '8115', offset: 5859 },
+  '2001 MLB Showdown': { setId: '8115', offset: 5859 },
+  'PR': { setId: '8117', offset: 6371 },
+  '2001 MLB Showdown Pennant Run': { setId: '8117', offset: 6371 },
 };
 
 async function fetchPlayerData() {
   const client = await pool.connect();
   try {
-    // Fetch card_id, name, and set_name to construct the URL
-    const res = await client.query('SELECT card_id, name, set_name FROM cards_player');
+    const res = await client.query('SELECT card_id, name, set_name, card_number FROM cards_player');
     console.log(`Found ${res.rows.length} players. Starting download process...`);
     return res.rows;
   } finally {
@@ -35,58 +34,46 @@ async function fetchPlayerData() {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function downloadImageDirectly(page, player, filepath) {
-  // Check if image already exists
+async function downloadImageWithFormula(page, player, filepath) {
   if (fs.existsSync(filepath)) {
     console.log(` -> Image for card ${player.card_id} (${player.name}) already exists. Skipping.`);
     return;
   }
 
-  const setId = SET_IDS[player.set_name];
-  if (!setId) {
-    throw new Error(`No Set ID found for set: "${player.set_name}"`);
+  const setInfo = SET_INFO[player.set_name];
+  if (!setInfo) {
+    throw new Error(`No Set Info found for set: "${player.set_name}"`);
   }
 
-  const cardPageUrl = `https://www.tcdb.com/ViewCard.cfm/sid/${setId}/cid/${player.card_id}`;
+  const imageId = setInfo.offset + player.card_number;
+  const cid = '27' + imageId;
 
-  console.log(` -> Navigating to ${cardPageUrl}`);
-  await page.goto(cardPageUrl, { waitUntil: 'domcontentloaded' });
+  // Construct the direct image URL
+  const imageUrl = `https://www.tcdb.com/Images/Large/Baseball/${setInfo.setId}/${setInfo.setId}-${cid}Fr.jpg`;
+  console.log(` -> Navigating directly to image: ${imageUrl}`);
 
-  // Handle potential CAPTCHA or other blocks
-  const pageTitle = await page.title();
-  if (pageTitle.includes('Pardon Our Interruption')) {
-      throw new Error('CAPTCHA or block detected.');
+  try {
+    const viewSource = await page.goto(imageUrl, { waitUntil: 'networkidle0' });
+    const buffer = await viewSource.buffer();
+
+    if (buffer.length < 1000) {
+      throw new Error('Downloaded file is too small to be a valid image. It might be an error page.');
+    }
+
+    fs.writeFileSync(filepath, buffer);
+    console.log(` -> Image saved to ${filepath}`);
+  } catch (error) {
+    throw new Error(`Failed to download image from ${imageUrl}. Original error: ${error.message}`);
   }
-
-  // Extract the image source and download
-  await page.waitForSelector('#card_img_front', { timeout: 15000 });
-  const imageSrc = await page.evaluate(() => {
-    const img = document.querySelector('#card_img_front');
-    return img ? img.src : null;
-  });
-
-  if (!imageSrc) {
-    throw new Error(`Could not find image on card page: ${cardPageUrl}`);
-  }
-
-  console.log(` -> Found image source: ${imageSrc}`);
-
-  // Navigate to the image source and download the buffer
-  const viewSource = await page.goto(imageSrc, { waitUntil: 'networkidle0' });
-  const buffer = await viewSource.buffer();
-
-  fs.writeFileSync(filepath, buffer);
-  console.log(` -> Image saved to ${filepath}`);
 }
 
-// Temporarily removed until download is confirmed working
-// async function updateCardImagePath(client, cardId, imagePath) {
-//   const relativePath = `/card_images/${path.basename(imagePath)}`;
-//   await client.query(
-//     'UPDATE cards_player SET image_url = $1 WHERE card_id = $2',
-//     [relativePath, cardId]
-//   );
-// }
+async function updateCardImagePath(client, cardId, imagePath) {
+  const relativePath = `/card_images/${path.basename(imagePath)}`;
+  await client.query(
+    'UPDATE cards_player SET image_url = $1 WHERE card_id = $2',
+    [relativePath, cardId]
+  );
+}
 
 async function main() {
   const imagesDir = path.join(__dirname, 'card_images');
@@ -94,9 +81,7 @@ async function main() {
     fs.mkdirSync(imagesDir);
   }
 
-  // No database updates for now, so we don't need a client yet.
-  // const client = await pool.connect();
-
+  const client = await pool.connect();
   const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
   await page.setDefaultNavigationTimeout(60000);
@@ -108,24 +93,22 @@ async function main() {
   } catch (dbError) {
     console.error("Failed to fetch player data:", dbError);
     await browser.close();
-    // client.release(); // Not needed right now
+    client.release();
     await pool.end();
     return;
   }
 
   let successCount = 0;
-  // We will loop through players but stop after the first error for debugging.
   for (const player of players) {
     const imagePath = path.join(imagesDir, `${player.card_id}.jpg`);
     try {
       console.log(`Processing card ${player.card_id} for ${player.name}...`);
-      await downloadImageDirectly(page, player, imagePath);
-      // await updateCardImagePath(client, player.card_id, imagePath);
+      await downloadImageWithFormula(page, player, imagePath);
+      await updateCardImagePath(client, player.card_id, imagePath);
       console.log(` -> Successfully processed card ${player.card_id}`);
       successCount++;
-      await delay(3000); // Politeness delay
+      await delay(1500); // Politeness delay
     } catch (error) {
-      // This is the correct place for the error handling logic
       console.error(` -> Failed to process card ${player.card_id} (${player.name}): ${error.message}`);
       
       const screenshotPath = path.join(__dirname, `error_screenshot_${player.card_id}.png`);
@@ -138,19 +121,17 @@ async function main() {
       console.error(` -> HTML content saved to ${htmlPath}.`);
 
       console.error(' -> Stopping script after first error for debugging.');
-      break; // Exit the loop to stop the script
+      break;
     }
   }
   
   if (successCount > 0 && successCount === players.length) {
-      console.log(`\nSuccessfully downloaded and updated ${successCount} of ${players.length} card images.`);
+      console.log(`\nSuccessfully downloaded ${successCount} of ${players.length} card images.`);
   } else if (successCount > 0) {
       console.log(`\nScript finished. Processed ${successCount} players before stopping with an error.`);
   }
 
-  // Cleanup
   await browser.close();
-  // client.release();
   await pool.end();
 }
 
