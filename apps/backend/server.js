@@ -104,20 +104,11 @@ async function getActivePlayers(gameId, currentState) {
 
         // --- THIS IS THE FIX ---
         // The pitcher should be the one currently in the game state, not always the starter.
-        const pitcherInfo = defensiveParticipant.lineup.startingPitcher;
-        let pitcher;
-        if (pitcherInfo.card_id === -2) {
-            pitcher = REPLACEMENT_PITCHER_CARD;
-        } else {
-            const pitcherQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherInfo.card_id]);
-            pitcher = pitcherQuery.rows[0];
-        }
-        
-        const finalPitcher = (pitcher && pitcher.control !== null) ? pitcher : null;
+        const pitcher = currentState.isTopInning ? currentState.currentHomePitcher : currentState.currentAwayPitcher;
 
         return {
             batter: batter,
-            pitcher: finalPitcher,
+            pitcher: pitcher,
             offensiveTeam: offensiveParticipant,
             defensiveTeam: defensiveParticipant,
         };
@@ -616,6 +607,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         pitcherStats: await initializePitcherFatigue(gameId, client),
         awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        currentAwayPitcher: batterResult.rows[0],
+        currentHomePitcher: pitcherResult.rows[0],
         awayPlayerReadyForNext: false,
         homePlayerReadyForNext: false,
         isBetweenHalfInningsAway: false,
@@ -762,6 +755,11 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
             newState.awaitingPitcherSelection = false;
             newState.currentAtBat.pitcher = playerInCard;
             wasReliefPitcher = true;
+            if (teamKey === 'homeTeam') {
+                newState.currentHomePitcher = playerInCard;
+            } else {
+                newState.currentAwayPitcher = playerInCard;
+            }
         } else {
             newState.awaitingPitcherSelection = true;
         }
@@ -779,6 +777,11 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
         wasReliefPitcher = true;
         newState.currentAtBat.pitcher = playerInCard;
+        if (teamKey === 'homeTeam') {
+            newState.currentHomePitcher = playerInCard;
+        } else {
+            newState.currentAwayPitcher = playerInCard;
+        }
     }
 
     // 3. Update the persistent lineup in game_participants
