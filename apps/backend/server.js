@@ -104,7 +104,7 @@ async function getActivePlayers(gameId, currentState) {
 
         // --- THIS IS THE FIX ---
         // The pitcher should be the one currently in the game state, not always the starter.
-        const pitcherInfo = currentState.currentAtBat.pitcher;
+        const pitcherInfo = defensiveParticipant.lineup.startingPitcher;
         let pitcher;
         if (pitcherInfo.card_id === -2) {
             pitcher = REPLACEMENT_PITCHER_CARD;
