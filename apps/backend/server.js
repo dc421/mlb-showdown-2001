@@ -102,8 +102,10 @@ async function getActivePlayers(gameId, currentState) {
             batter = batterQuery.rows[0];
         }
 
-        // --- THIS IS THE FIX ---
-        // The pitcher should be the one currently in the game state, not always the starter.
+        // This function relies on the `currentHomePitcher` and `currentAwayPitcher` fields
+        // in the game state being correctly initialized at the start of the game and
+        // updated during substitutions. The bug where the away pitcher was incorrect
+        // was caused by faulty initialization logic in the `/lineup` endpoint.
         const pitcher = currentState.isTopInning ? currentState.currentHomePitcher : currentState.currentAwayPitcher;
 
         return {
@@ -593,13 +595,16 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       );
 
       const firstBatterCardId = awayParticipant.lineup.battingOrder[0].card_id;
-      const firstPitcherCardId = homeParticipant.lineup.startingPitcher;
+      const homeStartingPitcherId = homeParticipant.lineup.startingPitcher;
+      const awayStartingPitcherId = awayParticipant.lineup.startingPitcher;
 
       const batterResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [firstBatterCardId]);
-      const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [firstPitcherCardId]);
+      const homePitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [homeStartingPitcherId]);
+      const awayPitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [awayStartingPitcherId]);
       
       const batter = batterResult.rows[0];
-      const pitcher = pitcherResult.rows[0];
+      const homePitcher = homePitcherResult.rows[0];
+      const awayPitcher = awayPitcherResult.rows[0];
 
       const initialGameState = {
         inning: 1, isTopInning: true, awayScore: 0, homeScore: 0, outs: 0,
@@ -607,8 +612,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         pitcherStats: await initializePitcherFatigue(gameId, client),
         awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
-        currentAwayPitcher: batterResult.rows[0],
-        currentHomePitcher: pitcherResult.rows[0],
+        currentAwayPitcher: awayPitcher,
+        currentHomePitcher: homePitcher,
         awayPlayerReadyForNext: false,
         homePlayerReadyForNext: false,
         isBetweenHalfInningsAway: false,
@@ -616,7 +621,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         lastCompletedAtBat: null,
         currentAtBat: {
             batter: batter,
-            pitcher: pitcher,
+            pitcher: homePitcher,
             pitcherAction: null,
             batterAction: null,
             pitchRollResult: null,
@@ -628,7 +633,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
 
       await client.query(`INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)`, [gameId, 1, initialGameState, false, false]);
       
-      processPlayers([pitcher]);
+      processPlayers([homePitcher]);
 
       const awayTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [awayParticipant.user_id]);
       const homeTeam = await client.query('SELECT * FROM teams WHERE user_id = $1', [homeParticipant.user_id]);
@@ -640,7 +645,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
             <img src="${awayTeamLogo}" class="team-logo-small" alt="Team Logo">
             <b>Top 1st</b>
         </div>
-        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${pitcher.displayName}</div>
+        <div class="pitcher-announcement">${homeTeamAbbr} Pitcher: ${homePitcher.displayName}</div>
       `;
       // --- ADD THIS LOG ---
     console.log(`🔫 SERVER: Creating initial event for game ${gameId}:`, inningChangeEvent);
