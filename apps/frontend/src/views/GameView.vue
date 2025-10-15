@@ -180,26 +180,37 @@ const usedPlayerIds = computed(() => {
 
 
 
-const scoreChangeMessage = ref('');
+const scoreChangeMessage = computed(() => {
+    // Rely on displayGameState for current scores, as it handles rollbacks.
+    const newAwayScore = gameStore.displayGameState?.awayScore;
+    const newHomeScore = gameStore.displayGameState?.homeScore;
 
-// in GameView.vue
-watch([() => gameStore.gameState?.awayScore, () => gameStore.gameState?.homeScore], ([newAwayScore, newHomeScore], [oldAwayScore, oldHomeScore]) => {
-  if (newAwayScore !== oldAwayScore || newHomeScore !== oldHomeScore) {
+    // The "before" scores come from the last *completed* at-bat.
+    // This is the key change: this data persists on refresh.
+    const oldAwayScore = gameStore.gameState?.lastCompletedAtBat?.awayScoreBeforePlay;
+    const oldHomeScore = gameStore.gameState?.lastCompletedAtBat?.homeScoreBeforePlay;
+
+    // Fallback if scores are not available yet.
+    if (newAwayScore === undefined || newHomeScore === undefined) {
+        return '';
+    }
+
     const awayTeamName = gameStore.teams?.away?.city.toUpperCase() || 'AWAY';
     const homeTeamName = gameStore.teams?.home?.city.toUpperCase() || 'HOME';
 
     let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
     let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
 
-    if (newAwayScore > oldAwayScore) {
+    // Compare new scores to the scores *before the last play*.
+    // The `oldAwayScore !== undefined` check handles the very first at-bat of the game.
+    if (oldAwayScore !== undefined && newAwayScore > oldAwayScore) {
       awayScoreDisplay = `${awayTeamName} <span style="color: #ffc107;">${newAwayScore}</span>`;
     }
-    if (newHomeScore > oldHomeScore) {
+    if (oldHomeScore !== undefined && newHomeScore > oldHomeScore) {
       homeScoreDisplay = `${homeTeamName} <span style="color: #ffc107;">${newHomeScore}</span>`;
     }
     
-    scoreChangeMessage.value = `${awayScoreDisplay}, ${homeScoreDisplay}`;
-  }
+    return `${awayScoreDisplay}, ${homeScoreDisplay}`;
 });
 
 const runScoredOnPlay = computed(() => {
@@ -667,7 +678,6 @@ function handleNextHitter() {
   gameStore.setIsSwingResultVisible(false);
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
-  scoreUpdateVisible.value = false;
 
   if (!gameStore.opponentReadyForNext) {
     anticipatedBatter.value = nextBatterInLineup.value;
