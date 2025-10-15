@@ -1380,6 +1380,11 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       processPlayers([batter, pitcher]);
       const infieldDefense = await getInfieldDefense(defensiveTeam);
 
+      // --- THIS IS THE FIX ---
+      // Add the scores before the outcome is applied.
+      finalState.currentAtBat.homeScoreBeforePlay = finalState.homeScore;
+      finalState.currentAtBat.awayScoreBeforePlay = finalState.awayScore;
+
       let outcome = 'OUT';
       let swingRoll = 0;
       const advantage = finalState.currentAtBat.pitchRollResult.advantage;
@@ -1533,6 +1538,12 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             // Batter was waiting, so resolve the whole at-bat now.
             const { defensiveTeam } = await getActivePlayers(gameId, finalState);
             const infieldDefense = await getInfieldDefense(defensiveTeam);
+
+            // --- THIS IS THE FIX ---
+            // Add the scores before the outcome is applied.
+            finalState.currentAtBat.homeScoreBeforePlay = finalState.homeScore;
+            finalState.currentAtBat.awayScoreBeforePlay = finalState.awayScore;
+
             const originalOuts = finalState.outs;
             const originalScore = finalState.awayScore + finalState.homeScore;
             let outcome = 'OUT';
