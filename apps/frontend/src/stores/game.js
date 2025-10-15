@@ -377,6 +377,14 @@ async function resetRolls(gameId) {
       if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
+
+      // NEW LOGIC: Check if the last event is a substitution. If so, hide it AND the play outcome.
+      const lastEvent = gameEvents.value[gameEvents.value.length - 1];
+      if (lastEvent && lastEvent.event_type === 'substitution') {
+        // This handles the case where a pinch hitter comes in, we need to hide their announcement AND the outcome.
+        return gameEvents.value.slice(0, gameEvents.value.length - 2);
+      }
+
       // Otherwise, it's a normal mid-inning play; just hide the last event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
