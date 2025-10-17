@@ -1387,13 +1387,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
       let outcome = 'OUT';
       let swingRoll = 0;
-      let advantage;
-        // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
-        if (batter.control !== null) {
-            advantage = 'pitcher';
-        } else {
-            advantage = (pitchRoll + effectiveControl) > batter.on_base ? 'pitcher' : 'batter';
-        }
+      const { advantage } = finalState.currentAtBat.pitchRollResult;
 
       if (action === 'bunt') {
           outcome = 'BUNT';
@@ -1534,7 +1528,10 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
     } else {
         const pitchRoll = Math.floor(Math.random() * 20) + 1;
-        const advantage = (pitchRoll + effectiveControl) > batter.on_base ? 'pitcher' : 'batter';
+        // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
+        const advantage = batter.control !== null
+            ? 'pitcher'
+            : (pitchRoll + effectiveControl) > batter.on_base ? 'pitcher' : 'batter';
         
         finalState.currentAtBat.pitcherAction = 'pitch';
         finalState.currentAtBat.pitchRollResult = { roll: pitchRoll, advantage, penalty: controlPenalty };
