@@ -1382,7 +1382,13 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
       let outcome = 'OUT';
       let swingRoll = 0;
-      const advantage = finalState.currentAtBat.pitchRollResult.advantage;
+      let advantage;
+        // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
+        if (batter.control !== null) {
+            advantage = 'pitcher';
+        } else {
+            advantage = (pitchRoll + effectiveControl) > batter.on_base ? 'pitcher' : 'batter';
+        }
 
       if (action === 'bunt') {
           outcome = 'BUNT';

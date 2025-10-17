@@ -27,11 +27,9 @@
     "jsonwebtoken": "^9.0.2",
     "node-pg-migrate": "^7.5.2",
     "pg": "^8.16.3",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
-    "puppeteer": "^22.12.1"
+    "puppeteer": "^22.15.0"
   }
 }

@@ -41,6 +41,7 @@ const targetInfo = computed(() => {
 
 <style scoped>
 .throw-roll-result {
+  opacity: 0.95;
   position: absolute;
   bottom: 40px;
   left: 70%;
