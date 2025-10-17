@@ -78,4 +78,63 @@ test.describe('Linescore component', () => {
     // Before the fix, this cell would be empty. After the fix, it should contain '0'.
     await expect(firstInningScoreCell).toHaveText('0');
   });
+
+  test('should keep inning highlighted when outcome is hidden and opponent is ready', async ({ page, context }) => {
+    await context.addInitScript(() => {
+      localStorage.setItem('token', 'test-token');
+      localStorage.setItem('user', JSON.stringify({ userId: 1, username: 'test-user' }));
+    });
+
+    const mockGameData = {
+      game: { id: 1, home_team_user_id: 2, away_team_user_id: 1 },
+      series: { series_type: 'exhibition' },
+      gameState: {
+        state_data: {
+          inning: 1,
+          isTopInning: true,
+          outs: 3,
+          homeScore: 0,
+          awayScore: 0,
+          bases: {},
+          isBetweenHalfInningsAway: true,
+          isBetweenHalfInningsHome: false,
+          homeTeam: { userId: 2, battingOrderPosition: 1, used_player_ids: [] },
+          awayTeam: { userId: 1, battingOrderPosition: 1, used_player_ids: [] },
+          currentAtBat: { homeScoreBeforePlay: 0, awayScoreBeforePlay: 0 },
+        }
+      },
+      // Provide a minimal event log to prevent the linescore component from crashing.
+      gameEvents: [
+        { event_type: "inning-change-message", log_message: "<strong>Top 1st</strong>" },
+      ],
+      teams: { away: { abbreviation: 'AWAY' }, home: { abbreviation: 'HOME' } },
+      batter: { image_url: '' },
+      pitcher: { image_url: '' },
+      lineups: { home: {}, away: {} },
+      rosters: { home: [], away: [] },
+    };
+
+    await page.route('**/api/games/1', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockGameData),
+      });
+    });
+
+    await page.goto('http://localhost:5173/game/1');
+    await page.waitForSelector('.linescore-table');
+
+    await page.evaluate(() => {
+      const gameStore = window.pinia.state.value.game;
+      if (gameStore) {
+        gameStore.isOutcomeHidden = true;
+        gameStore.isSwingResultVisible = true;
+        gameStore.opponentReadyForNext = true;
+      }
+    });
+
+    const firstInningHeader = page.locator('.linescore-table thead th').nth(1);
+    await expect(firstInningHeader).toHaveClass(/current-inning/);
+  });
 });
