@@ -1375,7 +1375,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     finalState.currentAtBat.batterAction = action;
 
     // If the pitcher has already acted, we resolve the at-bat now.
-    if (finalState.currentAtBat.pitcherAction) {
+    if (finalState.currentAtBat.pitcherAction === 'pitch') {
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
       const infieldDefense = await getInfieldDefense(defensiveTeam);
