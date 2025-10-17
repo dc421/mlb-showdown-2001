@@ -1,153 +1,80 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useGameStore } from '@/stores/game';
+import { cloneDeep } from 'lodash';
 
 const gameStore = useGameStore();
 const route = useRoute();
 const gameId = route.params.id;
-const awayBOP = ref(1); // Batting order is 1-indexed for the UI
-const homeBOP = ref(1);
 
-// Form state
-const inning = ref(1);
-const isTopInning = ref(true);
-const outs = ref(0);
-const homeScore = ref(0);
-const awayScore = ref(0);
-const runnerOnFirst = ref(null);
-const runnerOnSecond = ref(null);
-const runnerOnThird = ref(null);
-const pitchRoll = ref(null);
-const swingRoll = ref(null);
+const stateJson = ref('');
+const errorMessage = ref('');
 
-const homeRoster = computed(() => gameStore.rosters.home || []);
-const awayRoster = computed(() => gameStore.rosters.away || []);
-const allGamePlayers = computed(() => [...homeRoster.value, ...awayRoster.value]);
+// This function is called when the component is first loaded
+// and anytime the game state changes from the store
+function syncStateToUI(newGame) {
+    if (newGame && newGame.state_data) {
+        // Create a deep copy to avoid modifying the store's state directly
+        const stateToDisplay = cloneDeep(newGame.state_data);
 
-function handleSubmit() {
-    const partialState = {
-        inning: Number(inning.value),
-        isTopInning: isTopInning.value,
-        outs: Number(outs.value),
-        homeScore: Number(homeScore.value),
-        awayScore: Number(awayScore.value),
-        bases: {
-            first: allGamePlayers.value.find(p => p.card_id === runnerOnFirst.value) || null,
-            second: allGamePlayers.value.find(p => p.card_id === runnerOnSecond.value) || null,
-            third: allGamePlayers.value.find(p => p.card_id === runnerOnThird.value) || null,
-        },
-        // Add these nested objects
-        awayTeam: {
-            battingOrderPosition: Number(awayBOP.value) - 1 // Convert from 1-indexed to 0-indexed
-        },
-        homeTeam: {
-            battingOrderPosition: Number(homeBOP.value) - 1 // Convert from 1-indexed to 0-indexed
-        }
-    };
+        // Use a replacer to handle potential circular references if any
+        const replacer = (key, value) => {
+            // Can add logic here to handle specific transformations if needed
+            return value;
+        };
 
-    if (pitchRoll.value) {
-        partialState.pitchRoll = Number(pitchRoll.value);
+        stateJson.value = JSON.stringify(stateToDisplay, replacer, 2);
+        errorMessage.value = '';
     }
-    if (swingRoll.value) {
-        partialState.swingRoll = Number(swingRoll.value);
-    }
-
-    gameStore.setGameState(gameId, partialState);
 }
 
-onMounted(() => {
-    // Fetch roster data to populate runner dropdowns
-    gameStore.fetchGame(gameId); 
+// Function to apply changes from the textarea to the game state
+function handleSubmit() {
+    try {
+        const newState = JSON.parse(stateJson.value);
+        // We need to merge this with the existing state to not blow away everything
+        const currentState = cloneDeep(gameStore.game.state_data) || {};
+
+        // A deep merge of the new state into the current state
+        Object.assign(currentState, newState);
+
+        gameStore.setGameState(gameId, currentState);
+        errorMessage.value = '';
+    } catch (e) {
+        errorMessage.value = `Error parsing JSON: ${e.message}`;
+        console.error("Failed to parse and set game state:", e);
+    }
+}
+
+// Watch for changes in the game state and update the textarea
+watch(() => gameStore.game, (newGame, oldGame) => {
+    // Only update if the new state is actually different
+    if (JSON.stringify(newGame) !== JSON.stringify(oldGame)) {
+        syncStateToUI(newGame);
+    }
+}, { deep: true });
+
+// Fetch initial game data when the component mounts
+onMounted(async () => {
+    await gameStore.fetchGame(gameId);
+    // Once the game data is loaded, sync it to the UI
+    syncStateToUI(gameStore.game);
 });
+
 </script>
 
 <template>
     <div class="dev-container">
         <h1>Game State Debugger</h1>
-        <p>Set a specific game situation to test logic. The game will update in real-time.</p>
+        <p>Modify the JSON below to set the game state. The game will update in real-time.</p>
 
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Inning</label>
-                <input type="number" v-model="inning" min="1" />
-            </div>
-            <div class="form-group">
-                <label>Outs</label>
-                <input type="number" v-model="outs" min="0" max="2" />
-            </div>
-             <div class="form-group">
-                <label>Top/Bottom</label>
-                <select v-model="isTopInning">
-                    <option :value="true">Top</option>
-                    <option :value="false">Bottom</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Away Score</label>
-                <input type="number" v-model="awayScore" min="0" />
-            </div>
-            <div class="form-group">
-                <label>Home Score</label>
-                <input type="number" v-model="homeScore" min="0" />
-            </div>
+        <textarea v-model="stateJson" class="json-editor"></textarea>
+
+        <div v-if="errorMessage" class="error-message">
+            {{ errorMessage }}
         </div>
 
-        <h3>Batting Order</h3>
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Away Team Batter #</label>
-                <input type="number" v-model="awayBOP" min="1" max="9" />
-            </div>
-            <div class="form-group">
-                <label>Home Team Batter #</label>
-                <input type="number" v-model="homeBOP" min="1" max="9" />
-            </div>
-        </div>
-
-        <h3>Rolls</h3>
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Pitch Roll (1-20)</label>
-                <input type="number" v-model="pitchRoll" min="1" max="20" />
-            </div>
-            <div class="form-group">
-                <label>Swing Roll (1-100)</label>
-                <input type="number" v-model="swingRoll" min="1" max="100" />
-            </div>
-        </div>
-
-        <h3>Baserunners</h3>
-        <div class="form-grid">
-            <div class="form-group">
-                <label>Runner on 1st</label>
-                <select v-model="runnerOnFirst">
-                    <option :value="null">Empty</option>
-                    <option v-for="player in allGamePlayers" :key="player.card_id" :value="player.card_id">
-                        {{ player.displayName }}
-                    </option>
-                </select>
-            </div>
-             <div class="form-group">
-                <label>Runner on 2nd</label>
-                <select v-model="runnerOnSecond">
-                    <option :value="null">Empty</option>
-                    <option v-for="player in allGamePlayers" :key="player.card_id" :value="player.card_id">
-                        {{ player.displayName }}
-                    </option>
-                </select>
-            </div>
-             <div class="form-group">
-                <label>Runner on 3rd</label>
-                <select v-model="runnerOnThird">
-                    <option :value="null">Empty</option>
-                    <option v-for="player in allGamePlayers" :key="player.card_id" :value="player.card_id">
-                        {{ player.displayName }}
-                    </option>
-                </select>
-            </div>
-        </div>
-        
         <button @click="handleSubmit">Set Game State</button>
     </div>
 </template>
@@ -162,24 +89,14 @@ onMounted(() => {
         border: 2px solid #ffecb3;
         border-radius: 8px;
     }
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-    label {
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    input, select {
-        padding: 0.5rem;
-        border-radius: 4px;
+    .json-editor {
+        width: 100%;
+        height: 600px;
+        font-family: 'Courier New', Courier, monospace;
         border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 1rem;
+        margin-bottom: 1rem;
     }
     button {
         width: 100%;
@@ -190,5 +107,10 @@ onMounted(() => {
         border: none;
         border-radius: 4px;
         cursor: pointer;
+    }
+    .error-message {
+        color: red;
+        margin-bottom: 1rem;
+        white-space: pre-wrap;
     }
 </style>
