@@ -1,8 +1,15 @@
-function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
+function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
   
+  const getSpeedValue = (speed) => {
+    if (speed === 'A') return 20;
+    if (speed === 'B') return 15;
+    if (speed === 'C') return 10;
+    return speed; // Assume it's already a number if not A/B/C
+  };
+
   const runnerData = { 
     ...batter,
     pitcherOfRecordId: pitcher.card_id 
@@ -10,7 +17,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
 
   // If the batter is a pitcher, set their speed to 'C' (10)
   if (runnerData.control !== null) {
-    runnerData.speed = 'C';
+    runnerData.speed = 10;
   }
 
   const scoreRun = (runnerOnBase) => {
@@ -91,50 +98,210 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0) {
   }
   else if (outcome.includes('FB')) {
     newState.outs++;
-    if (newState.outs < 3 && (newState.bases.first || newState.bases.second || newState.bases.third)) {
-        events.push(`${batter.displayName} flies out.`);
-        newState.currentPlay = {
-            type: 'TAG_UP',
-            payload: {
-                decisions: [
-                    { runner: state.bases.third, from: 3 },
-                    { runner: state.bases.second, from: 2 },
-                    { runner: state.bases.first, from: 1 },
-                ].filter(d => d.runner)
+    events.push(`${batter.displayName} flies out.`);
+    if (newState.outs < 3 && (state.bases.first || state.bases.second || state.bases.third)) {
+        const decisions = [
+            { runner: state.bases.third, from: 3 },
+            { runner: state.bases.second, from: 2 },
+            { runner: state.bases.first, from: 1 },
+        ].filter(d => d.runner);
+
+        let allDecisionsAutomatic = decisions.length > 0;
+        const automaticOutcomes = [];
+
+        if (allDecisionsAutomatic) {
+            for (const decision of decisions) {
+                const { runner, from } = decision;
+                const toBase = from + 1;
+                const runnerSpeed = getSpeedValue(runner.speed);
+
+                let effectiveSpeed = runnerSpeed;
+                if (toBase === 4) effectiveSpeed += 5; // going home
+                if (toBase === 2) effectiveSpeed -= 5; // going to 2nd on tag
+
+                // Per user, use >= for auto-advance.
+                const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
+                const isAutoHold = (runnerSpeed === 10 && (toBase === 2 || toBase === 3)) || (runnerSpeed === 15 && toBase === 2);
+
+                if (isAutoAdvance) {
+                    automaticOutcomes.push({ ...decision, advance: true });
+                } else if (isAutoHold) {
+                    automaticOutcomes.push({ ...decision, advance: false });
+                } else {
+                    allDecisionsAutomatic = false;
+                    break;
+                }
             }
-        };
-    } else {
-        events.push(`${batter.displayName} flies out.`);
+        }
+
+        if (allDecisionsAutomatic) {
+            for (const outcome of automaticOutcomes) {
+                if (outcome.advance) {
+                    const toBase = outcome.from + 1;
+                    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+                    if (toBase === 4) {
+                        scoreRun(outcome.runner);
+                        events.push(`${outcome.runner.name} tags up and scores automatically.`);
+                    } else {
+                        newState.bases[baseMap[toBase]] = outcome.runner;
+                        events.push(`${outcome.runner.name} tags up and advances automatically.`);
+                    }
+                    newState.bases[baseMap[outcome.from]] = null;
+                } else {
+                    events.push(`${outcome.runner.name} holds automatically.`);
+                }
+            }
+        } else {
+            newState.currentPlay = { type: 'TAG_UP', payload: { decisions } };
+        }
     }
   }
   else if (outcome === 'SINGLE' || outcome === '1B' || outcome === '1B+') {
       events.push(`${batter.displayName} hits a SINGLE!`);
-      const decisions = [
-        { runner: state.bases.second, from: 2 },
-        { runner: state.bases.first, from: 1 },
+
+      const runnerFrom3 = state.bases.third;
+      const runnerFrom2 = state.bases.second;
+      const runnerFrom1 = state.bases.first;
+
+      if (runnerFrom3) {
+          scoreRun(runnerFrom3);
+      }
+
+      const potentialDecisions = [
+        { runner: runnerFrom2, from: 2 }, // try for home
+        { runner: runnerFrom1, from: 1 },  // try for third
       ].filter(d => d.runner);
-      if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
-      if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null; }
-      if (newState.bases.first) { newState.bases.second = newState.bases.first; }
-      newState.bases.first = runnerData;
+
+      let allDecisionsAutomatic = potentialDecisions.length > 0;
+      const automaticOutcomes = [];
+
+      if (allDecisionsAutomatic) {
+          for (const decision of potentialDecisions) {
+              const { runner, from } = decision;
+              const toBase = from + 2; // trying for the extra base
+              const runnerSpeed = getSpeedValue(runner.speed);
+
+              let effectiveSpeed = runnerSpeed;
+              if (toBase === 4) effectiveSpeed += 5; // going home
+              if (newState.outs === 2) effectiveSpeed += 5;
+
+              const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
+              const isAutoHold = (runnerSpeed === 10 && toBase === 3);
+
+              if (isAutoAdvance) {
+                  automaticOutcomes.push({ ...decision, advance: true });
+              } else if (isAutoHold) {
+                  automaticOutcomes.push({ ...decision, advance: false });
+              } else {
+                  allDecisionsAutomatic = false;
+                  break;
+              }
+          }
+      }
+
+      // Clear all bases, then rebuild based on decisions
+      newState.bases = { first: null, second: null, third: null };
+
+      if (allDecisionsAutomatic) {
+          let baseAheadIsOccupied = false;
+
+          // Process lead runner (from 2nd) first
+          const decisionR2 = automaticOutcomes.find(d => d.from === 2);
+          if (decisionR2) {
+              if (decisionR2.advance) {
+                  scoreRun(runnerFrom2);
+                  events.push(`${runnerFrom2.name} scores automatically from second!`);
+                  baseAheadIsOccupied = false;
+              } else {
+                  newState.bases.third = runnerFrom2;
+                  events.push(`${runnerFrom2.name} holds at third automatically.`);
+                  baseAheadIsOccupied = true;
+              }
+          } else if (runnerFrom2) {
+              newState.bases.third = runnerFrom2; // Default move
+              baseAheadIsOccupied = true;
+          }
+
+          // Process trail runner (from 1st)
+          const decisionR1 = automaticOutcomes.find(d => d.from === 1);
+          if (decisionR1) {
+              if (decisionR1.advance && !baseAheadIsOccupied) {
+                  newState.bases.third = runnerFrom1;
+                  events.push(`${runnerFrom1.name} takes third automatically!`);
+              } else {
+                  if(decisionR1.advance && baseAheadIsOccupied) {
+                      events.push(`${runnerFrom1.name} is forced to hold at second.`);
+                  } else {
+                      events.push(`${runnerFrom1.name} holds at second automatically.`);
+                  }
+                  newState.bases.second = runnerFrom1;
+              }
+          } else if (runnerFrom1) {
+              newState.bases.second = runnerFrom1; // Default move
+          }
+
+          newState.bases.first = runnerData;
+      } else {
+          // Not automatic, so do standard advancement and ask user
+          if (runnerFrom2) { newState.bases.third = runnerFrom2; }
+          if (runnerFrom1) { newState.bases.second = runnerFrom1; }
+          newState.bases.first = runnerData;
+          if (potentialDecisions.length > 0) {
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '1B' } };
+          }
+      }
+
+      // Handle 1B+ for the batter
       if (outcome === '1B+' && !newState.bases.second) {
           newState.bases.second = newState.bases.first;
           newState.bases.first = null;
-          events.push(`${batter.displayName} steals second base!`);
-      } else if (decisions.length > 0) {
-          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: decisions, hitType: '1B' } };
+          events.push(`${batter.displayName} takes second on the throw!`);
       }
   }
   else if (outcome === '2B') {
       events.push(`${batter.displayName} hits a DOUBLE!`);
-      const runnerFromThird = state.bases.first;
-      if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
-      if (newState.bases.second) { scoreRun(newState.bases.second); newState.bases.second = null; }
-      if (newState.bases.first) { newState.bases.third = newState.bases.first; newState.bases.first = null; }
-      newState.bases.second = runnerData;
-      if (runnerFromThird) {
-        newState.currentPlay = { type: 'ADVANCE', payload: { decisions: [{ runner: runnerFromThird, from: 1 }], hitType: '2B' } };
+
+      if (state.bases.third) { scoreRun(state.bases.third); }
+      if (state.bases.second) { scoreRun(state.bases.second); }
+      newState.bases.third = null;
+      newState.bases.second = null;
+
+      const runnerFrom1 = state.bases.first;
+      const potentialDecisions = runnerFrom1 ? [{ runner: runnerFrom1, from: 1 }] : [];
+
+      let isAutomatic = false;
+      let autoAdvance = false;
+
+      if (potentialDecisions.length > 0) {
+          const decision = potentialDecisions[0];
+          const toBase = 4; // trying for home
+          const runnerSpeed = getSpeedValue(decision.runner.speed);
+
+          let effectiveSpeed = runnerSpeed;
+          effectiveSpeed += 5; // going home
+          if (newState.outs === 2) effectiveSpeed += 5;
+
+          if (effectiveSpeed >= (outfieldDefense + 20)) {
+              isAutomatic = true;
+              autoAdvance = true;
+          }
       }
+
+      if (isAutomatic) {
+          if (autoAdvance) {
+              scoreRun(runnerFrom1);
+              events.push(`${runnerFrom1.name} scores from first automatically!`);
+          }
+          newState.bases.first = null;
+      } else {
+          if (runnerFrom1) {
+              newState.bases.third = runnerFrom1;
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B' } };
+          }
+          newState.bases.first = null;
+      }
+
+      newState.bases.second = runnerData;
   }
   else if (outcome === 'IBB') {
     events.push(`${batter.displayName} is intentionally walked.`);
