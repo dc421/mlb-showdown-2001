@@ -210,13 +210,14 @@ const scoreChangeMessage = computed(() => {
     let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
     let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
 
-    // Compare new scores to the scores *before the last play*.
-    // The `oldAwayScore !== undefined` check handles the very first at-bat of the game.
-    if (oldAwayScore !== undefined && newAwayScore > oldAwayScore) {
-      awayScoreDisplay = `${awayTeamName} <span style="color: #ffc107;">${newAwayScore}</span>`;
+    const awayScored = oldAwayScore !== undefined && newAwayScore > oldAwayScore;
+    const homeScored = oldHomeScore !== undefined && newHomeScore > oldHomeScore;
+
+    if (awayScored) {
+        awayScoreDisplay = `<strong>${awayTeamName} ${newAwayScore}</strong>`;
     }
-    if (oldHomeScore !== undefined && newHomeScore > oldHomeScore) {
-      homeScoreDisplay = `${homeTeamName} <span style="color: #ffc107;">${newHomeScore}</span>`;
+    if (homeScored) {
+        homeScoreDisplay = `<strong>${homeTeamName} ${newHomeScore}</strong>`;
     }
     
     return `${awayScoreDisplay}, ${homeScoreDisplay}`;
@@ -1602,7 +1603,6 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   font-size: 1.5rem;
-  font-weight: bold;
   color: black;
   text-align: center;
   pointer-events: none; /* Prevent it from intercepting clicks */
