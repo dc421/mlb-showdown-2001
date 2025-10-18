@@ -964,11 +964,13 @@ onUnmounted(() => {
             <div v-else-if="isAdvancementOrTagUpDecision">
                 <h3>Runner Decisions</h3>
                 <p>Select which runners to send:</p>
-                <div v-for="decision in gameStore.gameState.currentPlay.payload.decisions" :key="decision.from" class="decision-checkbox">
-                    <label>
-                        <input type="checkbox" v-model="runnerDecisionChoices[decision.from]" />
-                        Send {{ decision.runner.name }} (from {{ decision.from }}B)
-                    </label>
+                <div class="runner-decisions-group">
+                    <div v-for="decision in gameStore.gameState.currentPlay.payload.decisions" :key="decision.from" class="decision-checkbox">
+                        <label>
+                            <input type="checkbox" v-model="runnerDecisionChoices[decision.from]" />
+                            Send {{ decision.runner.name }} to {{ parseInt(decision.from, 10) + 1 }}B
+                        </label>
+                    </div>
                 </div>
                 <button @click="handleRunnerDecisions" class="tactile-button">Confirm Decisions</button>
             </div>
@@ -1530,6 +1532,10 @@ onUnmounted(() => {
   background-color: #F0F0F0;
   width: 100%;
   margin: 0;
+}
+.runner-decisions-group {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 .secondary-actions {
     display: flex;
