@@ -188,7 +188,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
               // With less than 2 outs, a runner with 10 speed will always be held.
               // A runner with 15 speed will be held if they are trying for 3rd.
-              const isAutoHold = newState.outs < 2 && ((runnerSpeed === 10) || (runnerSpeed === 15 && toBase === 3));
+              const isAutoHold = runnerSpeed === 10 && toBase === 3;
 
               if (isAutoAdvance) {
                   automaticOutcomes.push({ ...decision, advance: true });
@@ -273,7 +273,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       let isAutomatic = false;
       let autoAdvance = false;
-      let autoHold = false;
 
       if (potentialDecisions.length > 0) {
           const decision = potentialDecisions[0];
@@ -287,9 +286,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (effectiveSpeed >= (outfieldDefense + 20)) {
               isAutomatic = true;
               autoAdvance = true;
-          } else if (runnerSpeed <= 15 && newState.outs < 2) {
-              isAutomatic = true;
-              autoHold = true;
           }
       }
 
@@ -297,9 +293,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (autoAdvance) {
               scoreRun(runnerFrom1);
               events.push(`${runnerFrom1.name} scores from first automatically!`);
-          } else if (autoHold) {
-              newState.bases.third = runnerFrom1;
-              events.push(`${runnerFrom1.name} is held at third automatically.`);
           }
           newState.bases.first = null;
       } else {
