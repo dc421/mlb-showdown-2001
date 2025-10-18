@@ -1379,6 +1379,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
       const infieldDefense = await getInfieldDefense(defensiveTeam);
+      const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
       // --- THIS IS THE FIX ---
       // Add the scores before the outcome is applied.
@@ -1399,7 +1400,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
               if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
           }
       }
-      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense);
+      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1541,6 +1542,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             // Batter was waiting, so resolve the whole at-bat now.
             const { defensiveTeam } = await getActivePlayers(gameId, finalState);
             const infieldDefense = await getInfieldDefense(defensiveTeam);
+            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
             // --- THIS IS THE FIX ---
             // Add the scores before the outcome is applied.
@@ -1561,7 +1563,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense);
+            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };

@@ -25,6 +25,7 @@ const nextGameId = ref(null);
 const choices = ref({});
 
 const selectedCard = ref(null);
+const black = ref('#000000');
 
 // New state for the substitution flow
 const isSubModeActive = ref(false);
@@ -77,6 +78,14 @@ const isDefensiveThrowDecision = computed(() => {
     }
     const { type, payload } = gameStore.gameState.currentPlay;
     return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
+});
+
+const isAwaitingBaserunningDecision = computed(() => {
+    if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
+        const type = gameStore.gameState.currentPlay.type;
+        return (type === 'ADVANCE' || type === 'TAG_UP');
+    }
+    return false;
 });
 // NEW: Local state for the checkbox
 
@@ -340,6 +349,9 @@ const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameSta
 
 const showNextHitterButton = computed(() => {
   if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
+
+  // Do not show if the defensive player is waiting for a baserunning decision.
+  if (isAwaitingBaserunningDecision.value) return false;
 
   if (gameStore.amIReadyForNext) {
     return false;
@@ -1023,8 +1035,9 @@ onUnmounted(() => {
             </div>
 
             <!-- Waiting Indicators -->
-            <div v-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
-            <div v-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
+            <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on offensive baserunning decision...</div>
+            <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
+            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
         </div>
 
         <!-- Player Cards Wrapper -->
