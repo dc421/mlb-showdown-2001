@@ -210,11 +210,11 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (decisionR2) {
               if (decisionR2.advance) {
                   scoreRun(runnerFrom2);
-                  events.push(`${runnerFrom2.name} scores automatically from second!`);
+                  events.push(`${runnerFrom2.name} scores from second without a throw!`);
                   baseAheadIsOccupied = false;
               } else {
                   newState.bases.third = runnerFrom2;
-                  events.push(`${runnerFrom2.name} holds at third automatically.`);
+                  events.push(`${runnerFrom2.name} holds at third.`);
                   baseAheadIsOccupied = true;
               }
           } else if (runnerFrom2) {
@@ -227,12 +227,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (decisionR1) {
               if (decisionR1.advance && !baseAheadIsOccupied) {
                   newState.bases.third = runnerFrom1;
-                  events.push(`${runnerFrom1.name} takes third automatically!`);
+                  events.push(`${runnerFrom1.name} takes third without a throw!`);
               } else {
                   if(decisionR1.advance && baseAheadIsOccupied) {
-                      events.push(`${runnerFrom1.name} is forced to hold at second.`);
+                      events.push(`${runnerFrom1.name} holds at second.`);
                   } else {
-                      events.push(`${runnerFrom1.name} holds at second automatically.`);
+                      events.push(`${runnerFrom1.name} holds at second.`);
                   }
                   newState.bases.second = runnerFrom1;
               }
