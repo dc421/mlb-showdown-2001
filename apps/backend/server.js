@@ -1840,6 +1840,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // NEW: Clear the double play details from the previous play
       delete newState.doublePlayDetails;
       delete newState.stealAttemptDetails;
+      delete newState.throwRollResult;
 
       // --- THIS IS THE FIX ---
       // Determine which team's batting order needs to be advanced.
