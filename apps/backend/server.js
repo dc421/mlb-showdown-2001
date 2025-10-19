@@ -612,6 +612,16 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         pitcherStats: await initializePitcherFatigue(gameId, client),
         awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        homeDefensiveRatings: {
+            catcherArm: await getCatcherArm(homeParticipant),
+            infieldDefense: await getInfieldDefense(homeParticipant),
+            outfieldDefense: await getOutfieldDefense(homeParticipant),
+        },
+        awayDefensiveRatings: {
+            catcherArm: await getCatcherArm(awayParticipant),
+            infieldDefense: await getInfieldDefense(awayParticipant),
+            outfieldDefense: await getOutfieldDefense(awayParticipant),
+        },
         currentAwayPitcher: awayPitcher,
         currentHomePitcher: homePitcher,
         awayPlayerReadyForNext: false,
@@ -825,6 +835,14 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     await client.query('UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3', [JSON.stringify(participant.lineup), gameId, userId]);
+    // --- NEW: Recalculate defensive ratings for the team that made the sub ---
+    const ratingsKey = teamKey === 'homeTeam' ? 'homeDefensiveRatings' : 'awayDefensiveRatings';
+    newState[ratingsKey] = {
+      catcherArm: await getCatcherArm(participant),
+      infieldDefense: await getInfieldDefense(participant),
+      outfieldDefense: await getOutfieldDefense(participant),
+    };
+
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
     
@@ -1380,10 +1398,11 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction === 'pitch') {
-      const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
+      const { batter, pitcher } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
-      const infieldDefense = await getInfieldDefense(defensiveTeam);
-      const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+      const defensiveRatings = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
+      const infieldDefense = defensiveRatings.infieldDefense;
+      const outfieldDefense = defensiveRatings.outfieldDefense;
 
       // --- THIS IS THE FIX ---
       // Add the scores before the outcome is applied.
@@ -1544,9 +1563,9 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         if (finalState.currentAtBat.batterAction) {
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
-            const { defensiveTeam } = await getActivePlayers(gameId, finalState);
-            const infieldDefense = await getInfieldDefense(defensiveTeam);
-            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+            const defensiveRatings = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
+            const infieldDefense = defensiveRatings.infieldDefense;
+            const outfieldDefense = defensiveRatings.outfieldDefense;
 
             // --- THIS IS THE FIX ---
             // Add the scores before the outcome is applied.
