@@ -1444,7 +1444,7 @@ onUnmounted(() => {
   }
   .player-container {
     flex: 1 1 45%;
-  min-width: 280px; /* Prevent wrapping too early */
+    max-width: 280px; /* Prevent cards from getting too large but allow shrinking */
 }
 
 .tbd-pitcher-card {
