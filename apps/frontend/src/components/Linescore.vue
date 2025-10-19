@@ -165,15 +165,17 @@ const homeTotalRuns = computed(() => {
 
 @media (max-width: 768px) {
   .linescore-table {
-    font-size: 0.9em;
+    font-size: 0.8em;
+    white-space: nowrap;
   }
   .linescore-table th,
   .linescore-table td {
-    min-width: 22px;
-    padding: 0.1rem 0.2rem;
+    min-width: 18px;
+    padding: 0.1rem;
   }
   .linescore-table td:first-child {
     min-width: unset;
+    padding-right: 0.3rem;
   }
 }
 </style>
