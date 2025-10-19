@@ -410,6 +410,10 @@ const showThrowRollResult = computed(() => {
   return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
 });
 
+const showStealResult = computed(() => {
+  return gameStore.gameState?.stealAttemptDetails && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
+});
+
 const defensiveRatingsToDisplay = computed(() => {
   if (!gameStore.gameState) return { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 };
   // If we are displaying the top of the inning, the HOME team is on defense.
@@ -667,7 +671,17 @@ function handleInitiateSteal(decisions) {
 }
 
 function handleResolveSteal(throwTo) {
-    gameStore.resolveSteal(gameId, throwTo);
+    let finalThrowTo = throwTo;
+    if (throwTo === null && isSingleSteal.value) {
+        const decisions = gameStore.gameState.currentPlay.payload.decisions;
+        const fromBaseKey = Object.keys(decisions)[0];
+        if (fromBaseKey === '1') {
+            finalThrowTo = 2;
+        } else if (fromBaseKey === '2') {
+            finalThrowTo = 3;
+        }
+    }
+    gameStore.resolveSteal(gameId, finalThrowTo);
 }
 
 function handlePitch(action = null) {
@@ -710,6 +724,25 @@ function handleDefensiveThrow(base) {
 
 
 const isStealAttemptInProgress = computed(() => gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT');
+
+const isSingleSteal = computed(() => {
+    if (!isStealAttemptInProgress.value) return false;
+    const decisions = gameStore.gameState.currentPlay.payload.decisions;
+    return decisions && Object.keys(decisions).length === 1;
+});
+
+const stealingRunner = computed(() => {
+    if (!isSingleSteal.value) return null;
+    const decisions = gameStore.gameState.currentPlay.payload.decisions;
+    const fromBaseKey = Object.keys(decisions)[0];
+
+    if (fromBaseKey === '1') {
+        return gameStore.gameState.bases.first;
+    } else if (fromBaseKey === '2') {
+        return gameStore.gameState.bases.second;
+    }
+    return null;
+});
 
 const isInfieldInDecision = computed(() => {
     return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_PLAY';
@@ -946,6 +979,11 @@ onUnmounted(() => {
             :details="gameStore.gameState.doublePlayDetails"
             :teamColors="pitcherTeamColors"
           />
+          <ThrowRollResult
+            v-if="showStealResult"
+            :details="gameStore.gameState.stealAttemptDetails"
+            :teamColors="pitcherTeamColors"
+          />
           <div class="defensive-ratings">
             <div>{{ catcherArmDisplay }}</div>
             <div>{{ infieldDefenseDisplay }}</div>
@@ -999,10 +1037,16 @@ onUnmounted(() => {
                 </button>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
-                <h3>Opponent is stealing!</h3>
-                <p>Choose which base to throw to:</p>
-                <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                <div v-if="isSingleSteal">
+                    <h3><span v-if="stealingRunner">{{ stealingRunner.name }} is stealing!</span><span v-else>Opponent is stealing!</span></h3>
+                    <button @click="handleResolveSteal(null)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                </div>
+                <div v-else>
+                    <h3>Opponent is stealing!</h3>
+                    <p>Choose which base to throw to:</p>
+                    <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                    <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                </div>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIOffensivePlayer">
                 <div class="waiting-text">Waiting for opponent to throw...</div>

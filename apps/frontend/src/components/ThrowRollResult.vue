@@ -19,7 +19,10 @@ const outcomeText = computed(() => {
   if (props.details.outcome === 'DOUBLE_PLAY') {
     return 'DOUBLE PLAY';
   }
-  return 'BATTER SAFE';
+  if (props.details.outcome === 'FIELDERS_CHOICE') {
+    return 'BATTER SAFE';
+  }
+  return props.details.outcome;
 });
 
 const rollInfo = computed(() => {
