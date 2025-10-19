@@ -18,13 +18,15 @@ const REPLACEMENT_HITTER_CARD = {
     points: 0,
     fielding_ratings: { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0 },
     chart_data: { '1-2': 'SO', '3-20': 'GB' },
-    control: null
+    control: null,
+    image_url: '/images/replacement.jpg'
 };
 const REPLACEMENT_PITCHER_CARD = {
     card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1,
     points: 0,
     chart_data: { '1-3': 'PU', '4-8': 'SO', '9-12': 'GB', '13-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
-    fielding_ratings: {}
+    fielding_ratings: {},
+    image_url: '/images/replacement.jpg'
 };
 
 const app = express();
@@ -72,6 +74,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
     };
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
+app.use('/images', express.static(path.join(__dirname, 'card_images')));
 
 
 // in server.js
