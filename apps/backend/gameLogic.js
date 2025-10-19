@@ -103,7 +103,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   }
   else if (outcome.includes('FB')) {
     newState.outs++;
-    events.push(`${batter.displayName} flies out.`);
+    const initialEvent = `${batter.displayName} flies out.`;
     if (newState.outs < 3 && (state.bases.first || state.bases.second || state.bases.third)) {
         const decisions = [
             { runner: state.bases.third, from: 3 },
@@ -157,12 +157,14 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
                 }
             }
         } else {
-            newState.currentPlay = { type: 'TAG_UP', payload: { decisions } };
+            newState.currentPlay = { type: 'TAG_UP', payload: { decisions, initialEvent } };
         }
+    } else {
+        events.push(initialEvent);
     }
   }
   else if (outcome === 'SINGLE' || outcome === '1B' || outcome === '1B+') {
-      events.push(`${batter.displayName} hits a SINGLE!`);
+      const initialEvent = `${batter.displayName} hits a SINGLE!`;
 
       const runnerFrom3 = state.bases.third;
       const runnerFrom2 = state.bases.second;
@@ -210,6 +212,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       newState.bases = { first: null, second: null, third: null };
 
       if (allDecisionsAutomatic) {
+          events.push(initialEvent);
           let baseAheadIsOccupied = false;
 
           // Process lead runner (from 2nd) first
@@ -254,7 +257,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (runnerFrom1) { newState.bases.second = runnerFrom1; }
           newState.bases.first = runnerData;
           if (potentialDecisions.length > 0) {
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '1B' } };
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '1B', initialEvent } };
+          } else {
+              events.push(initialEvent);
           }
       }
 
@@ -266,7 +271,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
   }
   else if (outcome === '2B') {
-      events.push(`${batter.displayName} hits a DOUBLE!`);
+      const initialEvent = `${batter.displayName} hits a DOUBLE!`;
 
       if (state.bases.third) { scoreRun(state.bases.third); }
       if (state.bases.second) { scoreRun(state.bases.second); }
@@ -295,6 +300,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
 
       if (isAutomatic) {
+          events.push(initialEvent);
           if (autoAdvance) {
               scoreRun(runnerFrom1);
               events.push(`${runnerFrom1.name} scores from first without a throw!`);
@@ -303,7 +309,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       } else {
           if (runnerFrom1) {
               newState.bases.third = runnerFrom1;
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B' } };
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent } };
+          } else {
+              events.push(initialEvent);
           }
           newState.bases.first = null;
       }
@@ -442,6 +450,7 @@ function resolveThrow(state, throwTo, outfieldDefense) {
     } else {
       newState.outs++;
       newState.bases[baseMap[fromBaseOfThrow]] = null;
+      // Return a fragment now, not a full event
       events.push(`${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
     }
   }

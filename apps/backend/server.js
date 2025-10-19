@@ -2100,21 +2100,27 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const throwTo = parseInt(fromBaseStr, 10) + 1;
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
+            const { initialEvent } = newState.currentPlay.payload;
+            const originalOuts = newState.outs;
+
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense);
             newState = resolvedState;
 
             newState.currentPlay = null;
+
+            if (events.length > 0) {
+                let combinedLogMessage = initialEvent ? `${initialEvent} ${events.join(' ')}` : events.join(' ');
+                if (newState.outs > originalOuts) {
+                    combinedLogMessage += `. Outs: ${newState.outs}`;
+                }
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', combinedLogMessage]);
+            }
 
             if (newState.outs >= 3) {
                 newState.isTopInning = !newState.isTopInning;
                 if (newState.isTopInning) newState.inning++;
                 newState.outs = 0;
                 newState.bases = { first: null, second: null, third: null };
-            }
-
-            if (events.length > 0) {
-              const combinedLogMessage = events.join(' ');
-              await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', combinedLogMessage]);
             }
 
             newState.awayPlayerReadyForNext = false;
@@ -2187,11 +2193,23 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             }
         }
 
+        const { initialEvent } = currentState.currentPlay.payload;
+        const originalOuts = currentState.outs;
+
         // Resolve the contested throw using the refactored function
         const { newState, events } = resolveThrow(currentState, throwTo, outfieldDefense);
         allEvents = [...allEvents, ...events];
 
         newState.currentPlay = null;
+
+        if (allEvents.length > 0) {
+            let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
+            if (newState.outs > originalOuts) {
+                combinedLogMessage += `. Outs: ${newState.outs}`;
+            }
+            // Use a single event insert now, removing the individual ones
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', combinedLogMessage]);
+        }
 
         if (newState.outs >= 3) {
             newState.isTopInning = !newState.isTopInning;
@@ -2204,10 +2222,6 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         newState.homePlayerReadyForNext = false;
 
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
-        if (allEvents.length > 0) {
-            const combinedLogMessage = allEvents.join(' ');
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', combinedLogMessage]);
-        }
         
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         await client.query('COMMIT');
