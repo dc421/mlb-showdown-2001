@@ -16,7 +16,8 @@ const speedClass = computed(() => {
 });
 
 function handleImageError(event) {
-  event.target.src = 'https://via.placeholder.com/220x308/CCCCCC/FFFFFF?text=No+Image';
+  // Use a local, relative path to the replacement image
+  event.target.src = '/images/replacement.jpg';
 }
 </script>
 
