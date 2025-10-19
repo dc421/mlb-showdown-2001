@@ -80,10 +80,10 @@ const runnerDecisionsWithLabels = computed(() => {
 
         let toBaseLabel = '';
         switch (toBase) {
-            case 1: toBaseLabel = '1st'; break;
-            case 2: toBaseLabel = '2nd'; break;
-            case 3: toBaseLabel = '3rd'; break;
-            case 4: toBaseLabel = 'Home'; break;
+            case 1: toBaseLabel = 'to 2nd'; break;
+            case 2: toBaseLabel = 'to 3rd'; break;
+            case 3: toBaseLabel = 'Home'; break;
+            case 4: toBaseLabel = '1st'; break;
             default: toBaseLabel = `${toBase}B`; // Fallback
         }
         return {
@@ -113,7 +113,7 @@ const baserunningOptionGroups = computed(() => {
 
         // Create a descriptive text for the button, ordered by base.
         const text = "Send " + includedDecisions
-            .map(d => `${d.runner.name} to ${d.toBaseLabel}`)
+            .map(d => `${d.runner.name} ${d.toBaseLabel}`)
             .reverse() // Display in a more natural order (e.g., runner from 1st and runner from 2nd)
             .join(' and ');
 
@@ -1072,8 +1072,6 @@ onUnmounted(() => {
 
             <!-- Main Action Buttons -->
             <div v-else-if="isAdvancementOrTagUpDecision">
-                <h3>Runner Decisions</h3>
-                <p>Select which runners to send:</p>
                 <div class="runner-decisions-group">
                     <button v-for="(group, index) in baserunningOptionGroups"
                             :key="index"
@@ -1081,7 +1079,7 @@ onUnmounted(() => {
                             class="tactile-button">
                         {{ group.text }}
                     </button>
-                    <button @click="handleRunnerDecisions({})" class="tactile-button tactile-button-hold">
+                    <button @click="handleRunnerDecisions({})" class="tactile-button">
                         Hold Runners
                     </button>
                 </div>
@@ -1143,7 +1141,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Waiting Indicators -->
-            <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on offensive baserunning decision...</div>
+            <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
         </div>
@@ -1714,7 +1712,7 @@ onUnmounted(() => {
 }
 
 /* Indicators & Flashes */
-.turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0.5rem; }
+.turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0rem; }
 .score-update-flash {
   position: absolute;
   bottom: 375px; /* Position it below the container */
