@@ -1692,12 +1692,13 @@ app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req
       events.push(`${runnerOnBase.name} scores!`);
     };
 
+    let playResultDescription = '';
     if (isDoublePlay) {
-      events.push(`It's a DOUBLE PLAY!`);
+      playResultDescription = `It's a DOUBLE PLAY!`;
       newState.outs += 2;
       newState.bases.first = null;
     } else {
-      events.push(`Batter is SAFE, out at second. Fielder's choice.`);
+      playResultDescription = `Batter is SAFE, out at second. Fielder's choice.`;
       newState.outs++;
       if (newState.outs < 3 && !currentState.infieldIn) {
         if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
@@ -1705,6 +1706,9 @@ app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req
       }
       newState.bases.first = runnerData;
     }
+
+    const groundBallMessage = `${batter.displayName} hits a ground ball... ${playResultDescription} <strong>Outs: ${newState.outs}</strong>`;
+    events.unshift(groundBallMessage);
 
     newState.doublePlayDetails = {
       roll: dpRoll,
