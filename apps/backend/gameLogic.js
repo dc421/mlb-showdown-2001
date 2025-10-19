@@ -140,14 +140,14 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
                     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
                     if (toBase === 4) {
                         scoreRun(outcome.runner);
-                        events.push(`${outcome.runner.name} tags up and scores automatically.`);
+                        events.push(`${outcome.runner.name} tags up and scores without a throw.`);
                     } else {
                         newState.bases[baseMap[toBase]] = outcome.runner;
-                        events.push(`${outcome.runner.name} tags up and advances automatically.`);
+                        events.push(`${outcome.runner.name} tags up and advances without a throw.`);
                     }
                     newState.bases[baseMap[outcome.from]] = null;
                 } else {
-                    events.push(`${outcome.runner.name} holds automatically.`);
+                    events.push(`${outcome.runner.name} holds.`);
                 }
             }
         } else {
@@ -291,7 +291,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (isAutomatic) {
           if (autoAdvance) {
               scoreRun(runnerFrom1);
-              events.push(`${runnerFrom1.name} scores from first automatically!`);
+              events.push(`${runnerFrom1.name} scores from first without a throw!`);
           }
           newState.bases.first = null;
       } else {
