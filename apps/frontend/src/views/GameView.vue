@@ -70,8 +70,13 @@ const runnerDecisionsWithLabels = computed(() => {
     return decisions.map(decision => {
         const fromBase = parseInt(decision.from, 10);
         let toBase;
+        const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
+
         // The `decision.to` indicates the base they are *attempting* to reach.
-        if (decision.to) {
+        // For tag ups, this has been buggy, so we override it.
+        if (isTagUp) {
+            toBase = fromBase + 1;
+        } else if (decision.to) {
             toBase = parseInt(decision.to, 10);
         } else {
             // If `to` is not specified, it's a standard advancement of one base.
