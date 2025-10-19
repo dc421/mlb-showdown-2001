@@ -62,7 +62,67 @@ async function handleSubstitution(playerIn) {
     playerToSubOut.value = null;
 }
 
-const runnerDecisionChoices = ref({});
+const runnerDecisionsWithLabels = computed(() => {
+    if (!gameStore.gameState?.currentPlay?.payload?.decisions) {
+        return [];
+    }
+    const decisions = gameStore.gameState.currentPlay.payload.decisions;
+    return decisions.map(decision => {
+        const fromBase = parseInt(decision.from, 10);
+        let toBase;
+        // The `decision.to` indicates the base they are *attempting* to reach.
+        if (decision.to) {
+            toBase = parseInt(decision.to, 10);
+        } else {
+            // If `to` is not specified, it's a standard advancement of one base.
+            toBase = fromBase + 1;
+        }
+
+        let toBaseLabel = '';
+        switch (toBase) {
+            case 1: toBaseLabel = '1st'; break;
+            case 2: toBaseLabel = '2nd'; break;
+            case 3: toBaseLabel = '3rd'; break;
+            case 4: toBaseLabel = 'Home'; break;
+            default: toBaseLabel = `${toBase}B`; // Fallback
+        }
+        return {
+            ...decision,
+            toBaseLabel
+        };
+    });
+});
+
+const baserunningOptionGroups = computed(() => {
+    if (!gameStore.gameState?.currentPlay?.payload?.decisions) {
+        return [];
+    }
+    const decisions = runnerDecisionsWithLabels.value;
+    // Sort decisions by the runner's starting base, from lead runner to trail runner.
+    const sortedDecisions = [...decisions].sort((a, b) => parseInt(b.from, 10) - parseInt(a.from, 10));
+
+    const groups = [];
+
+    // Create cumulative options. Sending a trailing runner implies all lead runners are also sent.
+    for (let i = 0; i < sortedDecisions.length; i++) {
+        const includedDecisions = sortedDecisions.slice(0, i + 1);
+        const choices = {};
+        includedDecisions.forEach(d => {
+            choices[d.from] = true;
+        });
+
+        // Create a descriptive text for the button, ordered by base.
+        const text = "Send " + includedDecisions
+            .map(d => `${d.runner.name} to ${d.toBaseLabel}`)
+            .reverse() // Display in a more natural order (e.g., runner from 1st and runner from 2nd)
+            .join(' and ');
+
+        groups.push({ text, choices });
+    }
+
+    // Show the simplest option (only the lead runner) first.
+    return groups;
+});
 
 const isAdvancementOrTagUpDecision = computed(() => {
     if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !isSwingResultVisible.value) {
@@ -713,9 +773,8 @@ function handleNextHitter() {
   gameStore.nextHitter(gameId);
 }
 
-function handleRunnerDecisions() {
-    gameStore.submitBaserunningDecisions(gameId, runnerDecisionChoices.value);
-    runnerDecisionChoices.value = {}; // Reset choices
+function handleRunnerDecisions(choices) {
+    gameStore.submitBaserunningDecisions(gameId, choices);
 }
 
 function handleDefensiveThrow(base) {
@@ -1016,14 +1075,16 @@ onUnmounted(() => {
                 <h3>Runner Decisions</h3>
                 <p>Select which runners to send:</p>
                 <div class="runner-decisions-group">
-                    <div v-for="decision in gameStore.gameState.currentPlay.payload.decisions" :key="decision.from" class="decision-checkbox">
-                        <label>
-                            <input type="checkbox" v-model="runnerDecisionChoices[decision.from]" />
-                            Send {{ decision.runner.name }} to {{ parseInt(decision.from, 10) + 1 }}B
-                        </label>
-                    </div>
+                    <button v-for="(group, index) in baserunningOptionGroups"
+                            :key="index"
+                            @click="handleRunnerDecisions(group.choices)"
+                            class="tactile-button">
+                        {{ group.text }}
+                    </button>
+                    <button @click="handleRunnerDecisions({})" class="tactile-button tactile-button-hold">
+                        Hold Runners
+                    </button>
                 </div>
-                <button @click="handleRunnerDecisions" class="tactile-button">Confirm Decisions</button>
             </div>
             <div v-else-if="isDefensiveThrowDecision">
                 <h3>Defensive Throw</h3>
@@ -1594,6 +1655,19 @@ onUnmounted(() => {
 .runner-decisions-group {
     margin-top: 1rem;
     margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.tactile-button-hold {
+    background-color: #6c757d;
+    color: white;
+    border-color: #5a6268;
+}
+
+.tactile-button-hold:hover {
+    background-color: #5a6268;
 }
 .secondary-actions {
     display: flex;
