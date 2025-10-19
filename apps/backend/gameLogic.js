@@ -84,7 +84,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         newState.currentPlay = { type: 'INFIELD_IN_PLAY', payload: { runner: newState.bases.third, batter: runnerData } };
     }
     else if (newState.outs <= 1 && newState.bases.first) {
-        events.push(`${batter.displayName} hits a ground ball...`);
         newState.awaitingDoublePlayRoll = true;
     } else {
         events.push(`${batter.displayName} grounds out.`);
