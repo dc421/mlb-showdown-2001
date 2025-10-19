@@ -3,7 +3,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
   
-  const getSpeedValue = (speed) => {
+  const getSpeedValue = (runner) => {
+    // Pitchers always have C/10 speed
+    if (runner.control !== null && typeof runner.control !== 'undefined') {
+      return 10;
+    }
+    const speed = runner.speed;
     if (speed === 'A') return 20;
     if (speed === 'B') return 15;
     if (speed === 'C') return 10;
@@ -14,11 +19,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     ...batter,
     pitcherOfRecordId: pitcher.card_id 
   };
-
-  // If the batter is a pitcher, set their speed to 'C' (10)
-  if (runnerData.control !== null) {
-    runnerData.speed = 10;
-  }
 
   const scoreRun = (runnerOnBase) => {
     if (!runnerOnBase) return;
@@ -112,7 +112,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
             for (const decision of decisions) {
                 const { runner, from } = decision;
                 const toBase = from + 1;
-                const runnerSpeed = getSpeedValue(runner.speed);
+                const runnerSpeed = getSpeedValue(runner);
 
                 let effectiveSpeed = runnerSpeed;
                 if (toBase === 4) effectiveSpeed += 5; // going home
@@ -178,7 +178,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           for (const decision of potentialDecisions) {
               const { runner, from } = decision;
               const toBase = from + 2; // trying for the extra base
-              const runnerSpeed = getSpeedValue(runner.speed);
+              const runnerSpeed = getSpeedValue(runner);
 
               let effectiveSpeed = runnerSpeed;
               if (toBase === 4) effectiveSpeed += 5; // going home
@@ -276,7 +276,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (potentialDecisions.length > 0) {
           const decision = potentialDecisions[0];
           const toBase = 4; // trying for home
-          const runnerSpeed = getSpeedValue(decision.runner.speed);
+          const runnerSpeed = getSpeedValue(decision.runner);
 
           let effectiveSpeed = runnerSpeed;
           effectiveSpeed += 5; // going home
