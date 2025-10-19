@@ -158,6 +158,7 @@ const REPLACEMENT_PITCHER = { card_id: 'replacement_pitcher', displayName: 'Repl
 
 const isMyTurn = computed(() => {
   if (!authStore.user || !gameStore.game) return false;
+  if (Number(gameStore.game.current_turn_user_id) === 0) return true;
   return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
 });
 
@@ -468,6 +469,10 @@ watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
 
 const showThrowRollResult = computed(() => {
   return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
+});
+
+const showAutoThrowResult = computed(() => {
+  return gameStore.gameState?.throwRollResult && isSwingResultVisible.value;
 });
 
 const showStealResult = computed(() => {
@@ -1036,6 +1041,11 @@ onUnmounted(() => {
           <ThrowRollResult
             v-if="showThrowRollResult"
             :details="gameStore.gameState.doublePlayDetails"
+            :teamColors="pitcherTeamColors"
+          />
+          <ThrowRollResult
+            v-if="showAutoThrowResult"
+            :details="gameStore.gameState.throwRollResult"
             :teamColors="pitcherTeamColors"
           />
           <ThrowRollResult

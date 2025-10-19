@@ -391,4 +391,70 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events };
 }
 
-module.exports = { applyOutcome };
+function getOrdinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function resolveThrow(state, throwTo, outfieldDefense) {
+  let newState = JSON.parse(JSON.stringify(state));
+  const { type } = newState.currentPlay;
+  const events = [];
+  const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+  const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+
+  const getSpeedValue = (speed) => {
+    if (speed === 'A') return 20;
+    if (speed === 'B') return 15;
+    if (speed === 'C') return 10;
+    return speed;
+  };
+
+  const fromBaseOfThrow = throwTo - 1;
+  const runnerToChallenge = newState.bases[baseMap[fromBaseOfThrow]];
+
+  if (runnerToChallenge) {
+    const d20Roll = Math.floor(Math.random() * 20) + 1;
+    let speed = getSpeedValue(runnerToChallenge.speed);
+    let defenseRoll = outfieldDefense + d20Roll;
+
+    if (type === 'ADVANCE') {
+      if (throwTo === 4) speed += 5;
+      if (newState.outs === 2) speed += 5;
+    } else if (type === 'TAG_UP') {
+      if (throwTo === 4) speed += 5;
+      if (throwTo === 2) speed -= 5;
+    }
+
+    const isSafe = type === 'ADVANCE' ? speed >= defenseRoll : speed > defenseRoll;
+
+    newState.throwRollResult = {
+        roll: d20Roll,
+        defense: outfieldDefense,
+        target: speed,
+        outcome: isSafe ? 'SAFE' : 'OUT',
+        runner: runnerToChallenge.name,
+        throwToBase: throwTo
+    };
+
+    if (isSafe) {
+      if (throwTo === 4) {
+        newState[scoreKey]++;
+        events.push(`${runnerToChallenge.name} is SAFE at home!`);
+      } else {
+        newState.bases[baseMap[throwTo]] = runnerToChallenge;
+        events.push(`${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`);
+      }
+      newState.bases[baseMap[fromBaseOfThrow]] = null;
+    } else {
+      newState.outs++;
+      newState.bases[baseMap[fromBaseOfThrow]] = null;
+      events.push(`${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
+    }
+  }
+
+  return { newState, events };
+}
+
+module.exports = { applyOutcome, resolveThrow };

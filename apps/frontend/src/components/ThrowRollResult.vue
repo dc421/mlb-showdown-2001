@@ -22,10 +22,26 @@ const outcomeText = computed(() => {
   if (props.details.outcome === 'FIELDERS_CHOICE') {
     return 'BATTER SAFE';
   }
+    if (props.details.outcome === 'SAFE') {
+    return 'SAFE';
+  }
+    if (props.details.outcome === 'OUT') {
+    return 'OUT';
+  }
   return props.details.outcome;
 });
 
+const runnerInfo = computed(() => {
+    if (props.details.runner) {
+        return `${props.details.runner}`;
+    }
+    return '';
+});
+
 const rollInfo = computed(() => {
+    if (props.details.throwToBase) {
+        return `Throw to ${props.details.throwToBase}B: ${props.details.roll} +${props.details.defense}`;
+    }
     return `Throw: ${props.details.roll} +${props.details.defense}`;
 });
 
@@ -37,6 +53,7 @@ const targetInfo = computed(() => {
 
 <template>
   <div class="throw-roll-result" :style="{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary, color: textColor }">
+    <div v-if="runnerInfo">{{ runnerInfo }}</div>
     <div>{{ rollInfo }} vs. {{ targetInfo }}</div>
     <div class="outcome">{{ outcomeText }}</div>
   </div>

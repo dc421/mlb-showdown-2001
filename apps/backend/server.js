@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome } = require('./gameLogic');
+const { applyOutcome, resolveThrow } = require('./gameLogic');
 
 const REPLACEMENT_HITTER_CARD = {
     card_id: -1, name: 'Replacement Hitter', display_name: 'Replacement Hitter', on_base: -10, speed: 'B',
@@ -207,11 +207,6 @@ async function getInfieldDefense(defensiveParticipant) {
 }
 
 // --- HELPER FUNCTIONS ---
-function getOrdinal(n) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
 
 function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
@@ -1533,7 +1528,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
           }
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'walk', finalLog]);
         }
-        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
     } else {
         const pitchRoll = Math.floor(Math.random() * 20) + 1;
         // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
@@ -2067,16 +2062,41 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
         const currentTurn = stateResult.rows[0].turn_number;
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
 
-        const runnersWereSent = Object.values(decisions).some(sent => sent);
+        const sentRunners = Object.keys(decisions).filter(key => decisions[key]);
 
-        if (runnersWereSent) {
+        if (sentRunners.length === 1) {
+            const fromBaseStr = sentRunners[0];
+            const throwTo = parseInt(fromBaseStr, 10) + 1;
+            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense);
+            newState = resolvedState;
+
+            newState.currentPlay = null;
+
+            if (newState.outs >= 3) {
+                newState.isTopInning = !newState.isTopInning;
+                if (newState.isTopInning) newState.inning++;
+                newState.outs = 0;
+                newState.bases = { first: null, second: null, third: null };
+            }
+
+            if (events.length > 0) {
+              const combinedLogMessage = events.join(' ');
+              await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', combinedLogMessage]);
+            }
+
+            newState.awayPlayerReadyForNext = false;
+            newState.homePlayerReadyForNext = false;
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+
+        } else if (sentRunners.length > 1) {
+            // --- Multiple runners sent, ask defense for throw choice ---
             newState.currentPlay.payload.choices = decisions;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         } else {
+            // --- No runners sent, proceed to next hitter ---
             newState.currentPlay = null;
-            // THIS IS THE BUG. The batter is advanced here AND in the next-hitter call.
-            // const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-            // newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         }
         
@@ -2103,69 +2123,42 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
     try {
         await client.query('BEGIN');
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
-        let newState = JSON.parse(JSON.stringify(stateResult.rows[0].state_data));
+        let currentState = JSON.parse(JSON.stringify(stateResult.rows[0].state_data));
         const currentTurn = stateResult.rows[0].turn_number;
         
-        const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
+        const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
         const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
-        const { type, payload } = newState.currentPlay;
+        const { payload } = currentState.currentPlay;
         const { choices } = payload;
-        const events = [];
         const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-        const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+        const scoreKey = currentState.isTopInning ? 'awayScore' : 'homeScore';
 
+        let allEvents = [];
+
+        // Handle uncontested runners first
         for (const fromBaseStr in choices) {
             if (choices[fromBaseStr]) {
                 const fromBase = parseInt(fromBaseStr, 10);
                 const toBase = fromBase + 1;
-                const runner = newState.bases[baseMap[fromBase]];
+                const runner = currentState.bases[baseMap[fromBase]];
 
                 if (runner && toBase !== throwTo) {
                     if (toBase === 4) {
-                        newState[scoreKey]++;
-                        events.push(`${runner.name} scores!`);
+                        currentState[scoreKey]++;
+                        allEvents.push(`${runner.name} scores!`);
                     } else {
-                        newState.bases[baseMap[toBase]] = runner;
-                        events.push(`${runner.name} advances to ${getOrdinal(toBase)}.`);
+                        currentState.bases[baseMap[toBase]] = runner;
+                        allEvents.push(`${runner.name} advances to ${getOrdinal(toBase)}.`);
                     }
-                    newState.bases[baseMap[fromBase]] = null;
+                    currentState.bases[baseMap[fromBase]] = null;
                 }
             }
         }
 
-        const fromBaseOfThrow = throwTo - 1;
-        const runnerToChallenge = newState.bases[baseMap[fromBaseOfThrow]];
-        if (runnerToChallenge) {
-            const d20Roll = Math.floor(Math.random() * 20) + 1;
-            let speed = runnerToChallenge.speed;
-            let defenseRoll = outfieldDefense + d20Roll;
-
-            if (type === 'ADVANCE') {
-                if (throwTo === 4) speed += 5;
-                if (newState.outs === 2) speed += 5;
-            } else if (type === 'TAG_UP') {
-                if (throwTo === 4) speed += 5;
-                if (throwTo === 2) speed -= 5;
-            }
-
-            const isSafe = type === 'ADVANCE' ? speed >= defenseRoll : speed > defenseRoll;
-
-            if (isSafe) {
-                if (throwTo === 4) {
-                    newState[scoreKey]++;
-                    events.push(`${runnerToChallenge.name} is SAFE at home!`);
-                } else {
-                    newState.bases[baseMap[throwTo]] = runnerToChallenge;
-                    events.push(`${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`);
-                }
-                newState.bases[baseMap[fromBaseOfThrow]] = null;
-            } else {
-                newState.outs++;
-                newState.bases[baseMap[fromBaseOfThrow]] = null;
-                events.push(`${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
-            }
-        }
+        // Resolve the contested throw using the refactored function
+        const { newState, events } = resolveThrow(currentState, throwTo, outfieldDefense);
+        allEvents = [...allEvents, ...events];
 
         newState.currentPlay = null;
 
@@ -2176,9 +2169,13 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             newState.bases = { first: null, second: null, third: null };
         }
 
+        newState.awayPlayerReadyForNext = false;
+        newState.homePlayerReadyForNext = false;
+
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
-        for (const logMessage of events) {
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', logMessage]);
+        if (allEvents.length > 0) {
+            const combinedLogMessage = allEvents.join(' ');
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', combinedLogMessage]);
         }
         
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
