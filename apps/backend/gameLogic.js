@@ -7,7 +7,7 @@ const getSpeedValue = (runner) => {
   if (speed === 'A') return 20;
   if (speed === 'B') return 15;
   if (speed === 'C') return 10;
-  return speed; // Assume it's already a number if not A/B/C
+  return parseInt(speed, 10); // Ensure it's always a number
 };
 
 function getOrdinal(n) {
