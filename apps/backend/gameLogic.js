@@ -1,23 +1,29 @@
+const getSpeedValue = (runner) => {
+  // Pitchers always have C/10 speed
+  if (runner.control !== null && typeof runner.control !== 'undefined') {
+    return 10;
+  }
+  const speed = runner.speed;
+  if (speed === 'A') return 20;
+  if (speed === 'B') return 15;
+  if (speed === 'C') return 10;
+  return speed; // Assume it's already a number if not A/B/C
+};
+
+function getOrdinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
-  
-  const getSpeedValue = (runner) => {
-    // Pitchers always have C/10 speed
-    if (runner.control !== null && typeof runner.control !== 'undefined') {
-      return 10;
-    }
-    const speed = runner.speed;
-    if (speed === 'A') return 20;
-    if (speed === 'B') return 15;
-    if (speed === 'C') return 10;
-    return speed; // Assume it's already a number if not A/B/C
-  };
 
-  const runnerData = { 
+  const runnerData = {
     ...batter,
-    pitcherOfRecordId: pitcher.card_id 
+    pitcherOfRecordId: pitcher.card_id
   };
 
   const scoreRun = (runnerOnBase) => {
@@ -390,12 +396,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events };
 }
 
-function getOrdinal(n) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
 function resolveThrow(state, throwTo, outfieldDefense) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
@@ -403,19 +403,12 @@ function resolveThrow(state, throwTo, outfieldDefense) {
   const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
 
-  const getSpeedValue = (speed) => {
-    if (speed === 'A') return 20;
-    if (speed === 'B') return 15;
-    if (speed === 'C') return 10;
-    return speed;
-  };
-
   const fromBaseOfThrow = throwTo - 1;
   const runnerToChallenge = newState.bases[baseMap[fromBaseOfThrow]];
 
   if (runnerToChallenge) {
     const d20Roll = Math.floor(Math.random() * 20) + 1;
-    let speed = getSpeedValue(runnerToChallenge.speed);
+    let speed = getSpeedValue(runnerToChallenge);
     let defenseRoll = outfieldDefense + d20Roll;
 
     if (type === 'ADVANCE') {
