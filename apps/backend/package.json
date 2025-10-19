@@ -12,7 +12,8 @@
     "import:points": "node import-points.js",
     "import:all-points": "node import-all-points.js",
     "update:names": "node update-display-names.js",
-    "prod:update-names": "node update-display-names.js"
+    "prod:update-names": "node update-display-names.js",
+    "populate:images": "node populate_image_urls.js"
   },
   "keywords": [],
   "author": "",
