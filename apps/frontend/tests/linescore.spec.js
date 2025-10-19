@@ -23,6 +23,8 @@ test.describe('Linescore component', () => {
           bases: {},
           isBetweenHalfInningsAway: true, // The critical flag: away team just finished batting.
           isBetweenHalfInningsHome: false,
+          homeDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
+          awayDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
           // These objects are required to prevent component crashes.
           homeTeam: { userId: 2, battingOrderPosition: 1, used_player_ids: [] },
           awayTeam: { userId: 1, battingOrderPosition: 1, used_player_ids: [] },
@@ -98,6 +100,8 @@ test.describe('Linescore component', () => {
           bases: {},
           isBetweenHalfInningsAway: true,
           isBetweenHalfInningsHome: false,
+          homeDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
+          awayDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
           homeTeam: { userId: 2, battingOrderPosition: 1, used_player_ids: [] },
           awayTeam: { userId: 1, battingOrderPosition: 1, used_player_ids: [] },
           currentAtBat: { homeScoreBeforePlay: 0, awayScoreBeforePlay: 0 },
