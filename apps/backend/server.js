@@ -777,10 +777,14 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         newState.currentAtBat.batter = playerInCard;
         // Check if the player being pinch-hit for is actually the pitcher.
         if (playerOutCard.control !== null) {
-             // The pitcher has been removed from the batting lineup.
-             // The opposing team's pitcher (in currentAtBat) is unaffected.
-             // A new pitcher will be required later when this team takes the field.
-             // newState.awaitingPitcherSelection = true;
+            // The pitcher has been removed from the batting lineup.
+            // Nullify them as the current pitcher for their team and flag that a new one is needed.
+            if (teamKey === 'homeTeam') {
+                newState.currentHomePitcher = null;
+            } else {
+                newState.currentAwayPitcher = null;
+            }
+            newState.awaitingPitcherSelection = true;
         }
     } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
         wasReliefPitcher = true;
