@@ -1806,6 +1806,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // NEW: Clear the double play details from the previous play
       delete newState.doublePlayDetails;
+      delete newState.stealAttemptDetails;
 
       // --- THIS IS THE FIX ---
       // Determine which team's batting order needs to be advanced.
@@ -1993,8 +1994,16 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
       const catcherArm = await getCatcherArm(defensiveTeam);
       const d20Roll = Math.floor(Math.random() * 20) + 1;
       const defenseTotal = catcherArm + d20Roll;
+      const isSafe = runner.speed > defenseTotal;
 
-      if (runner.speed > defenseTotal) { // SAFE
+      newState.stealAttemptDetails = {
+        roll: d20Roll,
+        defense: catcherArm,
+        target: runner.speed,
+        outcome: isSafe ? 'SAFE' : 'OUT'
+      };
+
+      if (isSafe) { // SAFE
         newState.bases[baseMap[throwTo]] = runner;
         newState.bases[baseMap[fromBaseOfThrow]] = null;
         events.push(`${runner.name} is SAFE at ${getOrdinal(throwTo)}! (Speed ${runner.speed} vs. Throw ${defenseTotal})`);
