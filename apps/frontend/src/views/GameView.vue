@@ -626,16 +626,31 @@ watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
 const nextBatterInLineup = computed(() => {
   if (!gameStore.gameState || !gameStore.lineups?.home || !gameStore.lineups?.away) return null;
 
-  const isTop = gameStore.gameState.isTopInning;
-  const offensiveTeamState = isTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
-  const offensiveLineup = isTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+  // If the inning is over, the "next" batter is the leadoff for the OTHER team.
+  if (gameStore.isEffectivelyBetweenHalfInnings) {
+    const isCurrentlyTop = gameStore.gameState.isTopInning;
+    // The NEW offensive team is the opposite of the current inning.
+    const offensiveTeamState = !isCurrentlyTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+    const offensiveLineup = !isCurrentlyTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
 
-  if (!offensiveLineup) return null;
+    if (!offensiveLineup) return null;
 
-  // Calculate the index of the next batter in the order
-  const nextIndex = (offensiveTeamState.battingOrderPosition + 1) % 9;
-  
-  return offensiveLineup[nextIndex]?.player;
+    // The next batter is whoever is at the current batting order position for that team.
+    return offensiveLineup[offensiveTeamState.battingOrderPosition]?.player;
+
+  } else {
+    // It's mid-inning, so find the next batter for the CURRENT offensive team.
+    const isTop = gameStore.gameState.isTopInning;
+    const offensiveTeamState = isTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+    const offensiveLineup = isTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+
+    if (!offensiveLineup) return null;
+
+    // Calculate the index of the next batter in the order
+    const nextIndex = (offensiveTeamState.battingOrderPosition + 1) % 9;
+
+    return offensiveLineup[nextIndex]?.player;
+  }
 });
 
 // Pre-cache the next batter's image
