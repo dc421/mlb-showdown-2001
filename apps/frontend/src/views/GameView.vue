@@ -1506,6 +1506,25 @@ onUnmounted(() => {
     font-size: 2rem;
     font-weight: bold;
   }
+
+  /* --- Mobile Positioning Overrides --- */
+  .result-box-left {
+    left: -40px;
+  }
+  .result-box-right {
+    right: -40px;
+  }
+  .defensive-ratings {
+    bottom: 5px;
+    left: 5px;
+  }
+  /* Target the ThrowRollResult component's root class */
+  .diamond-and-results-container > .throw-roll-result {
+    bottom: 5px;
+    left: auto;
+    right: 5px;
+    transform: translateX(0);
+  }
 }
 
 
