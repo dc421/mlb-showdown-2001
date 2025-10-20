@@ -2022,7 +2022,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     if (runner) {
       const catcherArm = await getCatcherArm(defensiveTeam);
       const d20Roll = Math.floor(Math.random() * 20) + 1;
-      const defenseTotal = catcherArm + d20Roll;
+      let defenseTotal = catcherArm + d20Roll;
+      if (throwTo === 3) {
+        defenseTotal -= 5;
+      }
       const isSafe = runner.speed > defenseTotal;
 
       newState.stealAttemptDetails = {
