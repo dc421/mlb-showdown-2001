@@ -724,6 +724,8 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const participantResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1 AND user_id = $2', [gameId, userId]);
     const participant = participantResult.rows[0];
     const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+    const isOffensiveSub = teamKey === offensiveTeamKey;
 
     if (newState[teamKey].used_player_ids.includes(playerInId)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
@@ -799,7 +801,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
             }
             newState.awaitingPitcherSelection = true;
         }
-    } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
+    } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId && !isOffensiveSub) {
         wasReliefPitcher = true;
         newState.currentAtBat.pitcher = playerInCard;
         if (teamKey === 'homeTeam') {
