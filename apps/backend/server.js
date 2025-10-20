@@ -301,7 +301,7 @@ async function initializePitcherFatigue(gameId, client) {
             }
 
             if (isTired) {
-                finalPitcherStats[reliever.card_id] = { ip: reliever.ip + 1, runs: 0 };
+                finalPitcherStats[reliever.card_id] = { runs: 0, innings_pitched: [], fatigue_modifier: -reliever.ip };
             }
         }
     }
@@ -1522,14 +1522,25 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     // --- Pitcher Fatigue Logic ---
     if (!currentState.pitcherStats) { currentState.pitcherStats = {}; }
     const pitcherId = pitcher.card_id;
-    let stats = currentState.pitcherStats[pitcherId] || { ip: 0, runs: 0 };
-    if (currentState.outs === 0 && ((currentState.isTopInning && currentState.awayTeam.battingOrderPosition === 0) || (!currentState.isTopInning && currentState.homeTeam.battingOrderPosition === 0))) {
-      stats.ip++;
+    let stats = currentState.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    if (!stats.innings_pitched) {
+        stats.innings_pitched = [];
     }
+
+    // Track unique innings pitched
+    if (!stats.innings_pitched.includes(currentState.inning)) {
+        stats.innings_pitched.push(currentState.inning);
+    }
+    currentState.pitcherStats[pitcherId] = stats;
+
     let controlPenalty = 0;
-    const fatigueThreshold = pitcher.ip - Math.floor(stats.runs / 3);
-    if (stats.ip > fatigueThreshold) {
-        controlPenalty = stats.ip - fatigueThreshold;
+    // Apply fatigue modifier from series carry-over
+    const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
+    const fatigueThreshold = modifiedIp - Math.floor(stats.runs / 3);
+    const inningsPitchedCount = stats.innings_pitched.length;
+
+    if (inningsPitchedCount > fatigueThreshold) {
+        controlPenalty = inningsPitchedCount - fatigueThreshold;
     }
     const effectiveControl = pitcher.control - controlPenalty;
 
