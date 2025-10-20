@@ -26,10 +26,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     pitcherOfRecordId: pitcher.card_id
   };
 
-  const scoreRun = (runnerOnBase) => {
+  const scoreRun = (runnerOnBase, generateLog = true) => {
     if (!runnerOnBase) return;
     newState[scoreKey]++;
-    events.push(`${runnerOnBase.name} scores!`);
+    if (generateLog) {
+      events.push(`${runnerOnBase.name} scores!`);
+    }
     const pitcherId = runnerOnBase.pitcherOfRecordId;
     if (newState.pitcherStats[pitcherId]) {
       newState.pitcherStats[pitcherId].runs++;
@@ -346,7 +348,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     if (newState.bases.third) { scoreRun(newState.bases.third); }
     if (newState.bases.second) { scoreRun(newState.bases.second); }
     if (newState.bases.first) { scoreRun(newState.bases.first); }
-    scoreRun(runnerData);
+    scoreRun(runnerData, false); // Batter scores, but don't log it.
     newState.bases = { first: null, second: null, third: null };
   }
   else if (outcome === 'SO') {
