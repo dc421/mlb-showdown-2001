@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link:
+          - /url: /dashboard
+        - link "Dashboard" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+      - generic [ref=e7]:
+        - table [ref=e8]:
+          - rowgroup [ref=e9]:
+            - row "1 2 3 4 5 6 7 8 9 R" [ref=e10]:
+              - cell [ref=e11]
+              - cell "1" [ref=e12]
+              - cell "2" [ref=e13]
+              - cell "3" [ref=e14]
+              - cell "4" [ref=e15]
+              - cell "5" [ref=e16]
+              - cell "6" [ref=e17]
+              - cell "7" [ref=e18]
+              - cell "8" [ref=e19]
+              - cell "9" [ref=e20]
+              - cell "R" [ref=e21]
+          - rowgroup [ref=e22]:
+            - row "AWAY 0 0" [ref=e23]:
+              - cell "AWAY" [ref=e24]
+              - cell "0" [ref=e25]
+              - cell [ref=e26]
+              - cell [ref=e27]
+              - cell [ref=e28]
+              - cell [ref=e29]
+              - cell [ref=e30]
+              - cell [ref=e31]
+              - cell [ref=e32]
+              - cell [ref=e33]
+              - cell "0" [ref=e34]
+            - row "HOME 0" [ref=e35]:
+              - cell "HOME" [ref=e36]
+              - cell [ref=e37]
+              - cell [ref=e38]
+              - cell [ref=e39]
+              - cell [ref=e40]
+              - cell [ref=e41]
+              - cell [ref=e42]
+              - cell [ref=e43]
+              - cell [ref=e44]
+              - cell [ref=e45]
+              - cell "0" [ref=e46]
+        - generic [ref=e48]: Outs
+      - button "Logout" [ref=e54] [cursor=pointer]
+    - paragraph [ref=e57]: Loading game...
+  - generic [ref=e58]:
+    - generic "Toggle devtools panel" [ref=e59] [cursor=pointer]:
+      - img [ref=e60]
+    - generic "Toggle Component Inspector" [ref=e65] [cursor=pointer]:
+      - img [ref=e66]
+```
