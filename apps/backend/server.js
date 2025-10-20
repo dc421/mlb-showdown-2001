@@ -2023,8 +2023,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
       const catcherArm = await getCatcherArm(defensiveTeam);
       const d20Roll = Math.floor(Math.random() * 20) + 1;
       let defenseTotal = catcherArm + d20Roll;
+      let penalty = 0;
       if (throwTo === 3) {
         defenseTotal -= 5;
+        penalty = -5;
       }
       const isSafe = runner.speed > defenseTotal;
 
@@ -2032,7 +2034,9 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         roll: d20Roll,
         defense: catcherArm,
         target: runner.speed,
-        outcome: isSafe ? 'SAFE' : 'OUT'
+        outcome: isSafe ? 'SAFE' : 'OUT',
+        penalty,
+        throwToBase: throwTo,
       };
 
       if (isSafe) { // SAFE

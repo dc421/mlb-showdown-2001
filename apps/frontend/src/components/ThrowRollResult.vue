@@ -39,10 +39,14 @@ const runnerInfo = computed(() => {
 });
 
 const rollInfo = computed(() => {
+    let base = `Throw: ${props.details.roll} +${props.details.defense}`;
     if (props.details.throwToBase) {
-        return `Throw to ${props.details.throwToBase}B: ${props.details.roll} +${props.details.defense}`;
+        base = `Throw to ${props.details.throwToBase}B: ${props.details.roll} +${props.details.defense}`;
     }
-    return `Throw: ${props.details.roll} +${props.details.defense}`;
+    if (props.details.penalty) {
+        return `${base} ${props.details.penalty}`;
+    }
+    return base;
 });
 
 const targetInfo = computed(() => {
