@@ -85,11 +85,10 @@ const runnerDecisionsWithLabels = computed(() => {
 
         let toBaseLabel = '';
         switch (toBase) {
-            case 1: toBaseLabel = 'to 2nd'; break;
-            case 2: toBaseLabel = 'to 3rd'; break;
-            case 3: toBaseLabel = 'Home'; break;
-            case 4: toBaseLabel = '1st'; break;
-            default: toBaseLabel = `${toBase}B`; // Fallback
+            case 2: toBaseLabel = 'to 2nd'; break;
+            case 3: toBaseLabel = 'to 3rd'; break;
+            case 4: toBaseLabel = 'Home'; break;
+            default: toBaseLabel = `to base ${toBase}`; // Fallback
         }
         return {
             ...decision,
