@@ -197,7 +197,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
               // With less than 2 outs, a runner with 10 speed will always be held.
               // A runner with 15 speed will be held if they are trying for 3rd.
-              const isAutoHold = runnerSpeed === 10 && toBase === 3;
+              // A runner with 15 speed will also be held at third if they are trying for home (scoring from 2nd)
+              const isAutoHold = (runnerSpeed === 10 && toBase === 3) || (runnerSpeed === 15 && toBase === 4);
 
               if (isAutoAdvance) {
                   automaticOutcomes.push({ ...decision, advance: true });
