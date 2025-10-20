@@ -423,7 +423,7 @@ const showNextHitterButton = computed(() => {
 
   // Rule: If the at-bat is resolved, but the result isn't visible, NEVER show the button.
   // This covers the offensive player waiting to roll AND the defensive player waiting for the timer.
-  if (atBatIsResolved && !isSwingResultVisible.value) {
+  if ((atBatIsResolved || amIDisplayOffensivePlayer.value) && !isSwingResultVisible.value) {
     return false;
   }
 
