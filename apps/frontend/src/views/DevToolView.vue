@@ -13,10 +13,10 @@ const errorMessage = ref('');
 
 // This function is called when the component is first loaded
 // and anytime the game state changes from the store
-function syncStateToUI(newGame) {
-    if (newGame && newGame.state_data) {
+function syncStateToUI() {
+    if (gameStore.gameState) {
         // Create a deep copy to avoid modifying the store's state directly
-        const stateToDisplay = cloneDeep(newGame.state_data);
+        const stateToDisplay = cloneDeep(gameStore.gameState);
 
         // Use a replacer to handle potential circular references if any
         const replacer = (key, value) => {
@@ -34,7 +34,7 @@ function handleSubmit() {
     try {
         const newState = JSON.parse(stateJson.value);
         // We need to merge this with the existing state to not blow away everything
-        const currentState = cloneDeep(gameStore.game.state_data) || {};
+        const currentState = cloneDeep(gameStore.gameState) || {};
 
         // A deep merge of the new state into the current state
         Object.assign(currentState, newState);
@@ -48,10 +48,10 @@ function handleSubmit() {
 }
 
 // Watch for changes in the game state and update the textarea
-watch(() => gameStore.game, (newGame, oldGame) => {
+watch(() => gameStore.gameState, (newState, oldState) => {
     // Only update if the new state is actually different
-    if (JSON.stringify(newGame) !== JSON.stringify(oldGame)) {
-        syncStateToUI(newGame);
+    if (JSON.stringify(newState) !== JSON.stringify(oldState)) {
+        syncStateToUI();
     }
 }, { deep: true });
 
@@ -59,7 +59,7 @@ watch(() => gameStore.game, (newGame, oldGame) => {
 onMounted(async () => {
     await gameStore.fetchGame(gameId);
     // Once the game data is loaded, sync it to the UI
-    syncStateToUI(gameStore.game);
+    syncStateToUI();
 });
 
 </script>
