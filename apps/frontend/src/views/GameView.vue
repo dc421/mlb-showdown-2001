@@ -416,30 +416,28 @@ const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameSta
 
 const showNextHitterButton = computed(() => {
   if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
-
-  // Do not show if the defensive player is waiting for a baserunning decision.
   if (isAwaitingBaserunningDecision.value) return false;
+  if (gameStore.amIReadyForNext) return false;
 
-  if (gameStore.amIReadyForNext) {
-    return false;
-  }
-
-  if (!isSwingResultVisible.value && amIDisplayOffensivePlayer.value) {
-    return false;
-  }
-
-  // Case 1: Inning is over. Both players see the button.
-  if (gameStore.isBetweenHalfInnings) {
-    if (amIDisplayOffensivePlayer.value && !isSwingResultVisible.value) {
-    return false;
-  } else{
-  return true;
-  }
-  }
-  
   const atBatIsResolved = bothPlayersSetAction.value;
+
+  // Rule: If the at-bat is resolved, but the result isn't visible, NEVER show the button.
+  // This covers the offensive player waiting to roll AND the defensive player waiting for the timer.
+  if (atBatIsResolved && !isSwingResultVisible.value) {
+    return false;
+  }
+
+  // Case 1: Inning is over.
+  // If we reach here, the result MUST be visible (due to the check above).
+  // So we can just show the button.
+  if (gameStore.isBetweenHalfInnings) {
+    return true;
+  }
+
   const opponentIsReady = gameStore.opponentReadyForNext;
 
+  // If we reach here, the at-bat is either resolved (and result is visible) or not.
+  // Or the opponent is ready.
   return atBatIsResolved || opponentIsReady;
 });
 
