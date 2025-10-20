@@ -666,7 +666,9 @@ const batterToDisplay = computed(() => {
     if (!gameStore.gameState) {
         return null;
     }
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
+    // This is the player who is currently on defense for display purposes.
+    if (amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     return gameStore.gameState.currentAtBat.batter;
@@ -674,7 +676,9 @@ const batterToDisplay = computed(() => {
 
 const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
+    // This is the player who is currently on defense for display purposes.
+    if (amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.pitcher;
     }
     // In all other cases, show the data for the current at-bat.
