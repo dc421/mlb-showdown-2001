@@ -773,41 +773,46 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     // 2. Update currentAtBat (for pinch hitters and relief pitchers)
+    const isSubForBatter = newState.currentAtBat.batter.card_id === playerOutId;
+    const isSubForPitcherOnMound = newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId;
+
     if (newState.awaitingPitcherSelection) {
-        if (playerInCard.control !== null) {
+        // This state occurs when a half-inning ends and the new defensive team needs a pitcher.
+        if (playerInCard.control !== null) { // A pitcher is being subbed in.
             newState.awaitingPitcherSelection = false;
-            newState.currentAtBat.pitcher = playerInCard;
+            newState.currentAtBat.pitcher = playerInCard; // They are now the active pitcher.
             wasReliefPitcher = true;
             if (teamKey === 'homeTeam') {
                 newState.currentHomePitcher = playerInCard;
             } else {
                 newState.currentAwayPitcher = playerInCard;
             }
-        } else {
-            newState.awaitingPitcherSelection = true;
         }
-    }
-    else if (newState.currentAtBat.batter.card_id === playerOutId) {
-        wasPinchHitter = true;
-        newState.currentAtBat.batter = playerInCard;
-        // Check if the player being pinch-hit for is actually the pitcher.
-        if (playerOutCard.control !== null) {
-            // The pitcher has been removed from the batting lineup.
-            // Nullify them as the current pitcher for their team and flag that a new one is needed.
-            if (teamKey === 'homeTeam') {
-                newState.currentHomePitcher = null;
-            } else {
-                newState.currentAwayPitcher = null;
-            }
-            newState.awaitingPitcherSelection = true;
-        }
-    } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId && !isOffensiveSub) {
+    } else if (isSubForPitcherOnMound && !isOffensiveSub) {
+        // This is a standard defensive substitution for the pitcher on the mound.
         wasReliefPitcher = true;
         newState.currentAtBat.pitcher = playerInCard;
         if (teamKey === 'homeTeam') {
             newState.currentHomePitcher = playerInCard;
         } else {
             newState.currentAwayPitcher = playerInCard;
+        }
+    } else if (isSubForBatter) {
+        // This is an offensive substitution for the batter.
+        wasPinchHitter = true;
+        newState.currentAtBat.batter = playerInCard;
+
+        // If the player being pinch-hit for was a pitcher, it has future defensive consequences.
+        if (playerOutCard.control !== null) {
+            // We nullify the designated pitcher for the OFFENSIVE team. This does NOT affect the
+            // pitcher currently on the mound from the defensive team.
+            if (teamKey === 'homeTeam') {
+                newState.currentHomePitcher = null;
+            } else {
+                newState.currentAwayPitcher = null;
+            }
+            // We set the flag that this team will need a new pitcher when they next take the field.
+            newState.awaitingPitcherSelection = true;
         }
     }
 

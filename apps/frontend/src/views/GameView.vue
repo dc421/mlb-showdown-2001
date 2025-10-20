@@ -166,6 +166,14 @@ const isMyTurn = computed(() => {
   return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
 });
 
+const isMyTeamAwaitingPitcher = computed(() => {
+    if (!gameStore.gameState || !gameStore.myTeam) return false;
+    // This is true if the awaiting flag is set AND my team's pitcher is the one who is null.
+    return gameStore.gameState.awaitingPitcherSelection &&
+           ((gameStore.myTeam === 'home' && gameStore.gameState.currentHomePitcher === null) ||
+            (gameStore.myTeam === 'away' && gameStore.gameState.currentAwayPitcher === null));
+});
+
 
 const batterLineupInfo = computed(() => {
     if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
@@ -665,7 +673,9 @@ const batterToDisplay = computed(() => {
     if (!gameStore.gameState) {
         return null;
     }
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
+    // This is the player who is currently on defense for display purposes.
+    if (amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     return gameStore.gameState.currentAtBat.batter;
@@ -673,7 +683,9 @@ const batterToDisplay = computed(() => {
 
 const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
+    // This is the player who is currently on defense for display purposes.
+    if (amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.pitcher;
     }
     // In all other cases, show the data for the current at-bat.
@@ -1092,7 +1104,7 @@ onUnmounted(() => {
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- PITCHER SELECTION STATE -->
-            <div v-if="gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer" class="waiting-text">
+        <div v-if="isMyTeamAwaitingPitcher && amIDisplayDefensivePlayer" class="waiting-text">
                 <h3>Awaiting Pitcher</h3>
                 <p>You must substitute in a new pitcher to continue.</p>
             </div>
