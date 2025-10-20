@@ -125,9 +125,6 @@ const isGamePage = computed(() => route.name === 'game');
     display: none;
   }
 
-  .global-nav.game-page-active .nav-team-logo {
-    display: none;
-  }
 
   /* Ensure the outs are visible against the dark background */
   .nav-center :deep(.outs-display) {
