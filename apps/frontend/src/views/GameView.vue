@@ -167,6 +167,14 @@ const isMyTurn = computed(() => {
   return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
 });
 
+const isMyTeamAwaitingPitcher = computed(() => {
+    if (!gameStore.gameState || !gameStore.myTeam) return false;
+    // This is true if the awaiting flag is set AND my team's pitcher is the one who is null.
+    return gameStore.gameState.awaitingPitcherSelection &&
+           ((gameStore.myTeam === 'home' && gameStore.gameState.currentHomePitcher === null) ||
+            (gameStore.myTeam === 'away' && gameStore.gameState.currentAwayPitcher === null));
+});
+
 
 const batterLineupInfo = computed(() => {
     if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
@@ -1093,7 +1101,7 @@ onUnmounted(() => {
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- PITCHER SELECTION STATE -->
-            <div v-if="gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer" class="waiting-text">
+        <div v-if="isMyTeamAwaitingPitcher && amIDisplayDefensivePlayer" class="waiting-text">
                 <h3>Awaiting Pitcher</h3>
                 <p>You must substitute in a new pitcher to continue.</p>
             </div>
