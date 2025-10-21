@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { useAuthStore } from '@/stores/auth';
@@ -13,6 +14,7 @@ const showSubModal = ref(false);
 const route = useRoute();
 const router = useRouter();
 const gameStore = useGameStore();
+const { isSwingResultVisible, isStealResultVisible } = storeToRefs(gameStore);
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
@@ -618,8 +620,6 @@ const batterTeamColors = computed(() => isDisplayTopInning.value ? awayTeamColor
 const pitcherResultTextColor = computed(() => getContrastingTextColor(pitcherTeamColors.value.primary));
 const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamColors.value.primary));
 
-const isSwingResultVisible = computed(() => gameStore.isSwingResultVisible);
-
 const atBatToDisplay = computed(() => {
     if (!gameStore.gameState) {
       // During component teardown or initial load, gameState can be null.
@@ -825,7 +825,7 @@ function handleSwing(action = null) {
 function handleNextHitter() {
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
-  isStealResultVisible.value = false;
+  gameStore.setIsStealResultVisible(false);
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
 
