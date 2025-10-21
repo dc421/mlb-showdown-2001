@@ -82,7 +82,7 @@ const runnerDecisionsWithLabels = computed(() => {
             toBase = parseInt(decision.to, 10);
         } else {
             // If `to` is not specified, it's a standard advancement of one base.
-            toBase = fromBase + 1;
+            toBase = fromBase + 2;
         }
 
         let toBaseLabel = '';
