@@ -423,6 +423,8 @@ const canStealSecond = computed(() => canAttemptSteal.value && gameStore.gameSta
 const canStealThird = computed(() => canAttemptSteal.value && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
 const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
 
+const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
+
 const showNextHitterButton = computed(() => {
   if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
   if (isAwaitingBaserunningDecision.value) return false;
@@ -1192,7 +1194,7 @@ onUnmounted(() => {
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
                     <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="infield-in-checkbox">
+                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && isRunnerOnThird" class="infield-in-checkbox">
                         <label>
                             <input type="checkbox" v-model="infieldIn" />
                             Infield In
