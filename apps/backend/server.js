@@ -2053,11 +2053,11 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
       if (isSafe) { // SAFE
         newState.bases[baseMap[throwTo]] = runner;
         newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is SAFE at ${getOrdinal(throwTo)}! (Speed ${runner.speed} vs. Throw ${defenseTotal})`);
+        events.push(`${runner.name} is SAFE at ${getOrdinal(throwTo)}!`);
       } else { // OUT
         newState.outs++;
         newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is THROWN OUT at ${getOrdinal(throwTo)}! (Speed ${runner.speed} vs. Throw ${defenseTotal})`);
+        events.push(`${runner.name} is THROWN OUT at ${getOrdinal(throwTo)}! <strong>Outs: ${newState.outs}</strong>`);
       }
     }
 
