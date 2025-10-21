@@ -812,7 +812,6 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 newState.currentAwayPitcher = null;
             }
             // We set the flag that this team will need a new pitcher when they next take the field.
-            newState.awaitingPitcherSelection = true;
         }
     }
 
@@ -1316,6 +1315,9 @@ async function getAndProcessGameData(gameId, dbClient) {
     const activePlayers = await getActivePlayers(gameId, currentState.state_data);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
+    if (!pitcher) {
+        pitcher = REPLACEMENT_PITCHER_CARD;
+    }
     const homeParticipant = participantsResult.rows.find(p => p.user_id === game.home_team_user_id);
     const awayParticipant = participantsResult.rows.find(p => p.user_id !== game.home_team_user_id);
 
