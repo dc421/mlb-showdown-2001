@@ -2063,6 +2063,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
     // 3. Finalize the turn state
     newState.currentPlay = null;
+    // After a steal, the pitcher must re-roll.
+    newState.currentAtBat.pitcherAction = null;
+    newState.currentAtBat.pitchRollResult = null;
+
 
     if (newState.outs >= 3) {
         // Inning change logic
