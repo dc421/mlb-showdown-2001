@@ -210,6 +210,38 @@ async function getInfieldDefense(defensiveParticipant) {
 
 // --- HELPER FUNCTIONS ---
 
+async function createInningChangeEvent(client, gameId, newState, userId, currentTurn) {
+    const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
+    const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+    const home_team_user_id = game.rows[0].home_team_user_id;
+
+    const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
+    const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
+
+    const defensiveParticipant = newState.isTopInning ? homeParticipant : awayParticipant;
+    const offensiveParticipant = newState.isTopInning ? awayParticipant : homeParticipant;
+
+    const pitcherCardId = defensiveParticipant.lineup.startingPitcher; // Simplification
+    const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
+    const pitcher = pitcherResult.rows[0];
+    processPlayers([pitcher]);
+
+    const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
+    const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
+    const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
+    const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
+
+    const inningChangeEvent = `
+      <div class="inning-change-message">
+          <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
+          <b>${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)}</b>
+      </div>
+      <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
+    `;
+    await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+}
+
+
 function getOrdinal(n) {
     const s = ["th", "st", "nd", "rd"];
     const v = n % 100;
@@ -1455,34 +1487,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
         if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
-          const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
-          const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
-          const home_team_user_id = game.rows[0].home_team_user_id;
-
-          const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
-          const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
-
-          const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
-          const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
-
-          const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
-          const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
-          const pitcher = pitcherResult.rows[0];
-          processPlayers([pitcher]);
-
-          const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
-          const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
-          const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
-          const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
-
-          const inningChangeEvent = `
-            <div class="inning-change-message">
-                <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
-                <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
-            </div>
-            <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
-          `;
-          await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+          await createInningChangeEvent(client, gameId, finalState, userId, currentTurn);
         }
       }
       
@@ -1639,34 +1644,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
               if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
-                const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
-                const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
-                const home_team_user_id = game.rows[0].home_team_user_id;
-
-                const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
-                const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
-
-                const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
-                const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
-
-                const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
-                const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
-                const pitcher = pitcherResult.rows[0];
-                processPlayers([pitcher]);
-
-                const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
-                const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
-                const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
-                const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
-
-                const inningChangeEvent = `
-                  <div class="inning-change-message">
-                      <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
-                      <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
-                  </div>
-                  <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
-                `;
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+                await createInningChangeEvent(client, gameId, finalState, userId, currentTurn);
               }
             }
 
@@ -1775,13 +1753,18 @@ app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req
         await client.query(`UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`, [gameId]);
         await handleSeriesProgression(gameId, client);
       } else {
-        newState.inningChanged = true;
-        if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
-        else { newState.isBetweenHalfInningsHome = true; }
+        if (newState.isTopInning) {
+          newState.isBetweenHalfInningsAway = true;
+        } else {
+          newState.isBetweenHalfInningsHome = true;
+        }
         newState.isTopInning = !newState.isTopInning;
-        if (newState.isTopInning) newState.inning++;
+        if (newState.isTopInning) {
+            newState.inning++;
+        }
         newState.outs = 0;
         newState.bases = { first: null, second: null, third: null };
+        await createInningChangeEvent(client, gameId, newState, userId, currentTurn);
       }
     }
 
