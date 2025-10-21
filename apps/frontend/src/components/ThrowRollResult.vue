@@ -16,18 +16,13 @@ const props = defineProps({
 const textColor = computed(() => getContrastingTextColor(props.teamColors.primary));
 
 const outcomeText = computed(() => {
-  if (props.details.outcome === 'DOUBLE_PLAY') {
-    return 'DOUBLE PLAY';
+  if (props.details.consolidatedOutcome) {
+    return props.details.consolidatedOutcome;
   }
-  if (props.details.outcome === 'FIELDERS_CHOICE') {
-    return 'BATTER SAFE';
-  }
-    if (props.details.outcome === 'SAFE') {
-    return 'SAFE';
-  }
-    if (props.details.outcome === 'OUT') {
-    return 'OUT';
-  }
+  if (props.details.outcome === 'DOUBLE_PLAY') return 'DOUBLE PLAY';
+  if (props.details.outcome === 'FIELDERS_CHOICE') return 'BATTER SAFE';
+  if (props.details.outcome === 'SAFE') return 'SAFE';
+  if (props.details.outcome === 'OUT') return 'OUT';
   return props.details.outcome;
 });
 
@@ -39,6 +34,9 @@ const runnerInfo = computed(() => {
 });
 
 const rollInfo = computed(() => {
+    if (props.details.summary) {
+        return props.details.summary;
+    }
     let base = `Throw: ${props.details.roll} +${props.details.defense}`;
     if (props.details.throwToBase) {
         base = `Throw to ${props.details.throwToBase}B: ${props.details.roll} +${props.details.defense}`;

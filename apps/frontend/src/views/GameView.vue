@@ -20,7 +20,6 @@ const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
 const nextGameId = ref(null);
-const isStealResultVisible = ref(false);
 const isWaitingForDefensiveDPClick = ref(false);
 
 // NEW: Local state to track the offensive player's choice
@@ -503,9 +502,34 @@ const showAutoThrowResult = computed(() => {
   return gameStore.gameState?.throwRollResult && isSwingResultVisible.value;
 });
 
-const showStealResult = computed(() => {
-  return !!gameStore.gameState?.stealAttemptDetails && isStealResultVisible.value;
+const stealResultDetails = computed(() => {
+    // If the result has been officially revealed by the defense, that is the source of truth.
+    if (gameStore.gameState?.stealAttemptDetails) {
+        return gameStore.gameState.stealAttemptDetails;
+    }
+
+    // Otherwise, if I'm the offensive player, show the pre-calculated results immediately.
+    if (amIOffensivePlayer.value && isStealAttemptInProgress.value) {
+        const results = gameStore.gameState.currentPlay.payload.results;
+        const keys = Object.keys(results);
+
+        if (keys.length === 1) {
+            // It's a single steal, just return the details as before.
+            return results[keys[0]];
+        } else if (keys.length > 1) {
+            // It's a double steal, so we create a consolidated "details" object.
+            const outcomes = keys.map(k => `${results[k].runnerName}: ${results[k].outcome}`);
+            return {
+                consolidatedOutcome: "Steal Results",
+                summary: outcomes.join(' | ')
+            };
+        }
+    }
+
+    return null; // No details to show in any other case.
 });
+
+const showStealResult = computed(() => !!stealResultDetails.value);
 
 const defensiveRatingsToDisplay = computed(() => {
   if (!gameStore.gameState) return { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 };
@@ -780,21 +804,6 @@ function handleInitiateSteal(decisions) {
     gameStore.initiateSteal(gameId, decisions);
 }
 
-function handleResolveSteal(throwTo) {
-    isStealResultVisible.value = true;
-    let finalThrowTo = throwTo;
-    if (throwTo === null && isSingleSteal.value) {
-        const decisions = gameStore.gameState.currentPlay.payload.decisions;
-        const fromBaseKey = Object.keys(decisions)[0];
-        if (fromBaseKey === '1') {
-            finalThrowTo = 2;
-        } else if (fromBaseKey === '2') {
-            finalThrowTo = 3;
-        }
-    }
-    gameStore.resolveSteal(gameId, finalThrowTo);
-}
-
 function handlePitch(action = null) {
   console.log('1. GameView: handlePitch function was called.');
   gameStore.submitPitch(gameId, action);
@@ -837,13 +846,26 @@ function handleDefensiveThrow(base) {
 const isStealAttemptInProgress = computed(() => gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT');
 
 const isSingleSteal = computed(() => {
-    if (!isStealAttemptInProgress.value) return false;
+    if (!isStealAttemptInProgress.value) {
+        return { isSingle: false, throwToBase: null };
+    }
     const decisions = gameStore.gameState.currentPlay.payload.decisions;
-    return decisions && Object.keys(decisions).length === 1;
+    const isSingle = decisions && Object.keys(decisions).length === 1;
+    if (!isSingle) {
+        return { isSingle: false, throwToBase: null };
+    }
+
+    const fromBaseKey = Object.keys(decisions)[0];
+    const throwToBase = parseInt(fromBaseKey, 10) + 1;
+
+    return {
+        isSingle: true,
+        throwToBase: throwToBase
+    };
 });
 
 const stealingRunner = computed(() => {
-    if (!isSingleSteal.value) return null;
+    if (!isSingleSteal.value.isSingle) return null;
     const decisions = gameStore.gameState.currentPlay.payload.decisions;
     const fromBaseKey = Object.keys(decisions)[0];
 
@@ -889,14 +911,6 @@ watch(infieldIn, (newValue) => {
 
     }
 
-});
-
-watch(isStealAttemptInProgress, (inProgress, wasInProgress) => {
-  if (wasInProgress && !inProgress && amIOffensivePlayer.value) {
-    setTimeout(() => {
-      isStealResultVisible.value = true;
-    }, 900);
-  }
 });
 
 const bothPlayersCaughtUp = computed(() => {
@@ -1105,7 +1119,7 @@ onUnmounted(() => {
           />
           <ThrowRollResult
             v-if="showStealResult"
-            :details="gameStore.gameState.stealAttemptDetails"
+            :details="stealResultDetails"
             :teamColors="pitcherTeamColors"
           />
           <div class="defensive-ratings">
@@ -1161,15 +1175,15 @@ onUnmounted(() => {
                 </button>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
-                <div v-if="isSingleSteal">
+                <div v-if="isSingleSteal.isSingle">
                     <h3><span v-if="stealingRunner">{{ stealingRunner.name }} is stealing!</span><span v-else>Opponent is stealing!</span></h3>
-                    <button @click="handleResolveSteal(null)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                    <button @click="gameStore.resolveSteal(gameId, isSingleSteal.throwToBase)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
                 </div>
                 <div v-else>
                     <h3>Opponent is stealing!</h3>
                     <p>Choose which base to throw to:</p>
-                    <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                    <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    <button @click="gameStore.resolveSteal(gameId, 2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                    <button @click="gameStore.resolveSteal(gameId, 3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
                 </div>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIOffensivePlayer">

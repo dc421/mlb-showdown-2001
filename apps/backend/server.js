@@ -1975,11 +1975,46 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
+    const catcherArm = await getCatcherArm(defensiveTeam);
+    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+    const stealResults = {};
+
+    for (const fromBaseStr in decisions) {
+      if (decisions[fromBaseStr]) {
+        const fromBase = parseInt(fromBaseStr, 10);
+        const toBase = fromBase + 1;
+        const runner = newState.bases[baseMap[fromBase]];
+
+        if (runner) {
+          const d20Roll = Math.floor(Math.random() * 20) + 1;
+          let defenseTotal = catcherArm + d20Roll;
+          let penalty = 0;
+          if (toBase === 3) {
+            defenseTotal -= 5;
+            penalty = -5;
+          }
+          const isSafe = runner.speed > defenseTotal;
+
+          stealResults[fromBase] = {
+            roll: d20Roll,
+            defense: catcherArm,
+            target: runner.speed,
+            outcome: isSafe ? 'SAFE' : 'OUT',
+            penalty,
+            throwToBase: toBase,
+            runnerName: runner.name
+          };
+        }
+      }
+    }
 
     newState.currentPlay = {
       type: 'STEAL_ATTEMPT',
-      payload: { decisions }
+      payload: { decisions, results: stealResults }
     };
+
+    newState.isStealResultHiddenForDefense = true;
 
     // Pass the turn to the defensive player to make their throw
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
@@ -2010,68 +2045,47 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-    const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
+    const { offensiveTeam } = await getActivePlayers(gameId, newState);
 
-    const { decisions } = newState.currentPlay.payload;
+    const { decisions, results } = newState.currentPlay.payload;
     const events = [];
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+    let contestedResult = null;
 
-    // 1. Handle automatic advances for any runner not being thrown at
     for (const fromBaseStr in decisions) {
       if (decisions[fromBaseStr]) {
         const fromBase = parseInt(fromBaseStr, 10);
         const toBase = fromBase + 1;
-        if (toBase !== throwTo) {
-          const runner = newState.bases[baseMap[fromBase]];
-          if (runner) {
+        const runner = newState.bases[baseMap[fromBase]];
+        const result = results[fromBase];
+
+        if (!runner || !result) continue;
+
+        if (toBase === throwTo) { // This is the contested runner
+            contestedResult = result;
+            if (result.outcome === 'SAFE') {
+                newState.bases[baseMap[toBase]] = runner;
+                events.push(`${runner.name} is SAFE at ${getOrdinal(toBase)}!`);
+            } else { // OUT
+                newState.outs++;
+                events.push(`${runner.name} is THROWN OUT at ${getOrdinal(toBase)}! <strong>Outs: ${newState.outs}</strong>`);
+            }
+            newState.bases[baseMap[fromBase]] = null;
+        } else { // Uncontested runner
+            // They are automatically safe on an uncontested steal
             newState.bases[baseMap[toBase]] = runner;
             newState.bases[baseMap[fromBase]] = null;
             events.push(`${runner.name} steals ${getOrdinal(toBase)} base uncontested.`);
-          }
         }
       }
     }
 
-    // 2. Resolve the contested throw
-    const fromBaseOfThrow = throwTo - 1;
-    const runner = newState.bases[baseMap[fromBaseOfThrow]];
-    if (runner) {
-      const catcherArm = await getCatcherArm(defensiveTeam);
-      const d20Roll = Math.floor(Math.random() * 20) + 1;
-      let defenseTotal = catcherArm + d20Roll;
-      let penalty = 0;
-      if (throwTo === 3) {
-        defenseTotal -= 5;
-        penalty = -5;
-      }
-      const isSafe = runner.speed > defenseTotal;
-
-      newState.stealAttemptDetails = {
-        roll: d20Roll,
-        defense: catcherArm,
-        target: runner.speed,
-        outcome: isSafe ? 'SAFE' : 'OUT',
-        penalty,
-        throwToBase: throwTo,
-      };
-
-      if (isSafe) { // SAFE
-        newState.bases[baseMap[throwTo]] = runner;
-        newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is SAFE at ${getOrdinal(throwTo)}!`);
-      } else { // OUT
-        newState.outs++;
-        newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is THROWN OUT at ${getOrdinal(throwTo)}! <strong>Outs: ${newState.outs}</strong>`);
-      }
-    }
-
-    // 3. Finalize the turn state
+    // Finalize the turn state
+    newState.stealAttemptDetails = contestedResult; // Show the result of the throw
+    newState.isStealResultHiddenForDefense = false;
     newState.currentPlay = null;
-    // After a steal, the pitcher must re-roll.
     newState.currentAtBat.pitcherAction = null;
     newState.currentAtBat.pitchRollResult = null;
-
 
     if (newState.outs >= 3) {
         // Inning change logic
@@ -2080,7 +2094,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         if (newState.isTopInning) newState.inning++;
         newState.outs = 0;
         newState.bases = { first: null, second: null, third: null };
-        // Inning change event will be created by the client or a subsequent state change
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
@@ -2088,7 +2101,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
     }
 
-    // Turn goes back to the offensive player to continue the at-bat
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
     await client.query('COMMIT');
 
