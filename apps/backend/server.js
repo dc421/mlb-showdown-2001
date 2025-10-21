@@ -1703,6 +1703,7 @@ app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req
 
     let newState = JSON.parse(JSON.stringify(currentState));
     const { batter, pitcher, defensiveTeam, offensiveTeam } = await getActivePlayers(gameId, newState);
+    processPlayers([batter]);
     const infieldDefense = await getInfieldDefense(defensiveTeam);
 
     const dpRoll = Math.floor(Math.random() * 20) + 1;
