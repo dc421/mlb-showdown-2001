@@ -277,8 +277,8 @@ const scoreChangeMessage = computed(() => {
         return '';
     }
 
-    const awayTeamName = gameStore.teams?.away?.city.toUpperCase() || 'AWAY';
-    const homeTeamName = gameStore.teams?.home?.city.toUpperCase() || 'HOME';
+    const awayTeamName = gameStore.teams?.away?.abbreviation.toUpperCase() || 'AWAY';
+    const homeTeamName = gameStore.teams?.home?.abbreviation.toUpperCase() || 'HOME';
 
     let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
     let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
