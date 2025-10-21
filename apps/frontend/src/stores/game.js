@@ -346,6 +346,7 @@ async function resetRolls(gameId) {
 
   const isOutcomeHidden = ref(false);
   const isSwingResultVisible = ref(false);
+  const isStealResultVisible = ref(false);
 
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
@@ -363,6 +364,10 @@ async function resetRolls(gameId) {
             localStorage.removeItem(rollStorageKey);
         }
     }
+  }
+
+  function setIsStealResultVisible(value) {
+    isStealResultVisible.value = value;
   }
 
   const gameEventsToDisplay = computed(() => {
@@ -426,6 +431,7 @@ async function resetRolls(gameId) {
     setupState.value = null;
     isOutcomeHidden.value = false;
     isSwingResultVisible.value = false;
+    isStealResultVisible.value = false;
   }
 
   const myTeam = computed(() => {
@@ -542,6 +548,7 @@ async function resetRolls(gameId) {
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     isSwingResultVisible, setIsSwingResultVisible,
+    isStealResultVisible, setIsStealResultVisible,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
     updateGameData,
     resetGameState,
