@@ -20,6 +20,8 @@ const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
 const nextGameId = ref(null);
+const isStealResultVisible = ref(false);
+const isWaitingForDefensiveDPClick = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -458,7 +460,8 @@ const showRollForSwingButton = computed(() => {
 });
 
 const showRollForDoublePlayButton = computed(() => {
-  return gameStore.gameState?.awaitingDoublePlayRoll && amIDefensivePlayer.value;
+  // The button should now only show based on the local ref, not the global game state flag.
+  return isWaitingForDefensiveDPClick.value && amIDefensivePlayer.value;
 });
 
 const isWaitingForDoublePlayResolution = computed(() => {
@@ -466,18 +469,33 @@ const isWaitingForDoublePlayResolution = computed(() => {
 });
 
 function handleResolveDoublePlay() {
+  // If the defensive player is clicking the button, update local state first.
+  if (amIDefensivePlayer.value) {
+    isWaitingForDefensiveDPClick.value = false;
+  }
+  // The offensive player's client will also call this after a delay.
   gameStore.resolveDoublePlay(gameId);
 }
 
 watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
-  if (isAwaiting && amIOffensivePlayer.value) {
-    setTimeout(() => {
-      handleResolveDoublePlay();
-    }, 900);
+  if (isAwaiting) {
+    if (amIDefensivePlayer.value) {
+      isWaitingForDefensiveDPClick.value = true;
+    } else if (amIOffensivePlayer.value) {
+      setTimeout(() => {
+        handleResolveDoublePlay();
+      }, 900);
+    }
+  } else {
+    // Reset the flag when the double play sequence is over.
+    isWaitingForDefensiveDPClick.value = false;
   }
 });
 
 const showThrowRollResult = computed(() => {
+  if (isWaitingForDefensiveDPClick.value) {
+    return false;
+  }
   return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
 });
 
@@ -486,7 +504,7 @@ const showAutoThrowResult = computed(() => {
 });
 
 const showStealResult = computed(() => {
-  return !!gameStore.gameState?.stealAttemptDetails;
+  return !!gameStore.gameState?.stealAttemptDetails && isStealResultVisible.value;
 });
 
 const defensiveRatingsToDisplay = computed(() => {
@@ -795,6 +813,7 @@ function handleSwing(action = null) {
 function handleNextHitter() {
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
+  isStealResultVisible.value = false;
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
 
@@ -869,6 +888,14 @@ watch(infieldIn, (newValue) => {
 
     }
 
+});
+
+watch(isStealAttemptInProgress, (inProgress, wasInProgress) => {
+  if (wasInProgress && !inProgress && amIOffensivePlayer.value) {
+    setTimeout(() => {
+      isStealResultVisible.value = true;
+    }, 900);
+  }
 });
 
 const bothPlayersCaughtUp = computed(() => {
