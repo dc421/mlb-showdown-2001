@@ -776,42 +776,51 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const isSubForBatter = newState.currentAtBat.batter.card_id === playerOutId;
     const isSubForPitcherOnMound = newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId;
 
-    if (newState.awaitingPitcherSelection) {
-        // This state occurs when a half-inning ends and the new defensive team needs a pitcher.
-        if (playerInCard.control !== null) { // A pitcher is being subbed in.
-            newState.awaitingPitcherSelection = false;
-            newState.currentAtBat.pitcher = playerInCard; // They are now the active pitcher.
+    // --- REVISED SUBSTITUTION LOGIC ---
+    // This logic differentiates between offensive and defensive substitutions to prevent
+    // corrupting the `currentAtBat` object.
+    if (isOffensiveSub) {
+        // Offensive substitutions (pinch hitter/runner) should NEVER change the active pitcher on the mound.
+        if (isSubForBatter) {
+            wasPinchHitter = true;
+            newState.currentAtBat.batter = playerInCard;
+            // The critical check: If the player being replaced was a pitcher, the substituting team
+            // will need a new pitcher for their NEXT defensive inning. We flag this by nullifying
+            // their designated pitcher slot, but we DO NOT touch `currentAtBat.pitcher`.
+            if (playerOutCard.control !== null) {
+                if (teamKey === 'homeTeam') {
+                    newState.currentHomePitcher = null;
+                } else {
+                    newState.currentAwayPitcher = null;
+                }
+            }
+        }
+        if (wasPinchRunner) {
+            // Pinch runner logic is handled by updating the `bases` object, which was done above.
+            // No changes to `currentAtBat` are needed here.
+        }
+    } else {
+        // Defensive substitutions can change the active pitcher on the mound.
+        if (newState.awaitingPitcherSelection) {
+            // This is for when a new half-inning starts and a pitcher is needed.
+            if (playerInCard.control !== null) {
+                newState.awaitingPitcherSelection = false;
+                newState.currentAtBat.pitcher = playerInCard;
+                wasReliefPitcher = true;
+            }
+        } else if (isSubForPitcherOnMound) {
+            // This is a standard mid-inning pitching change.
+            newState.currentAtBat.pitcher = playerInCard;
             wasReliefPitcher = true;
-            if (teamKey === 'homeTeam') {
+        }
+
+        // For any defensive sub involving a pitcher, update the team's designated pitcher.
+        if (wasReliefPitcher) {
+             if (teamKey === 'homeTeam') {
                 newState.currentHomePitcher = playerInCard;
             } else {
                 newState.currentAwayPitcher = playerInCard;
             }
-        }
-    } else if (isSubForPitcherOnMound && !isOffensiveSub) {
-        // This is a standard defensive substitution for the pitcher on the mound.
-        wasReliefPitcher = true;
-        newState.currentAtBat.pitcher = playerInCard;
-        if (teamKey === 'homeTeam') {
-            newState.currentHomePitcher = playerInCard;
-        } else {
-            newState.currentAwayPitcher = playerInCard;
-        }
-    } else if (isSubForBatter) {
-        // This is an offensive substitution for the batter.
-        wasPinchHitter = true;
-        newState.currentAtBat.batter = playerInCard;
-
-        // If the player being pinch-hit for was a pitcher, it has future defensive consequences.
-        if (playerOutCard.control !== null) {
-            // We nullify the designated pitcher for the OFFENSIVE team. This does NOT affect the
-            // pitcher currently on the mound from the defensive team.
-            if (teamKey === 'homeTeam') {
-                newState.currentHomePitcher = null;
-            } else {
-                newState.currentAwayPitcher = null;
-            }
-            // We set the flag that this team will need a new pitcher when they next take the field.
         }
     }
 
@@ -1983,11 +1992,46 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
+    const catcherArm = await getCatcherArm(defensiveTeam);
+    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+    const stealResults = {};
+
+    for (const fromBaseStr in decisions) {
+      if (decisions[fromBaseStr]) {
+        const fromBase = parseInt(fromBaseStr, 10);
+        const toBase = fromBase + 1;
+        const runner = newState.bases[baseMap[fromBase]];
+
+        if (runner) {
+          const d20Roll = Math.floor(Math.random() * 20) + 1;
+          let defenseTotal = catcherArm + d20Roll;
+          let penalty = 0;
+          if (toBase === 3) {
+            defenseTotal -= 5;
+            penalty = -5;
+          }
+          const isSafe = runner.speed > defenseTotal;
+
+          stealResults[fromBase] = {
+            roll: d20Roll,
+            defense: catcherArm,
+            target: runner.speed,
+            outcome: isSafe ? 'SAFE' : 'OUT',
+            penalty,
+            throwToBase: toBase,
+            runnerName: runner.name
+          };
+        }
+      }
+    }
 
     newState.currentPlay = {
       type: 'STEAL_ATTEMPT',
-      payload: { decisions }
+      payload: { decisions, results: stealResults }
     };
+
+    newState.isStealResultHiddenForDefense = true;
 
     // Pass the turn to the defensive player to make their throw
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
@@ -2018,68 +2062,47 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-    const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
+    const { offensiveTeam } = await getActivePlayers(gameId, newState);
 
-    const { decisions } = newState.currentPlay.payload;
+    const { decisions, results } = newState.currentPlay.payload;
     const events = [];
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+    let contestedResult = null;
 
-    // 1. Handle automatic advances for any runner not being thrown at
     for (const fromBaseStr in decisions) {
       if (decisions[fromBaseStr]) {
         const fromBase = parseInt(fromBaseStr, 10);
         const toBase = fromBase + 1;
-        if (toBase !== throwTo) {
-          const runner = newState.bases[baseMap[fromBase]];
-          if (runner) {
+        const runner = newState.bases[baseMap[fromBase]];
+        const result = results[fromBase];
+
+        if (!runner || !result) continue;
+
+        if (toBase === throwTo) { // This is the contested runner
+            contestedResult = result;
+            if (result.outcome === 'SAFE') {
+                newState.bases[baseMap[toBase]] = runner;
+                events.push(`${runner.name} is SAFE at ${getOrdinal(toBase)}!`);
+            } else { // OUT
+                newState.outs++;
+                events.push(`${runner.name} is THROWN OUT at ${getOrdinal(toBase)}! <strong>Outs: ${newState.outs}</strong>`);
+            }
+            newState.bases[baseMap[fromBase]] = null;
+        } else { // Uncontested runner
+            // They are automatically safe on an uncontested steal
             newState.bases[baseMap[toBase]] = runner;
             newState.bases[baseMap[fromBase]] = null;
             events.push(`${runner.name} steals ${getOrdinal(toBase)} base uncontested.`);
-          }
         }
       }
     }
 
-    // 2. Resolve the contested throw
-    const fromBaseOfThrow = throwTo - 1;
-    const runner = newState.bases[baseMap[fromBaseOfThrow]];
-    if (runner) {
-      const catcherArm = await getCatcherArm(defensiveTeam);
-      const d20Roll = Math.floor(Math.random() * 20) + 1;
-      let defenseTotal = catcherArm + d20Roll;
-      let penalty = 0;
-      if (throwTo === 3) {
-        defenseTotal -= 5;
-        penalty = -5;
-      }
-      const isSafe = runner.speed > defenseTotal;
-
-      newState.stealAttemptDetails = {
-        roll: d20Roll,
-        defense: catcherArm,
-        target: runner.speed,
-        outcome: isSafe ? 'SAFE' : 'OUT',
-        penalty,
-        throwToBase: throwTo,
-      };
-
-      if (isSafe) { // SAFE
-        newState.bases[baseMap[throwTo]] = runner;
-        newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is SAFE at ${getOrdinal(throwTo)}!`);
-      } else { // OUT
-        newState.outs++;
-        newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is THROWN OUT at ${getOrdinal(throwTo)}! <strong>Outs: ${newState.outs}</strong>`);
-      }
-    }
-
-    // 3. Finalize the turn state
+    // Finalize the turn state
+    newState.stealAttemptDetails = contestedResult; // Show the result of the throw
+    newState.isStealResultHiddenForDefense = false;
     newState.currentPlay = null;
-    // After a steal, the pitcher must re-roll.
     newState.currentAtBat.pitcherAction = null;
     newState.currentAtBat.pitchRollResult = null;
-
 
     if (newState.outs >= 3) {
         // Inning change logic
@@ -2088,7 +2111,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         if (newState.isTopInning) newState.inning++;
         newState.outs = 0;
         newState.bases = { first: null, second: null, third: null };
-        // Inning change event will be created by the client or a subsequent state change
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
@@ -2096,7 +2118,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
     }
 
-    // Turn goes back to the offensive player to continue the at-bat
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
     await client.query('COMMIT');
 
