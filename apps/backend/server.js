@@ -81,10 +81,10 @@ app.use('/images', express.static(path.join(__dirname, 'card_images')));
 
 // in server.js
 // in server.js
-async function getActivePlayers(gameId, currentState) {
+async function getActivePlayers(gameId, currentState, dbClient = pool) {
     try {
-        const participantsResult = await pool.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
-        const game = await pool.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+        const participantsResult = await dbClient.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
+        const game = await dbClient.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
 
         const homeParticipant = participantsResult.rows.find(p => p.user_id === game.rows[0].home_team_user_id);
         const awayParticipant = participantsResult.rows.find(p => p.user_id !== game.rows[0].home_team_user_id);
@@ -103,7 +103,7 @@ async function getActivePlayers(gameId, currentState) {
         if (batterInfo.card_id === -1) {
             batter = REPLACEMENT_HITTER_CARD;
         } else {
-            const batterQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
+            const batterQuery = await dbClient.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
             batter = batterQuery.rows[0];
         }
 
@@ -616,8 +616,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         inning: 1, isTopInning: true, awayScore: 0, homeScore: 0, outs: 0,
         bases: { first: null, second: null, third: null },
         pitcherStats: await initializePitcherFatigue(gameId, client),
-        awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
-        homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], needsNewPitcher: false },
+        homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], needsNewPitcher: false },
         homeDefensiveRatings: {
             catcherArm: await getCatcherArm(homeParticipant),
             infieldDefense: await getInfieldDefense(homeParticipant),
@@ -804,14 +804,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
         // If the player being pinch-hit for was a pitcher, it has future defensive consequences.
         if (playerOutCard.control !== null) {
-            // We nullify the designated pitcher for the OFFENSIVE team. This does NOT affect the
-            // pitcher currently on the mound from the defensive team.
-            if (teamKey === 'homeTeam') {
-                newState.currentHomePitcher = null;
-            } else {
-                newState.currentAwayPitcher = null;
-            }
-            // We set the flag that this team will need a new pitcher when they next take the field.
+            // Instead of nullifying the pitcher now, we just set a flag.
+            // The pitcher will be removed at the start of the next half-inning.
+            newState[teamKey].needsNewPitcher = true;
         }
     }
 
@@ -1312,7 +1307,7 @@ async function getAndProcessGameData(gameId, dbClient) {
   let batter = null, pitcher = null, lineups = { home: null, away: null }, rosters = { home: [], away: [] };
 
   if (game.status === 'in_progress') {
-    const activePlayers = await getActivePlayers(gameId, currentState.state_data);
+    const activePlayers = await getActivePlayers(gameId, currentState.state_data, dbClient);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
     if (!pitcher) {
@@ -1873,9 +1868,19 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // Reset the between-innings flags now that the new at-bat is set up.
       if (newState.isBetweenHalfInningsHome) {
         newState.isBetweenHalfInningsHome = false;
+        if (newState.awayTeam.needsNewPitcher) {
+            newState.currentAwayPitcher = null;
+            newState.awaitingPitcherSelection = true;
+            newState.awayTeam.needsNewPitcher = false;
+        }
       }
       if (newState.isBetweenHalfInningsAway) {
         newState.isBetweenHalfInningsAway = false;
+        if (newState.homeTeam.needsNewPitcher) {
+            newState.currentHomePitcher = null;
+            newState.awaitingPitcherSelection = true;
+            newState.homeTeam.needsNewPitcher = false;
+        }
       }
       
       // 3. Create a fresh scorecard for the new at-bat.
