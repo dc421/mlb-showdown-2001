@@ -776,42 +776,51 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const isSubForBatter = newState.currentAtBat.batter.card_id === playerOutId;
     const isSubForPitcherOnMound = newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId;
 
-    if (newState.awaitingPitcherSelection) {
-        // This state occurs when a half-inning ends and the new defensive team needs a pitcher.
-        if (playerInCard.control !== null) { // A pitcher is being subbed in.
-            newState.awaitingPitcherSelection = false;
-            newState.currentAtBat.pitcher = playerInCard; // They are now the active pitcher.
+    // --- REVISED SUBSTITUTION LOGIC ---
+    // This logic differentiates between offensive and defensive substitutions to prevent
+    // corrupting the `currentAtBat` object.
+    if (isOffensiveSub) {
+        // Offensive substitutions (pinch hitter/runner) should NEVER change the active pitcher on the mound.
+        if (isSubForBatter) {
+            wasPinchHitter = true;
+            newState.currentAtBat.batter = playerInCard;
+            // The critical check: If the player being replaced was a pitcher, the substituting team
+            // will need a new pitcher for their NEXT defensive inning. We flag this by nullifying
+            // their designated pitcher slot, but we DO NOT touch `currentAtBat.pitcher`.
+            if (playerOutCard.control !== null) {
+                if (teamKey === 'homeTeam') {
+                    newState.currentHomePitcher = null;
+                } else {
+                    newState.currentAwayPitcher = null;
+                }
+            }
+        }
+        if (wasPinchRunner) {
+            // Pinch runner logic is handled by updating the `bases` object, which was done above.
+            // No changes to `currentAtBat` are needed here.
+        }
+    } else {
+        // Defensive substitutions can change the active pitcher on the mound.
+        if (newState.awaitingPitcherSelection) {
+            // This is for when a new half-inning starts and a pitcher is needed.
+            if (playerInCard.control !== null) {
+                newState.awaitingPitcherSelection = false;
+                newState.currentAtBat.pitcher = playerInCard;
+                wasReliefPitcher = true;
+            }
+        } else if (isSubForPitcherOnMound) {
+            // This is a standard mid-inning pitching change.
+            newState.currentAtBat.pitcher = playerInCard;
             wasReliefPitcher = true;
-            if (teamKey === 'homeTeam') {
+        }
+
+        // For any defensive sub involving a pitcher, update the team's designated pitcher.
+        if (wasReliefPitcher) {
+             if (teamKey === 'homeTeam') {
                 newState.currentHomePitcher = playerInCard;
             } else {
                 newState.currentAwayPitcher = playerInCard;
             }
-        }
-    } else if (isSubForPitcherOnMound && !isOffensiveSub) {
-        // This is a standard defensive substitution for the pitcher on the mound.
-        wasReliefPitcher = true;
-        newState.currentAtBat.pitcher = playerInCard;
-        if (teamKey === 'homeTeam') {
-            newState.currentHomePitcher = playerInCard;
-        } else {
-            newState.currentAwayPitcher = playerInCard;
-        }
-    } else if (isSubForBatter) {
-        // This is an offensive substitution for the batter.
-        wasPinchHitter = true;
-        newState.currentAtBat.batter = playerInCard;
-
-        // If the player being pinch-hit for was a pitcher, it has future defensive consequences.
-        if (playerOutCard.control !== null) {
-            // We nullify the designated pitcher for the OFFENSIVE team. This does NOT affect the
-            // pitcher currently on the mound from the defensive team.
-            if (teamKey === 'homeTeam') {
-                newState.currentHomePitcher = null;
-            } else {
-                newState.currentAwayPitcher = null;
-            }
-            // We set the flag that this team will need a new pitcher when they next take the field.
         }
     }
 
