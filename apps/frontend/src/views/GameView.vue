@@ -635,8 +635,8 @@ const nextBatterInLineup = computed(() => {
   if (gameStore.isEffectivelyBetweenHalfInnings) {
     const isCurrentlyTop = gameStore.gameState.isTopInning;
     // The NEW offensive team is the opposite of the current inning.
-    const offensiveTeamState = !isCurrentlyTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
-    const offensiveLineup = !isCurrentlyTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+    const offensiveTeamState = isCurrentlyTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+    const offensiveLineup = isCurrentlyTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
 
     if (!offensiveLineup) return null;
 
