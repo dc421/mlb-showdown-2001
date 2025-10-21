@@ -781,6 +781,7 @@ function handleInitiateSteal(decisions) {
 }
 
 function handleResolveSteal(throwTo) {
+    isStealResultVisible.value = true;
     let finalThrowTo = throwTo;
     if (throwTo === null && isSingleSteal.value) {
         const decisions = gameStore.gameState.currentPlay.payload.decisions;
