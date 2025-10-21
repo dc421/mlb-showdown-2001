@@ -20,6 +20,7 @@ const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
 const nextGameId = ref(null);
+const isStealResultVisible = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -486,7 +487,7 @@ const showAutoThrowResult = computed(() => {
 });
 
 const showStealResult = computed(() => {
-  return !!gameStore.gameState?.stealAttemptDetails;
+  return !!gameStore.gameState?.stealAttemptDetails && isStealResultVisible.value;
 });
 
 const defensiveRatingsToDisplay = computed(() => {
@@ -795,6 +796,7 @@ function handleSwing(action = null) {
 function handleNextHitter() {
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
+  isStealResultVisible.value = false;
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
 
@@ -869,6 +871,14 @@ watch(infieldIn, (newValue) => {
 
     }
 
+});
+
+watch(isStealAttemptInProgress, (inProgress, wasInProgress) => {
+  if (wasInProgress && !inProgress && amIOffensivePlayer.value) {
+    setTimeout(() => {
+      isStealResultVisible.value = true;
+    }, 900);
+  }
 });
 
 const bothPlayersCaughtUp = computed(() => {
