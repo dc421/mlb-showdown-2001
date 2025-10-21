@@ -486,7 +486,7 @@ const showAutoThrowResult = computed(() => {
 });
 
 const showStealResult = computed(() => {
-  return gameStore.gameState?.stealAttemptDetails && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
+  return !!gameStore.gameState?.stealAttemptDetails;
 });
 
 const defensiveRatingsToDisplay = computed(() => {
