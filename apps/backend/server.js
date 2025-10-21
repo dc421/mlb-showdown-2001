@@ -1395,6 +1395,10 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     const currentTurn = stateResult.rows[0].turn_number;
     
     let finalState = { ...currentState };
+    // Clear the previous throw result when a new action is set
+    if (finalState.throwRollResult) {
+      finalState.throwRollResult = null;
+    }
     const { offensiveTeam } = await getActivePlayers(gameId, finalState);
 
     finalState.currentAtBat.batterAction = action;
@@ -1548,6 +1552,10 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const effectiveControl = pitcher.control - controlPenalty;
 
      let finalState = { ...currentState };
+    // Clear the previous throw result when a new action is set
+    if (finalState.throwRollResult) {
+      finalState.throwRollResult = null;
+    }
     const events = [];
 
     if (action === 'intentional_walk') {
