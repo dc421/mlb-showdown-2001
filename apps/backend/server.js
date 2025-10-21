@@ -1706,7 +1706,7 @@ app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req
     const infieldDefense = await getInfieldDefense(defensiveTeam);
 
     const dpRoll = Math.floor(Math.random() * 20) + 1;
-    const isDoublePlay = (infieldDefense + dpRoll) >= batter.speed;
+    const isDoublePlay = (infieldDefense + dpRoll) > batter.speed;
     const outcome = isDoublePlay ? 'DOUBLE_PLAY' : 'FIELDERS_CHOICE';
 
     const runnerData = { ...batter, pitcherOfRecordId: pitcher.card_id };

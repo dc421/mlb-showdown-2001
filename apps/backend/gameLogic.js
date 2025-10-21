@@ -430,7 +430,7 @@ function resolveThrow(state, throwTo, outfieldDefense) {
       if (throwTo === 2) speed -= 5;
     }
 
-    const isSafe = type === 'ADVANCE' ? speed >= defenseRoll : speed > defenseRoll;
+    const isSafe = speed >= defenseRoll;
 
     newState.throwRollResult = {
         roll: d20Roll,
