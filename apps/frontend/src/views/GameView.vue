@@ -721,7 +721,9 @@ const batterToDisplay = computed(() => {
     if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
-    return gameStore.gameState.currentAtBat.batter;
+    // MODIFIED: The single source of truth for the current batter is the lineup,
+    // as `currentAtBat.batter` can become stale after a substitution.
+    return batterLineupInfo.value?.player ?? gameStore.gameState.currentAtBat.batter;
 });
 
 const pitcherToDisplay = computed(() => {
@@ -1238,7 +1240,7 @@ onUnmounted(() => {
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
                 <span class="tbd-role">{{ controlledPlayerRole }}</span>
-                <span class="tbd-name">TBD</span>
+                <span v-if="!gameStore.gameState.awaitingPitcherSelection" class="tbd-name">TBD</span>
             </div>
           </div>
 
@@ -1254,7 +1256,7 @@ onUnmounted(() => {
             />
              <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
                 <span class="tbd-role">{{ opponentPlayerRole }}</span>
-                <span class="tbd-name">TBD</span>
+                <span v-if="!gameStore.gameState.awaitingPitcherSelection" class="tbd-name">TBD</span>
             </div>
           </div>
         </div>
@@ -1302,7 +1304,7 @@ onUnmounted(() => {
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
                 <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: black }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-if="leftPanelData.pitcher && leftPanelData.pitcher.card_id !== 'replacement_pitcher'">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
                 <template v-else>TBD</template>
             </span>
           </div>
