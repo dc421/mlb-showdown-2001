@@ -815,6 +815,7 @@ function hexToRgba(hex, alpha = 0.95) {
 }
 
 function handleInitiateSteal(decisions) {
+    gameStore.setIsStealResultVisible(true);
     gameStore.initiateSteal(gameId, decisions);
 }
 
