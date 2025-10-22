@@ -488,7 +488,7 @@ watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
 });
 
 const showThrowRollResult = computed(() => {
-  if (isWaitingForDefensiveDPClick.value) { // Defensive player is waiting to click their button.
+  if (isWaitingForDefensiveDPClick.value && amIDisplayDefensivePlayer.value) { // Defensive player is waiting to click their button.
     return false;
   }
   const hasDetails = !!gameStore.gameState?.doublePlayDetails;
@@ -728,7 +728,7 @@ const batterToDisplay = computed(() => {
         return null;
     }
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || gameStore.isEffectivelyBetweenHalfInnings)) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     // MODIFIED: The single source of truth for the current batter is the lineup,
