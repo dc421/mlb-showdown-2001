@@ -111,20 +111,10 @@ const baserunningOptionGroups = computed(() => {
 
     const groups = [];
 
-    // Create cumulative options. Sending a trailing runner implies all lead runners are also sent.
-    for (let i = 0; i < sortedDecisions.length; i++) {
-        const includedDecisions = sortedDecisions.slice(0, i + 1);
-        const choices = {};
-        includedDecisions.forEach(d => {
-            choices[d.from] = true;
-        });
-
-        // Create a descriptive text for the button, ordered by base.
-        const text = "Send " + includedDecisions
-            .map(d => `${d.runner.name} ${d.toBaseLabel}`)
-            .reverse() // Display in a more natural order (e.g., runner from 1st and runner from 2nd)
-            .join(' and ');
-
+    // Create an option for each runner individually.
+    for (const decision of sortedDecisions) {
+        const choices = { [decision.from]: true };
+        const text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
         groups.push({ text, choices });
     }
 

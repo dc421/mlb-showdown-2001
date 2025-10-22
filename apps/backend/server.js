@@ -2146,6 +2146,13 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
         if (sentRunners.length === 1) {
             const fromBaseStr = sentRunners[0];
+            const baseMap = { '1': 'first', '2': 'second', '3': 'third' };
+            const runner = newState.bases[baseMap[fromBaseStr]];
+
+            if (!runner) {
+                return res.status(400).json({ message: 'Invalid runner specified.' });
+            }
+
             const throwTo = parseInt(fromBaseStr, 10) + 1;
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
