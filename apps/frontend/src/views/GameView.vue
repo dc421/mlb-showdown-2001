@@ -23,6 +23,7 @@ const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey))
 const seriesUpdateMessage = ref('');
 const nextGameId = ref(null);
 const isWaitingForDefensiveDPClick = ref(false);
+const offensiveDPResultVisible = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -427,29 +428,31 @@ const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameSta
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showNextHitterButton = computed(() => {
-  if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
+  // Hide button during DP unless offensive player's timer is up
+  if (gameStore.gameState?.awaitingDoublePlayRoll && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
+    return false;
+  }
   if (isAwaitingBaserunningDecision.value) return false;
   if (gameStore.amIReadyForNext) return false;
 
   const atBatIsResolved = bothPlayersSetAction.value;
 
   // Rule: If the at-bat is resolved, but the result isn't visible, NEVER show the button.
-  // This covers the offensive player waiting to roll AND the defensive player waiting for the timer.
   if ((atBatIsResolved || amIDisplayOffensivePlayer.value) && !isSwingResultVisible.value) {
     return false;
   }
 
-  // Case 1: Inning is over.
-  // If we reach here, the result MUST be visible (due to the check above).
-  // So we can just show the button.
+  // If the offensive player's DP timer is up, they should be able to proceed.
+  if (amIOffensivePlayer.value && offensiveDPResultVisible.value) {
+      return true;
+  }
+
   if (gameStore.isBetweenHalfInnings) {
     return true;
   }
 
   const opponentIsReady = gameStore.opponentReadyForNext;
 
-  // If we reach here, the at-bat is either resolved (and result is visible) or not.
-  // Or the opponent is ready.
   return atBatIsResolved || opponentIsReady;
 });
 
@@ -468,38 +471,55 @@ const showRollForDoublePlayButton = computed(() => {
 });
 
 const isWaitingForDoublePlayResolution = computed(() => {
-  return gameStore.gameState?.awaitingDoublePlayRoll && amIOffensivePlayer.value;
+  return gameStore.gameState?.awaitingDoublePlayRoll && amIOffensivePlayer.value && !offensiveDPResultVisible.value;
 });
 
 function handleResolveDoublePlay() {
-  // If the defensive player is clicking the button, update local state first.
-  if (amIDefensivePlayer.value) {
-    isWaitingForDefensiveDPClick.value = false;
-  }
-  // The offensive player's client will also call this after a delay.
+  // This action is now only triggered by the defensive player's click.
+  isWaitingForDefensiveDPClick.value = false;
   gameStore.resolveDoublePlay(gameId);
 }
 
 watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
   if (isAwaiting) {
+    offensiveDPResultVisible.value = false; // Reset on new DP
     if (amIDefensivePlayer.value) {
       isWaitingForDefensiveDPClick.value = true;
     } else if (amIOffensivePlayer.value) {
       setTimeout(() => {
-        handleResolveDoublePlay();
+        offensiveDPResultVisible.value = true;
       }, 900);
     }
   } else {
-    // Reset the flag when the double play sequence is over.
+    // Reset the flags when the double play sequence is over.
     isWaitingForDefensiveDPClick.value = false;
+    offensiveDPResultVisible.value = false;
   }
 });
 
 const showThrowRollResult = computed(() => {
-  if (isWaitingForDefensiveDPClick.value) {
+  if (isWaitingForDefensiveDPClick.value) { // Defensive player is waiting to click their button.
     return false;
   }
-  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
+  const hasDetails = !!gameStore.gameState?.doublePlayDetails;
+  if (!hasDetails) return false;
+
+  // This check prevents showing the DP result before the main swing result is visible.
+  const isSwingVisibleCheckPassed = !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
+  if (!isSwingVisibleCheckPassed) return false;
+
+  // For the defensive player, the result is visible once the backend has processed their click.
+  if (amIDefensivePlayer.value) {
+    return !gameStore.gameState.awaitingDoublePlayRoll;
+  }
+
+  // For the offensive player, the result is visible ONLY after their timer has finished.
+  if (amIOffensivePlayer.value) {
+    return offensiveDPResultVisible.value;
+  }
+
+  // Fallback for any other case (e.g., spectators)
+  return !gameStore.gameState.awaitingDoublePlayRoll;
 });
 
 const showAutoThrowResult = computed(() => {
