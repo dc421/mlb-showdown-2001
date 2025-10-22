@@ -515,7 +515,9 @@ async function resetRolls(gameId) {
     }
 
     // `isOutcomeHidden` is the single source of truth. If it's true, we MUST show the "before" state.
-    if (isOutcomeHidden.value) {
+    // NEW EXCEPTION: Do not roll back the state if a steal result is visible to the offensive player,
+    // as they should see the runner's new position immediately.
+    if (isOutcomeHidden.value && !isStealResultVisible.value) {
       const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
       if (rollbackSource && rollbackSource.basesBeforePlay) {
         return {
