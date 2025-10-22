@@ -218,6 +218,18 @@ function getOrdinal(n) {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+const getSpeedValue = (runner) => {
+  // Pitchers always have C/10 speed
+  if (runner.control !== null && typeof runner.control !== 'undefined') {
+    return 10;
+  }
+  const speed = runner.speed;
+  if (speed === 'A') return 20;
+  if (speed === 'B') return 15;
+  if (speed === 'C') return 10;
+  return speed; // Assume it's already a number if not A/B/C
+};
+
 function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
         if (!p) return;
@@ -2005,18 +2017,20 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
 
         if (runner) {
           const d20Roll = Math.floor(Math.random() * 20) + 1;
-          let defenseTotal = catcherArm + d20Roll;
+          const defenseTotal = catcherArm + d20Roll;
+          const originalRunnerSpeed = getSpeedValue(runner);
+          let runnerSpeed = originalRunnerSpeed;
           let penalty = 0;
           if (toBase === 3) {
-            defenseTotal -= 5;
+            runnerSpeed -= 5;
             penalty = -5;
           }
-          const isSafe = runner.speed > defenseTotal;
+          const isSafe = runnerSpeed > defenseTotal;
 
           stealResults[fromBase] = {
             roll: d20Roll,
             defense: catcherArm,
-            target: runner.speed,
+            target: originalRunnerSpeed,
             outcome: isSafe ? 'SAFE' : 'OUT',
             penalty,
             throwToBase: toBase,

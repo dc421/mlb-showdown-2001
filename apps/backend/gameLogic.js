@@ -1,15 +1,3 @@
-const getSpeedValue = (runner) => {
-  // Pitchers always have C/10 speed
-  if (runner.control !== null && typeof runner.control !== 'undefined') {
-    return 10;
-  }
-  const speed = runner.speed;
-  if (speed === 'A') return 20;
-  if (speed === 'B') return 15;
-  if (speed === 'C') return 10;
-  return speed; // Assume it's already a number if not A/B/C
-};
-
 function getOrdinal(n) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
