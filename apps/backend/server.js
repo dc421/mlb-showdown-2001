@@ -786,20 +786,18 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         if (isSubForBatter) {
             wasPinchHitter = true;
             newState.currentAtBat.batter = playerInCard;
-            // The critical check: If the player being replaced was a pitcher, the substituting team
-            // will need a new pitcher for their NEXT defensive inning. We flag this by nullifying
-            // their designated pitcher slot, but we DO NOT touch `currentAtBat.pitcher`.
-            if (playerOutCard.control !== null) {
-                if (teamKey === 'homeTeam') {
-                    newState.currentHomePitcher = null;
-                } else {
-                    newState.currentAwayPitcher = null;
-                }
-            }
         }
-        if (wasPinchRunner) {
-            // Pinch runner logic is handled by updating the `bases` object, which was done above.
-            // No changes to `currentAtBat` are needed here.
+        // Pinch runner logic is handled by updating the `bases` object, which was done above.
+
+        // The critical check: If the player being replaced was a pitcher (either as batter or runner),
+        // the substituting team will need a new pitcher for their NEXT defensive inning.
+        // We flag this by nullifying their designated pitcher slot, but we DO NOT touch `currentAtBat.pitcher`.
+        if (playerOutCard.control !== null) {
+            if (teamKey === 'homeTeam') {
+                newState.currentHomePitcher = null;
+            } else {
+                newState.currentAwayPitcher = null;
+            }
         }
     } else {
         // Defensive substitutions can change the active pitcher on the mound.
