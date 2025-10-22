@@ -190,8 +190,10 @@ async function getInfieldDefense(defensiveParticipant) {
                     totalDefense += card.fielding_ratings['1B'];
                 } else {
                     // Player is out of position at 1B.
-                    // Check if they are a DH (no ratings at all).
-                    if (Object.keys(card.fielding_ratings).length === 0) {
+                    // Check if they are a DH (no ratings, or only a DH rating).
+                    const isDH = Object.keys(card.fielding_ratings).length === 0 ||
+                               (Object.keys(card.fielding_ratings).length === 1 && card.fielding_ratings.hasOwnProperty('DH'));
+                    if (isDH) {
                         totalDefense -= 2; // -2 for a DH at 1B
                     } else {
                         totalDefense -= 1; // -1 for any other non-1B player
