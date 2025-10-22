@@ -377,7 +377,7 @@ async function resetRolls(gameId) {
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
-    if (isOutcomeHidden.value) {
+    if (isOutcomeHidden.value && !isStealResultVisible.value) {
       // If it's a third-out play, hide both the play result and the inning change message.
       if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
