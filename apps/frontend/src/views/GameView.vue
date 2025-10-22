@@ -1188,9 +1188,6 @@ onUnmounted(() => {
                     <button @click="gameStore.resolveSteal(gameId, 3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
                 </div>
             </div>
-            <div v-else-if="isStealAttemptInProgress && amIOffensivePlayer">
-                <div class="waiting-text">Waiting for opponent to throw...</div>
-            </div>
             <div v-else-if="isInfieldInDecision">
                 <h3>Infield In Play</h3>
                 <p>The defense has the infield in. What will the runner on third do?</p>
