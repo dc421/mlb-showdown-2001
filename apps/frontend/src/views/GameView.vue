@@ -733,7 +733,7 @@ const batterToDisplay = computed(() => {
     }
     // MODIFIED: The single source of truth for the current batter is the lineup,
     // as `currentAtBat.batter` can become stale after a substitution.
-    return batterLineupInfo.value?.player ?? gameStore.gameState.currentAtBat.batter;
+    return batterToDisplay.value?.player ?? gameStore.gameState.currentAtBat.batter;
 });
 
 const pitcherToDisplay = computed(() => {
@@ -1563,20 +1563,23 @@ onUnmounted(() => {
 
   /* --- Mobile Positioning Overrides --- */
   .result-box-left {
-    left: -40px;
+    left: -60px;
   }
   .result-box-right {
-    right: -40px;
+    right: -60px;
   }
   .defensive-ratings {
-    bottom: 5px;
-    left: 5px;
+    bottom: 10px;
+    left: -20px;
+  }
+  .score-update-flash {
+    bottom: 100px;
   }
   /* Target the ThrowRollResult component's root class */
   .diamond-and-results-container > .throw-roll-result {
-    bottom: 5px;
+    bottom: 10px;
     left: auto;
-    right: 5px;
+    right: -20px;
     transform: translateX(0);
   }
 }
