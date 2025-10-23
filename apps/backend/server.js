@@ -768,11 +768,43 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
     let newState = JSON.parse(JSON.stringify(currentState));
 
-    const participantResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1 AND user_id = $2', [gameId, userId]);
-    const participant = participantResult.rows[0];
-    const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    // --- START REVISED TEAM IDENTIFICATION LOGIC ---
+    const allParticipantsResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
+    const allParticipants = allParticipantsResult.rows;
+
+    const gameInfo = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+    const homeUserId = gameInfo.rows[0].home_team_user_id;
+
+    const homeParticipant = allParticipants.find(p => p.user_id === homeUserId);
+    const awayParticipant = allParticipants.find(p => p.user_id !== homeUserId);
+
+    const isPlayerInLineup = (p, id) => p && p.lineup && (
+        p.lineup.battingOrder.some(spot => spot.card_id === id) ||
+        p.lineup.startingPitcher === id
+    );
+
+    let participant;
+    let teamKey;
+
+    if (isPlayerInLineup(homeParticipant, playerOutId)) {
+        participant = homeParticipant;
+        teamKey = 'homeTeam';
+    } else if (isPlayerInLineup(awayParticipant, playerOutId)) {
+        participant = awayParticipant;
+        teamKey = 'awayTeam';
+    } else {
+        // Fallback for players not in a lineup (e.g., pinch runners on base)
+        const requestingParticipant = allParticipants.find(p => p.user_id === userId);
+        if (!requestingParticipant) {
+             return res.status(403).json({ message: 'Requesting user not found in this game.' });
+        }
+        participant = requestingParticipant;
+        teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    }
+
     const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
     const isOffensiveSub = teamKey === offensiveTeamKey;
+    // --- END REVISED TEAM IDENTIFICATION LOGIC ---
 
     if (newState[teamKey].used_player_ids.includes(playerInId)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
