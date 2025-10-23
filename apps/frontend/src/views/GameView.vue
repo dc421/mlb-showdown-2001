@@ -262,32 +262,30 @@ const scoreChangeMessage = computed(() => {
     const newHomeScore = gameStore.displayGameState?.homeScore;
 
     // The "before" scores come from the last *completed* at-bat.
-    // This is the key change: this data persists on refresh.
     const oldAwayScore = gameStore.gameState?.lastCompletedAtBat?.awayScoreBeforePlay;
     const oldHomeScore = gameStore.gameState?.lastCompletedAtBat?.homeScoreBeforePlay;
 
     // Fallback if scores are not available yet.
     if (newAwayScore === undefined || newHomeScore === undefined) {
-        return '';
+        return null;
     }
 
     const awayTeamName = gameStore.teams?.away?.abbreviation.toUpperCase() || 'AWAY';
     const homeTeamName = gameStore.teams?.home?.abbreviation.toUpperCase() || 'HOME';
 
-    let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
-    let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
-
     const awayScored = oldAwayScore !== undefined && newAwayScore > oldAwayScore;
     const homeScored = oldHomeScore !== undefined && newHomeScore > oldHomeScore;
 
-    if (awayScored) {
-        awayScoreDisplay = `<strong>${awayTeamName} ${newAwayScore}</strong>`;
-    }
-    if (homeScored) {
-        homeScoreDisplay = `<strong>${homeTeamName} ${newHomeScore}</strong>`;
-    }
-    
-    return `${awayScoreDisplay}, ${homeScoreDisplay}`;
+    return {
+        away: {
+            text: `${awayTeamName} ${newAwayScore}`,
+            scored: awayScored
+        },
+        home: {
+            text: `${homeTeamName} ${newHomeScore}`,
+            scored: homeScored
+        }
+    };
 });
 
 const runScoredOnPlay = computed(() => {
@@ -733,7 +731,7 @@ const batterToDisplay = computed(() => {
     }
     // MODIFIED: The single source of truth for the current batter is the lineup,
     // as `currentAtBat.batter` can become stale after a substitution.
-    return batterLineupInfo.value?.player ?? gameStore.gameState.currentAtBat.batter;
+    return batterToDisplay.value?.player ?? gameStore.gameState.currentAtBat.batter;
 });
 
 const pitcherToDisplay = computed(() => {
@@ -1151,7 +1149,33 @@ onUnmounted(() => {
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
-          <div v-if="scoreUpdateVisible" class="score-update-flash" v-html="scoreChangeMessage"></div>
+          <div v-if="scoreUpdateVisible && scoreChangeMessage" class="score-update-flash">
+            <span
+              :class="{ 'score-box-highlight': scoreChangeMessage.away.scored }"
+              :style="scoreChangeMessage.away.scored
+                ? {
+                    backgroundColor: hexToRgba(awayTeamColors.primary),
+                    borderColor: hexToRgba(awayTeamColors.secondary),
+                    color: getContrastingTextColor(awayTeamColors.primary)
+                  }
+                : {}"
+            >
+              {{ scoreChangeMessage.away.text }}
+            </span>
+            <span>, </span>
+            <span
+              :class="{ 'score-box-highlight': scoreChangeMessage.home.scored }"
+              :style="scoreChangeMessage.home.scored
+                ? {
+                    backgroundColor: hexToRgba(homeTeamColors.primary),
+                    borderColor: hexToRgba(homeTeamColors.secondary),
+                    color: getContrastingTextColor(homeTeamColors.primary)
+                  }
+                : {}"
+            >
+              {{ scoreChangeMessage.home.text }}
+            </span>
+          </div>
       </div>
 
       <!-- PLAYER CARDS & ACTIONS -->
@@ -1563,20 +1587,23 @@ onUnmounted(() => {
 
   /* --- Mobile Positioning Overrides --- */
   .result-box-left {
-    left: -40px;
+    left: -60px;
   }
   .result-box-right {
-    right: -40px;
+    right: -60px;
   }
   .defensive-ratings {
-    bottom: 5px;
-    left: 5px;
+    bottom: 10px;
+    left: -20px;
+  }
+  .score-update-flash {
+    bottom: 100px;
   }
   /* Target the ThrowRollResult component's root class */
   .diamond-and-results-container > .throw-roll-result {
-    bottom: 5px;
+    bottom: 10px;
     left: auto;
-    right: 5px;
+    right: -20px;
     transform: translateX(0);
   }
 }
@@ -1832,6 +1859,17 @@ onUnmounted(() => {
   color: black;
   text-align: center;
   pointer-events: none; /* Prevent it from intercepting clicks */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.score-box-highlight {
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid;
+  font-weight: bold;
 }
 
 .game-over-modal {
