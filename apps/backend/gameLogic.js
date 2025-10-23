@@ -286,7 +286,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (outcome === '1B+' && !newState.bases.second) {
           newState.bases.second = newState.bases.first;
           newState.bases.first = null;
-          events.push(`${batter.displayName} takes second on the throw!`);
+          events.push(`${batter.displayName} steals second without a throw!`);
       }
   }
   else if (outcome === '2B') {
