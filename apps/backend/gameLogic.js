@@ -80,7 +80,35 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         newState.currentPlay = { type: 'INFIELD_IN_PLAY', payload: { runner: newState.bases.third, batter: runnerData } };
     }
     else if (newState.outs <= 1 && newState.bases.first) {
-        newState.awaitingDoublePlayRoll = true;
+        const dpRoll = Math.floor(Math.random() * 20) + 1;
+        const batterSpeed = getSpeedValue(batter);
+        const isDoublePlay = (infieldDefense + dpRoll) > batterSpeed;
+        const dpOutcome = isDoublePlay ? 'DOUBLE_PLAY' : 'FIELDERS_CHOICE';
+
+        let playResultDescription = '';
+        if (isDoublePlay) {
+          playResultDescription = `It's a DOUBLE PLAY!`;
+          newState.outs += 2;
+          newState.bases.first = null; // Runner from first is out
+        } else {
+          playResultDescription = `Batter is SAFE, out at second. Fielder's choice.`;
+          newState.outs++;
+          if (newState.outs < 3 && !state.infieldIn) {
+            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
+          }
+          newState.bases.first = runnerData; // Batter is safe at first
+        }
+        // Suppress the initial event for DPs, as the server will create a consolidated one.
+        // events.push(`${batter.displayName} hits a ground ball... ${playResultDescription}`);
+
+        newState.doublePlayDetails = {
+          roll: dpRoll,
+          defense: infieldDefense,
+          target: batterSpeed,
+          outcome: dpOutcome
+        };
+
     } else {
         events.push(`${batter.displayName} grounds out.`);
         newState.outs++;
