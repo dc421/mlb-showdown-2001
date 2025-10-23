@@ -1520,7 +1520,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
               if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
           }
       }
-      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense);
+      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1622,7 +1622,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const events = [];
 
     if (action === 'intentional_walk') {
-        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher);
+        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue);
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
@@ -1672,7 +1672,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense);
+            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -2082,7 +2082,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const { initialEvent } = newState.currentPlay.payload;
             const originalOuts = newState.outs;
 
-            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense);
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue);
             newState = resolvedState;
 
             newState.currentPlay = null;
@@ -2176,7 +2176,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         const originalOuts = currentState.outs;
 
         // Resolve the contested throw using the refactored function
-        const { newState, events } = resolveThrow(currentState, throwTo, outfieldDefense);
+        const { newState, events } = resolveThrow(currentState, throwTo, outfieldDefense, getSpeedValue);
         allEvents = [...allEvents, ...events];
 
         newState.currentPlay = null;

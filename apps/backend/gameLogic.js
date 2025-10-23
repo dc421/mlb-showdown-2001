@@ -4,7 +4,7 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0) {
+function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
@@ -423,7 +423,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events };
 }
 
-function resolveThrow(state, throwTo, outfieldDefense) {
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
