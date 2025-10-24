@@ -515,9 +515,16 @@ const showAutoThrowResult = computed(() => {
 });
 
 const stealResultDetails = computed(() => {
-    // If the result has been officially revealed by the defense, that is the source of truth.
-    if (gameStore.gameState?.stealAttemptDetails) {
-        return gameStore.gameState.stealAttemptDetails;
+    const details = gameStore.gameState?.stealAttemptDetails;
+
+    if (details) {
+        if (amIOffensivePlayer.value && details.clearedForOffense) {
+            return null;
+        }
+        if (amIDefensivePlayer.value && details.clearedForDefense) {
+            return null;
+        }
+        return details;
     }
 
     // Otherwise, if I'm the offensive player, show the pre-calculated results immediately.
