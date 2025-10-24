@@ -517,9 +517,48 @@ async function resetRolls(gameId) {
       };
     }
 
+    // If the steal result is visible, we calculate the outcome of the steal
+    // on the frontend to show the result immediately, before the defensive
+    // player has even made their throw.
+    if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT') {
+      const { decisions, results } = gameState.value.currentPlay.payload;
+      const newBases = { ...gameState.value.bases };
+      let newOuts = gameState.value.outs;
+      const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+      for (const fromBaseStr in decisions) {
+        if (decisions[fromBaseStr]) {
+          const fromBase = parseInt(fromBaseStr, 10);
+          const toBase = fromBase + 1;
+          // --- THIS IS THE FIX ---
+          // Always read the runner's original position from the authoritative gameState
+          // to prevent race conditions in multi-runner steals.
+          const runner = gameState.value.bases[baseMap[fromBase]];
+          const result = results[fromBase];
+
+          if (runner && result) {
+            newBases[baseMap[fromBase]] = null; // Runner leaves the base
+            if (result.outcome === 'SAFE') {
+              if (toBase <= 3) {
+                newBases[baseMap[toBase]] = runner;
+              }
+              // Note: This logic doesn't handle stealing home, as it's not a feature.
+            } else { // OUT
+              newOuts++;
+            }
+          }
+        }
+      }
+
+      return {
+        ...gameState.value,
+        bases: newBases,
+        outs: newOuts,
+      };
+    }
+
     // `isOutcomeHidden` is the single source of truth. If it's true, we MUST show the "before" state.
-    // NEW EXCEPTION: Do not roll back the state if a steal result is visible to the offensive player,
-    // as they should see the runner's new position immediately.
+    // The rollback is skipped if `isStealResultVisible` is true, which is handled by the block above.
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
       const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
       if (rollbackSource && rollbackSource.basesBeforePlay) {
