@@ -1485,6 +1485,12 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     const currentTurn = stateResult.rows[0].turn_number;
     
     let finalState = { ...currentState };
+    if (finalState.stealAttemptDetails) {
+        finalState.stealAttemptDetails.clearedForOffense = true;
+        if (finalState.stealAttemptDetails.clearedForDefense) {
+            finalState.stealAttemptDetails = null;
+        }
+    }
     // Clear the previous throw result when a new action is set
     if (finalState.throwRollResult) {
       finalState.throwRollResult = null;
@@ -1615,6 +1621,12 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const effectiveControl = pitcher.control - controlPenalty;
 
      let finalState = { ...currentState };
+    if (finalState.stealAttemptDetails) {
+        finalState.stealAttemptDetails.clearedForDefense = true;
+        if (finalState.stealAttemptDetails.clearedForOffense) {
+            finalState.stealAttemptDetails = null;
+        }
+    }
     // Clear the previous throw result when a new action is set
     if (finalState.throwRollResult) {
       finalState.throwRollResult = null;
