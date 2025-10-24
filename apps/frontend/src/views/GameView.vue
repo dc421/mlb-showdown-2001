@@ -731,7 +731,7 @@ const batterToDisplay = computed(() => {
     }
     // MODIFIED: The single source of truth for the current batter is the lineup,
     // as `currentAtBat.batter` can become stale after a substitution.
-    return batterToDisplay.value?.player ?? gameStore.gameState.currentAtBat.batter;
+    return batterLineupInfo.value?.player ?? gameStore.gameState.currentAtBat.batter;
 });
 
 const pitcherToDisplay = computed(() => {
