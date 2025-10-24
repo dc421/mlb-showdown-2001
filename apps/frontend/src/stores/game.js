@@ -213,7 +213,7 @@ async function submitSwing(gameId, action = null) {
       if (!response.ok) throw new Error('Failed to make substitution');
       // After a successful substitution, re-fetch the entire game state
       // to ensure the UI is perfectly in sync with the backend.
-      await this.fetchGame(gameId);
+      await fetchGame(gameId);
     } catch (error) {
       console.error('Error making substitution:', error);
       alert(`Error: ${error.message}`);
