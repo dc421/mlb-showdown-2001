@@ -2198,12 +2198,23 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
         if (sentRunners.length === 1) {
             const fromBaseStr = sentRunners[0];
-            const baseMap = { '1': 'first', '2': 'second', '3': 'third' };
-            const runner = newState.bases[baseMap[fromBaseStr]];
+            const decision = newState.currentPlay.payload.decisions.find(d => d.from === fromBaseStr);
 
-            if (!runner) {
-                return res.status(400).json({ message: 'Invalid runner specified.' });
+            if (!decision || !decision.runner) {
+                return res.status(400).json({ message: 'Invalid runner specified for the decision.' });
             }
+            const runner = decision.runner;
+
+            // The runner is advancing FROM fromBaseStr, but `applyOutcome` might have already
+            // moved them. We need to ensure `resolveThrow` can find them at their starting base.
+            const baseMap = { '1': 'first', '2': 'second', '3': 'third' };
+            for (const base in newState.bases) {
+                if (newState.bases[base] && newState.bases[base].card_id === runner.card_id) {
+                    newState.bases[base] = null;
+                    break;
+                }
+            }
+            newState.bases[baseMap[fromBaseStr]] = runner;
 
             const throwTo = parseInt(fromBaseStr, 10) + 1;
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
