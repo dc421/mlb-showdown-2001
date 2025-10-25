@@ -1852,7 +1852,7 @@ onUnmounted(() => {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0rem; }
 .score-update-flash {
   position: absolute;
-  bottom: 375px; /* Position it below the container */
+  top: -25px; /* Position it below the container */
   left: 0;
   right: 0;
   font-size: 1.5rem;
@@ -1867,8 +1867,8 @@ onUnmounted(() => {
 
 .score-box-highlight {
   padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  border: 1px solid;
+  border-radius: 0px;
+  border: 3px solid;
   font-weight: bold;
 }
 
