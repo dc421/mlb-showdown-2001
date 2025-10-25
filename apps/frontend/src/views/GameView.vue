@@ -190,18 +190,45 @@ const isMyTeamAwaitingLineupChange = computed(() => {
 const playersInInvalidPositions = computed(() => {
     if (!myLineup.value) return new Set();
     const invalidPlayerIds = new Set();
+
     myLineup.value.battingOrder.forEach(spot => {
-        if (spot.position !== 'DH' && (!spot.player.fielding_ratings || spot.player.fielding_ratings[spot.position] === undefined)) {
-            invalidPlayerIds.add(spot.player.card_id);
+        const player = spot.player;
+        const position = spot.position;
+
+        if (!player || position === 'DH') {
+            return; // Skip empty spots and Designated Hitters
+        }
+
+        const isAPitcher = player.control !== null;
+        const ratings = player.fielding_ratings || {};
+
+        let isInvalid = false;
+
+        switch (position) {
+            case 'P':
+                if (!isAPitcher) isInvalid = true;
+                break;
+            case '1B':
+                if (isAPitcher) isInvalid = true;
+                break;
+            case 'LF':
+            case 'RF':
+                if (ratings[position] === undefined && ratings['LFRF'] === undefined) {
+                    isInvalid = true;
+                }
+                break;
+            default:
+                if (ratings[position] === undefined) {
+                    isInvalid = true;
+                }
+                break;
+        }
+
+        if (isInvalid) {
+            invalidPlayerIds.add(player.card_id);
         }
     });
-    const pitcher = pitcherToDisplay.value;
-    if (!pitcher || pitcher.control === null) {
-        const pitcherInLineup = myLineup.value.battingOrder.find(p => p.position === 'P');
-        if (pitcherInLineup) {
-            invalidPlayerIds.add(pitcherInLineup.player.card_id);
-        }
-    }
+
     return invalidPlayerIds;
 });
 
