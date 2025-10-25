@@ -1376,7 +1376,7 @@ onUnmounted(() => {
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam,
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH',
                             'active': playerToSubOut?.player.card_id === spot.player.card_id
                         }">
                       ⇄
