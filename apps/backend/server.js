@@ -2032,6 +2032,7 @@ app.post('/api/games/:gameId/declare-home', authenticateToken, async (req, res) 
 app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const { decisions } = req.body; // e.g., { '1': true, '2': true }
+  const userId = req.user.userId;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -2043,6 +2044,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
     const stealResults = {};
+    const events = [];
 
     for (const fromBaseStr in decisions) {
       if (decisions[fromBaseStr]) {
@@ -2061,25 +2063,31 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             penalty = -5;
           }
           const isSafe = runnerSpeed > defenseTotal;
+          const outcome = isSafe ? 'SAFE' : 'OUT';
 
           stealResults[fromBase] = {
             roll: d20Roll,
             defense: catcherArm,
             target: originalRunnerSpeed,
-            outcome: isSafe ? 'SAFE' : 'OUT',
+            outcome: outcome,
             penalty,
             throwToBase: toBase,
             runnerName: runner.name
           };
+
+          events.push(`${runner.name} attempts to steal ${getOrdinal(toBase)}... The result is ${outcome}!`);
         }
       }
+    }
+
+    for (const logMessage of events) {
+        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
     }
 
     newState.currentPlay = {
       type: 'STEAL_ATTEMPT',
       payload: { decisions, results: stealResults }
     };
-
     newState.isStealResultHiddenForDefense = true;
 
     // Pass the turn to the defensive player to make their throw
@@ -2114,7 +2122,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const { offensiveTeam } = await getActivePlayers(gameId, newState);
 
     const { decisions, results } = newState.currentPlay.payload;
-    const events = [];
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
     let contestedResult = null;
 
@@ -2131,17 +2138,14 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
             contestedResult = result;
             if (result.outcome === 'SAFE') {
                 newState.bases[baseMap[toBase]] = runner;
-                events.push(`${runner.name} is SAFE at ${getOrdinal(toBase)}!`);
             } else { // OUT
                 newState.outs++;
-                events.push(`${runner.name} is THROWN OUT at ${getOrdinal(toBase)}! <strong>Outs: ${newState.outs}</strong>`);
             }
             newState.bases[baseMap[fromBase]] = null;
         } else { // Uncontested runner
             // They are automatically safe on an uncontested steal
             newState.bases[baseMap[toBase]] = runner;
             newState.bases[baseMap[fromBase]] = null;
-            events.push(`${runner.name} steals ${getOrdinal(toBase)} base uncontested.`);
         }
       }
     }
@@ -2163,9 +2167,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
-    for (const logMessage of events) {
-        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
-    }
 
     await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
     await client.query('COMMIT');

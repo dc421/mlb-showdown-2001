@@ -191,6 +191,7 @@ async function submitPitch(gameId, action = null) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action: action })
     });
+    await fetchGame(gameId);
   } catch (error) { console.error('Error submitting pitch:', error); }
 }
 
@@ -204,6 +205,7 @@ async function submitAction(gameId, action) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action })
     });
+    await fetchGame(gameId);
   } catch (error) { console.error("Error setting offensive action:", error); }
 }
 
@@ -334,6 +336,7 @@ async function resolveSteal(gameId, throwTo) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ throwTo })
       });
+      await fetchGame(gameId);
     } catch (error) { console.error("Error resolving steal:", error); }
   }
 
@@ -393,6 +396,17 @@ async function resetRolls(gameId) {
 
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
+
+    if (gameState.value?.isStealResultHiddenForDefense && amIDefensivePlayer.value) {
+      let nonStealEventIndex = -1;
+      for (let i = gameEvents.value.length - 1; i >= 0; i--) {
+        if (gameEvents.value[i].event_type !== 'steal') {
+          nonStealEventIndex = i;
+          break;
+        }
+      }
+      return gameEvents.value.slice(0, nonStealEventIndex + 1);
+    }
 
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
@@ -459,6 +473,12 @@ async function resetRolls(gameId) {
     const auth = useAuthStore();
     if (!auth.user || !game.value) return null;
     return Number(auth.user.userId) === Number(game.value.home_team_user_id) ? 'home' : 'away';
+  });
+
+  const amIDefensivePlayer = computed(() => {
+    if (!myTeam.value || !gameState.value) return false;
+    const isTop = gameState.value.isTopInning;
+    return (isTop && myTeam.value === 'home') || (!isTop && myTeam.value === 'away');
   });
 
   const opponentReadyForNext = computed(() => {
@@ -620,5 +640,6 @@ async function resetRolls(gameId) {
     isEffectivelyBetweenHalfInnings,
     playerSelectedForSwap,
     swapPlayerPositions,
+    amIDefensivePlayer,
   };
 })

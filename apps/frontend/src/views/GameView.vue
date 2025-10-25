@@ -553,39 +553,24 @@ const showAutoThrowResult = computed(() => {
 
 const stealResultDetails = computed(() => {
     const details = gameStore.gameState?.stealAttemptDetails;
+    if (!details) return null;
 
-    if (details) {
-        if (amIOffensivePlayer.value && details.clearedForOffense) {
-            return null;
-        }
-        if (amIDefensivePlayer.value && details.clearedForDefense) {
-            return null;
-        }
-        return details;
+    if (amIOffensivePlayer.value && details.clearedForOffense) {
+        return null;
     }
-
-    // Otherwise, if I'm the offensive player, show the pre-calculated results immediately.
-    if (amIOffensivePlayer.value && isStealAttemptInProgress.value) {
-        const results = gameStore.gameState.currentPlay.payload.results;
-        const keys = Object.keys(results);
-
-        if (keys.length === 1) {
-            // It's a single steal, just return the details as before.
-            return results[keys[0]];
-        } else if (keys.length > 1) {
-            // It's a double steal, so we create a consolidated "details" object.
-            const outcomes = keys.map(k => `${results[k].runnerName}: ${results[k].outcome}`);
-            return {
-                consolidatedOutcome: "Steal Results",
-                summary: outcomes.join(' | ')
-            };
-        }
+    if (amIDefensivePlayer.value && details.clearedForDefense) {
+        return null;
     }
-
-    return null; // No details to show in any other case.
+    return details;
 });
 
-const showStealResult = computed(() => !!stealResultDetails.value);
+const showStealResult = computed(() => {
+    if (isStealResultVisible.value) return true;
+    if (!stealResultDetails.value) return false;
+    if (amIOffensivePlayer.value && stealResultDetails.value.clearedForOffense) return false;
+    if (amIDefensivePlayer.value && stealResultDetails.value.clearedForDefense) return false;
+    return true;
+});
 
 const defensiveRatingsToDisplay = computed(() => {
   if (!gameStore.gameState) return { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 };
