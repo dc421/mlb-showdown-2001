@@ -26,10 +26,8 @@ async function swapPlayerPositions(gameId, playerAId, playerBId) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ playerAId, playerBId })
     });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to swap player positions');
-    }
+        if (!response.ok) throw new Error('Failed to swap player positions');
+
     await fetchGame(gameId); // Refresh game state after successful swap
   } catch (error) {
     console.error('Error swapping player positions:', error);

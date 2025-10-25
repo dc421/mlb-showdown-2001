@@ -1040,37 +1040,8 @@ app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res
       return res.status(400).json({ message: 'One or both players not found in the lineup.' });
     }
 
-    // --- NEW: Eligibility Check ---
-    const cardsResult = await client.query('SELECT card_id, name, fielding_ratings, control FROM cards_player WHERE card_id = ANY($1::int[])', [[playerAId, playerBId]]);
-    const playerACard = cardsResult.rows.find(c => c.card_id === playerAId);
-    const playerBCard = cardsResult.rows.find(c => c.card_id === playerBId);
-
     const positionA = lineup.battingOrder[playerAIndex].position;
     const positionB = lineup.battingOrder[playerBIndex].position;
-
-    const isPlayerAPitcher = playerACard.control !== null;
-    const isPlayerBPitcher = playerBCard.control !== null;
-
-    const isPositionEligible = (playerCard, isPitcher, position) => {
-        if (position === 'P') return isPitcher;
-        if (isPitcher && position !== 'P') return false; // Pitchers can only play P
-        if (position === '1B') return !isPitcher; // Any non-pitcher can play 1B
-
-        const ratings = playerCard.fielding_ratings || {};
-        if (ratings[position] !== undefined) return true; // Has the specific rating
-        if ((position === 'LF' || position === 'RF') && ratings['LFRF'] !== undefined) return true; // LFRF eligibility
-
-        return false;
-    };
-
-    if (!isPositionEligible(playerACard, isPlayerAPitcher, positionB) || !isPositionEligible(playerBCard, isPlayerBPitcher, positionA)) {
-        await client.query('ROLLBACK');
-        const message = !isPositionEligible(playerACard, isPlayerAPitcher, positionB)
-            ? `${playerACard.name} is not eligible to play ${positionB}.`
-            : `${playerBCard.name} is not eligible to play ${positionA}.`;
-        return res.status(400).json({ message });
-    }
-    // --- END NEW: Eligibility Check ---
 
 
     // Swap their defensive positions
