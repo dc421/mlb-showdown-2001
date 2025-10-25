@@ -15,6 +15,24 @@ export const useGameStore = defineStore('game', () => {
   const rosters = ref({ home: [], away: [] });
   const teams = ref({ home: null, away: null });
   const setupState = ref(null);
+  const playerSelectedForSwap = ref(null);
+
+async function swapPlayerPositions(gameId, playerAId, playerBId) {
+  const auth = useAuthStore();
+  if (!auth.token) return;
+  try {
+    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/swap-positions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
+      body: JSON.stringify({ playerAId, playerBId })
+    });
+    if (!response.ok) throw new Error('Failed to swap player positions');
+    await fetchGame(gameId); // Refresh game state after successful swap
+  } catch (error) {
+    console.error('Error swapping player positions:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
 
 // in src/stores/game.js
 // in src/stores/game.js
@@ -599,6 +617,8 @@ async function resetRolls(gameId) {
     myTeam,
     opponentReadyForNext,
     amIReadyForNext,
-    isEffectivelyBetweenHalfInnings
+    isEffectivelyBetweenHalfInnings,
+    playerSelectedForSwap,
+    swapPlayerPositions,
   };
 })

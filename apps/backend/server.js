@@ -245,6 +245,44 @@ function processPlayers(playersToProcess) {
     return playersToProcess;
 };
 
+async function validateLineup(participant, newState, client) {
+    const lineup = participant.lineup.battingOrder;
+    const playerCardIds = lineup.map(p => p.card_id).filter(id => id > 0);
+
+    const cardsResult = await client.query('SELECT card_id, fielding_ratings, control FROM cards_player WHERE card_id = ANY($1::int[])', [playerCardIds]);
+    const cardsById = cardsResult.rows.reduce((acc, card) => {
+        acc[card.card_id] = card;
+        return acc;
+    }, {});
+
+    let isLineupValid = true;
+    for (const playerInLineup of lineup) {
+        if (playerInLineup.card_id < 0) continue; // Skip replacement players for now
+
+        const card = cardsById[playerInLineup.card_id];
+        if (!card) {
+            isLineupValid = false;
+            break;
+        }
+
+        const position = playerInLineup.position;
+        // Every player must have a valid position unless they are the DH
+        if (position !== 'DH' && (!card.fielding_ratings || card.fielding_ratings[position] === undefined)) {
+            isLineupValid = false;
+            break;
+        }
+    }
+
+    // Also check the current pitcher on the mound
+    const pitcher = newState.currentAtBat.pitcher;
+    if (!pitcher || pitcher.control === null) {
+        isLineupValid = false;
+    }
+
+    newState.awaiting_lineup_change = !isLineupValid;
+    return newState;
+}
+
 
 async function initializePitcherFatigue(gameId, client) {
     const gameResult = await client.query('SELECT series_id, game_in_series FROM games WHERE game_id = $1', [gameId]);
@@ -878,10 +916,10 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         }
     } else {
         // Defensive substitutions can change the active pitcher on the mound.
-        if (newState.awaitingPitcherSelection) {
+        if (newState.awaiting_lineup_change) {
             // This is for when a new half-inning starts and a pitcher is needed.
             if (playerInCard.control !== null) {
-                newState.awaitingPitcherSelection = false;
+                newState.awaiting_lineup_change = false;
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
                 // --- ADDED ---
@@ -945,6 +983,8 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
+    newState = await validateLineup(participant, newState, client);
+
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
     
@@ -957,6 +997,86 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     await client.query('ROLLBACK');
     console.error(`Error making substitution for game ${gameId}:`, error);
     res.status(500).json({ message: 'Server error during substitution.' });
+  } finally {
+    client.release();
+  }
+});
+
+// SWAP DEFENSIVE POSITIONS
+app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res) => {
+  const { gameId } = req.params;
+  const { playerAId, playerBId } = req.body;
+  const userId = req.user.userId;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    const currentState = stateResult.rows[0].state_data;
+    const currentTurn = stateResult.rows[0].turn_number;
+
+    let newState = JSON.parse(JSON.stringify(currentState));
+
+    // Get the participant making the request
+    const participantResult = await client.query(
+      'SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+
+    if (participantResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Participant not found for this game.' });
+    }
+
+    let participant = participantResult.rows[0];
+    let lineup = participant.lineup;
+
+    // Find the players in the batting order
+    const playerAIndex = lineup.battingOrder.findIndex(p => p.card_id === playerAId);
+    const playerBIndex = lineup.battingOrder.findIndex(p => p.card_id === playerBId);
+
+    if (playerAIndex === -1 || playerBIndex === -1) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'One or both players not found in the lineup.' });
+    }
+
+    // Swap their defensive positions
+    const positionA = lineup.battingOrder[playerAIndex].position;
+    const positionB = lineup.battingOrder[playerBIndex].position;
+
+    lineup.battingOrder[playerAIndex].position = positionB;
+    lineup.battingOrder[playerBIndex].position = positionA;
+
+    // Update the lineup in the database
+    await client.query(
+      'UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3',
+      [JSON.stringify(lineup), gameId, userId]
+    );
+
+    // Recalculate defensive ratings for the team that made the swap
+    const gameInfo = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+    const isHomeTeam = userId === gameInfo.rows[0].home_team_user_id;
+    const ratingsKey = isHomeTeam ? 'homeDefensiveRatings' : 'awayDefensiveRatings';
+
+    newState[ratingsKey] = {
+      catcherArm: await getCatcherArm(participant),
+      infieldDefense: await getInfieldDefense(participant),
+      outfieldDefense: await getOutfieldDefense(participant),
+    };
+
+    newState = await validateLineup(participant, newState, client);
+
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('COMMIT');
+
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
+    res.status(200).json({ message: 'Player positions swapped successfully.' });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error swapping positions for game ${gameId}:`, error);
+    res.status(500).json({ message: 'Server error during position swap.' });
   } finally {
     client.release();
   }
@@ -1405,9 +1525,6 @@ async function getAndProcessGameData(gameId, dbClient) {
     const activePlayers = await getActivePlayers(gameId, currentState.state_data);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
-    if (!pitcher) {
-        pitcher = REPLACEMENT_PITCHER_CARD;
-    }
     const homeParticipant = participantsResult.rows.find(p => p.user_id === game.home_team_user_id);
     const awayParticipant = participantsResult.rows.find(p => p.user_id !== game.home_team_user_id);
 
@@ -1485,6 +1602,12 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     const currentTurn = stateResult.rows[0].turn_number;
     
     let finalState = { ...currentState };
+    if (finalState.stealAttemptDetails) {
+        finalState.stealAttemptDetails.clearedForOffense = true;
+        if (finalState.stealAttemptDetails.clearedForDefense) {
+            finalState.stealAttemptDetails = null;
+        }
+    }
     // Clear the previous throw result when a new action is set
     if (finalState.throwRollResult) {
       finalState.throwRollResult = null;
@@ -1615,6 +1738,12 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const effectiveControl = pitcher.control - controlPenalty;
 
      let finalState = { ...currentState };
+    if (finalState.stealAttemptDetails) {
+        finalState.stealAttemptDetails.clearedForDefense = true;
+        if (finalState.stealAttemptDetails.clearedForOffense) {
+            finalState.stealAttemptDetails = null;
+        }
+    }
     // Clear the previous throw result when a new action is set
     if (finalState.throwRollResult) {
       finalState.throwRollResult = null;
@@ -1826,9 +1955,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // 4. Check if we are now awaiting a pitcher selection
       if (newState.currentAtBat.pitcher === null) {
-          newState.awaitingPitcherSelection = true;
+          newState.awaiting_lineup_change = true;
       } else {
-          newState.awaitingPitcherSelection = false;
+          newState.awaiting_lineup_change = false;
       }
     }
 

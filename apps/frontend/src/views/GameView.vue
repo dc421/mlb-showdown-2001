@@ -37,33 +37,55 @@ const playerToSubOut = ref(null);
 
 function toggleSubMode() {
   isSubModeActive.value = !isSubModeActive.value;
-  // Always reset the player to sub out when toggling the main mode
   playerToSubOut.value = null;
+  gameStore.playerSelectedForSwap = null;
 }
 
 function selectPlayerToSubOut(player, position) {
-  // If the player is already selected, clicking again cancels the entire substitution mode.
-  if (playerToSubOut.value?.player.card_id === player.card_id) {
+  if (gameStore.playerSelectedForSwap) {
+    // A player is already selected, so this click completes the action.
+    const isPlayerOnField = myLineup.value.battingOrder.some(p => p.player.card_id === player.card_id);
+
+    if (isPlayerOnField) {
+      // It's a position swap
+      gameStore.swapPlayerPositions(gameId, gameStore.playerSelectedForSwap.card_id, player.card_id);
+    } else {
+      // It's a substitution from the bench/bullpen
+      handleSubstitution(player);
+    }
+    // Reset for the next action
     isSubModeActive.value = false;
+    gameStore.playerSelectedForSwap = null;
     playerToSubOut.value = null;
+
   } else {
-    // Otherwise, select the player to be subbed out.
-    playerToSubOut.value = { player, position };
+    // This is the first player selected in a potential swap/sub.
+    if (playerToSubOut.value?.player.card_id === player.card_id) {
+      // Clicking the same player again cancels.
+      isSubModeActive.value = false;
+      playerToSubOut.value = null;
+      gameStore.playerSelectedForSwap = null;
+    } else {
+      // Select the player.
+      playerToSubOut.value = { player, position };
+      gameStore.playerSelectedForSwap = player;
+    }
   }
 }
 
 async function handleSubstitution(playerIn) {
-    if (!playerToSubOut.value) return;
+    if (!gameStore.playerSelectedForSwap) return;
 
     await gameStore.submitSubstitution(gameId, {
         playerInId: playerIn.card_id,
-        playerOutId: playerToSubOut.value.player.card_id,
-        position: playerToSubOut.value.position
+        playerOutId: gameStore.playerSelectedForSwap.card_id,
+        position: playerToSubOut.value.position // Position comes from the player being subbed out
     });
 
     // Reset the substitution state completely
     isSubModeActive.value = false;
     playerToSubOut.value = null;
+    gameStore.playerSelectedForSwap = null;
 }
 
 const runnerDecisionsWithLabels = computed(() => {
@@ -160,12 +182,27 @@ const isMyTurn = computed(() => {
   return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
 });
 
-const isMyTeamAwaitingPitcher = computed(() => {
+const isMyTeamAwaitingLineupChange = computed(() => {
     if (!gameStore.gameState || !gameStore.myTeam) return false;
-    // This is true if the awaiting flag is set AND my team's pitcher is the one who is null.
-    return gameStore.gameState.awaitingPitcherSelection &&
-           ((gameStore.myTeam === 'home' && gameStore.gameState.currentHomePitcher === null) ||
-            (gameStore.myTeam === 'away' && gameStore.gameState.currentAwayPitcher === null));
+    return gameStore.gameState.awaiting_lineup_change && amIDisplayDefensivePlayer.value;
+});
+
+const playersInInvalidPositions = computed(() => {
+    if (!myLineup.value) return new Set();
+    const invalidPlayerIds = new Set();
+    myLineup.value.battingOrder.forEach(spot => {
+        if (spot.position !== 'DH' && (!spot.player.fielding_ratings || spot.player.fielding_ratings[spot.position] === undefined)) {
+            invalidPlayerIds.add(spot.player.card_id);
+        }
+    });
+    const pitcher = pitcherToDisplay.value;
+    if (!pitcher || pitcher.control === null) {
+        const pitcherInLineup = myLineup.value.battingOrder.find(p => p.position === 'P');
+        if (pitcherInLineup) {
+            invalidPlayerIds.add(pitcherInLineup.player.card_id);
+        }
+    }
+    return invalidPlayerIds;
 });
 
 
@@ -515,9 +552,16 @@ const showAutoThrowResult = computed(() => {
 });
 
 const stealResultDetails = computed(() => {
-    // If the result has been officially revealed by the defense, that is the source of truth.
-    if (gameStore.gameState?.stealAttemptDetails) {
-        return gameStore.gameState.stealAttemptDetails;
+    const details = gameStore.gameState?.stealAttemptDetails;
+
+    if (details) {
+        if (amIOffensivePlayer.value && details.clearedForOffense) {
+            return null;
+        }
+        if (amIDefensivePlayer.value && details.clearedForDefense) {
+            return null;
+        }
+        return details;
     }
 
     // Otherwise, if I'm the offensive player, show the pre-calculated results immediately.
@@ -1183,9 +1227,9 @@ onUnmounted(() => {
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- PITCHER SELECTION STATE -->
-        <div v-if="isMyTeamAwaitingPitcher && amIDisplayDefensivePlayer" class="waiting-text">
-                <h3>Awaiting Pitcher</h3>
-                <p>You must substitute in a new pitcher to continue.</p>
+        <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
+                <h3>Invalid Lineup</h3>
+                <p>One or more players are out of position. Please correct your lineup to continue.</p>
             </div>
 
             <!-- Main Action Buttons -->
@@ -1275,7 +1319,7 @@ onUnmounted(() => {
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
                 <span class="tbd-role">{{ controlledPlayerRole }}</span>
-                <span v-if="!gameStore.gameState.awaitingPitcherSelection" class="tbd-name">TBD</span>
+                <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-name">TBD</span>
             </div>
           </div>
 
@@ -1291,7 +1335,7 @@ onUnmounted(() => {
             />
              <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
                 <span class="tbd-role">{{ opponentPlayerRole }}</span>
-                <span v-if="!gameStore.gameState.awaitingPitcherSelection" class="tbd-name">TBD</span>
+                <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-name">TBD</span>
             </div>
           </div>
         </div>
@@ -1305,21 +1349,22 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaiting_lineup_change && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
                   :class="{
                       'now-batting': ((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
                       'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex,
-                      'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id
+                      'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id,
+                      'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player.card_id)
                   }"
                   :style="playerToSubOut && spot.player && playerToSubOut.player.card_id === spot.player.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
                   class="lineup-item">
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && (!playerToSubOut || playerToSubOut.player.card_id === spot.player.card_id),
+                            'visible': isSubModeActive && leftPanelData.isMyTeam,
                             'active': playerToSubOut?.player.card_id === spot.player.card_id
                         }">
                       ⇄
@@ -1332,7 +1377,7 @@ onUnmounted(() => {
             <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
                   class="sub-icon"
                   :class="{
-                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id),
+                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher,
                       'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id
                   }">
                 ⇄
@@ -1721,6 +1766,11 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.invalid-position {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
 
 .replacement-player span:first-child {
   font-style: italic;
