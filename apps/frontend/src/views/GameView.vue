@@ -592,11 +592,14 @@ const stealResultDetails = computed(() => {
 });
 
 const showStealResult = computed(() => {
-    if (isStealResultVisible.value) return true;
-    if (!stealResultDetails.value) return false;
-    if (amIOffensivePlayer.value && stealResultDetails.value.clearedForOffense) return false;
-    if (amIDefensivePlayer.value && stealResultDetails.value.clearedForDefense) return false;
-    return true;
+    // This computed property now simply guards the rendering of the ThrowRollResult.
+    // The logic to determine *if* the details should be visible to the current
+    // player is already encapsulated in the `stealResultDetails` computed property.
+    // If that property returns null (either because the data isn't ready, or the
+    // player has cleared the result), this will be false. Otherwise, it's true.
+    // This prevents the race condition where `isStealResultVisible` was set to true
+    // before the backend had returned the steal attempt details.
+    return !!stealResultDetails.value;
 });
 
 const defensiveRatingsToDisplay = computed(() => {
