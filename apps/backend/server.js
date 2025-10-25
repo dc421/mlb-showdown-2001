@@ -266,8 +266,21 @@ async function validateLineup(participant, newState, client) {
         }
 
         const position = playerInLineup.position;
-        // Every player must have a valid position unless they are the DH
-        if (position !== 'DH' && (!card.fielding_ratings || card.fielding_ratings[position] === undefined)) {
+        if (position === 'DH') continue;
+
+        let isPlayerEligible = false;
+
+        if (card.fielding_ratings && card.fielding_ratings[position] !== undefined) {
+            isPlayerEligible = true;
+        } else if (position === '1B' && card.control === null) {
+            isPlayerEligible = true;
+        } else if (position === 'P' && card.control !== null) {
+            isPlayerEligible = true;
+        } else if ((position === 'LF' || position === 'RF') && card.fielding_ratings && card.fielding_ratings['LFRF'] !== undefined) {
+            isPlayerEligible = true;
+        }
+
+        if (!isPlayerEligible) {
             isLineupValid = false;
             break;
         }
