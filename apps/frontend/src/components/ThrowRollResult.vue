@@ -33,22 +33,32 @@ const runnerInfo = computed(() => {
     return '';
 });
 
+const rollDetails = computed(() => {
+  if (props.details.attempts?.length > 0) {
+    return props.details.attempts[0];
+  }
+  return props.details;
+});
+
 const rollInfo = computed(() => {
-    if (props.details.summary) {
-        return props.details.summary;
+    if (rollDetails.value.summary) {
+        return rollDetails.value.summary;
     }
-    let base = `Throw: ${props.details.roll} +${props.details.defense}`;
-    if (props.details.throwToBase) {
-        base = `Throw to ${props.details.throwToBase}B: ${props.details.roll} +${props.details.defense}`;
+    let base = `Throw: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
+    if (rollDetails.value.throwToBase) {
+        base = `Throw to ${rollDetails.value.throwToBase}B: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
     }
-    if (props.details.penalty) {
-        return `${base} ${props.details.penalty}`;
+    if (rollDetails.value.penalty > 0) {
+        return `${base} +${rollDetails.value.penalty}`;
+    }
+    if (rollDetails.value.penalty < 0) {
+        return `${base} ${rollDetails.value.penalty}`;
     }
     return base;
 });
 
 const targetInfo = computed(() => {
-    return `${props.details.target}`;
+    return `${rollDetails.value.target}`;
 });
 
 </script>
