@@ -1013,10 +1013,14 @@ watch(() => gameStore.gameState?.infieldIn, (newValue) => {
 });
 
 // --- NEW: On-Deck Logic ---
-const defensiveTeamKey = computed(() => gameStore.gameState?.isDisplayTopInning ? 'homeTeam' : 'awayTeam');
-const defensiveNextBatterIndex = computed(() => {
-    if (!gameStore.gameState) return -1;
-    return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
+const homeBattingIndex = computed(() => gameStore.gameState?.homeTeam?.battingOrderPosition ?? -1);
+const awayBattingIndex = computed(() => gameStore.gameState?.awayTeam?.battingOrderPosition ?? -1);
+
+// This computed determines which team is currently on offense for display purposes.
+const offensiveTeamKey = computed(() => {
+  if (gameStore.gameState === null) return null;
+  // isDisplayTopInning tells us if the AWAY team is at bat.
+  return isDisplayTopInning.value ? 'away' : 'home';
 });
 
 
@@ -1370,7 +1374,7 @@ onUnmounted(() => {
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
                   :class="{
                       'now-batting': ((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                      'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isDisplayTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isDisplayTopInning)) && index === defensiveNextBatterIndex,
+                      'next-up': (gameStore.isEffectivelyBetweenHalfInnings || leftPanelData.teamKey === offensiveTeamKey) && index === (leftPanelData.teamKey === 'home' ? homeBattingIndex : awayBattingIndex),
                       'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id,
                       'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player.card_id)
                   }"
@@ -1475,7 +1479,7 @@ onUnmounted(() => {
               <li v-for="(spot, index) in rightPanelData.lineup" :key="spot.player.card_id"
                   :class="{
                       'now-batting': ((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                      'next-up': !((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex
+                      'next-up': (gameStore.isEffectivelyBetweenHalfInnings || rightPanelData.teamKey === offensiveTeamKey) && index === (rightPanelData.teamKey === 'home' ? homeBattingIndex : awayBattingIndex)
                   }"
                   class="lineup-item">
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
