@@ -328,16 +328,16 @@ async function initiateSteal(gameId, decisions) {
   }
 
 
-async function resolveSteal(gameId, throwTo) {
+async function resolveSteal(gameId, throwToBase) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
       await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-steal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
-        body: JSON.stringify({ throwTo })
+        body: JSON.stringify({ throwToBase })
       });
-      await fetchGame(gameId);
+      // The game-updated socket event will refresh the state.
     } catch (error) { console.error("Error resolving steal:", error); }
   }
 

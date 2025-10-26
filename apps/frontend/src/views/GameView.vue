@@ -917,38 +917,22 @@ function handleDefensiveThrow(base) {
 }
 
 
-const isStealAttemptInProgress = computed(() => gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT');
+const isStealAttemptInProgress = computed(() => {
+    if (!amIDefensivePlayer.value || !isMyTurn.value) return false;
+    // Single steal is handled by `stealAttemptDetails`, double steal by `currentPlay`.
+    const isSingleStealInProgress = !!gameStore.gameState?.stealAttemptDetails?.isStealResultHiddenForDefense;
+    const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT';
+    return isSingleStealInProgress || isDoubleStealInProgress;
+});
 
 const isSingleSteal = computed(() => {
-    if (!isStealAttemptInProgress.value) {
-        return { isSingle: false, throwToBase: null };
-    }
-    const decisions = gameStore.gameState.currentPlay.payload.decisions;
-    const isSingle = decisions && Object.keys(decisions).length === 1;
-    if (!isSingle) {
-        return { isSingle: false, throwToBase: null };
-    }
-
-    const fromBaseKey = Object.keys(decisions)[0];
-    const throwToBase = parseInt(fromBaseKey, 10) + 1;
-
-    return {
-        isSingle: true,
-        throwToBase: throwToBase
-    };
+    // This now specifically checks for the single steal object from the backend
+    return isStealAttemptInProgress.value && !!gameStore.gameState.stealAttemptDetails;
 });
 
 const stealingRunner = computed(() => {
-    if (!isSingleSteal.value.isSingle) return null;
-    const decisions = gameStore.gameState.currentPlay.payload.decisions;
-    const fromBaseKey = Object.keys(decisions)[0];
-
-    if (fromBaseKey === '1') {
-        return gameStore.gameState.bases.first;
-    } else if (fromBaseKey === '2') {
-        return gameStore.gameState.bases.second;
-    }
-    return null;
+    if (!isSingleSteal.value) return null;
+    return gameStore.gameState.stealAttemptDetails.runnerName;
 });
 
 const isInfieldInDecision = computed(() => {
@@ -1274,12 +1258,12 @@ onUnmounted(() => {
                 </button>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
-                <div v-if="isSingleSteal.isSingle">
-                    <h3><span v-if="stealingRunner">{{ stealingRunner.name }} is stealing!</span><span v-else>Opponent is stealing!</span></h3>
-                    <button @click="gameStore.resolveSteal(gameId, isSingleSteal.throwToBase)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                <div v-if="isSingleSteal">
+                    <h3>{{ stealingRunner }} is stealing!</h3>
+                    <button @click="gameStore.resolveSteal(gameId)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
                 </div>
                 <div v-else>
-                    <h3>Opponent is stealing!</h3>
+                    <h3>Opponent is attempting a double steal!</h3>
                     <p>Choose which base to throw to:</p>
                     <button @click="gameStore.resolveSteal(gameId, 2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
                     <button @click="gameStore.resolveSteal(gameId, 3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
