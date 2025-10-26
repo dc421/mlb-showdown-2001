@@ -901,7 +901,7 @@ function handleNextHitter() {
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
 
-  if (!gameStore.opponentReadyForNext) {
+  if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
   gameStore.setIsSwingResultVisible(false);
