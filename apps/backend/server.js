@@ -2089,7 +2089,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                     outcome: outcome, penalty, throwToBase: toBase, runnerName: runner.name
                 });
 
-                consolidatedRunnerInfo.push(`${runner.name} to ${getOrdinal(toBase)}`);
+                consolidatedRunnerInfo.push(`${runner.name} takes off for ${getOrdinal(toBase)}`);
 
                 if (isSafe) {
                     nextBases[baseMap[toBase]] = runner;
@@ -2105,7 +2105,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     const finalOuts = newState.outs;
     const isCaughtStealing = allStealAttempts.some(a => a.outcome === 'OUT');
     const consolidatedOutcome = isCaughtStealing ? 'CAUGHT STEALING!' : 'SAFE!';
-    const logMessage = `${consolidatedRunnerInfo.join(', ')}... ${consolidatedOutcome} (Outs: ${finalOuts})`;
+    const logMessage = `${consolidatedRunnerInfo.join(', ')}... ${consolidatedOutcome} <strong>Outs: ${finalOuts}</strong>`;
 
     await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
 
