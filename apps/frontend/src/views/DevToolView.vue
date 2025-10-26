@@ -17,12 +17,21 @@ function syncStateToUI() {
     if (gameStore.gameState) {
         // Create a comprehensive object for display
         const comprehensiveState = {
+            // Raw state from the store
             gameState: cloneDeep(gameStore.gameState),
             lineups: cloneDeep(gameStore.lineups),
             rosters: cloneDeep(gameStore.rosters),
             teams: cloneDeep(gameStore.teams),
             batter: cloneDeep(gameStore.batter),
-            pitcher: cloneDeep(gameStore.pitcher)
+            pitcher: cloneDeep(gameStore.pitcher),
+            // Important computed properties
+            displayGameState: cloneDeep(gameStore.displayGameState),
+            myTeam: cloneDeep(gameStore.myTeam),
+            amIDefensivePlayer: cloneDeep(gameStore.amIDefensivePlayer),
+            isBetweenHalfInnings: cloneDeep(gameStore.isBetweenHalfInnings),
+            isEffectivelyBetweenHalfInnings: cloneDeep(gameStore.isEffectivelyBetweenHalfInnings),
+            displayOuts: cloneDeep(gameStore.displayOuts),
+            gameEventsToDisplay: cloneDeep(gameStore.gameEventsToDisplay),
         };
 
         // Use a replacer to handle potential circular references if any
