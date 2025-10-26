@@ -235,9 +235,9 @@ const playersInInvalidPositions = computed(() => {
 
 const batterLineupInfo = computed(() => {
     if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
-    const lineup = gameStore.gameState.isTopInning ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+    const lineup = gameStore.gameState.isDisplayTopInning ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
     if (!lineup || lineup.length === 0) return null;
-    const pos = gameStore.gameState.isTopInning ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
+    const pos = gameStore.gameState.isDisplayTopInning ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
     return lineup[pos];
 });
 
@@ -785,7 +785,7 @@ const batterToDisplay = computed(() => {
         return null;
     }
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || gameStore.isEffectivelyBetweenHalfInnings)) {
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext)))) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     // MODIFIED: The single source of truth for the current batter is the lineup,
@@ -1013,7 +1013,7 @@ watch(() => gameStore.gameState?.infieldIn, (newValue) => {
 });
 
 // --- NEW: On-Deck Logic ---
-const defensiveTeamKey = computed(() => gameStore.gameState?.isTopInning ? 'homeTeam' : 'awayTeam');
+const defensiveTeamKey = computed(() => gameStore.gameState?.isDisplayTopInning ? 'homeTeam' : 'awayTeam');
 const defensiveNextBatterIndex = computed(() => {
     if (!gameStore.gameState) return -1;
     return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
@@ -1370,7 +1370,7 @@ onUnmounted(() => {
               <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
                   :class="{
                       'now-batting': ((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                      'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex,
+                      'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isDisplayTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isDisplayTopInning)) && index === defensiveNextBatterIndex,
                       'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id,
                       'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player.card_id)
                   }"
