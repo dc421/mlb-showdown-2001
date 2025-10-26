@@ -2096,15 +2096,23 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             const outcome = isSafe ? 'SAFE' : 'OUT';
             const runnerName = runner.name;
 
+            // Apply state changes for outs FIRST, so the log message is accurate.
+            if (!isSafe) {
+                newState.outs++;
+            }
+
             // Log message generation
-            const logMessage = `${runnerName} takes off for ${getOrdinal(toBase)}... ${outcome === 'SAFE' ? 'SAFE!' : 'CAUGHT STEALING!'}`;
+            let logMessage;
+            if (outcome === 'SAFE') {
+                logMessage = `${runnerName} takes off for ${getOrdinal(toBase)}... SAFE!`;
+            } else {
+                logMessage = `${runnerName} takes off for ${getOrdinal(toBase)}... CAUGHT STEALING! <strong>Outs: ${newState.outs}</strong>`;
+            }
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
 
-            // Apply state changes
+            // Apply remaining state changes
             if (isSafe) {
                 newState.bases[baseMap[toBase]] = runner;
-            } else {
-                newState.outs++;
             }
             newState.bases[baseMap[fromBase]] = null;
 
