@@ -874,9 +874,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     let playerOutCard;
-    if (playerOutId === -1) {
+    if (parseInt(playerOutId, 10) === -1) {
         playerOutCard = REPLACEMENT_HITTER_CARD;
-    } else if (playerOutId === -2) {
+    } else if (parseInt(playerOutId, 10) === -2) {
         playerOutCard = REPLACEMENT_PITCHER_CARD;
     } else {
         const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
@@ -943,9 +943,18 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
                 // --- ADDED ---
-                // Now that the pitcher is selected, create the delayed inning change event.
-                await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+                // Now that the pitcher is selected, create the delayed inning change event,
+                // but only if one hasn't been created for this half-inning already.
+                const inningHalfString = newState.isTopInning ? 'Top' : 'Bottom';
+                const inningString = `${inningHalfString} ${getOrdinal(newState.inning)}`;
+                const existingEventResult = await client.query(
+                    `SELECT 1 FROM game_events WHERE game_id = $1 AND log_message LIKE $2`,
+                    [gameId, `%<b>${inningString}</b>%`]
+                );
 
+                if (existingEventResult.rows.length === 0) {
+                    await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+                }
             }
         } else if (isSubForPitcherOnMound) {
             // This is a standard mid-inning pitching change.
