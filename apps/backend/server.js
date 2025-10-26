@@ -873,8 +873,15 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         playerInCard = playerInResult.rows[0];
     }
 
-    const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
-    const playerOutCard = playerOutResult.rows[0];
+    let playerOutCard;
+    if (playerOutId === -1) {
+        playerOutCard = REPLACEMENT_HITTER_CARD;
+    } else if (playerOutId === -2) {
+        playerOutCard = REPLACEMENT_PITCHER_CARD;
+    } else {
+        const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
+        playerOutCard = playerOutResult.rows[0];
+    }
     
     newState[teamKey].used_player_ids.push(playerOutId);
 
