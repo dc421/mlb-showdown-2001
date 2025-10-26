@@ -233,14 +233,6 @@ const playersInInvalidPositions = computed(() => {
 });
 
 
-const batterLineupInfo = computed(() => {
-    if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
-    const lineup = gameStore.gameState.isDisplayTopInning ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
-    if (!lineup || lineup.length === 0) return null;
-    const pos = gameStore.gameState.isDisplayTopInning ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
-    return lineup[pos];
-});
-
 const myLineup = computed(() => gameStore.myTeam ? gameStore.lineups[gameStore.myTeam] : null);
 const myRoster = computed(() => gameStore.myTeam ? gameStore.rosters[gameStore.myTeam] : []);
 
@@ -394,6 +386,16 @@ const isDisplayTopInning = computed(() => {
   }
   return gameStore.gameState.isTopInning;
 });
+
+const batterLineupInfo = computed(() => {
+    if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
+    const lineup = isDisplayTopInning.value ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+    if (!lineup || lineup.length === 0) return null;
+    const pos = isDisplayTopInning.value ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
+    return lineup[pos];
+});
+
+
 
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
