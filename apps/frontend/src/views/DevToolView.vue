@@ -15,8 +15,15 @@ const errorMessage = ref('');
 // and anytime the game state changes from the store
 function syncStateToUI() {
     if (gameStore.gameState) {
-        // Create a deep copy to avoid modifying the store's state directly
-        const stateToDisplay = cloneDeep(gameStore.gameState);
+        // Create a comprehensive object for display
+        const comprehensiveState = {
+            gameState: cloneDeep(gameStore.gameState),
+            lineups: cloneDeep(gameStore.lineups),
+            rosters: cloneDeep(gameStore.rosters),
+            teams: cloneDeep(gameStore.teams),
+            batter: cloneDeep(gameStore.batter),
+            pitcher: cloneDeep(gameStore.pitcher)
+        };
 
         // Use a replacer to handle potential circular references if any
         const replacer = (key, value) => {
@@ -24,7 +31,7 @@ function syncStateToUI() {
             return value;
         };
 
-        stateJson.value = JSON.stringify(stateToDisplay, replacer, 2);
+        stateJson.value = JSON.stringify(comprehensiveState, replacer, 2);
         errorMessage.value = '';
     }
 }
@@ -32,15 +39,15 @@ function syncStateToUI() {
 // Function to apply changes from the textarea to the game state
 function handleSubmit() {
     try {
-        const newState = JSON.parse(stateJson.value);
-        // We need to merge this with the existing state to not blow away everything
-        const currentState = cloneDeep(gameStore.gameState) || {};
+        const comprehensiveState = JSON.parse(stateJson.value);
 
-        // A deep merge of the new state into the current state
-        Object.assign(currentState, newState);
-
-        gameStore.setGameState(gameId, currentState);
-        errorMessage.value = '';
+        // IMPORTANT: Only send the gameState portion to the backend
+        if (comprehensiveState.gameState) {
+            gameStore.setGameState(gameId, comprehensiveState.gameState);
+            errorMessage.value = '';
+        } else {
+            errorMessage.value = 'Error: The submitted JSON must have a "gameState" property.';
+        }
     } catch (e) {
         errorMessage.value = `Error parsing JSON: ${e.message}`;
         console.error("Failed to parse and set game state:", e);
