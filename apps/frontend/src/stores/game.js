@@ -559,7 +559,7 @@ async function resetRolls(gameId) {
     // If the steal result is visible, we calculate the outcome of the steal
     // on the frontend to show the result immediately, before the defensive
     // player has even made their throw.
-    if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT') {
+    if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' && gameState.value.currentPlay.payload.results) {
       const { decisions, results } = gameState.value.currentPlay.payload;
       const newBases = { ...gameState.value.bases };
       let newOuts = gameState.value.outs;
