@@ -2291,7 +2291,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
         if (sentRunners.length === 1) {
             const fromBaseStr = sentRunners[0];
-            const decision = newState.currentPlay.payload.decisions.find(d => d.from === fromBaseStr);
+            const decision = newState.currentPlay.payload.decisions.find(d => d.from === parseInt(fromBaseStr, 10));
 
             if (!decision || !decision.runner) {
                 return res.status(400).json({ message: 'Invalid runner specified for the decision.' });

@@ -24,6 +24,7 @@ const seriesUpdateMessage = ref('');
 const nextGameId = ref(null);
 const offensiveDPResultVisible = ref(false);
 const defensiveDPRollClicked = ref(false);
+const hasRolledForSteal = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -578,14 +579,19 @@ const stealResultDetails = computed(() => {
 });
 
 const showStealResult = computed(() => {
-    // This computed property now simply guards the rendering of the ThrowRollResult.
-    // The logic to determine *if* the details should be visible to the current
-    // player is already encapsulated in the `stealResultDetails` computed property.
-    // If that property returns null (either because the data isn't ready, or the
-    // player has cleared the result), this will be false. Otherwise, it's true.
-    // This prevents the race condition where `isStealResultVisible` was set to true
-    // before the backend had returned the steal attempt details.
-    return !!stealResultDetails.value;
+  if (!stealResultDetails.value) {
+    return false;
+  }
+  // For the offensive player, show the result immediately.
+  if (amIDisplayOffensivePlayer.value) {
+    return true;
+  }
+  // For the defensive player, only show it after they've clicked the roll button.
+  if (amIDisplayDefensivePlayer.value) {
+    return hasRolledForSteal.value;
+  }
+  // Fallback for spectators, etc.
+  return true;
 });
 
 const defensiveRatingsToDisplay = computed(() => {
@@ -900,6 +906,11 @@ function handleDefensiveThrow(base) {
     gameStore.resolveDefensiveThrow(gameId, base);
 }
 
+function handleResolveSteal(throwToBase = null) {
+  hasRolledForSteal.value = true;
+  gameStore.resolveSteal(gameId, throwToBase);
+}
+
 
 const isStealAttemptInProgress = computed(() => {
     if (!amIDefensivePlayer.value || !isMyTurn.value) return false;
@@ -970,6 +981,12 @@ watch(bothPlayersCaughtUp, (areThey) => {
     if (areThey) {
         anticipatedBatter.value = null;
     }
+});
+
+watch(isStealAttemptInProgress, (newValue) => {
+  if (newValue) {
+    hasRolledForSteal.value = false;
+  }
 });
 
 
@@ -1244,13 +1261,13 @@ onUnmounted(() => {
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
                 <div v-if="isSingleSteal">
                     <h3>{{ stealingRunner }} is stealing!</h3>
-                    <button @click="gameStore.resolveSteal(gameId)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                    <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
                 </div>
                 <div v-else>
                     <h3>Opponent is attempting a double steal!</h3>
                     <p>Choose which base to throw to:</p>
-                    <button @click="gameStore.resolveSteal(gameId, 2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                    <button @click="gameStore.resolveSteal(gameId, 3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                    <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
                 </div>
             </div>
             <div v-else-if="isInfieldInDecision">
