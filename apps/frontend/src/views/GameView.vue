@@ -1183,6 +1183,7 @@ onUnmounted(() => {
             <div>{{ catcherArmDisplay }}</div>
             <div>{{ infieldDefenseDisplay }}</div>
             <div>{{ outfieldDefenseDisplay }}</div>
+            <div v-if="infieldIn" style="color: red;">IF IN</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) &&
