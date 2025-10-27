@@ -815,7 +815,11 @@ const showResolvedState = computed(() => {
 
 // in GameView.vue
 const basesToDisplay = computed(() => {
-  // Now simply returns the bases from the authoritative displayGameState.
+  // During a steal attempt, before the result is visible, ALWAYS show the "before" state.
+  if (gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isStealResultVisible.value) {
+    return gameStore.gameState.currentAtBat.basesBeforePlay;
+  }
+  // Otherwise, return the bases from the authoritative displayGameState.
   return gameStore.displayGameState?.bases || { first: null, second: null, third: null };
 });
 
