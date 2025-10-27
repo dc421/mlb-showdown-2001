@@ -426,6 +426,10 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
     return true;
   }
 
+  if(isStealAttemptInProgress.value && !showThrowRollResult.value){
+    return true
+  }
+
   // If the game state or current at-bat isn't available, there's nothing to hide.
   if (!gameStore.gameState.currentAtBat) return false;
 
@@ -793,7 +797,7 @@ const batterToDisplay = computed(() => {
         return null;
     }
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext)))) {
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     // MODIFIED: The single source of truth for the current batter is the lineup,

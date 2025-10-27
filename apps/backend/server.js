@@ -2090,7 +2090,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             let penalty = 0;
             if (toBase === 3) {
                 runnerSpeed -= 5;
-                penalty = -5;
+                penalty = 5;
             }
             const isSafe = runnerSpeed > defenseTotal;
             const outcome = isSafe ? 'SAFE' : 'OUT';
