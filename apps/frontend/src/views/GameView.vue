@@ -1280,8 +1280,10 @@ onUnmounted(() => {
                 <div v-else>
                     <h3>Opponent is attempting a double steal!</h3>
                     <p>Choose which base to throw to:</p>
-                    <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                    <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    <div class="steal-throw-decisions">
+                      <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                      <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    </div>
                 </div>
             </div>
             <div v-else-if="isInfieldInDecision">
@@ -1852,7 +1854,7 @@ onUnmounted(() => {
   width: 100%;
   margin: 0;
 }
-.runner-decisions-group {
+.runner-decisions-group, .steal-throw-decisions {
     margin-top: 1rem;
     margin-bottom: 1rem;
     display: flex;
