@@ -1679,10 +1679,21 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
       
       
-      if (events && events.length > 0) {
+      if ((events && events.length > 0) || finalState.doublePlayDetails) {
         const originalOuts = currentState.outs;
         const originalScore = currentState.awayScore + currentState.homeScore;
-        let combinedLogMessage = events.join(' ');
+        let combinedLogMessage;
+
+        if (finalState.doublePlayDetails) {
+            const { batter } = finalState.currentAtBat.swingRollResult;
+            if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
+                combinedLogMessage = `${batter.displayName} grounds into a double play.`;
+            } else {
+                combinedLogMessage = `${batter.displayName} hits into a fielder's choice.`;
+            }
+        } else {
+            combinedLogMessage = events.join(' ');
+        }
 
         if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
           combinedLogMessage += ` <strong>Outs: 3</strong>`;
@@ -1842,10 +1853,21 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         console.log('Final Outs:', finalState.outs);
         // --- End of Debug Logs ---
             
-            if (events && events.length > 0) {
+            if ((events && events.length > 0) || finalState.doublePlayDetails) {
               const originalOuts = currentState.outs;
               const originalScore = currentState.awayScore + currentState.homeScore;
-              let combinedLogMessage = events.join(' ');
+              let combinedLogMessage;
+
+              if (finalState.doublePlayDetails) {
+                const { batter } = finalState.currentAtBat.swingRollResult;
+                if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
+                    combinedLogMessage = `${batter.displayName} grounds into a double play.`;
+                } else {
+                    combinedLogMessage = `${batter.displayName} hits into a fielder's choice.`;
+                }
+              } else {
+                  combinedLogMessage = events.join(' ');
+              }
 
               if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
                 combinedLogMessage += ` <strong>Outs: 3</strong>`;
