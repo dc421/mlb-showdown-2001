@@ -426,7 +426,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
     return true;
   }
 
-  if(isStealAttemptInProgress.value && !showThrowRollResult.value){
+  if(isStealAttemptInProgress.value && !showThrowRollResult.value && !gameStore.gameState.currentPlay.payload.decisions){
     return true
   }
 
@@ -1290,7 +1290,7 @@ onUnmounted(() => {
             </div>
             <div v-else>
                 <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
-                <div v-else-if="isWaitingForDoublePlayResolution" class="waiting-text">Waiting for throw...</div>
+                <div v-else-if="isWaitingForDoublePlayResolution || amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions" class="waiting-text">Waiting for throw...</div>
                 <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
@@ -1305,7 +1305,7 @@ onUnmounted(() => {
                             Infield In
                         </label>
                     </div>
-                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp) && !( amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
                     <button v-if="canStealSecond && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
                     <button v-if="canStealThird && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
                     <button v-if="canDoubleSteal && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
