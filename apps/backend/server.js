@@ -2417,7 +2417,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         if (allEvents.length > 0) {
             let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
             if (newState.outs > originalOuts) {
-                combinedLogMessage += `. Outs: ${newState.outs}`;
+                combinedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
             }
             // Use a single event insert now, removing the individual ones
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', combinedLogMessage]);
