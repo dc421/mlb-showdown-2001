@@ -1648,11 +1648,11 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction === 'pitch') {
-      const { batter, pitcher } = await getActivePlayers(gameId, finalState);
+      const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
-      const defensiveRatings = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
-      const infieldDefense = defensiveRatings.infieldDefense;
-      const outfieldDefense = defensiveRatings.outfieldDefense;
+
+      const infieldDefense = await getInfieldDefense(defensiveTeam);
+      const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
       // --- THIS IS THE FIX ---
       // Add the scores before the outcome is applied.
@@ -1750,7 +1750,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    const { batter, pitcher, offensiveTeam } = await getActivePlayers(gameId, currentState);
+    const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
     
     // --- Pitcher Fatigue Logic ---
@@ -1819,9 +1819,8 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         if (finalState.currentAtBat.batterAction) {
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
-            const defensiveRatings = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
-            const infieldDefense = defensiveRatings.infieldDefense;
-            const outfieldDefense = defensiveRatings.outfieldDefense;
+            const infieldDefense = await getInfieldDefense(defensiveTeam);
+            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
             // --- THIS IS THE FIX ---
             // Add the scores before the outcome is applied.
