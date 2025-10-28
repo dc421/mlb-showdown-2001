@@ -571,7 +571,22 @@ const showThrowRollResult = computed(() => {
 });
 
 const showAutoThrowResult = computed(() => {
-  return gameStore.gameState?.throwRollResult && isSwingResultVisible.value;
+  if (!gameStore.gameState?.throwRollResult) {
+    return false;
+  }
+  // If a swing result is visible, it means we're in a post-at-bat scenario
+  // where a throw result should be shown.
+  if (isSwingResultVisible.value) {
+    return true;
+  }
+  // If there's no swing result visible, we might be in a steal scenario.
+  // In a steal, pitcherAction and batterAction are nullified before the steal.
+  const atBat = gameStore.gameState.currentAtBat;
+  if (atBat && !atBat.pitcherAction && !atBat.batterAction) {
+    return true; // This is likely a steal
+  }
+
+  return false; // Otherwise, hide it.
 });
 
 const stealResultDetails = computed(() => {

@@ -16,21 +16,26 @@ const props = defineProps({
 const textColor = computed(() => getContrastingTextColor(props.teamColors.primary));
 
 const outcomeText = computed(() => {
-  if (props.details.consolidatedOutcome) {
-    return props.details.consolidatedOutcome;
+  // Handle steals (single and double) first, as they have throwToBase.
+  if (props.details.throwToBase) {
+    const base = props.details.throwToBase;
+    const ordinal = base === 2 ? '2nd' : base === 3 ? '3rd' : `${base}th`;
+    return `${props.details.outcome} AT ${ordinal}!`;
   }
-  if (props.details.outcome === 'DOUBLE_PLAY') return 'DOUBLE PLAY';
-  if (props.details.outcome === 'FIELDERS_CHOICE') return 'BATTER SAFE';
-  if (props.details.outcome === 'SAFE') return 'SAFE';
-  if (props.details.outcome === 'OUT') return 'OUT';
-  return props.details.outcome;
-});
 
-const runnerInfo = computed(() => {
-    if (props.details.runner) {
-        return `${props.details.runner}`;
-    }
-    return '';
+  // Simplified logic for other plays
+  switch (props.details.outcome) {
+    case 'DOUBLE_PLAY':
+      return 'DOUBLE PLAY';
+    case 'FIELDERS_CHOICE':
+      return 'BATTER SAFE';
+    case 'SAFE':
+      return 'SAFE';
+    case 'OUT':
+      return 'OUT';
+    default:
+      return props.details.outcome;
+  }
 });
 
 const rollDetails = computed(() => {
@@ -65,7 +70,6 @@ const targetInfo = computed(() => {
 
 <template>
   <div class="throw-roll-result" :style="{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary, color: textColor }">
-    <div v-if="runnerInfo">{{ runnerInfo }}</div>
     <div>{{ rollInfo }} vs. {{ targetInfo }}</div>
     <div class="outcome">{{ outcomeText }}</div>
   </div>
