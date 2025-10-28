@@ -102,6 +102,8 @@ async function getActivePlayers(gameId, currentState) {
         let batter;
         if (batterInfo.card_id === -1) {
             batter = REPLACEMENT_HITTER_CARD;
+        } else if (batterInfo.card_id === -2) {
+            batter = REPLACEMENT_PITCHER_CARD;
         } else {
             const batterQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
             batter = batterQuery.rows[0];
