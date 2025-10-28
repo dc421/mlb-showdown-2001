@@ -487,6 +487,10 @@ const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameSta
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showNextHitterButton = computed(() => {
+  // NEW: If the inning ended on a caught stealing, always show the button.
+  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+    return true;
+  }
   // Hide button during DP unless offensive player's timer is up
   if (gameStore.gameState?.awaitingDoublePlayRoll && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
     return false;
