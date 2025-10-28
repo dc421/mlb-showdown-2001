@@ -1391,7 +1391,7 @@ onUnmounted(() => {
                   class="sub-icon"
                   :class="{
                       'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher,
-                      'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id
+                      'active': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id
                   }">
                 ⇄
             </span>
