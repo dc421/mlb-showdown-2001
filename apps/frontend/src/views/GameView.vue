@@ -1350,8 +1350,14 @@ onUnmounted(() => {
               :primary-color="controlledPlayerTeamColors.primary"
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
-                <span class="tbd-role">{{ controlledPlayerRole }}</span>
-                <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-name">TBD</span>
+                <div v-if="gameStore.gameState.awaiting_lineup_change" class="selecting-pitcher-text">
+                    <h3>Selecting</h3>
+                    <p>Pitcher...</p>
+                </div>
+                <template v-else>
+                    <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ controlledPlayerRole }}</span>
+                    <span class="tbd-name">TBD</span>
+                </template>
             </div>
           </div>
 
@@ -1366,8 +1372,14 @@ onUnmounted(() => {
               :primary-color="opponentPlayerTeamColors.primary"
             />
              <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
-                <span class="tbd-role">{{ opponentPlayerRole }}</span>
-                <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-name">TBD</span>
+                <div v-if="gameStore.gameState.awaiting_lineup_change" class="selecting-pitcher-text">
+                    <h3>Selecting</h3>
+                    <p>Pitcher...</p>
+                </div>
+                <template v-else>
+                    <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ opponentPlayerRole }}</span>
+                    <span class="tbd-name">TBD</span>
+                </template>
             </div>
           </div>
         </div>
@@ -1661,6 +1673,19 @@ onUnmounted(() => {
     font-size: 2rem;
     font-weight: bold;
   }
+
+.selecting-pitcher-text h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+.selecting-pitcher-text p {
+    font-size: 1.5rem;
+    font-style: italic;
+    color: #555;
+    margin: 0;
+}
 
   /* --- Mobile Positioning Overrides --- */
   .result-box-left {
