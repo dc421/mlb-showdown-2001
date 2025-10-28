@@ -185,7 +185,7 @@ const isMyTurn = computed(() => {
 
 const isMyTeamAwaitingLineupChange = computed(() => {
     if (!gameStore.gameState || !gameStore.myTeam) return false;
-    return gameStore.gameState.awaiting_lineup_change && amIDisplayDefensivePlayer.value;
+    return gameStore.gameState.awaiting_lineup_change && amIDisplayDefensivePlayer.value && !gameStore.opponentReadyForNext.value;
 });
 
 const playersInInvalidPositions = computed(() => {
