@@ -2296,8 +2296,8 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
             await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
         }
 
-        // After resolution, it's the pitcher's turn again.
-        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
+        // After resolution, it's both players' turn to see the result and advance.
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
