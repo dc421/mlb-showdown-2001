@@ -1958,34 +1958,40 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     // --- THIS IS THE NEW LOGIC ---
     // If you are the FIRST player to click, advance the game state.
     if (!originalState.homePlayerReadyForNext && !originalState.awayPlayerReadyForNext) {
-      // 1. Save the completed at-bat for the other player to see.
+      // 1. Save the completed/interrupted at-bat for the other player to see.
       newState.lastCompletedAtBat = { ...newState.currentAtBat,
         bases: newState.currentAtBat.basesBeforePlay,
-        eventCount: newState.currentAtBat.swingRollResult?.eventCount || 1, // Save the event count
-        outs: newState.outsBeforePlay 
+        eventCount: newState.currentAtBat.swingRollResult?.eventCount || 1,
+        outs: newState.outsBeforePlay
        };
 
-      // NEW: Clear the double play details from the previous play
+      // Clear details from the previous play.
       delete newState.doublePlayDetails;
       delete newState.stealAttemptDetails;
       delete newState.throwRollResult;
 
-      // --- THIS IS THE FIX ---
-      // Determine which team's batting order needs to be advanced.
-      // If we are between innings, we advance the order for the team that JUST finished batting.
-      // Otherwise, it's a normal mid-inning batter change for the current offensive team.
-      let teamToAdvance;
-      if (newState.isBetweenHalfInningsAway) {
-        // The away team just finished batting. Advance their order.
-        teamToAdvance = 'awayTeam';
-      } else if (newState.isBetweenHalfInningsHome) {
-        // The home team just finished batting. Advance their order.
-        teamToAdvance = 'homeTeam';
+      const inningEndedOnCS = newState.inningEndedOnCaughtStealing;
+
+      if (inningEndedOnCS) {
+          // Inning ended on CS: Manually transition the inning state now.
+          newState.isTopInning = !newState.isTopInning;
+          if (newState.isTopInning) newState.inning++;
+          newState.outs = 0;
+          newState.bases = { first: null, second: null, third: null };
+          await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+          delete newState.inningEndedOnCaughtStealing; // Clean up the flag.
       } else {
-        // Not an inning change, so advance the current offensive team.
-        teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+          // Normal state progression: Determine which team's batting order needs to advance.
+          let teamToAdvance;
+          if (newState.isBetweenHalfInningsAway) {
+            teamToAdvance = 'awayTeam';
+          } else if (newState.isBetweenHalfInningsHome) {
+            teamToAdvance = 'homeTeam';
+          } else {
+            teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+          }
+          newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
       }
-      newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
       // Reset the between-innings flags now that the new at-bat is set up.
       if (newState.isBetweenHalfInningsHome) {
@@ -1994,7 +2000,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       if (newState.isBetweenHalfInningsAway) {
         newState.isBetweenHalfInningsAway = false;
       }
-      
+
       // 3. Create a fresh scorecard for the new at-bat.
       const { batter, pitcher } = await getActivePlayers(gameId, newState);
       newState.currentAtBat = {
@@ -2167,13 +2173,12 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
 
     // Check for inning end if an out was made on a single steal
     if (isSingleSteal && newState.outs >= 3) {
-        if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
-        else { newState.isBetweenHalfInningsHome = true; }
-        newState.isTopInning = !newState.isTopInning;
-        if (newState.isTopInning) newState.inning++;
-        newState.outs = 0;
-        newState.bases = { first: null, second: null, third: null };
-        await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+        if (newState.isTopInning) {
+            newState.isBetweenHalfInningsAway = true;
+        } else {
+            newState.isBetweenHalfInningsHome = true;
+        }
+        newState.inningEndedOnCaughtStealing = true;
     }
 
     if (isSingleSteal) {
@@ -2287,17 +2292,16 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
         // 3. Check for inning end
         if (newState.outs >= 3) {
-            if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
-            else { newState.isBetweenHalfInningsHome = true; }
-            newState.isTopInning = !newState.isTopInning;
-            if (newState.isTopInning) newState.inning++;
-            newState.outs = 0;
-            newState.bases = { first: null, second: null, third: null };
-            await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+            if (newState.isTopInning) {
+                newState.isBetweenHalfInningsAway = true;
+            } else {
+                newState.isBetweenHalfInningsHome = true;
+            }
+            newState.inningEndedOnCaughtStealing = true;
         }
 
-        // After resolution, it's the pitcher's turn again.
-        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
+        // After resolution, it's both players' turn to see the result and advance.
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
