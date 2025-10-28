@@ -2222,49 +2222,63 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
         let allEvents = [];
 
-        // --- REVISED FIX START ---
+        // --- V4 FIX START ---
         const contestedFromBase = throwToBase - 1;
+        const originalBases = JSON.parse(JSON.stringify(newState.bases));
+        const outcomes = {};
+        let contestedRunnerDetails = {};
 
-        // 1. Advance all uncontested runners first.
-        // We iterate through all stealing runners.
+        // 1. Resolve outcomes for all stealing runners, reading from the original state.
         for (const fromBaseStr in decisions) {
-            const fromBase = parseInt(fromBaseStr, 10);
-            // If this runner is not the one being thrown at, they are "uncontested".
-            if (decisions[fromBaseStr] && fromBase !== contestedFromBase) {
-                const runner = newState.bases[baseMap[fromBase]];
-                if (runner) {
-                    const toBase = fromBase + 1;
-                    newState.bases[baseMap[toBase]] = runner;
-                    newState.bases[baseMap[fromBase]] = null; // Vacate the original base
-                    allEvents.push(`${runner.name} advances to ${getOrdinal(toBase)}.`);
+            if (decisions[fromBaseStr]) {
+                const fromBase = parseInt(fromBaseStr, 10);
+                const runner = originalBases[baseMap[fromBase]];
+                if (!runner) continue;
+
+                if (fromBase === contestedFromBase) {
+                    const d20Roll = Math.floor(Math.random() * 20) + 1;
+                    const defenseTotal = catcherArm + d20Roll;
+                    const originalRunnerSpeed = getSpeedValue(runner);
+                    let runnerSpeed = originalRunnerSpeed;
+                    let penalty = 0;
+                    if (throwToBase === 3) {
+                        runnerSpeed -= 5;
+                        penalty = 5;
+                    }
+                    const isSafe = runnerSpeed > defenseTotal;
+                    outcomes[fromBase] = { runner, isSafe, isContested: true };
+                    contestedRunnerDetails = {
+                        outcome: isSafe ? 'SAFE' : 'OUT',
+                        runnerName: runner.name, roll: d20Roll,
+                        defense: catcherArm, target: originalRunnerSpeed,
+                        penalty, throwToBase
+                    };
+                } else {
+                    outcomes[fromBase] = { runner, isSafe: true, isContested: false };
                 }
             }
         }
 
-        // 2. Now, resolve the throw for the single "contested" runner.
-        const contestedRunner = newState.bases[baseMap[contestedFromBase]];
-        if (contestedRunner) {
-            const d20Roll = Math.floor(Math.random() * 20) + 1;
-            const defenseTotal = catcherArm + d20Roll;
-            let runnerSpeed = getSpeedValue(contestedRunner);
-            if (throwToBase === 3) { // Apply penalty for throw to 3rd
-                runnerSpeed -= 5;
-            }
-            const isSafe = runnerSpeed > defenseTotal;
-
+        // 2. Apply outcomes and build log messages.
+        Object.keys(outcomes).sort((a, b) => b - a).forEach(fromBaseStr => {
+            const fromBase = parseInt(fromBaseStr, 10);
+            const { runner, isSafe, isContested } = outcomes[fromBase];
+            const toBase = fromBase + 1;
+            newState.bases[baseMap[fromBase]] = null;
             if (isSafe) {
-                newState.bases[baseMap[throwToBase]] = contestedRunner;
-                allEvents.push(`${contestedRunner.name} is SAFE at ${getOrdinal(throwToBase)}!`);
+                newState.bases[baseMap[toBase]] = runner;
+                const message = isContested ? `${runner.name} is SAFE at ${getOrdinal(toBase)}!` : `${runner.name} advances to ${getOrdinal(toBase)}.`;
+                allEvents.push(message);
             } else {
                 newState.outs++;
-                allEvents.push(`${contestedRunner.name} is OUT at ${getOrdinal(throwToBase)}!`);
+                allEvents.push(`${runner.name} is OUT at ${getOrdinal(toBase)}!`);
             }
-            // The contested runner always vacates their starting base.
-            newState.bases[baseMap[contestedFromBase]] = null;
-        }
-        // --- REVISED FIX END ---
+        });
 
+        // 3. Create the throw result object for the UI.
         const logMessage = allEvents.join(' ');
+        newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage };
+        // --- V4 FIX END ---
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
 
         newState.currentPlay = null; // Clear the play
