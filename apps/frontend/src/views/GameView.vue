@@ -1290,7 +1290,7 @@ onUnmounted(() => {
             </div>
             <div v-else>
                 <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
-                <div v-else-if="isWaitingForDoublePlayResolution || amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions" class="waiting-text">Waiting for throw...</div>
+                <div v-else-if="isWaitingForDoublePlayResolution || amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions && gameStore.gameState.currentPlay?.payload.decisions.type === 'STEAL_ATTEMPT'" class="waiting-text">Waiting for throw...</div>
                 <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
