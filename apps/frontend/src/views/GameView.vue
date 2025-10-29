@@ -1386,8 +1386,7 @@ onUnmounted(() => {
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
                 <div v-if="gameStore.gameState.awaiting_lineup_change" class="selecting-pitcher-text">
-                    <h3>Selecting</h3>
-                    <p>Pitcher...</p>
+                    <h3><em>Selecting Pitcher...</em></h3>
                 </div>
                 <template v-else>
                     <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ controlledPlayerRole }}</span>
@@ -1408,8 +1407,7 @@ onUnmounted(() => {
             />
              <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
                 <div v-if="gameStore.gameState.awaiting_lineup_change" class="selecting-pitcher-text">
-                    <h3>Selecting</h3>
-                    <p>Pitcher...</p>
+                     <h3><em>Selecting Pitcher...</em></h3>
                 </div>
                 <template v-else>
                     <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ opponentPlayerRole }}</span>
