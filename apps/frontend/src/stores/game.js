@@ -607,7 +607,7 @@ async function resetRolls(gameId) {
     // `isOutcomeHidden` is the single source of truth. If it's true, we MUST show the "before" state.
     // The rollback is skipped if `isStealResultVisible` is true, which is handled by the block above.
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
-      const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
+      const rollbackSource = opponentReadyForNext.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
       if (rollbackSource && rollbackSource.basesBeforePlay) {
         return {
           ...gameState.value,
