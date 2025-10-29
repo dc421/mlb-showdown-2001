@@ -337,7 +337,8 @@ async function resolveSteal(gameId, throwToBase) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ throwToBase })
       });
-      // The game-updated socket event will refresh the state.
+      // The game-updated socket event should refresh the state, but we'll fetch manually to be safe.
+      await fetchGame(gameId);
     } catch (error) { console.error("Error resolving steal:", error); }
   }
 
