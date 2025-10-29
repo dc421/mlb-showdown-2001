@@ -132,17 +132,61 @@ const baserunningOptionGroups = computed(() => {
     // Sort decisions by the runner's starting base, from lead runner to trail runner.
     const sortedDecisions = [...decisions].sort((a, b) => parseInt(b.from, 10) - parseInt(a.from, 10));
 
-    const groups = [];
-
-    // Create an option for each runner individually.
+    const singleRunnerOptions = [];
     for (const decision of sortedDecisions) {
         const choices = { [decision.from]: true };
         const text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
-        groups.push({ text, choices });
+        singleRunnerOptions.push({ text, choices });
     }
 
-    // Show the simplest option (only the lead runner) first.
-    return groups;
+    const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
+    if (!isTagUp) {
+        return singleRunnerOptions;
+    }
+
+    const multiRunnerOptions = [];
+    const runnersOn = decisions.map(d => parseInt(d.from, 10)).sort();
+    const runnerCount = runnersOn.length;
+
+    const hasRunnerOn = (base) => runnersOn.includes(base);
+
+    // 1st & 2nd
+    if (runnerCount === 2 && hasRunnerOn(1) && hasRunnerOn(2)) {
+        multiRunnerOptions.push({
+            text: "Send Runners to 2nd & 3rd",
+            choices: { '1': true, '2': true }
+        });
+    }
+
+    // 1st & 3rd
+    if (runnerCount === 2 && hasRunnerOn(1) && hasRunnerOn(3)) {
+        multiRunnerOptions.push({
+            text: "Send Runners to 2nd & Home",
+            choices: { '1': true, '3': true }
+        });
+    }
+
+    // 2nd & 3rd
+    if (runnerCount === 2 && hasRunnerOn(2) && hasRunnerOn(3)) {
+        multiRunnerOptions.push({
+            text: "Send Runners to 3rd & Home",
+            choices: { '2': true, '3': true }
+        });
+    }
+
+    // Bases loaded
+    if (runnerCount === 3 && hasRunnerOn(1) && hasRunnerOn(2) && hasRunnerOn(3)) {
+        multiRunnerOptions.push({
+            text: "Send Runners to 3rd & Home",
+            choices: { '2': true, '3': true } // Runner on 1st holds
+        });
+        multiRunnerOptions.push({
+            text: "Send All Runners",
+            choices: { '1': true, '2': true, '3': true }
+        });
+    }
+
+    return [...singleRunnerOptions, ...multiRunnerOptions];
 });
 
 const isAdvancementOrTagUpDecision = computed(() => {
