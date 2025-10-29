@@ -1794,6 +1794,10 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const events = [];
 
     if (action === 'intentional_walk') {
+        // --- THIS IS THE FIX ---
+        // Add the scores before the outcome is applied.
+        currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
+        currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
         const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue);
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
