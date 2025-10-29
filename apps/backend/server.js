@@ -2221,6 +2221,9 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         // After revealing, the turn goes back to the pitcher for the pitch.
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
 
+        // Update basesBeforePlay to reflect the board state after the steal
+        newState.currentAtBat.basesBeforePlay = { ...newState.bases };
+
     } else if (newState.currentPlay?.type === 'STEAL_ATTEMPT') {
         // --- DOUBLE STEAL: Resolve the outcome based on defensive choice ---
         const { decisions } = newState.currentPlay.payload;
@@ -2303,6 +2306,9 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
         // After resolution, it's both players' turn to see the result and advance.
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+
+        // Update basesBeforePlay to reflect the board state after the steal
+        newState.currentAtBat.basesBeforePlay = { ...newState.bases };
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
