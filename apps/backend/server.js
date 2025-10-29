@@ -1654,8 +1654,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
 
-      const infieldDefense = await getInfieldDefense(defensiveTeam);
-      const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+      const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
 
       // --- THIS IS THE FIX ---
       // Add the scores before the outcome is applied.
@@ -1822,8 +1821,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         if (finalState.currentAtBat.batterAction) {
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
-            const infieldDefense = await getInfieldDefense(defensiveTeam);
-            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+            const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
 
             // --- THIS IS THE FIX ---
             // Add the scores before the outcome is applied.
