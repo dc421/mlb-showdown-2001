@@ -15,11 +15,18 @@ const props = defineProps({
 
 const textColor = computed(() => getContrastingTextColor(props.teamColors.primary));
 
+const isSingleRunner = computed(() => {
+  return !props.details.attempts || props.details.attempts.length <= 1;
+});
+
 const outcomeText = computed(() => {
   // Handle steals (single and double) first, as they have throwToBase.
   if (props.details.throwToBase) {
+    if (isSingleRunner.value && props.details.outcome === 'SAFE') {
+      return 'SAFE!';
+    }
     const base = props.details.throwToBase;
-    const ordinal = base === 2 ? '2nd' : base === 3 ? '3rd' : `${base}th`;
+    const ordinal = base === 2 ? '2nd' : base === 3 ? '3rd' : base === 4 ? 'HOME' : `${base}th`;
     return `${props.details.outcome} AT ${ordinal}!`;
   }
 
@@ -49,20 +56,26 @@ const rollInfo = computed(() => {
     if (rollDetails.value.summary) {
         return rollDetails.value.summary;
     }
-    let base = `Throw: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
-    if (rollDetails.value.throwToBase) {
-        base = `Throw to ${rollDetails.value.throwToBase}B: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
-    }
-    if (rollDetails.value.penalty > 0) {
-        return `${base} +${rollDetails.value.penalty}`;
-    }
-    if (rollDetails.value.penalty < 0) {
-        return `${base} ${rollDetails.value.penalty}`;
+    let base;
+    if (rollDetails.value.throwToBase && !isSingleRunner.value) {
+        const baseDisplay = rollDetails.value.throwToBase === 4 ? 'Home' : `${rollDetails.value.throwToBase}B`;
+        base = `Throw to ${baseDisplay}: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
+    } else {
+        base = `Throw: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
     }
     return base;
 });
 
 const targetInfo = computed(() => {
+    if (rollDetails.value.baseSpeed !== undefined) {
+        let result = `${rollDetails.value.baseSpeed}`;
+        if (rollDetails.value.penalty > 0) {
+            result += ` +${rollDetails.value.penalty}`;
+        } else if (rollDetails.value.penalty < 0) {
+            result += ` ${rollDetails.value.penalty}`;
+        }
+        return result;
+    }
     return `${rollDetails.value.target}`;
 });
 
