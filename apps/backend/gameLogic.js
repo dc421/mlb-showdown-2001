@@ -432,16 +432,19 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
 
   if (runnerToChallenge) {
     const d20Roll = Math.floor(Math.random() * 20) + 1;
-    let speed = getSpeedValue(runnerToChallenge);
+    const baseSpeed = getSpeedValue(runnerToChallenge);
+    let speed = baseSpeed;
+    let penalty = 0;
     let defenseRoll = outfieldDefense + d20Roll;
 
     if (type === 'ADVANCE') {
-      if (throwTo === 4) speed += 5;
-      if (newState.outs === 2) speed += 5;
+      if (throwTo === 4) penalty += 5;
+      if (newState.outs === 2) penalty += 5;
     } else if (type === 'TAG_UP') {
-      if (throwTo === 4) speed += 5;
-      if (throwTo === 2) speed -= 5;
+      if (throwTo === 4) penalty += 5;
+      if (throwTo === 2) penalty -= 5;
     }
+    speed += penalty;
 
     const isSafe = speed >= defenseRoll;
 
@@ -449,6 +452,8 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
         roll: d20Roll,
         defense: outfieldDefense,
         target: speed,
+        baseSpeed,
+        penalty,
         outcome: isSafe ? 'SAFE' : 'OUT',
         runner: runnerToChallenge.name,
         throwToBase: throwTo
