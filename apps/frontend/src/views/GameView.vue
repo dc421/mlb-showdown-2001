@@ -168,10 +168,8 @@ const isAwaitingBaserunningDecision = computed(() => {
     }
     return false;
 });
-// NEW: Local state for the checkbox
-
-const infieldIn = ref(gameStore.gameState?.infieldIn || false);
 const anticipatedBatter = ref(null);
+const infieldIn = ref(false);
 
 
 const REPLACEMENT_HITTER = { card_id: 'replacement_hitter', displayName: 'Replacement Hitter', control: null };
@@ -982,17 +980,18 @@ function handleInfieldInDecision(sendRunner) {
 
 
 
-// NEW: Watch for changes to the checkbox and send to server
-
-watch(infieldIn, (newValue) => {
-
-    if (amIDefensivePlayer.value) {
-
-        gameStore.setDefense(gameId, newValue);
-
-    }
-
+watch(infieldIn, (newValue, oldValue) => {
+    // Only send an update if the value was changed by the user,
+    // not when it's being sync'd from the server.
+    if (newValue !== oldValue && amIDefensivePlayer.value) {
+        gameStore.setDefense(gameId, newValue);
+    }
 });
+
+// This watcher keeps the checkbox sync'd with the actual state of the at-bat being viewed.
+watch(() => atBatToDisplay.value?.infieldIn, (newValue) => {
+    infieldIn.value = !!newValue;
+}, { immediate: true });
 
 const bothPlayersCaughtUp = computed(() => {
 if (!gameStore.gameState) return false;
@@ -1018,14 +1017,6 @@ watch(isStealAttemptInProgress, (newValue) => {
 });
 
 
-
-// NEW: Watch for updates from the server
-
-watch(() => gameStore.gameState?.infieldIn, (newValue) => {
-
-    infieldIn.value = newValue;
-
-});
 
 const defensiveTeamKey = computed(() => gameStore.gameState?.isDisplayTopInning ? 'homeTeam' : 'awayTeam');
 const defensiveNextBatterIndex = computed(() => {
@@ -1212,7 +1203,7 @@ onUnmounted(() => {
             <div>{{ catcherArmDisplay }}</div>
             <div>{{ infieldDefenseDisplay }}</div>
             <div>{{ outfieldDefenseDisplay }}</div>
-            <div v-if="infieldIn" style="color: red;">IF IN</div>
+            <div v-if="atBatToDisplay.infieldIn" style="color: red;">IF IN</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) &&

@@ -1127,7 +1127,8 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
     const currentTurn = stateResult.rows[0].turn_number;
 
     // Create a new state with the updated defensive setting
-    const newState = { ...currentState, infieldIn: infieldIn };
+    const newState = { ...currentState };
+    newState.currentAtBat.infieldIn = infieldIn;
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
