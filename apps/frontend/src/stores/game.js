@@ -433,7 +433,14 @@ async function resetRolls(gameId) {
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
     // We need to continue hiding just the inning change message.
     if (isEffectivelyBetween && !amIReadyForNext.value) {
-        return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        // --- THIS IS THE FIX ---
+        // Only hide the last event if it's the inning change system message.
+        // Otherwise, in the 'awaiting pitcher' scenario, the last event is the
+        // 3rd out, and we must show it.
+        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
+        if (lastEvent && lastEvent.event_type === 'system') {
+            return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        }
     }
 
     // In all other cases (e.g., mid-inning play revealed, or after "Next Hitter" is clicked), show the full log.
@@ -619,11 +626,29 @@ async function resetRolls(gameId) {
       ? (opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay)
       : gameState.value.bases;
 
+    // --- THIS IS THE COMPREHENSIVE FIX ---
+    // If the game is between innings and we're awaiting a pitcher selection,
+    // the server state has already advanced to the *next* inning. We need to
+    // roll back the inning and isTopInning values to match the display outs and bases.
+    let inning = gameState.value.inning;
+    let isTopInning = gameState.value.isTopInning;
+
+    if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
+      if (gameState.value.isTopInning) { // Server says Top 2, we want to show Bottom 1
+        inning = gameState.value.inning - 1;
+        isTopInning = false;
+      } else { // Server says Bottom 1, we want to show Top 1
+        isTopInning = true;
+      }
+    }
+
     // In all other cases, return the current, authoritative state from the server, but with our overrides.
     return {
       ...gameState.value,
       outs: displayOuts.value,
       bases: bases,
+      inning,
+      isTopInning,
     };
   });
 
