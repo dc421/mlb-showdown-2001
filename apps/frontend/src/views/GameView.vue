@@ -469,7 +469,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   }
 
   //if(isStealAttemptInProgress.value && !showThrowRollResult.value && !gameStore.gameState.currentPlay.payload.decisions){
-  if(!!gameStore.gameState.stealAttemptDetails && (!showThrowRollResult.value && amIDisplayDefensivePlayer.value) && !!gameStore.gameState.currentPlay?.payload.decisions){
+  if(!!gameStore.gameState.stealAttemptDetails && (!showThrowRollResult.value && amIDisplayDefensivePlayer.value)){
     return true
   }
 
