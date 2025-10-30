@@ -227,7 +227,11 @@ const isMyTurn = computed(() => {
 
 const isMyTeamAwaitingLineupChange = computed(() => {
     if (!gameStore.gameState || !gameStore.myTeam) return false;
-    return gameStore.gameState.awaiting_lineup_change && amIDisplayDefensivePlayer.value && !gameStore.opponentReadyForNext.value;
+    // NEW: Also check that the invalid lineup *is mine* before showing the message.
+    return gameStore.gameState.awaiting_lineup_change &&
+           amIDisplayDefensivePlayer.value &&
+           playersInInvalidPositions.value.size > 0 &&
+           !gameStore.opponentReadyForNext.value;
 });
 
 const playersInInvalidPositions = computed(() => {
