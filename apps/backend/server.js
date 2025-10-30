@@ -1984,16 +1984,24 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
           delete newState.inningEndedOnCaughtStealing; // Clean up the flag.
       } else {
-          // Normal state progression: Determine which team's batting order needs to advance.
-          let teamToAdvance;
-          if (newState.isBetweenHalfInningsAway) {
-            teamToAdvance = 'awayTeam';
-          } else if (newState.isBetweenHalfInningsHome) {
-            teamToAdvance = 'homeTeam';
-          } else {
-            teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-          }
-          newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+        if (newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) {
+            // Inning has ended. First, advance the batting order of the team that just finished batting.
+            const teamToAdvance = newState.isBetweenHalfInningsAway ? 'awayTeam' : 'homeTeam';
+            newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+
+            // NOW, transition the game state to the new half-inning.
+            newState.isTopInning = !newState.isTopInning;
+            if (newState.isTopInning) newState.inning++;
+            newState.outs = 0;
+            newState.bases = { first: null, second: null, third: null };
+
+            // Create the inning change event. It will be skipped if there's no pitcher selected yet.
+            await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+        } else {
+            // Mid-inning, just advance the current offensive team's batting order.
+            const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+            newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+        }
       }
 
       // Reset the between-innings flags now that the new at-bat is set up.
