@@ -2352,30 +2352,22 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
         if (sentRunners.length === 1) {
             const fromBaseStr = sentRunners[0];
-            const decision = newState.currentPlay.payload.decisions.find(d => d.from === parseInt(fromBaseStr, 10));
+            // FIX: The `decision` object from the currentPlay payload is the source of truth.
+            const decision = newState.currentPlay.payload.decisions.find(d => d.from.toString() === fromBaseStr);
 
             if (!decision || !decision.runner) {
                 return res.status(400).json({ message: 'Invalid runner specified for the decision.' });
             }
-            const runner = decision.runner;
 
-            // The runner is advancing FROM fromBaseStr, but `applyOutcome` might have already
-            // moved them. We need to ensure `resolveThrow` can find them at their starting base.
-            const baseMap = { '1': 'first', '2': 'second', '3': 'third' };
-            for (const base in newState.bases) {
-                if (newState.bases[base] && newState.bases[base].card_id === runner.card_id) {
-                    newState.bases[base] = null;
-                    break;
-                }
-            }
-            newState.bases[baseMap[fromBaseStr]] = runner;
-
-            const throwTo = parseInt(fromBaseStr, 10) + 1;
+            // FIX: The throw is going to the runner's original base + 2 (e.g., 1st to 3rd).
+            const throwTo = decision.from + 2;
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
             const { initialEvent } = newState.currentPlay.payload;
             const originalOuts = newState.outs;
 
+            // FIX: We no longer need to manually move the runner back. `resolveThrow`
+            // is smart enough to handle the state as it was left by `applyOutcome`.
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue);
             newState = resolvedState;
 
@@ -2383,17 +2375,20 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
             if (events.length > 0) {
                 let combinedLogMessage = initialEvent ? `${initialEvent} ${events.join(' ')}` : events.join(' ');
+                // Use the new outs count from the resolved state.
                 if (newState.outs > originalOuts) {
-                    combinedLogMessage += `. Outs: ${newState.outs}`;
+                    combinedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
                 }
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', combinedLogMessage]);
             }
 
+
             if (newState.outs >= 3) {
-                newState.isTopInning = !newState.isTopInning;
-                if (newState.isTopInning) newState.inning++;
-                newState.outs = 0;
-                newState.bases = { first: null, second: null, third: null };
+                 if (newState.isTopInning) {
+                    newState.isBetweenHalfInningsAway = true;
+                } else {
+                    newState.isBetweenHalfInningsHome = true;
+                }
             }
 
             newState.awayPlayerReadyForNext = false;
