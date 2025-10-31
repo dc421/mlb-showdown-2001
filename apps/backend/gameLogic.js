@@ -275,7 +275,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       newState.bases = { first: null, second: null, third: null };
 
       if (allDecisionsAutomatic) {
-          events.push(initialEvent);
+          let combinedEvent = initialEvent;
           let baseAheadIsOccupied = false;
 
           // Process lead runner (from 2nd) first
@@ -283,11 +283,11 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (decisionR2) {
               if (decisionR2.advance) {
                   scoreRun(runnerFrom2);
-                  events.push(`${runnerFrom2.name} scores from second without a throw!`);
+                  combinedEvent += ` ${runnerFrom2.name} scores from second without a throw!`;
                   baseAheadIsOccupied = false;
               } else {
                   newState.bases.third = runnerFrom2;
-                  events.push(`${runnerFrom2.name} holds at third.`);
+                  combinedEvent += ` ${runnerFrom2.name} holds at third.`;
                   baseAheadIsOccupied = true;
               }
           } else if (runnerFrom2) {
@@ -300,12 +300,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (decisionR1) {
               if (decisionR1.advance && !baseAheadIsOccupied) {
                   newState.bases.third = runnerFrom1;
-                  events.push(`${runnerFrom1.name} takes third without a throw!`);
+                  combinedEvent += ` ${runnerFrom1.name} takes third without a throw!`;
               } else {
                   if(decisionR1.advance && baseAheadIsOccupied) {
-                      events.push(`${runnerFrom1.name} holds at second.`);
+                      combinedEvent += ` ${runnerFrom1.name} holds at second.`;
                   } else {
-                      events.push(`${runnerFrom1.name} holds at second.`);
+                      combinedEvent += ` ${runnerFrom1.name} holds at second.`;
                   }
                   newState.bases.second = runnerFrom1;
               }
@@ -314,6 +314,14 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           }
 
           newState.bases.first = runnerData;
+
+          // Handle 1B+ for the batter (moved inside automatic block)
+          if (outcome === '1B+' && !newState.bases.second) {
+              newState.bases.second = newState.bases.first;
+              newState.bases.first = null;
+              combinedEvent += ` ${batter.displayName} steals second without a throw!`;
+          }
+          events.push(combinedEvent);
       } else {
           // Not automatic, so do standard advancement and ask user
           if (runnerFrom2) { newState.bases.third = runnerFrom2; }
@@ -324,13 +332,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           } else {
               events.push(initialEvent);
           }
-      }
-
-      // Handle 1B+ for the batter
-      if (outcome === '1B+' && !newState.bases.second) {
-          newState.bases.second = newState.bases.first;
-          newState.bases.first = null;
-          events.push(`${batter.displayName} steals second without a throw!`);
       }
   }
   else if (outcome === '2B') {
