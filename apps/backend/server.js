@@ -2222,14 +2222,19 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-    const { offensiveTeam } = await getActivePlayers(gameId, newState);
+    const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
 
     if (newState.stealAttemptDetails && newState.stealAttemptDetails.isStealResultHiddenForDefense) {
         // --- SINGLE STEAL: Just reveal the result ---
         newState.stealAttemptDetails.isStealResultHiddenForDefense = false;
 
-        // After revealing, the turn goes back to the pitcher for the pitch.
-        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
+        if (newState.stealAttemptDetails.outcome === 'SAFE') {
+            // After a safe steal, the turn stays with the offensive player to allow another action.
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+        } else {
+            // If the runner was out, the turn goes back to the pitcher (defensive player).
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
+        }
 
         // Update basesBeforePlay to reflect the board state after the steal
         newState.currentAtBat.basesBeforePlay = { ...newState.bases };
@@ -2237,7 +2242,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     } else if (newState.currentPlay?.type === 'STEAL_ATTEMPT') {
         // --- DOUBLE STEAL: Resolve the outcome based on defensive choice ---
         const { decisions } = newState.currentPlay.payload;
-        const { defensiveTeam } = await getActivePlayers(gameId, newState);
         const catcherArm = await getCatcherArm(defensiveTeam);
         const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
