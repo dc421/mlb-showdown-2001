@@ -15,19 +15,68 @@ const props = defineProps({
 
 const textColor = computed(() => getContrastingTextColor(props.teamColors.primary));
 
+const isSingleRunner = computed(() => {
+  return !props.details.attempts || props.details.attempts.length <= 1;
+});
+
 const outcomeText = computed(() => {
-  if (props.details.outcome === 'DOUBLE_PLAY') {
-    return 'DOUBLE PLAY';
+  // Handle steals (single and double) first, as they have throwToBase.
+  if (props.details.throwToBase) {
+    if (isSingleRunner.value && props.details.outcome === 'SAFE') {
+      return 'SAFE!';
+    }
+    const base = props.details.throwToBase;
+    const ordinal = base === 2 ? '2nd' : base === 3 ? '3rd' : base === 4 ? 'HOME' : `${base}th`;
+    return `${props.details.outcome} AT ${ordinal}!`;
   }
-  return 'BATTER SAFE';
+
+  // Simplified logic for other plays
+  switch (props.details.outcome) {
+    case 'DOUBLE_PLAY':
+      return 'DOUBLE PLAY';
+    case 'FIELDERS_CHOICE':
+      return 'BATTER SAFE';
+    case 'SAFE':
+      return 'SAFE';
+    case 'OUT':
+      return 'OUT';
+    default:
+      return props.details.outcome;
+  }
+});
+
+const rollDetails = computed(() => {
+  if (props.details.attempts?.length > 0) {
+    return props.details.attempts[0];
+  }
+  return props.details;
 });
 
 const rollInfo = computed(() => {
-    return `Throw: ${props.details.roll} +${props.details.defense}`;
+    if (rollDetails.value.summary) {
+        return rollDetails.value.summary;
+    }
+    let base;
+    if (rollDetails.value.throwToBase && !isSingleRunner.value) {
+        const baseDisplay = rollDetails.value.throwToBase === 4 ? 'Home' : `${rollDetails.value.throwToBase}B`;
+        base = `Throw to ${baseDisplay}: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
+    } else {
+        base = `Throw: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
+    }
+    return base;
 });
 
 const targetInfo = computed(() => {
-    return `${props.details.target}`;
+    if (rollDetails.value.baseSpeed !== undefined) {
+        let result = `${rollDetails.value.baseSpeed}`;
+        if (rollDetails.value.penalty > 0) {
+            result += ` +${rollDetails.value.penalty}`;
+        } else if (rollDetails.value.penalty < 0) {
+            result += ` ${rollDetails.value.penalty}`;
+        }
+        return result;
+    }
+    return `${rollDetails.value.target}`;
 });
 
 </script>

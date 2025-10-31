@@ -13,10 +13,26 @@ const errorMessage = ref('');
 
 // This function is called when the component is first loaded
 // and anytime the game state changes from the store
-function syncStateToUI(newGame) {
-    if (newGame && newGame.state_data) {
-        // Create a deep copy to avoid modifying the store's state directly
-        const stateToDisplay = cloneDeep(newGame.state_data);
+function syncStateToUI() {
+    if (gameStore.gameState) {
+        // Create a comprehensive object for display
+        const comprehensiveState = {
+            // Raw state from the store
+            gameState: cloneDeep(gameStore.gameState),
+            lineups: cloneDeep(gameStore.lineups),
+            rosters: cloneDeep(gameStore.rosters),
+            teams: cloneDeep(gameStore.teams),
+            batter: cloneDeep(gameStore.batter),
+            pitcher: cloneDeep(gameStore.pitcher),
+            // Important computed properties
+            displayGameState: cloneDeep(gameStore.displayGameState),
+            myTeam: cloneDeep(gameStore.myTeam),
+            amIDefensivePlayer: cloneDeep(gameStore.amIDefensivePlayer),
+            isBetweenHalfInnings: cloneDeep(gameStore.isBetweenHalfInnings),
+            isEffectivelyBetweenHalfInnings: cloneDeep(gameStore.isEffectivelyBetweenHalfInnings),
+            displayOuts: cloneDeep(gameStore.displayOuts),
+            gameEventsToDisplay: cloneDeep(gameStore.gameEventsToDisplay),
+        };
 
         // Use a replacer to handle potential circular references if any
         const replacer = (key, value) => {
@@ -24,7 +40,7 @@ function syncStateToUI(newGame) {
             return value;
         };
 
-        stateJson.value = JSON.stringify(stateToDisplay, replacer, 2);
+        stateJson.value = JSON.stringify(comprehensiveState, replacer, 2);
         errorMessage.value = '';
     }
 }
@@ -32,15 +48,15 @@ function syncStateToUI(newGame) {
 // Function to apply changes from the textarea to the game state
 function handleSubmit() {
     try {
-        const newState = JSON.parse(stateJson.value);
-        // We need to merge this with the existing state to not blow away everything
-        const currentState = cloneDeep(gameStore.game.state_data) || {};
+        const comprehensiveState = JSON.parse(stateJson.value);
 
-        // A deep merge of the new state into the current state
-        Object.assign(currentState, newState);
-
-        gameStore.setGameState(gameId, currentState);
-        errorMessage.value = '';
+        // IMPORTANT: Only send the gameState portion to the backend
+        if (comprehensiveState.gameState) {
+            gameStore.setGameState(gameId, comprehensiveState.gameState);
+            errorMessage.value = '';
+        } else {
+            errorMessage.value = 'Error: The submitted JSON must have a "gameState" property.';
+        }
     } catch (e) {
         errorMessage.value = `Error parsing JSON: ${e.message}`;
         console.error("Failed to parse and set game state:", e);
@@ -48,10 +64,10 @@ function handleSubmit() {
 }
 
 // Watch for changes in the game state and update the textarea
-watch(() => gameStore.game, (newGame, oldGame) => {
+watch(() => gameStore.gameState, (newState, oldState) => {
     // Only update if the new state is actually different
-    if (JSON.stringify(newGame) !== JSON.stringify(oldGame)) {
-        syncStateToUI(newGame);
+    if (JSON.stringify(newState) !== JSON.stringify(oldState)) {
+        syncStateToUI();
     }
 }, { deep: true });
 
@@ -59,7 +75,7 @@ watch(() => gameStore.game, (newGame, oldGame) => {
 onMounted(async () => {
     await gameStore.fetchGame(gameId);
     // Once the game data is loaded, sync it to the UI
-    syncStateToUI(gameStore.game);
+    syncStateToUI();
 });
 
 </script>

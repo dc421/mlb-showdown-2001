@@ -14,3 +14,4 @@
 # Misc
 .DS_Store
 *.log
+/apps/frontend/test-results/

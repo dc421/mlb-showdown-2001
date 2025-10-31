@@ -15,6 +15,25 @@ export const useGameStore = defineStore('game', () => {
   const rosters = ref({ home: [], away: [] });
   const teams = ref({ home: null, away: null });
   const setupState = ref(null);
+  const playerSelectedForSwap = ref(null);
+
+async function swapPlayerPositions(gameId, playerAId, playerBId) {
+  const auth = useAuthStore();
+  if (!auth.token) return;
+  try {
+    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/swap-positions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
+      body: JSON.stringify({ playerAId, playerBId })
+    });
+        if (!response.ok) throw new Error('Failed to swap player positions');
+
+    await fetchGame(gameId); // Refresh game state after successful swap
+  } catch (error) {
+    console.error('Error swapping player positions:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
 
 // in src/stores/game.js
 // in src/stores/game.js
@@ -173,6 +192,7 @@ async function submitPitch(gameId, action = null) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action: action })
     });
+    await fetchGame(gameId);
   } catch (error) { console.error('Error submitting pitch:', error); }
 }
 
@@ -186,6 +206,7 @@ async function submitAction(gameId, action) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action })
     });
+    await fetchGame(gameId);
   } catch (error) { console.error("Error setting offensive action:", error); }
 }
 
@@ -211,6 +232,9 @@ async function submitSwing(gameId, action = null) {
         body: JSON.stringify(substitutionData)
       });
       if (!response.ok) throw new Error('Failed to make substitution');
+      // After a successful substitution, re-fetch the entire game state
+      // to ensure the UI is perfectly in sync with the backend.
+      await fetchGame(gameId);
     } catch (error) {
       console.error('Error making substitution:', error);
       alert(`Error: ${error.message}`);
@@ -304,15 +328,17 @@ async function initiateSteal(gameId, decisions) {
   }
 
 
-async function resolveSteal(gameId, throwTo) {
+async function resolveSteal(gameId, throwToBase) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
       await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-steal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
-        body: JSON.stringify({ throwTo })
+        body: JSON.stringify({ throwToBase })
       });
+      // The game-updated socket event should refresh the state, but we'll fetch manually to be safe.
+      await fetchGame(gameId);
     } catch (error) { console.error("Error resolving steal:", error); }
   }
 
@@ -346,6 +372,7 @@ async function resetRolls(gameId) {
 
   const isOutcomeHidden = ref(false);
   const isSwingResultVisible = ref(false);
+  const isStealResultVisible = ref(false);
 
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
@@ -365,14 +392,29 @@ async function resetRolls(gameId) {
     }
   }
 
+  function setIsStealResultVisible(value) {
+    isStealResultVisible.value = value;
+  }
+
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
+
+    if (gameState.value?.isStealResultHiddenForDefense && amIDefensivePlayer.value) {
+      let nonStealEventIndex = -1;
+      for (let i = gameEvents.value.length - 1; i >= 0; i--) {
+        if (gameEvents.value[i].event_type !== 'steal') {
+          nonStealEventIndex = i;
+          break;
+        }
+      }
+      return gameEvents.value.slice(0, nonStealEventIndex + 1);
+    }
 
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
-    if (isOutcomeHidden.value) {
+    if (isOutcomeHidden.value && !isStealResultVisible.value) {
       // If it's a third-out play, hide both the play result and the inning change message.
       if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
@@ -392,7 +434,14 @@ async function resetRolls(gameId) {
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
     // We need to continue hiding just the inning change message.
     if (isEffectivelyBetween && !amIReadyForNext.value) {
-        return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        // --- THIS IS THE FIX ---
+        // Only hide the last event if it's the inning change system message.
+        // Otherwise, in the 'awaiting pitcher' scenario, the last event is the
+        // 3rd out, and we must show it.
+        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
+        if (lastEvent && lastEvent.event_type === 'system') {
+            return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        }
     }
 
     // In all other cases (e.g., mid-inning play revealed, or after "Next Hitter" is clicked), show the full log.
@@ -426,12 +475,19 @@ async function resetRolls(gameId) {
     setupState.value = null;
     isOutcomeHidden.value = false;
     isSwingResultVisible.value = false;
+    isStealResultVisible.value = false;
   }
 
   const myTeam = computed(() => {
     const auth = useAuthStore();
     if (!auth.user || !game.value) return null;
     return Number(auth.user.userId) === Number(game.value.home_team_user_id) ? 'home' : 'away';
+  });
+
+  const amIDefensivePlayer = computed(() => {
+    if (!myTeam.value || !gameState.value) return false;
+    const isTop = gameState.value.isTopInning;
+    return (isTop && myTeam.value === 'home') || (!isTop && myTeam.value === 'away');
   });
 
   const opponentReadyForNext = computed(() => {
@@ -508,9 +564,50 @@ async function resetRolls(gameId) {
       };
     }
 
+    // If the steal result is visible, we calculate the outcome of the steal
+    // on the frontend to show the result immediately, before the defensive
+    // player has even made their throw.
+    if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' && gameState.value.currentPlay.payload.results) {
+      const { decisions, results } = gameState.value.currentPlay.payload;
+      const newBases = { ...gameState.value.bases };
+      let newOuts = gameState.value.outs;
+      const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+      for (const fromBaseStr in decisions) {
+        if (decisions[fromBaseStr]) {
+          const fromBase = parseInt(fromBaseStr, 10);
+          const toBase = fromBase + 1;
+          // --- THIS IS THE FIX ---
+          // Always read the runner's original position from the authoritative gameState
+          // to prevent race conditions in multi-runner steals.
+          const runner = gameState.value.bases[baseMap[fromBase]];
+          const result = results[fromBase];
+
+          if (runner && result) {
+            newBases[baseMap[fromBase]] = null; // Runner leaves the base
+            if (result.outcome === 'SAFE') {
+              if (toBase <= 3) {
+                newBases[baseMap[toBase]] = runner;
+              }
+              // Note: This logic doesn't handle stealing home, as it's not a feature.
+            } else { // OUT
+              newOuts++;
+            }
+          }
+        }
+      }
+
+      return {
+        ...gameState.value,
+        bases: newBases,
+        outs: newOuts,
+      };
+    }
+
     // `isOutcomeHidden` is the single source of truth. If it's true, we MUST show the "before" state.
-    if (isOutcomeHidden.value) {
-      const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
+    // The rollback is skipped if `isStealResultVisible` is true, which is handled by the block above.
+    if (isOutcomeHidden.value && !isStealResultVisible.value) {
+      const rollbackSource = opponentReadyForNext.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
       if (rollbackSource && rollbackSource.basesBeforePlay) {
         return {
           ...gameState.value,
@@ -530,11 +627,29 @@ async function resetRolls(gameId) {
       ? (opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay)
       : gameState.value.bases;
 
+    // --- THIS IS THE COMPREHENSIVE FIX ---
+    // If the game is between innings and we're awaiting a pitcher selection,
+    // the server state has already advanced to the *next* inning. We need to
+    // roll back the inning and isTopInning values to match the display outs and bases.
+    let inning = gameState.value.inning;
+    let isTopInning = gameState.value.isTopInning;
+
+    if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
+      if (gameState.value.isTopInning) { // Server says Top 2, we want to show Bottom 1
+        inning = gameState.value.inning - 1;
+        isTopInning = false;
+      } else { // Server says Bottom 1, we want to show Top 1
+        isTopInning = true;
+      }
+    }
+
     // In all other cases, return the current, authoritative state from the server, but with our overrides.
     return {
       ...gameState.value,
       outs: displayOuts.value,
       bases: bases,
+      inning,
+      isTopInning,
     };
   });
 
@@ -542,12 +657,16 @@ async function resetRolls(gameId) {
     fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     isSwingResultVisible, setIsSwingResultVisible,
+    isStealResultVisible, setIsStealResultVisible,
     submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
     updateGameData,
     resetGameState,
     myTeam,
     opponentReadyForNext,
     amIReadyForNext,
-    isEffectivelyBetweenHalfInnings
+    isEffectivelyBetweenHalfInnings,
+    playerSelectedForSwap,
+    swapPlayerPositions,
+    amIDefensivePlayer,
   };
 })

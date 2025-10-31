@@ -11,20 +11,24 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome } = require('./gameLogic');
+const { applyOutcome, resolveThrow } = require('./gameLogic');
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 const REPLACEMENT_HITTER_CARD = {
     card_id: -1, name: 'Replacement Hitter', display_name: 'Replacement Hitter', on_base: -10, speed: 'B',
     points: 0,
     fielding_ratings: { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0 },
     chart_data: { '1-2': 'SO', '3-20': 'GB' },
-    control: null
+    control: null,
+    image_url: `${BACKEND_URL}/images/replacement.jpg`
 };
 const REPLACEMENT_PITCHER_CARD = {
     card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1,
     points: 0,
     chart_data: { '1-3': 'PU', '4-8': 'SO', '9-12': 'GB', '13-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
-    fielding_ratings: {}
+    fielding_ratings: {},
+    image_url: `${BACKEND_URL}/images/replacement.jpg`
 };
 
 const app = express();
@@ -72,6 +76,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
     };
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
+app.use('/images', express.static(path.join(__dirname, 'card_images')));
 
 
 // in server.js
@@ -97,6 +102,8 @@ async function getActivePlayers(gameId, currentState) {
         let batter;
         if (batterInfo.card_id === -1) {
             batter = REPLACEMENT_HITTER_CARD;
+        } else if (batterInfo.card_id === -2) {
+            batter = REPLACEMENT_PITCHER_CARD;
         } else {
             const batterQuery = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [batterInfo.card_id]);
             batter = batterQuery.rows[0];
@@ -185,8 +192,10 @@ async function getInfieldDefense(defensiveParticipant) {
                     totalDefense += card.fielding_ratings['1B'];
                 } else {
                     // Player is out of position at 1B.
-                    // Check if they are a DH (no ratings at all).
-                    if (Object.keys(card.fielding_ratings).length === 0) {
+                    // Check if they are a DH (no ratings, or only a DH rating).
+                    const isDH = Object.keys(card.fielding_ratings).length === 0 ||
+                               (Object.keys(card.fielding_ratings).length === 1 && card.fielding_ratings.hasOwnProperty('DH'));
+                    if (isDH) {
                         totalDefense -= 2; // -2 for a DH at 1B
                     } else {
                         totalDefense -= 1; // -1 for any other non-1B player
@@ -204,11 +213,24 @@ async function getInfieldDefense(defensiveParticipant) {
 }
 
 // --- HELPER FUNCTIONS ---
+
 function getOrdinal(n) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+
+const getSpeedValue = (runner) => {
+  // Pitchers always have C/10 speed
+  if (runner.control !== null && typeof runner.control !== 'undefined') {
+    return 10;
+  }
+  const speed = runner.speed;
+  if (speed === 'A') return 20;
+  if (speed === 'B') return 15;
+  if (speed === 'C') return 10;
+  return speed; // Assume it's already a number if not A/B/C
+};
 
 function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
@@ -224,6 +246,57 @@ function processPlayers(playersToProcess) {
     });
     return playersToProcess;
 };
+
+async function validateLineup(participant, newState, client) {
+    const lineup = participant.lineup.battingOrder;
+    const playerCardIds = lineup.map(p => p.card_id).filter(id => id > 0);
+
+    const cardsResult = await client.query('SELECT card_id, fielding_ratings, control FROM cards_player WHERE card_id = ANY($1::int[])', [playerCardIds]);
+    const cardsById = cardsResult.rows.reduce((acc, card) => {
+        acc[card.card_id] = card;
+        return acc;
+    }, {});
+
+    let isLineupValid = true;
+    for (const playerInLineup of lineup) {
+        if (playerInLineup.card_id < 0) continue; // Skip replacement players for now
+
+        const card = cardsById[playerInLineup.card_id];
+        if (!card) {
+            isLineupValid = false;
+            break;
+        }
+
+        const position = playerInLineup.position;
+        if (position === 'DH') continue;
+
+        let isPlayerEligible = false;
+
+        if (card.fielding_ratings && card.fielding_ratings[position] !== undefined) {
+            isPlayerEligible = true;
+        } else if (position === '1B' && card.control === null) {
+            isPlayerEligible = true;
+        } else if (position === 'P' && card.control !== null) {
+            isPlayerEligible = true;
+        } else if ((position === 'LF' || position === 'RF') && card.fielding_ratings && card.fielding_ratings['LFRF'] !== undefined) {
+            isPlayerEligible = true;
+        }
+
+        if (!isPlayerEligible) {
+            isLineupValid = false;
+            break;
+        }
+    }
+
+    // Also check the current pitcher on the mound
+    const pitcher = newState.currentAtBat.pitcher;
+    if (!pitcher || pitcher.control === null) {
+        isLineupValid = false;
+    }
+
+    newState.awaiting_lineup_change = !isLineupValid;
+    return newState;
+}
 
 
 async function initializePitcherFatigue(gameId, client) {
@@ -295,12 +368,45 @@ async function initializePitcherFatigue(gameId, client) {
             }
 
             if (isTired) {
-                finalPitcherStats[reliever.card_id] = { ip: reliever.ip + 1, runs: 0 };
+                finalPitcherStats[reliever.card_id] = { runs: 0, innings_pitched: [], fatigue_modifier: -reliever.ip };
             }
         }
     }
 
     return finalPitcherStats;
+}
+
+async function createInningChangeEvent(gameId, finalState, userId, turnNumber, client) {
+    const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
+    const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+    const home_team_user_id = game.rows[0].home_team_user_id;
+
+    const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
+    const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
+
+    // This logic is now based on the new isTopInning value after the state has flipped
+    const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
+    const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
+
+    const pitcher = finalState.isTopInning ? finalState.currentHomePitcher : finalState.currentAwayPitcher;
+
+    if (pitcher && pitcher.card_id > 0) { // Only create the event if there is a pitcher
+        processPlayers([pitcher]);
+
+        const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
+        const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
+        const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
+        const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
+
+        const inningChangeEvent = `
+          <div class="inning-change-message">
+              <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
+              <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
+          </div>
+          <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
+        `;
+        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, turnNumber, 'system', inningChangeEvent]);
+    }
 }
 
 // --- HELPER: Handles series logic after a game completes ---
@@ -612,6 +718,16 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         pitcherStats: await initializePitcherFatigue(gameId, client),
         awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        homeDefensiveRatings: {
+            catcherArm: await getCatcherArm(homeParticipant),
+            infieldDefense: await getInfieldDefense(homeParticipant),
+            outfieldDefense: await getOutfieldDefense(homeParticipant),
+        },
+        awayDefensiveRatings: {
+            catcherArm: await getCatcherArm(awayParticipant),
+            infieldDefense: await getInfieldDefense(awayParticipant),
+            outfieldDefense: await getOutfieldDefense(awayParticipant),
+        },
         currentAwayPitcher: awayPitcher,
         currentHomePitcher: homePitcher,
         awayPlayerReadyForNext: false,
@@ -705,9 +821,43 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
     let newState = JSON.parse(JSON.stringify(currentState));
 
-    const participantResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1 AND user_id = $2', [gameId, userId]);
-    const participant = participantResult.rows[0];
-    const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    // --- START REVISED TEAM IDENTIFICATION LOGIC ---
+    const allParticipantsResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
+    const allParticipants = allParticipantsResult.rows;
+
+    const gameInfo = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+    const homeUserId = gameInfo.rows[0].home_team_user_id;
+
+    const homeParticipant = allParticipants.find(p => p.user_id === homeUserId);
+    const awayParticipant = allParticipants.find(p => p.user_id !== homeUserId);
+
+    const isPlayerInLineup = (p, id) => p && p.lineup && (
+        p.lineup.battingOrder.some(spot => spot.card_id === id) ||
+        p.lineup.startingPitcher === id
+    );
+
+    let participant;
+    let teamKey;
+
+    if (isPlayerInLineup(homeParticipant, playerOutId)) {
+        participant = homeParticipant;
+        teamKey = 'homeTeam';
+    } else if (isPlayerInLineup(awayParticipant, playerOutId)) {
+        participant = awayParticipant;
+        teamKey = 'awayTeam';
+    } else {
+        // Fallback for players not in a lineup (e.g., pinch runners on base)
+        const requestingParticipant = allParticipants.find(p => p.user_id === userId);
+        if (!requestingParticipant) {
+             return res.status(403).json({ message: 'Requesting user not found in this game.' });
+        }
+        participant = requestingParticipant;
+        teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    }
+
+    const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+    const isOffensiveSub = teamKey === offensiveTeamKey;
+    // --- END REVISED TEAM IDENTIFICATION LOGIC ---
 
     if (newState[teamKey].used_player_ids.includes(playerInId)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
@@ -725,8 +875,15 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         playerInCard = playerInResult.rows[0];
     }
 
-    const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
-    const playerOutCard = playerOutResult.rows[0];
+    let playerOutCard;
+    if (parseInt(playerOutId, 10) === -1) {
+        playerOutCard = REPLACEMENT_HITTER_CARD;
+    } else if (parseInt(playerOutId, 10) === -2) {
+        playerOutCard = REPLACEMENT_PITCHER_CARD;
+    } else {
+        const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
+        playerOutCard = playerOutResult.rows[0];
+    }
     
     newState[teamKey].used_player_ids.push(playerOutId);
 
@@ -755,37 +912,65 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     // 2. Update currentAtBat (for pinch hitters and relief pitchers)
-    if (newState.awaitingPitcherSelection) {
-        if (playerInCard.control !== null) {
-            newState.awaitingPitcherSelection = false;
+    const isSubForBatter = newState.currentAtBat.batter.card_id === playerOutId;
+    const isSubForPitcherOnMound = newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId;
+
+    // --- REVISED SUBSTITUTION LOGIC ---
+    // This logic differentiates between offensive and defensive substitutions to prevent
+    // corrupting the `currentAtBat` object.
+    if (isOffensiveSub) {
+        // Offensive substitutions (pinch hitter/runner) should NEVER change the active pitcher on the mound.
+        if (isSubForBatter) {
+            wasPinchHitter = true;
+            newState.currentAtBat.batter = playerInCard;
+        }
+        // Pinch runner logic is handled by updating the `bases` object, which was done above.
+
+        // The critical check: If the player being replaced was a pitcher (either as batter or runner),
+        // the substituting team will need a new pitcher for their NEXT defensive inning.
+        // We flag this by nullifying their designated pitcher slot, but we DO NOT touch `currentAtBat.pitcher`.
+        if (playerOutCard.control !== null) {
+            if (teamKey === 'homeTeam') {
+                newState.currentHomePitcher = null;
+            } else {
+                newState.currentAwayPitcher = null;
+            }
+        }
+    } else {
+        // Defensive substitutions can change the active pitcher on the mound.
+        if (newState.awaiting_lineup_change) {
+            // This is for when a new half-inning starts and a pitcher is needed.
+            if (playerInCard.control !== null) {
+                newState.awaiting_lineup_change = false;
+                newState.currentAtBat.pitcher = playerInCard;
+                wasReliefPitcher = true;
+                // --- ADDED ---
+                // Now that the pitcher is selected, create the delayed inning change event,
+                // but only if one hasn't been created for this half-inning already.
+                const inningHalfString = newState.isTopInning ? 'Top' : 'Bottom';
+                const inningString = `${inningHalfString} ${getOrdinal(newState.inning)}`;
+                const existingEventResult = await client.query(
+                    `SELECT 1 FROM game_events WHERE game_id = $1 AND log_message LIKE $2`,
+                    [gameId, `%<b>${inningString}</b>%`]
+                );
+
+                if (existingEventResult.rows.length === 0) {
+                    await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+                }
+            }
+        } else if (isSubForPitcherOnMound) {
+            // This is a standard mid-inning pitching change.
             newState.currentAtBat.pitcher = playerInCard;
             wasReliefPitcher = true;
-            if (teamKey === 'homeTeam') {
+        }
+
+        // For any defensive sub involving a pitcher, update the team's designated pitcher.
+        if (wasReliefPitcher) {
+             if (teamKey === 'homeTeam') {
                 newState.currentHomePitcher = playerInCard;
             } else {
                 newState.currentAwayPitcher = playerInCard;
             }
-        } else {
-            newState.awaitingPitcherSelection = true;
-        }
-    }
-    else if (newState.currentAtBat.batter.card_id === playerOutId) {
-        wasPinchHitter = true;
-        newState.currentAtBat.batter = playerInCard;
-        // Check if the player being pinch-hit for is actually the pitcher.
-        if (playerOutCard.control !== null) {
-             // The pitcher has been removed from the batting lineup.
-             // The opposing team's pitcher (in currentAtBat) is unaffected.
-             // A new pitcher will be required later when this team takes the field.
-             // newState.awaitingPitcherSelection = true;
-        }
-    } else if (newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId) {
-        wasReliefPitcher = true;
-        newState.currentAtBat.pitcher = playerInCard;
-        if (teamKey === 'homeTeam') {
-            newState.currentHomePitcher = playerInCard;
-        } else {
-            newState.currentAwayPitcher = playerInCard;
         }
     }
 
@@ -821,6 +1006,16 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     await client.query('UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3', [JSON.stringify(participant.lineup), gameId, userId]);
+    // --- NEW: Recalculate defensive ratings for the team that made the sub ---
+    const ratingsKey = teamKey === 'homeTeam' ? 'homeDefensiveRatings' : 'awayDefensiveRatings';
+    newState[ratingsKey] = {
+      catcherArm: await getCatcherArm(participant),
+      infieldDefense: await getInfieldDefense(participant),
+      outfieldDefense: await getOutfieldDefense(participant),
+    };
+
+    newState = await validateLineup(participant, newState, client);
+
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
     
@@ -833,6 +1028,87 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     await client.query('ROLLBACK');
     console.error(`Error making substitution for game ${gameId}:`, error);
     res.status(500).json({ message: 'Server error during substitution.' });
+  } finally {
+    client.release();
+  }
+});
+
+// SWAP DEFENSIVE POSITIONS
+app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res) => {
+  const { gameId } = req.params;
+  const { playerAId, playerBId } = req.body;
+  const userId = req.user.userId;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    const currentState = stateResult.rows[0].state_data;
+    const currentTurn = stateResult.rows[0].turn_number;
+
+    let newState = JSON.parse(JSON.stringify(currentState));
+
+    // Get the participant making the request
+    const participantResult = await client.query(
+      'SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      [gameId, userId]
+    );
+
+    if (participantResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Participant not found for this game.' });
+    }
+
+    let participant = participantResult.rows[0];
+    let lineup = participant.lineup;
+
+    // Find the players in the batting order
+    const playerAIndex = lineup.battingOrder.findIndex(p => p.card_id === playerAId);
+    const playerBIndex = lineup.battingOrder.findIndex(p => p.card_id === playerBId);
+
+    if (playerAIndex === -1 || playerBIndex === -1) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'One or both players not found in the lineup.' });
+    }
+
+    const positionA = lineup.battingOrder[playerAIndex].position;
+    const positionB = lineup.battingOrder[playerBIndex].position;
+
+
+    // Swap their defensive positions
+    lineup.battingOrder[playerAIndex].position = positionB;
+    lineup.battingOrder[playerBIndex].position = positionA;
+
+    // Update the lineup in the database
+    await client.query(
+      'UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3',
+      [JSON.stringify(lineup), gameId, userId]
+    );
+
+    // Recalculate defensive ratings for the team that made the swap
+    const gameInfo = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+    const isHomeTeam = userId === gameInfo.rows[0].home_team_user_id;
+    const ratingsKey = isHomeTeam ? 'homeDefensiveRatings' : 'awayDefensiveRatings';
+
+    newState[ratingsKey] = {
+      catcherArm: await getCatcherArm(participant),
+      infieldDefense: await getInfieldDefense(participant),
+      outfieldDefense: await getOutfieldDefense(participant),
+    };
+
+    newState = await validateLineup(participant, newState, client);
+
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('COMMIT');
+
+    const gameData = await getAndProcessGameData(gameId, client);
+    io.to(gameId).emit('game-updated', gameData);
+    res.status(200).json({ message: 'Player positions swapped successfully.' });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`Error swapping positions for game ${gameId}:`, error);
+    res.status(500).json({ message: 'Server error during position swap.' });
   } finally {
     client.release();
   }
@@ -851,7 +1127,8 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
     const currentTurn = stateResult.rows[0].turn_number;
 
     // Create a new state with the updated defensive setting
-    const newState = { ...currentState, infieldIn: infieldIn };
+    const newState = { ...currentState };
+    newState.currentAtBat.infieldIn = infieldIn;
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
     await client.query('COMMIT');
@@ -1284,18 +1561,6 @@ async function getAndProcessGameData(gameId, dbClient) {
     const homeParticipant = participantsResult.rows.find(p => p.user_id === game.home_team_user_id);
     const awayParticipant = participantsResult.rows.find(p => p.user_id !== game.home_team_user_id);
 
-    currentState.state_data.homeDefensiveRatings = {
-        catcherArm: await getCatcherArm(homeParticipant),
-        infieldDefense: await getInfieldDefense(homeParticipant),
-        outfieldDefense: await getOutfieldDefense(homeParticipant),
-    };
-
-    currentState.state_data.awayDefensiveRatings = {
-        catcherArm: await getCatcherArm(awayParticipant),
-        infieldDefense: await getInfieldDefense(awayParticipant),
-        outfieldDefense: await getOutfieldDefense(awayParticipant),
-    };
-
     for (const p of participantsResult.rows) {
       const rosterResult = await dbClient.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, p.user_id]);
       const fullRosterCards = rosterResult.rows[0]?.roster_data || [];
@@ -1370,6 +1635,16 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     const currentTurn = stateResult.rows[0].turn_number;
     
     let finalState = { ...currentState };
+    if (finalState.stealAttemptDetails) {
+        finalState.stealAttemptDetails.clearedForOffense = true;
+        if (finalState.stealAttemptDetails.clearedForDefense) {
+            finalState.stealAttemptDetails = null;
+        }
+    }
+    // Clear the previous throw result when a new action is set
+    if (finalState.throwRollResult) {
+      finalState.throwRollResult = null;
+    }
     const { offensiveTeam } = await getActivePlayers(gameId, finalState);
 
     finalState.currentAtBat.batterAction = action;
@@ -1378,8 +1653,8 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     if (finalState.currentAtBat.pitcherAction === 'pitch') {
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
-      const infieldDefense = await getInfieldDefense(defensiveTeam);
-      const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+
+      const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
 
       // --- THIS IS THE FIX ---
       // Add the scores before the outcome is applied.
@@ -1400,16 +1675,27 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
               if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
           }
       }
-      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense);
+      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
       
       
-      if (events && events.length > 0) {
+      if ((events && events.length > 0) || finalState.doublePlayDetails) {
         const originalOuts = currentState.outs;
         const originalScore = currentState.awayScore + currentState.homeScore;
-        let combinedLogMessage = events.join(' ');
+        let combinedLogMessage;
+
+        if (finalState.doublePlayDetails) {
+            const { batter } = finalState.currentAtBat.swingRollResult;
+            if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
+                combinedLogMessage = `${batter.displayName} grounds into a double play.`;
+            } else {
+                combinedLogMessage = `${batter.displayName} hits into a fielder's choice.`;
+            }
+        } else {
+            combinedLogMessage = events.join(' ');
+        }
 
         if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
           combinedLogMessage += ` <strong>Outs: 3</strong>`;
@@ -1418,40 +1704,14 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         }
 
         if ((finalState.awayScore + finalState.homeScore) > originalScore) {
-          combinedLogMessage += ` <strong>Score: ${finalState.awayScore}-${finalState.homeScore}</strong>`;
+          const scoreString = finalState.isTopInning ? `${finalState.awayScore}-${finalState.homeScore}` : `${finalState.homeScore}-${finalState.awayScore}`;
+          combinedLogMessage += ` <strong>(Score: ${scoreString})</strong>`;
         }
 
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
         if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
-          const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
-          const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
-          const home_team_user_id = game.rows[0].home_team_user_id;
-
-          const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
-          const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
-
-          const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
-          const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
-
-          const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
-          const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
-          const pitcher = pitcherResult.rows[0];
-          processPlayers([pitcher]);
-
-          const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
-          const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
-          const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
-          const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
-
-          const inningChangeEvent = `
-            <div class="inning-change-message">
-                <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
-                <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
-            </div>
-            <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
-          `;
-          await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+          await createInningChangeEvent(gameId, finalState, userId, currentTurn + 1, client);
         }
       }
       
@@ -1492,28 +1752,53 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    const { batter, pitcher, offensiveTeam } = await getActivePlayers(gameId, currentState);
+    const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
     
     // --- Pitcher Fatigue Logic ---
     if (!currentState.pitcherStats) { currentState.pitcherStats = {}; }
     const pitcherId = pitcher.card_id;
-    let stats = currentState.pitcherStats[pitcherId] || { ip: 0, runs: 0 };
-    if (currentState.outs === 0 && ((currentState.isTopInning && currentState.awayTeam.battingOrderPosition === 0) || (!currentState.isTopInning && currentState.homeTeam.battingOrderPosition === 0))) {
-      stats.ip++;
+    let stats = currentState.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    if (!stats.innings_pitched) {
+        stats.innings_pitched = [];
     }
+
+    // Track unique innings pitched
+    if (!stats.innings_pitched.includes(currentState.inning)) {
+        stats.innings_pitched.push(currentState.inning);
+    }
+    currentState.pitcherStats[pitcherId] = stats;
+
     let controlPenalty = 0;
-    const fatigueThreshold = pitcher.ip - Math.floor(stats.runs / 3);
-    if (stats.ip > fatigueThreshold) {
-        controlPenalty = stats.ip - fatigueThreshold;
+    // Apply fatigue modifier from series carry-over
+    const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
+    const fatigueThreshold = modifiedIp - Math.floor(stats.runs / 3);
+    const inningsPitchedCount = stats.innings_pitched.length;
+
+    if (inningsPitchedCount > fatigueThreshold) {
+        controlPenalty = inningsPitchedCount - fatigueThreshold;
     }
     const effectiveControl = pitcher.control - controlPenalty;
 
      let finalState = { ...currentState };
+    if (finalState.stealAttemptDetails) {
+        finalState.stealAttemptDetails.clearedForDefense = true;
+        if (finalState.stealAttemptDetails.clearedForOffense) {
+            finalState.stealAttemptDetails = null;
+        }
+    }
+    // Clear the previous throw result when a new action is set
+    if (finalState.throwRollResult) {
+      finalState.throwRollResult = null;
+    }
     const events = [];
 
     if (action === 'intentional_walk') {
-        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher);
+        // --- THIS IS THE FIX ---
+        // Add the scores before the outcome is applied.
+        currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
+        currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
+        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue);
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
@@ -1526,7 +1811,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
           }
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'walk', finalLog]);
         }
-        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
     } else {
         const pitchRoll = Math.floor(Math.random() * 20) + 1;
         // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
@@ -1540,9 +1825,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         if (finalState.currentAtBat.batterAction) {
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
-            const { defensiveTeam } = await getActivePlayers(gameId, finalState);
-            const infieldDefense = await getInfieldDefense(defensiveTeam);
-            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+            const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
 
             // --- THIS IS THE FIX ---
             // Add the scores before the outcome is applied.
@@ -1563,7 +1846,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense);
+            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1574,10 +1857,21 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         console.log('Final Outs:', finalState.outs);
         // --- End of Debug Logs ---
             
-            if (events && events.length > 0) {
+            if ((events && events.length > 0) || finalState.doublePlayDetails) {
               const originalOuts = currentState.outs;
               const originalScore = currentState.awayScore + currentState.homeScore;
-              let combinedLogMessage = events.join(' ');
+              let combinedLogMessage;
+
+              if (finalState.doublePlayDetails) {
+                const { batter } = finalState.currentAtBat.swingRollResult;
+                if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
+                    combinedLogMessage = `${batter.displayName} grounds into a double play.`;
+                } else {
+                    combinedLogMessage = `${batter.displayName} hits into a fielder's choice.`;
+                }
+              } else {
+                  combinedLogMessage = events.join(' ');
+              }
 
               if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
                 combinedLogMessage += ` <strong>Outs: 3</strong>`;
@@ -1586,40 +1880,14 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               }
 
               if ((finalState.awayScore + finalState.homeScore) > originalScore) {
-                combinedLogMessage += ` <strong>(Score: ${finalState.awayScore}-${finalState.homeScore})</strong>`;
+                const scoreString = finalState.isTopInning ? `${finalState.awayScore}-${finalState.homeScore}` : `${finalState.homeScore}-${finalState.awayScore}`;
+                combinedLogMessage += ` <strong>(Score: ${scoreString})</strong>`;
               }
 
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
               if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
-                const participants = await client.query('SELECT * from game_participants WHERE game_id = $1', [gameId]);
-                const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
-                const home_team_user_id = game.rows[0].home_team_user_id;
-
-                const homeParticipant = participants.rows.find(p => p.user_id === home_team_user_id);
-                const awayParticipant = participants.rows.find(p => p.user_id !== home_team_user_id);
-
-                const defensiveParticipant = finalState.isTopInning ? homeParticipant : awayParticipant;
-                const offensiveParticipant = finalState.isTopInning ? awayParticipant : homeParticipant;
-
-                const pitcherCardId = defensiveParticipant.lineup.startingPitcher;
-                const pitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [pitcherCardId]);
-                const pitcher = pitcherResult.rows[0];
-                processPlayers([pitcher]);
-
-                const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
-                const defensiveTeamResult = await client.query('SELECT abbreviation FROM teams WHERE user_id = $1', [defensiveParticipant.user_id]);
-                const offensiveTeamLogo = offensiveTeamResult.rows[0].logo_url;
-                const defensiveTeamAbbr = defensiveTeamResult.rows[0].abbreviation;
-
-                const inningChangeEvent = `
-                  <div class="inning-change-message">
-                      <img src="${offensiveTeamLogo}" class="team-logo-small" alt="Team Logo">
-                      <b>${finalState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(finalState.inning)}</b>
-                  </div>
-                  <div class="pitcher-announcement">${defensiveTeamAbbr} Pitcher: ${pitcher.displayName}</div>
-                `;
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', inningChangeEvent]);
+                await createInningChangeEvent(gameId, finalState, userId, currentTurn + 1, client);
               }
             }
 
@@ -1645,110 +1913,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     await client.query('ROLLBACK');
     console.error('Error during pitch:', error);
     res.status(500).json({ message: 'Server error during pitch.' });
-  } finally {
-    client.release();
-  }
-});
-
-// in server.js
-app.post('/api/games/:gameId/resolve-double-play', authenticateToken, async (req, res) => {
-  const { gameId } = req.params;
-  const userId = req.user.userId;
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
-    const currentState = stateResult.rows[0].state_data;
-    const currentTurn = stateResult.rows[0].turn_number;
-
-    if (!currentState.awaitingDoublePlayRoll) {
-      return res.status(400).json({ message: 'Not awaiting a double play roll.' });
-    }
-
-    let newState = JSON.parse(JSON.stringify(currentState));
-    const { batter, pitcher, defensiveTeam, offensiveTeam } = await getActivePlayers(gameId, newState);
-    const infieldDefense = await getInfieldDefense(defensiveTeam);
-
-    const dpRoll = Math.floor(Math.random() * 20) + 1;
-    const isDoublePlay = (infieldDefense + dpRoll) >= batter.speed;
-    const outcome = isDoublePlay ? 'DOUBLE_PLAY' : 'FIELDERS_CHOICE';
-
-    const runnerData = { ...batter, pitcherOfRecordId: pitcher.card_id };
-    const events = [];
-    const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
-    const scoreRun = (runnerOnBase) => {
-      if (!runnerOnBase) return;
-      newState[scoreKey]++;
-      events.push(`${runnerOnBase.name} scores!`);
-    };
-
-    if (isDoublePlay) {
-      events.push(`It's a DOUBLE PLAY!`);
-      newState.outs += 2;
-      newState.bases.first = null;
-    } else {
-      events.push(`Batter is SAFE, out at second. Fielder's choice.`);
-      newState.outs++;
-      if (newState.outs < 3 && !currentState.infieldIn) {
-        if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
-        if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
-      }
-      newState.bases.first = runnerData;
-    }
-
-    newState.doublePlayDetails = {
-      roll: dpRoll,
-      defense: infieldDefense,
-      target: batter.speed,
-      outcome: outcome
-    };
-
-    newState.awaitingDoublePlayRoll = false;
-
-    // Pass the turn to the offensive player to click "Next Hitter"
-    await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
-
-    // --- Handle Inning Change & Game Over Check ---
-    if (newState.outs >= 3 && !newState.gameOver) {
-      const isGameOver = (
-        (newState.inning >= 9 && !newState.isTopInning && newState.homeScore !== newState.awayScore) ||
-        (newState.inning >= 9 && newState.isTopInning && newState.homeScore > newState.awayScore)
-      );
-
-      if (isGameOver) {
-        newState.gameOver = true;
-        newState.winningTeam = newState.homeScore > newState.awayScore ? 'home' : 'away';
-        events.push(`That's the ballgame!`);
-        await client.query(`UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`, [gameId]);
-        await handleSeriesProgression(gameId, client);
-      } else {
-        newState.inningChanged = true;
-        if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
-        else { newState.isBetweenHalfInningsHome = true; }
-        newState.isTopInning = !newState.isTopInning;
-        if (newState.isTopInning) newState.inning++;
-        newState.outs = 0;
-        newState.bases = { first: null, second: null, third: null };
-      }
-    }
-
-    if (events.length > 0) {
-      let combinedLogMessage = events.join(' ');
-      await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
-    }
-
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
-    await client.query('COMMIT');
-
-    const gameData = await getAndProcessGameData(gameId, client);
-    io.to(gameId).emit('game-updated', gameData);
-    res.sendStatus(200);
-
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error(`Error resolving double play for game ${gameId}:`, error);
-    res.status(500).json({ message: 'Server error during double play resolution.' });
   } finally {
     client.release();
   }
@@ -1797,32 +1961,48 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     // --- THIS IS THE NEW LOGIC ---
     // If you are the FIRST player to click, advance the game state.
     if (!originalState.homePlayerReadyForNext && !originalState.awayPlayerReadyForNext) {
-      // 1. Save the completed at-bat for the other player to see.
+      // 1. Save the completed/interrupted at-bat for the other player to see.
       newState.lastCompletedAtBat = { ...newState.currentAtBat,
         bases: newState.currentAtBat.basesBeforePlay,
-        eventCount: newState.currentAtBat.swingRollResult?.eventCount || 1, // Save the event count
-        outs: newState.outsBeforePlay 
+        eventCount: newState.currentAtBat.swingRollResult?.eventCount || 1,
+        outs: newState.outsBeforePlay
        };
 
-      // NEW: Clear the double play details from the previous play
+      // Clear details from the previous play.
       delete newState.doublePlayDetails;
+      delete newState.stealAttemptDetails;
+      delete newState.throwRollResult;
 
-      // --- THIS IS THE FIX ---
-      // Determine which team's batting order needs to be advanced.
-      // If we are between innings, we advance the order for the team that JUST finished batting.
-      // Otherwise, it's a normal mid-inning batter change for the current offensive team.
-      let teamToAdvance;
-      if (newState.isBetweenHalfInningsAway) {
-        // The away team just finished batting. Advance their order.
-        teamToAdvance = 'awayTeam';
-      } else if (newState.isBetweenHalfInningsHome) {
-        // The home team just finished batting. Advance their order.
-        teamToAdvance = 'homeTeam';
+      const inningEndedOnCS = newState.inningEndedOnCaughtStealing;
+
+      if (inningEndedOnCS) {
+          // Inning ended on CS: Manually transition the inning state now.
+          newState.isTopInning = !newState.isTopInning;
+          if (newState.isTopInning) newState.inning++;
+          newState.outs = 0;
+          newState.bases = { first: null, second: null, third: null };
+          await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+          delete newState.inningEndedOnCaughtStealing; // Clean up the flag.
       } else {
-        // Not an inning change, so advance the current offensive team.
-        teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+        if (newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) {
+            // Inning has ended. First, advance the batting order of the team that just finished batting.
+            const teamToAdvance = newState.isBetweenHalfInningsAway ? 'awayTeam' : 'homeTeam';
+            newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+
+            // NOW, transition the game state to the new half-inning.
+            newState.isTopInning = !newState.isTopInning;
+            if (newState.isTopInning) newState.inning++;
+            newState.outs = 0;
+            newState.bases = { first: null, second: null, third: null };
+
+            // Create the inning change event. It will be skipped if there's no pitcher selected yet.
+            await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+        } else {
+            // Mid-inning, just advance the current offensive team's batting order.
+            const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+            newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+        }
       }
-      newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
       // Reset the between-innings flags now that the new at-bat is set up.
       if (newState.isBetweenHalfInningsHome) {
@@ -1831,7 +2011,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       if (newState.isBetweenHalfInningsAway) {
         newState.isBetweenHalfInningsAway = false;
       }
-      
+
       // 3. Create a fresh scorecard for the new at-bat.
       const { batter, pitcher } = await getActivePlayers(gameId, newState);
       newState.currentAtBat = {
@@ -1845,9 +2025,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // 4. Check if we are now awaiting a pitcher selection
       if (newState.currentAtBat.pitcher === null) {
-          newState.awaitingPitcherSelection = true;
+          newState.awaiting_lineup_change = true;
       } else {
-          newState.awaitingPitcherSelection = false;
+          newState.awaiting_lineup_change = false;
       }
     }
 
@@ -1922,6 +2102,7 @@ app.post('/api/games/:gameId/declare-home', authenticateToken, async (req, res) 
 app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const { decisions } = req.body; // e.g., { '1': true, '2': true }
+  const userId = req.user.userId;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1929,14 +2110,92 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
+    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
-    newState.currentPlay = {
-      type: 'STEAL_ATTEMPT',
-      payload: { decisions }
-    };
+    const stealingRunners = Object.keys(decisions).filter(key => decisions[key]);
+    const isSingleSteal = stealingRunners.length === 1;
 
-    // Pass the turn to the defensive player to make their throw
-    await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
+    if (isSingleSteal) {
+        // --- SINGLE STEAL LOGIC (pre-calculate outcome) ---
+        const fromBase = parseInt(stealingRunners[0], 10);
+        const toBase = fromBase + 1;
+        const runner = newState.bases[baseMap[fromBase]];
+
+        if (runner) {
+            const catcherArm = await getCatcherArm(defensiveTeam);
+            const d20Roll = Math.floor(Math.random() * 20) + 1;
+            const defenseTotal = catcherArm + d20Roll;
+            const originalRunnerSpeed = getSpeedValue(runner);
+            let runnerSpeed = originalRunnerSpeed;
+            let penalty = 0;
+            if (toBase === 3) {
+                runnerSpeed -= 5;
+                penalty = 5;
+            }
+            const isSafe = runnerSpeed > defenseTotal;
+            const outcome = isSafe ? 'SAFE' : 'OUT';
+            const runnerName = runner.name;
+
+            // Apply state changes for outs FIRST, so the log message is accurate.
+            if (!isSafe) {
+                newState.outs++;
+            }
+
+            // Log message generation
+            let logMessage;
+            if (outcome === 'SAFE') {
+                logMessage = `${runnerName} takes off for ${getOrdinal(toBase)}... SAFE!`;
+            } else {
+                logMessage = `${runnerName} takes off for ${getOrdinal(toBase)}... CAUGHT STEALING! <strong>Outs: ${newState.outs}</strong>`;
+            }
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
+
+            // Apply remaining state changes
+            if (isSafe) {
+                newState.bases[baseMap[toBase]] = runner;
+            }
+            newState.bases[baseMap[fromBase]] = null;
+
+            newState.stealAttemptDetails = {
+                isStealResultHiddenForDefense: true,
+                clearedForDefense: false,
+                clearedForOffense: false,
+                outcome: outcome,
+                runnerName: runnerName,
+                roll: d20Roll,
+                defense: catcherArm,
+                target: originalRunnerSpeed,
+                penalty: penalty,
+                throwToBase: toBase
+            };
+        }
+    } else {
+        // --- DOUBLE STEAL LOGIC (create currentPlay and wait for defense) ---
+        newState.currentPlay = {
+            type: 'STEAL_ATTEMPT',
+            payload: { decisions }
+        };
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
+    }
+
+    // Common state updates for both single and double steals
+    newState.currentAtBat.pitcherAction = null;
+    newState.currentAtBat.pitchRollResult = null;
+
+    // Check for inning end if an out was made on a single steal
+    if (isSingleSteal && newState.outs >= 3) {
+        if (newState.isTopInning) {
+            newState.isBetweenHalfInningsAway = true;
+        } else {
+            newState.isBetweenHalfInningsHome = true;
+        }
+        newState.inningEndedOnCaughtStealing = true;
+    }
+
+    if (isSingleSteal) {
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
+    }
+
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
 
     await client.query('COMMIT');
@@ -1955,10 +2214,9 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
 
 app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
-  const { throwTo } = req.body; // e.g., 2 for second base, 3 for third base
+  const { throwToBase } = req.body; // FIX: Key is throwToBase
   const userId = req.user.userId;
   const client = await pool.connect();
-
   try {
     await client.query('BEGIN');
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
@@ -1966,67 +2224,109 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const currentTurn = stateResult.rows[0].turn_number;
     const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
 
-    const { decisions } = newState.currentPlay.payload;
-    const events = [];
-    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+    if (newState.stealAttemptDetails && newState.stealAttemptDetails.isStealResultHiddenForDefense) {
+        // --- SINGLE STEAL: Just reveal the result ---
+        newState.stealAttemptDetails.isStealResultHiddenForDefense = false;
 
-    // 1. Handle automatic advances for any runner not being thrown at
-    for (const fromBaseStr in decisions) {
-      if (decisions[fromBaseStr]) {
-        const fromBase = parseInt(fromBaseStr, 10);
-        const toBase = fromBase + 1;
-        if (toBase !== throwTo) {
-          const runner = newState.bases[baseMap[fromBase]];
-          if (runner) {
-            newState.bases[baseMap[toBase]] = runner;
-            newState.bases[baseMap[fromBase]] = null;
-            events.push(`${runner.name} steals ${getOrdinal(toBase)} base uncontested.`);
-          }
+        if (newState.stealAttemptDetails.outcome === 'SAFE') {
+            // After a safe steal, the turn stays with the offensive player to allow another action.
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+        } else {
+            // If the runner was out, the turn goes back to the pitcher (defensive player).
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
         }
-      }
-    }
 
-    // 2. Resolve the contested throw
-    const fromBaseOfThrow = throwTo - 1;
-    const runner = newState.bases[baseMap[fromBaseOfThrow]];
-    if (runner) {
-      const catcherArm = await getCatcherArm(defensiveTeam);
-      const d20Roll = Math.floor(Math.random() * 20) + 1;
-      const defenseTotal = catcherArm + d20Roll;
+        // Update basesBeforePlay to reflect the board state after the steal
+        newState.currentAtBat.basesBeforePlay = { ...newState.bases };
 
-      if (runner.speed > defenseTotal) { // SAFE
-        newState.bases[baseMap[throwTo]] = runner;
-        newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is SAFE at ${getOrdinal(throwTo)}! (Speed ${runner.speed} vs. Throw ${defenseTotal})`);
-      } else { // OUT
-        newState.outs++;
-        newState.bases[baseMap[fromBaseOfThrow]] = null;
-        events.push(`${runner.name} is THROWN OUT at ${getOrdinal(throwTo)}! (Speed ${runner.speed} vs. Throw ${defenseTotal})`);
-      }
-    }
+    } else if (newState.currentPlay?.type === 'STEAL_ATTEMPT') {
+        // --- DOUBLE STEAL: Resolve the outcome based on defensive choice ---
+        const { decisions } = newState.currentPlay.payload;
+        const catcherArm = await getCatcherArm(defensiveTeam);
+        const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
-    // 3. Finalize the turn state
-    newState.currentPlay = null;
+        let allEvents = [];
 
-    if (newState.outs >= 3) {
-        // Inning change logic
-        const wasTop = newState.isTopInning;
-        newState.isTopInning = !newState.isTopInning;
-        if (newState.isTopInning) newState.inning++;
-        newState.outs = 0;
-        newState.bases = { first: null, second: null, third: null };
-        // Inning change event will be created by the client or a subsequent state change
+        // --- V4 FIX START ---
+        const contestedFromBase = throwToBase - 1;
+        const originalBases = JSON.parse(JSON.stringify(newState.bases));
+        const outcomes = {};
+        let contestedRunnerDetails = {};
+
+        // 1. Resolve outcomes for all stealing runners, reading from the original state.
+        for (const fromBaseStr in decisions) {
+            if (decisions[fromBaseStr]) {
+                const fromBase = parseInt(fromBaseStr, 10);
+                const runner = originalBases[baseMap[fromBase]];
+                if (!runner) continue;
+
+                if (fromBase === contestedFromBase) {
+                    const d20Roll = Math.floor(Math.random() * 20) + 1;
+                    const defenseTotal = catcherArm + d20Roll;
+                    const originalRunnerSpeed = getSpeedValue(runner);
+                    let runnerSpeed = originalRunnerSpeed;
+                    let penalty = 0;
+                    if (throwToBase === 3) {
+                        runnerSpeed -= 5;
+                        penalty = 5;
+                    }
+                    const isSafe = runnerSpeed > defenseTotal;
+                    outcomes[fromBase] = { runner, isSafe, isContested: true };
+                    contestedRunnerDetails = {
+                        outcome: isSafe ? 'SAFE' : 'OUT',
+                        runnerName: runner.name, roll: d20Roll,
+                        defense: catcherArm, target: originalRunnerSpeed,
+                        penalty, throwToBase
+                    };
+                } else {
+                    outcomes[fromBase] = { runner, isSafe: true, isContested: false };
+                }
+            }
+        }
+
+        // 2. Apply outcomes and build log messages.
+        Object.keys(outcomes).sort((a, b) => b - a).forEach(fromBaseStr => {
+            const fromBase = parseInt(fromBaseStr, 10);
+            const { runner, isSafe, isContested } = outcomes[fromBase];
+            const toBase = fromBase + 1;
+            newState.bases[baseMap[fromBase]] = null;
+            if (isSafe) {
+                newState.bases[baseMap[toBase]] = runner;
+                const message = isContested ? `${runner.name} is SAFE at ${getOrdinal(toBase)}!` : `${runner.name} advances to ${getOrdinal(toBase)}.`;
+                allEvents.push(message);
+            } else {
+                newState.outs++;
+                allEvents.push(`${runner.name} is OUT at ${getOrdinal(toBase)}!`);
+            }
+        });
+
+        // 3. Create the throw result object for the UI.
+        const logMessage = allEvents.join(' ');
+        newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage };
+        // --- V4 FIX END ---
+        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
+
+        newState.currentPlay = null; // Clear the play
+
+        // 3. Check for inning end
+        if (newState.outs >= 3) {
+            if (newState.isTopInning) {
+                newState.isBetweenHalfInningsAway = true;
+            } else {
+                newState.isBetweenHalfInningsHome = true;
+            }
+            newState.inningEndedOnCaughtStealing = true;
+        }
+
+        // After resolution, it's both players' turn to see the result and advance.
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+
+        // Update basesBeforePlay to reflect the board state after the steal
+        newState.currentAtBat.basesBeforePlay = { ...newState.bases };
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
-    for (const logMessage of events) {
-        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
-    }
-
-    // Turn goes back to the offensive player to continue the at-bat
-    await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
     await client.query('COMMIT');
-
     const gameData = await getAndProcessGameData(gameId, client);
     io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
@@ -2040,6 +2340,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
   }
 });
 
+
 app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, res) => {
     const { gameId } = req.params;
     const { decisions } = req.body;
@@ -2051,16 +2352,72 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
         const currentTurn = stateResult.rows[0].turn_number;
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
 
-        const runnersWereSent = Object.values(decisions).some(sent => sent);
+        const sentRunners = Object.keys(decisions).filter(key => decisions[key]);
 
-        if (runnersWereSent) {
+        if (sentRunners.length === 1) {
+            const fromBaseStr = sentRunners[0];
+            // FIX: The `decision` object from the currentPlay payload is the source of truth.
+            const decision = newState.currentPlay.payload.decisions.find(d => d.from.toString() === fromBaseStr);
+
+            if (!decision || !decision.runner) {
+                return res.status(400).json({ message: 'Invalid runner specified for the decision.' });
+            }
+
+            // FIX: The throw is going to the runner's original base + 2 (e.g., 1st to 3rd).
+            const throwTo = decision.from + 2;
+            const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+
+            const { initialEvent } = newState.currentPlay.payload;
+            const originalOuts = newState.outs;
+
+            // FIX: We no longer need to manually move the runner back. `resolveThrow`
+            // is smart enough to handle the state as it was left by `applyOutcome`.
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue);
+            newState = resolvedState;
+
+            // --- FIX for 1B+ ---
+            // If the outcome was a 1B+ and the lead runner's decision just opened up
+            // second base, the batter now gets their automatic advance.
+            const batterOnFirst = newState.bases.first;
+            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
+                newState.bases.second = batterOnFirst;
+                newState.bases.first = null;
+                const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'game_event', stealEvent]);
+            }
+            // --- END FIX ---
+
+            newState.currentPlay = null;
+
+            if (events.length > 0) {
+                let combinedLogMessage = initialEvent ? `${initialEvent} ${events.join(' ')}` : events.join(' ');
+                // Use the new outs count from the resolved state.
+                if (newState.outs > originalOuts) {
+                    combinedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
+                }
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', combinedLogMessage]);
+            }
+
+
+            if (newState.outs >= 3) {
+                 if (newState.isTopInning) {
+                    newState.isBetweenHalfInningsAway = true;
+                } else {
+                    newState.isBetweenHalfInningsHome = true;
+                }
+            }
+
+            newState.awayPlayerReadyForNext = false;
+            newState.homePlayerReadyForNext = false;
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+
+        } else if (sentRunners.length > 1) {
+            // --- Multiple runners sent, ask defense for throw choice ---
             newState.currentPlay.payload.choices = decisions;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         } else {
+            // --- No runners sent, proceed to next hitter ---
             newState.currentPlay = null;
-            // THIS IS THE BUG. The batter is advanced here AND in the next-hitter call.
-            // const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-            // newState[offensiveTeamKey].battingOrderPosition = (newState[offensiveTeamKey].battingOrderPosition + 1) % 9;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         }
         
@@ -2087,71 +2444,56 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
     try {
         await client.query('BEGIN');
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
-        let newState = JSON.parse(JSON.stringify(stateResult.rows[0].state_data));
+        let currentState = JSON.parse(JSON.stringify(stateResult.rows[0].state_data));
         const currentTurn = stateResult.rows[0].turn_number;
         
-        const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
+        const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
         const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
-        const { type, payload } = newState.currentPlay;
+        const { payload } = currentState.currentPlay;
         const { choices } = payload;
-        const events = [];
         const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-        const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+        const scoreKey = currentState.isTopInning ? 'awayScore' : 'homeScore';
 
+        let allEvents = [];
+
+        // Handle uncontested runners first
         for (const fromBaseStr in choices) {
             if (choices[fromBaseStr]) {
                 const fromBase = parseInt(fromBaseStr, 10);
                 const toBase = fromBase + 1;
-                const runner = newState.bases[baseMap[fromBase]];
+                const runner = currentState.bases[baseMap[fromBase]];
 
                 if (runner && toBase !== throwTo) {
                     if (toBase === 4) {
-                        newState[scoreKey]++;
-                        events.push(`${runner.name} scores!`);
+                        currentState[scoreKey]++;
+                        allEvents.push(`${runner.name} scores!`);
                     } else {
-                        newState.bases[baseMap[toBase]] = runner;
-                        events.push(`${runner.name} advances to ${getOrdinal(toBase)}.`);
+                        currentState.bases[baseMap[toBase]] = runner;
+                        allEvents.push(`${runner.name} advances to ${getOrdinal(toBase)}.`);
                     }
-                    newState.bases[baseMap[fromBase]] = null;
+                    currentState.bases[baseMap[fromBase]] = null;
                 }
             }
         }
 
-        const fromBaseOfThrow = throwTo - 1;
-        const runnerToChallenge = newState.bases[baseMap[fromBaseOfThrow]];
-        if (runnerToChallenge) {
-            const d20Roll = Math.floor(Math.random() * 20) + 1;
-            let speed = runnerToChallenge.speed;
-            let defenseRoll = outfieldDefense + d20Roll;
+        const { initialEvent } = currentState.currentPlay.payload;
+        const originalOuts = currentState.outs;
 
-            if (type === 'ADVANCE') {
-                if (throwTo === 4) speed += 5;
-                if (newState.outs === 2) speed += 5;
-            } else if (type === 'TAG_UP') {
-                if (throwTo === 4) speed += 5;
-                if (throwTo === 2) speed -= 5;
-            }
-
-            const isSafe = type === 'ADVANCE' ? speed >= defenseRoll : speed > defenseRoll;
-
-            if (isSafe) {
-                if (throwTo === 4) {
-                    newState[scoreKey]++;
-                    events.push(`${runnerToChallenge.name} is SAFE at home!`);
-                } else {
-                    newState.bases[baseMap[throwTo]] = runnerToChallenge;
-                    events.push(`${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`);
-                }
-                newState.bases[baseMap[fromBaseOfThrow]] = null;
-            } else {
-                newState.outs++;
-                newState.bases[baseMap[fromBaseOfThrow]] = null;
-                events.push(`${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
-            }
-        }
+        // Resolve the contested throw using the refactored function
+        const { newState, events } = resolveThrow(currentState, throwTo, outfieldDefense, getSpeedValue);
+        allEvents = [...allEvents, ...events];
 
         newState.currentPlay = null;
+
+        if (allEvents.length > 0) {
+            let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
+            if (newState.outs > originalOuts) {
+                combinedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
+            }
+            // Use a single event insert now, removing the individual ones
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', combinedLogMessage]);
+        }
 
         if (newState.outs >= 3) {
             newState.isTopInning = !newState.isTopInning;
@@ -2160,10 +2502,10 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             newState.bases = { first: null, second: null, third: null };
         }
 
+        newState.awayPlayerReadyForNext = false;
+        newState.homePlayerReadyForNext = false;
+
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data, is_between_half_innings_home, is_between_half_innings_away) VALUES ($1, $2, $3, $4, $5)', [gameId, currentTurn + 1, newState, newState.isBetweenHalfInningsHome, newState.isBetweenHalfInningsAway]);
-        for (const logMessage of events) {
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', logMessage]);
-        }
         
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         await client.query('COMMIT');

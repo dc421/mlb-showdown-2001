@@ -103,6 +103,7 @@ const isGamePage = computed(() => route.name === 'game');
 
   .nav-right {
     flex-shrink: 0;
+    flex-basis: auto;
   }
 
   .nav-center {
@@ -110,6 +111,7 @@ const isGamePage = computed(() => route.name === 'game');
     min-width: 0; /* Critical for flex-grow in a flex container */
     justify-content: center; /* Center the items */
     gap: 1rem; /* Add some space between items */
+    overflow-x: auto;
   }
 
   /* REMOVED: The transform was causing the overlap issue.
@@ -123,9 +125,6 @@ const isGamePage = computed(() => route.name === 'game');
     display: none;
   }
 
-  .global-nav.game-page-active .nav-team-logo {
-    display: none;
-  }
 
   /* Ensure the outs are visible against the dark background */
   .nav-center :deep(.outs-display) {

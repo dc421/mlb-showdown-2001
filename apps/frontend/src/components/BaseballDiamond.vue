@@ -22,19 +22,6 @@ const emit = defineEmits(['attempt-steal']);
     <div class="runner-slot" style="top: 48%; left: 22%;">
       <RunnerCard v-if="bases.third" :runner="bases.third" />
     </div>
-
-    <!-- Steal Buttons and Defense Ratings -->
-    <div class="button-slot" style="top: 15%; left: 40%;">
-      <button v-if="canSteal && bases.second" @click="emit('attempt-steal', 2)" class="steal-button">Steal 3rd</button>
-    </div>
-    <div class="button-slot" style="top: 75%; left: 65%;">
-      <button v-if="canSteal && bases.first" @click="emit('attempt-steal', 1)" class="steal-button">Steal 2nd</button>
-    </div>
-    <div class="button-slot" style="top: 75%; left: 20%;">
-      <div v-if="canSteal || isStealAttemptInProgress" class="defense-rating">
-          Catcher Arm: {{ catcherArm >= 0 ? '+' : '' }}{{ catcherArm }}
-      </div>
-    </div>
   </div>
 </template>
 
