@@ -8,6 +8,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
+  const scorers = [];
 
   // --- Handle Highest GB Rule ---
   if (outcome.includes('GB') && state.currentAtBat.infieldIn && chartHolder && swingRoll > 0) {
@@ -36,6 +37,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const scoreRun = (runnerOnBase, generateLog = true) => {
     if (!runnerOnBase) return;
     newState[scoreKey]++;
+    scorers.push(runnerOnBase.name);
     if (generateLog) {
       events.push(`${runnerOnBase.name} scores!`);
     }
@@ -464,7 +466,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     }
   }
   
-  return { newState, events };
+  return { newState, events, scorers };
 }
 
 function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
