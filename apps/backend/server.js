@@ -2371,6 +2371,18 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue);
             newState = resolvedState;
 
+            // --- FIX for 1B+ ---
+            // If the outcome was a 1B+ and the lead runner's decision just opened up
+            // second base, the batter now gets their automatic advance.
+            const batterOnFirst = newState.bases.first;
+            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
+                newState.bases.second = batterOnFirst;
+                newState.bases.first = null;
+                const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'game_event', stealEvent]);
+            }
+            // --- END FIX ---
+
             newState.currentPlay = null;
 
             if (events.length > 0) {
