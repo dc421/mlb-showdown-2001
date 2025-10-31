@@ -210,7 +210,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
                     const toBase = outcome.from + 1;
                     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
                     if (toBase === 4) {
-                        scoreRun(outcome.runner);
+                        scoreRun(outcome.runner, false);
                         events.push(`${outcome.runner.name} tags up and scores without a throw.`);
                     } else {
                         newState.bases[baseMap[toBase]] = outcome.runner;
@@ -366,7 +366,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (isAutomatic) {
           events.push(initialEvent);
           if (autoAdvance) {
-              scoreRun(runnerFrom1);
+              scoreRun(runnerFrom1, false);
               events.push(`${runnerFrom1.name} scores from first without a throw!`);
           }
           newState.bases.first = null;

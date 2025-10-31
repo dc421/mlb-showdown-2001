@@ -2025,8 +2025,8 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           basesBeforePlay: newState.bases
       };
 
-      // NEW: If there is no runner on third base, the infield must be brought back to normal.
-      if (!newState.bases.third) {
+      // NEW: If there is no runner on third base OR there are 2 outs, the infield must be brought back to normal.
+      if (!newState.bases.third || newState.outs >= 2) {
           newState.currentAtBat.infieldIn = false;
       }
 
