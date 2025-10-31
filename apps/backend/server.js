@@ -1677,7 +1677,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           }
       }
 
-      const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+      const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1693,7 +1693,11 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
             if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
                 combinedLogMessage = `${batter.displayName} grounds into a double play.`;
             } else {
-                combinedLogMessage = `${batter.displayName} hits into a fielder's choice.`;
+                let scorersString = '';
+                if (scorers && scorers.length > 0) {
+                    scorersString = ` ${scorers.join(' and ')} scores!`;
+                }
+                combinedLogMessage = `${batter.displayName} hits into a fielder's choice.${scorersString}`;
             }
         } else {
             combinedLogMessage = events.join(' ');
@@ -1848,7 +1852,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+            const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1869,7 +1873,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
                     combinedLogMessage = `${batter.displayName} grounds into a double play.`;
                 } else {
-                    combinedLogMessage = `${batter.displayName} hits into a fielder's choice.`;
+                    let scorersString = '';
+                    if (scorers && scorers.length > 0) {
+                        scorersString = ` ${scorers.join(' and ')} scores!`;
+                    }
+                    combinedLogMessage = `${batter.displayName} hits into a fielder's choice.${scorersString}`;
                 }
               } else {
                   combinedLogMessage = events.join(' ');
