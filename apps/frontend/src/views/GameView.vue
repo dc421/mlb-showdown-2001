@@ -1006,7 +1006,7 @@ const stealingRunner = computed(() => {
 });
 
 const isInfieldInDecision = computed(() => {
-    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_PLAY';
+    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE';
 });
 
 const isPitcherTired = (pitcher) => {
