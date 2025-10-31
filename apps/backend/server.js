@@ -2229,8 +2229,9 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         newState.stealAttemptDetails.isStealResultHiddenForDefense = false;
 
         if (newState.stealAttemptDetails.outcome === 'SAFE') {
-            // After a safe steal, the turn stays with the offensive player to allow another action.
-            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
+            // After a safe steal, it's now both players' turn to acknowledge the result.
+            // This allows the offensive player to take another action.
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
         } else {
             // If the runner was out, the turn goes back to the pitcher (defensive player).
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [userId, gameId]);
