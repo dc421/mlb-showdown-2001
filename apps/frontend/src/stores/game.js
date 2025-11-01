@@ -102,6 +102,26 @@ async function setGameState(gameId, partialState) {
   }
 }
 
+async function loadScenario(gameId, scenario) {
+  const auth = useAuthStore();
+  if (!auth.token) return;
+  try {
+    await fetch(`${auth.API_URL}/api/dev/games/${gameId}/load-scenario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      },
+      body: JSON.stringify({ scenario })
+    });
+    // The game-updated event will refresh the UI automatically, but we can fetch
+    // for immediate feedback.
+    await fetchGame(gameId);
+  } catch (error) {
+    console.error("Error loading scenario:", error);
+  }
+}
+
 async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
@@ -654,7 +674,7 @@ async function resetRolls(gameId) {
   });
 
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
-    fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
+    fetchGame, declareHomeTeam,setGameState,loadScenario,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     isSwingResultVisible, setIsSwingResultVisible,
     isStealResultVisible, setIsStealResultVisible,
