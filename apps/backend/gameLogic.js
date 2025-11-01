@@ -458,10 +458,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     } else { // Home team finished batting
       newState.isBetweenHalfInningsHome = true;
     }
-    newState.isTopInning = !newState.isTopInning;
-    if (newState.isTopInning) newState.inning++;
-    newState.outs = 0;
-    newState.bases = { first: null, second: null, third: null };
     // The inning change event itself is now created in server.js
     }
   }
