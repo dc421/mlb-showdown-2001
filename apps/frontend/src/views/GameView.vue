@@ -233,7 +233,7 @@ const isDefensiveThrowDecision = computed(() => {
 const isAwaitingBaserunningDecision = computed(() => {
     if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
         const type = gameStore.gameState.currentPlay.type;
-        return (type === 'ADVANCE' || type === 'TAG_UP');
+        return (type === 'ADVANCE' || type === 'TAG_UP' || type === 'INFIELD_IN_CHOICE');
     }
     return false;
 });
@@ -1090,7 +1090,11 @@ watch(isStealAttemptInProgress, (newValue) => {
   }
 });
 
-
+watch(() => gameStore.gameState?.currentPlay?.type, (newType) => {
+    if (newType === 'INFIELD_IN_CHOICE') {
+        gameStore.setIsSwingResultVisible(true);
+    }
+});
 
 const defensiveTeamKey = computed(() => gameStore.gameState?.isDisplayTopInning ? 'homeTeam' : 'awayTeam');
 const defensiveNextBatterIndex = computed(() => {
@@ -1370,8 +1374,10 @@ onUnmounted(() => {
             <div v-else-if="isInfieldInDecision">
                 <h3>Infield In Play</h3>
                 <p>The defense has the infield in. What will the runner on third do?</p>
-                <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
-                <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+                <div class="infield-in-decision-buttons">
+                    <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
+                    <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+                </div>
             </div>
             <div v-else>
                 <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
@@ -1958,7 +1964,7 @@ onUnmounted(() => {
   width: 100%;
   margin: 0;
 }
-.runner-decisions-group, .steal-throw-decisions {
+.runner-decisions-group, .steal-throw-decisions, .infield-in-decision-buttons {
     margin-top: 1rem;
     margin-bottom: 1rem;
     display: flex;
