@@ -397,8 +397,8 @@ const runScoredOnPlay = computed(() => {
   }
   // Get the most recent event from the log
   const lastEvent = gameStore.gameEvents[gameStore.gameEvents.length - 1];
-  // Check if its message contains the word "scores!"
-  return lastEvent.log_message?.includes('scores!');
+  // Check if its message contains the word "scores!" or "HOME RUN"
+  return lastEvent.log_message?.includes('scores!') || lastEvent.log_message?.includes('HOME RUN');
 });
 
 const scoreUpdateVisible = computed(() => {
@@ -468,7 +468,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!gameStore.gameState) return false;
 
   // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll result.
-  if (gameStore.gameState.awaitingDoublePlayRoll) {
+  if (gameStore.gameState.showRollForDoublePlayButton) {
     return true;
   }
 
@@ -539,7 +539,7 @@ const showNextHitterButton = computed(() => {
     return true;
   }
   // Hide button during DP unless offensive player's timer is up
-  if (gameStore.gameState?.awaitingDoublePlayRoll && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
+  if (gameStore.gameState.showRollForDoublePlayButton?.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
     return false;
   }
   if (isAwaitingBaserunningDecision.value) return false;
@@ -614,7 +614,7 @@ const showThrowRollResult = computed(() => {
 
   // Offensive player sees it after their timer.
   if (amIOffensivePlayer.value) {
-    return offensiveDPResultVisible.value;
+    return offensiveDPResultVisible.value && isSwingResultVisible.value;
   }
 
   // Spectators see it immediately.
