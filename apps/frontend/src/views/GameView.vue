@@ -493,7 +493,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!gameStore.gameState) return false;
 
   // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll result.
-  if (gameStore.gameState.showRollForDoublePlayButton) {
+  if (showRollForDoublePlayButton.value) {
     return true;
   }
 
@@ -564,7 +564,7 @@ const showNextHitterButton = computed(() => {
     return true;
   }
   // Hide button during DP unless offensive player's timer is up
-  if (gameStore.gameState.showRollForDoublePlayButton?.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
+  if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
     return false;
   }
   if (isAwaitingBaserunningDecision.value) return false;
@@ -1285,7 +1285,7 @@ onUnmounted(() => {
             !isStealAttemptInProgress && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIDisplayOffensivePlayer && isSwingResultVisible))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
+          <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
