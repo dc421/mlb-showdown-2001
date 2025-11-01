@@ -458,19 +458,18 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       newState.winningTeam = newState.homeScore > newState.awayScore ? 'home' : 'away';
       events.push(`That's the ballgame! Final Score: Away ${newState.awayScore}, Home ${newState.homeScore}.`);
     } else {
-      // It's just an inning change, not the end of the game
-      newState.inningChanged = true; // Signal to the server
-      const wasTop = newState.isTopInning;
-      
-      if (newState.isTopInning) { // Away team finished batting
-      newState.isBetweenHalfInningsAway = true;
-    } else { // Home team finished batting
-      newState.isBetweenHalfInningsHome = true;
-    }
-    // The inning change event itself is now created in server.js
+      // It's just an inning change, not the end of the game.
+      // Now, transition the game state to the new half-inning.
+      newState.isTopInning = !newState.isTopInning;
+      if (newState.isTopInning) {
+        newState.inning++;
+      }
+      newState.outs = 0;
+      newState.bases = { first: null, second: null, third: null };
+      newState.inningChanged = true; // Signal to the server to create the log event
     }
   }
-  
+
   return { newState, events, scorers };
 }
 
