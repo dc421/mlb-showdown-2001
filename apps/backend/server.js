@@ -1842,11 +1842,12 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             const originalScore = finalState.awayScore + finalState.homeScore;
             let outcome = 'OUT';
             let swingRoll = 0;
+            let chartHolder = null;
             if (finalState.currentAtBat.batterAction === 'bunt') {
                 outcome = 'BUNT';
             } else {
                 swingRoll = Math.floor(Math.random() * 20) + 1;
-                const chartHolder = advantage === 'pitcher' ? pitcher : batter;
+                chartHolder = advantage === 'pitcher' ? pitcher : batter;
                 for (const range in chartHolder.chart_data) {
                     const [min, max] = range.split('-').map(Number);
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
