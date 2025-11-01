@@ -515,21 +515,48 @@ watch(shouldHideCurrentAtBatOutcome, (newValue) => {
 
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
 
+const isOffensiveStealInProgress = computed(() => {
+    return amIOffensivePlayer.value && gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT';
+});
+
 const canAttemptSteal = computed(() => {
-    // Stealing is an offensive action, must be their turn, and no other play can be in progress.
-    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState || gameStore.gameState.currentPlay) {
+    if (!amIOffensivePlayer.value || !gameStore.gameState) {
+        return false;
+    }
+    // Allow stealing if it's a normal turn OR if a steal is already in progress (for chaining).
+    const isMyTurnToAct = isMyTurn.value && !gameStore.gameState.currentPlay;
+    if (!isMyTurnToAct && !isOffensiveStealInProgress.value) {
         return false;
     }
     const { bases } = gameStore.gameState;
     const canStealSecond = bases.first && !bases.second;
     const canStealThird = bases.second && !bases.third;
-    // It's possible to steal if at least one of these conditions is met.
-    return canStealSecond || canStealThird;
+    return canStealSecond || canStealThird || isOffensiveStealInProgress.value;
 });
 
-const canStealSecond = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && !gameStore.gameState.bases.second);
-const canStealThird = computed(() => canAttemptSteal.value && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
-const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
+const canStealSecond = computed(() => {
+    if (!canAttemptSteal.value) return false;
+    return gameStore.gameState.bases.first && !gameStore.gameState.bases.second;
+});
+
+const canStealThird = computed(() => {
+    if (!canAttemptSteal.value) return false;
+    // During an in-progress steal, check the decision payload, not the final base state.
+    if (isOffensiveStealInProgress.value) {
+        const decisions = gameStore.gameState.currentPlay.payload.decisions;
+        // True if a runner is going TO second and third is open.
+        return decisions['1'] && !gameStore.gameState.bases.third;
+    }
+    // Standard check for a runner on second with third base open.
+    return gameStore.gameState.bases.second && !gameStore.gameState.bases.third;
+});
+
+const canDoubleSteal = computed(() => {
+    // Disable double steals if a steal is already in progress to avoid complex states.
+    if (!canAttemptSteal.value || isOffensiveStealInProgress.value) return false;
+    const { bases } = gameStore.gameState;
+    return bases.first && bases.second && !bases.third;
+});
 
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
