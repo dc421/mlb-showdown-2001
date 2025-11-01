@@ -358,6 +358,15 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           effectiveSpeed += 5; // going home
           if (newState.outs === 2) effectiveSpeed += 5;
 
+          console.log('--- RUNNER ADVANCE DEBUG (2B) ---');
+          console.log('Runner Base Speed:', runnerSpeed);
+          console.log('Effective Speed:', effectiveSpeed);
+          console.log('Outs:', newState.outs);
+          console.log('Outfield Defense:', outfieldDefense);
+          console.log('Auto-Advance Check:', `${effectiveSpeed} >= ${outfieldDefense + 20}`);
+          console.log('Result:', effectiveSpeed >= (outfieldDefense + 20));
+          console.log('------------------------------------');
+
           if (effectiveSpeed >= (outfieldDefense + 20)) {
               isAutomatic = true;
               autoAdvance = true;
