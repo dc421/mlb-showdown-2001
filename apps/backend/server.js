@@ -1689,7 +1689,11 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         if (finalState.doublePlayDetails) {
             const { batter } = finalState.currentAtBat.swingRollResult;
             if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
-                combinedLogMessage = `${batter.displayName} grounds into a double play.`;
+                let scorersString = '';
+                if (scorers && scorers.length > 0) {
+                    scorersString = ` ${scorers.join(' and ')} scores!`;
+                }
+                combinedLogMessage = `${batter.displayName} grounds into a double play.${scorersString}`;
             } else {
                 let scorersString = '';
                 if (scorers && scorers.length > 0) {
@@ -1870,7 +1874,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               if (finalState.doublePlayDetails) {
                 const { batter } = finalState.currentAtBat.swingRollResult;
                 if (finalState.doublePlayDetails.outcome === 'DOUBLE_PLAY') {
-                    combinedLogMessage = `${batter.displayName} grounds into a double play.`;
+                    let scorersString = '';
+                    if (scorers && scorers.length > 0) {
+                        scorersString = ` ${scorers.join(' and ')} scores!`;
+                    }
+                    combinedLogMessage = `${batter.displayName} grounds into a double play.${scorersString}`;
                 } else {
                     let scorersString = '';
                     if (scorers && scorers.length > 0) {
