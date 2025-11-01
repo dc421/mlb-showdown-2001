@@ -325,13 +325,28 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           }
           events.push(combinedEvent);
       } else {
-          // Not automatic, so do standard advancement and ask user
+          // Not all decisions are automatic. Handle auto-holds, then ask user for the rest.
           if (runnerFrom2) { newState.bases.third = runnerFrom2; }
           if (runnerFrom1) { newState.bases.second = runnerFrom1; }
           newState.bases.first = runnerData;
-          if (potentialDecisions.length > 0) {
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '1B', initialEvent } };
+
+          const manualDecisions = potentialDecisions.filter(decision => {
+              const { runner, from } = decision;
+              const toBase = from + 2;
+              const runnerSpeed = getSpeedValue(runner);
+              const isAutoHold = (runnerSpeed === 10 && toBase === 3);
+              if (isAutoHold) {
+                  // The runner is already at 2nd base from the default advancement above.
+                  // We just need to create the event.
+                  events.push(`${runner.name} holds at second.`);
+              }
+              return !isAutoHold;
+          });
+
+          if (manualDecisions.length > 0) {
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, hitType: '1B', initialEvent } };
           } else {
+              // If there are no manual decisions left, we can push the initial event.
               events.push(initialEvent);
           }
       }
