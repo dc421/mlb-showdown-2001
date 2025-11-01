@@ -486,7 +486,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
       newState.outs = 0;
       newState.bases = { first: null, second: null, third: null };
-      newState.inningChanged = true; // Signal to the server to create the log event
+      newState.isBetweenHalfInningsAway = !newState.isTopInning;
+      newState.isBetweenHalfInningsHome = newState.isTopInning;
     }
   }
 

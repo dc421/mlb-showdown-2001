@@ -716,6 +716,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         inning: 1, isTopInning: true, awayScore: 0, homeScore: 0, outs: 0,
         bases: { first: null, second: null, third: null },
         pitcherStats: await initializePitcherFatigue(gameId, client),
+        isBetweenHalfInningsAway: false,
+        isBetweenHalfInningsHome: false,
         awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeDefensiveRatings: {
@@ -1705,7 +1707,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
             combinedLogMessage = events.join(' ');
         }
 
-        if (finalState.inningChanged) {
+        if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
           combinedLogMessage += ` <strong>Outs: 3</strong>`;
         } else if (finalState.outs > originalOuts) {
           combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
@@ -1718,7 +1720,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
-        if (finalState.inningChanged) {
+        if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
           await createInningChangeEvent(gameId, finalState, userId, currentTurn + 1, client);
         }
       }
@@ -1890,7 +1892,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                   combinedLogMessage = events.join(' ');
               }
 
-              if (finalState.inningChanged) {
+              if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
                 combinedLogMessage += ` <strong>Outs: 3</strong>`;
               } else if (finalState.outs > originalOuts) {
                 combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
@@ -1903,7 +1905,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
 
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
 
-              if (finalState.inningChanged) {
+              if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
                 await createInningChangeEvent(gameId, finalState, userId, currentTurn + 1, client);
               }
             }
@@ -2180,7 +2182,6 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
         } else {
             newState.isBetweenHalfInningsHome = true;
         }
-        newState.inningEndedOnCaughtStealing = true;
     }
 
     if (isSingleSteal) {
