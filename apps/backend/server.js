@@ -2031,7 +2031,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           pitcherAction: null, batterAction: null,
           pitchRollResult: null, swingRollResult: null,
           outsBeforePlay: newState.outs,
-          basesBeforePlay: newState.bases
+          basesBeforePlay: newState.bases,
+          homeScoreBeforePlay: newState.homeScore,
+          awayScoreBeforePlay: newState.awayScore
       };
 
       // NEW: If there is no runner on third base OR there are 2 outs, the infield must be brought back to normal.
