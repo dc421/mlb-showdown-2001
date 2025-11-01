@@ -131,10 +131,9 @@ const baserunningOptionGroups = computed(() => {
     const decisions = runnerDecisionsWithLabels.value;
     // Sort decisions by the runner's starting base, from lead runner to trail runner.
     const sortedDecisions = [...decisions].sort((a, b) => parseInt(b.from, 10) - parseInt(a.from, 10));
+    const runnersOn = decisions.map(d => parseInt(d.from, 10));
 
     // SPECIAL SCENARIO: Single with runners on 1st & 2nd (user request)
-    // The key is that the trailing runner cannot advance alone.
-    const runnersOn = decisions.map(d => parseInt(d.from, 10));
     const isAdvanceWithRunnersOnFirstAndSecond = gameStore.gameState.currentPlay.type === 'ADVANCE' &&
                                                 runnersOn.length === 2 &&
                                                 runnersOn.includes(1) &&
@@ -142,76 +141,52 @@ const baserunningOptionGroups = computed(() => {
 
     if (isAdvanceWithRunnersOnFirstAndSecond) {
         const leadRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 2);
-        // Per user request, the order is: Send Lead, Send Both. Hold is handled in template.
         return [
-            {
-                text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel}`,
-                choices: { '2': true } // Only send the lead runner
-            },
-            {
-                text: "Send Both Runners",
-                choices: { '1': true, '2': true } // Send both
-            }
+            { text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel}`, choices: { '2': true } },
+            { text: "Send Both Runners", choices: { '1': true, '2': true } }
         ];
     }
 
+    // NEW LOGIC for Multi-Runner TAG UP
+    const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
+    const runnerCount = sortedDecisions.length;
 
-    // --- Default Logic for all other cases ---
+    if (isTagUp && runnerCount > 1) {
+        const cumulativeOptions = [];
+        let cumulativeChoices = {};
+        const runnerDestinations = [];
 
-    const singleRunnerOptions = [];
+        for (let i = 0; i < runnerCount; i++) {
+            const decision = sortedDecisions[i];
+            cumulativeChoices[decision.from] = true;
+            runnerDestinations.push(decision.toBaseLabel.replace('to ', ''));
+
+            let text = '';
+            if (i === 0) {
+                text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
+            } else if (i === runnerCount - 1) {
+                text = "Send All Runners";
+            } else {
+                const destinations = [...runnerDestinations].reverse();
+                text = `Send Runners to ${destinations.join(' & ')}`;
+            }
+
+            cumulativeOptions.push({
+                text,
+                choices: { ...cumulativeChoices }
+            });
+        }
+        return cumulativeOptions;
+    }
+
+    // --- Default Logic for all other cases (non-tag-ups, single runner tag-ups) ---
+    const defaultOptions = [];
     for (const decision of sortedDecisions) {
         const choices = { [decision.from]: true };
         const text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
-        singleRunnerOptions.push({ text, choices });
+        defaultOptions.push({ text, choices });
     }
-
-    const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
-    if (!isTagUp) {
-        return singleRunnerOptions;
-    }
-
-    // --- Tag Up multi-runner options ---
-    const multiRunnerOptions = [];
-    const runnerCount = runnersOn.length;
-    const hasRunnerOn = (base) => runnersOn.includes(base);
-
-    // 1st & 2nd
-    if (runnerCount === 2 && hasRunnerOn(1) && hasRunnerOn(2)) {
-        multiRunnerOptions.push({
-            text: "Send Runners to 2nd & 3rd",
-            choices: { '1': true, '2': true }
-        });
-    }
-
-    // 1st & 3rd
-    if (runnerCount === 2 && hasRunnerOn(1) && hasRunnerOn(3)) {
-        multiRunnerOptions.push({
-            text: "Send Runners to 2nd & Home",
-            choices: { '1': true, '3': true }
-        });
-    }
-
-    // 2nd & 3rd
-    if (runnerCount === 2 && hasRunnerOn(2) && hasRunnerOn(3)) {
-        multiRunnerOptions.push({
-            text: "Send Runners to 3rd & Home",
-            choices: { '2': true, '3': true }
-        });
-    }
-
-    // Bases loaded
-    if (runnerCount === 3 && hasRunnerOn(1) && hasRunnerOn(2) && hasRunnerOn(3)) {
-        multiRunnerOptions.push({
-            text: "Send Runners to 3rd & Home",
-            choices: { '2': true, '3': true } // Runner on 1st holds
-        });
-        multiRunnerOptions.push({
-            text: "Send All Runners",
-            choices: { '1': true, '2': true, '3': true }
-        });
-    }
-
-    return [...singleRunnerOptions, ...multiRunnerOptions];
+    return defaultOptions;
 });
 
 const isAdvancementOrTagUpDecision = computed(() => {
