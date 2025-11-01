@@ -2213,7 +2213,8 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
         if (newState.stealAttemptDetails.outcome === 'SAFE') {
             // After a safe steal, it's now both players' turn to acknowledge the result.
-            // This allows the offensive player to take another action.
+            newState.currentAtBat.batterAction = null; // Clear batter action to allow another steal.
+            newState.stealAttemptDetails = null; // Clear the details to unblock the UI.
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
         } else {
             // If the runner was out, the turn goes back to the pitcher (defensive player).
