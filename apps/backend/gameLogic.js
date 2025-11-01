@@ -479,15 +479,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       events.push(`That's the ballgame! Final Score: Away ${newState.awayScore}, Home ${newState.homeScore}.`);
     } else {
       // It's just an inning change, not the end of the game.
-      // Now, transition the game state to the new half-inning.
-      newState.isTopInning = !newState.isTopInning;
+      // SET THE FLAGS, but do not advance the inning state here.
       if (newState.isTopInning) {
-        newState.inning++;
+        newState.isBetweenHalfInningsAway = true;
+      } else {
+        newState.isBetweenHalfInningsHome = true;
       }
-      newState.outs = 0;
-      newState.bases = { first: null, second: null, third: null };
-      newState.isBetweenHalfInningsAway = !newState.isTopInning;
-      newState.isBetweenHalfInningsHome = newState.isTopInning;
     }
   }
 
