@@ -1719,10 +1719,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
         }
 
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
-
-        if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
-          await createInningChangeEvent(gameId, finalState, userId, currentTurn + 1, client);
-        }
       }
       
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
@@ -1904,10 +1900,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               }
 
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
-
-              if (finalState.isBetweenHalfInningsAway || finalState.isBetweenHalfInningsHome) {
-                await createInningChangeEvent(gameId, finalState, userId, currentTurn + 1, client);
-              }
             }
 
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
@@ -1992,9 +1984,22 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       delete newState.stealAttemptDetails;
       delete newState.throwRollResult;
 
-      // The logic for inning advancement, including for Caught Stealing,
-      // has been moved into the `applyOutcome` function. This endpoint now only
-      // needs to advance the batting order for the *current* offensive team.
+      // --- REFACTORED INNING CHANGE LOGIC ---
+      // This is now the single source of truth for advancing to the next half-inning.
+      if (newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) {
+        newState.isTopInning = !newState.isTopInning;
+        if (newState.isTopInning) {
+          newState.inning++;
+        }
+        newState.outs = 0;
+        newState.bases = { first: null, second: null, third: null };
+        newState.isBetweenHalfInningsAway = false;
+        newState.isBetweenHalfInningsHome = false;
+
+        // Since the inning has now officially changed, create the event.
+        await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+      }
+
       const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
       newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
