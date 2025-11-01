@@ -63,6 +63,10 @@ function handleSubmit() {
     }
 }
 
+function loadScenario(scenario) {
+    gameStore.loadScenario(gameId, scenario);
+}
+
 // Watch for changes in the game state and update the textarea
 watch(() => gameStore.gameState, (newState, oldState) => {
     // Only update if the new state is actually different
@@ -92,6 +96,11 @@ onMounted(async () => {
         </div>
 
         <button @click="handleSubmit">Set Game State</button>
+
+        <div class="scenarios-container">
+            <h2>Load Scenario</h2>
+            <button @click="loadScenario('bases-loaded-no-outs')">Bases Loaded, No Outs</button>
+        </div>
     </div>
 </template>
 
