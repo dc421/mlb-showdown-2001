@@ -119,9 +119,20 @@ const runnerDecisionsWithLabels = computed(() => {
         }
         return {
             ...decision,
+            toBase,
             toBaseLabel
         };
     });
+});
+
+const defensiveThrowOptions = computed(() => {
+    if (!isDefensiveThrowDecision.value) {
+        return [];
+    }
+    const choices = gameStore.gameState.currentPlay.payload.choices;
+    const allDecisions = runnerDecisionsWithLabels.value;
+
+    return allDecisions.filter(decision => choices[decision.from]);
 });
 
 const baserunningOptionGroups = computed(() => {
@@ -1320,12 +1331,11 @@ onUnmounted(() => {
             <div v-else-if="isDefensiveThrowDecision">
                 <h3>Defensive Throw</h3>
                 <p>Opponent is sending runners! Choose where to throw:</p>
-                <button v-for="(sent, fromBase) in gameStore.gameState.currentPlay.payload.choices"
-                        :key="fromBase"
-                        v-if="sent"
-                        @click="handleDefensiveThrow(parseInt(fromBase, 10) + 1)"
+                <button v-for="option in defensiveThrowOptions"
+                        :key="option.from"
+                        @click="handleDefensiveThrow(option.toBase)"
                         class="tactile-button">
-                    Throw to {{ parseInt(fromBase, 10) + 1 }}B
+                    Throw {{ option.toBaseLabel }}
                 </button>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
