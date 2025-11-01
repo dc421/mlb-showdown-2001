@@ -138,6 +138,10 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         if (isDoublePlay) {
           playResultDescription = `It's a DOUBLE PLAY!`;
           newState.outs += 2;
+          if (newState.outs < 3 && !state.infieldIn) {
+            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
+          }
           newState.bases.first = null; // Runner from first is out
         } else {
           playResultDescription = `Batter is SAFE, out at second. Fielder's choice.`;
