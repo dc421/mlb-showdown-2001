@@ -1238,6 +1238,8 @@ onMounted(async () => {
     seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
     nextGameId.value = data.nextGameId;
   });
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 });
 
 onUnmounted(() => {
@@ -1245,7 +1247,14 @@ onUnmounted(() => {
   socket.off('game-updated');
   socket.off('series-next-game-ready');
   socket.disconnect();
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    gameStore.fetchGame(gameId);
+  }
+}
 </script>
 
 <template>
