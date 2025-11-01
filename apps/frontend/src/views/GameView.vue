@@ -132,6 +132,32 @@ const baserunningOptionGroups = computed(() => {
     // Sort decisions by the runner's starting base, from lead runner to trail runner.
     const sortedDecisions = [...decisions].sort((a, b) => parseInt(b.from, 10) - parseInt(a.from, 10));
 
+    // SPECIAL SCENARIO: Single with runners on 1st & 2nd (user request)
+    // The key is that the trailing runner cannot advance alone.
+    const runnersOn = decisions.map(d => parseInt(d.from, 10));
+    const isAdvanceWithRunnersOnFirstAndSecond = gameStore.gameState.currentPlay.type === 'ADVANCE' &&
+                                                runnersOn.length === 2 &&
+                                                runnersOn.includes(1) &&
+                                                runnersOn.includes(2);
+
+    if (isAdvanceWithRunnersOnFirstAndSecond) {
+        const leadRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 2);
+        // Per user request, the order is: Send Lead, Send Both. Hold is handled in template.
+        return [
+            {
+                text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel}`,
+                choices: { '2': true } // Only send the lead runner
+            },
+            {
+                text: "Send Both Runners",
+                choices: { '1': true, '2': true } // Send both
+            }
+        ];
+    }
+
+
+    // --- Default Logic for all other cases ---
+
     const singleRunnerOptions = [];
     for (const decision of sortedDecisions) {
         const choices = { [decision.from]: true };
@@ -144,10 +170,9 @@ const baserunningOptionGroups = computed(() => {
         return singleRunnerOptions;
     }
 
+    // --- Tag Up multi-runner options ---
     const multiRunnerOptions = [];
-    const runnersOn = decisions.map(d => parseInt(d.from, 10)).sort();
     const runnerCount = runnersOn.length;
-
     const hasRunnerOn = (base) => runnersOn.includes(base);
 
     // 1st & 2nd
@@ -1006,7 +1031,7 @@ const stealingRunner = computed(() => {
 });
 
 const isInfieldInDecision = computed(() => {
-    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_PLAY';
+    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE';
 });
 
 const isPitcherTired = (pitcher) => {
@@ -1359,7 +1384,7 @@ onUnmounted(() => {
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
                     <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && isRunnerOnThird" class="infield-in-checkbox">
+                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && isRunnerOnThird && outsToDisplay < 2" class="infield-in-checkbox">
                         <label>
                             <input type="checkbox" v-model="infieldIn" />
                             Infield In

@@ -347,7 +347,7 @@ async function submitInfieldInDecision(gameId, sendRunner) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/infield-in-play`, {
+    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-infield-in-gb`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ sendRunner })
