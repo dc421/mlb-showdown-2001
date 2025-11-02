@@ -2198,13 +2198,13 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     newState.currentAtBat.pitcherAction = null;
     newState.currentAtBat.pitchRollResult = null;
 
-    // Check for inning end if an out was made on the initial steal attempt
-    if (newState.outs >= 3 && !newState.currentPlay?.payload?.queuedDecisions) {
+    if (newState.outs >= 3 && isSingleSteal && !isSafe && !newState.currentPlay?.payload?.queuedDecisions) {
         if (newState.isTopInning) {
             newState.isBetweenHalfInningsAway = true;
         } else {
             newState.isBetweenHalfInningsHome = true;
         }
+        newState.inningEndedOnCaughtStealing = true;
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
