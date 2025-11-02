@@ -534,15 +534,17 @@ const canAttemptSteal = computed(() => {
     if (!amIOffensivePlayer.value || !gameStore.gameState) {
         return false;
     }
-    // Allow stealing if it's a normal turn OR if a steal is already in progress (for chaining).
-    const isMyTurnToAct = isMyTurn.value && !gameStore.gameState.currentPlay;
-    if (!isMyTurnToAct && !isOffensiveStealInProgress.value) {
+    const isStealPhase = isMyTurn.value && (
+        !gameStore.gameState.currentPlay ||
+        (gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT' && !gameStore.gameState.currentPlay.payload.queuedDecisions)
+    );
+    if (!isStealPhase) {
         return false;
     }
     const { bases } = gameStore.gameState;
     const canStealSecond = bases.first && !bases.second;
     const canStealThird = bases.second && !bases.third;
-    return canStealSecond || canStealThird || isOffensiveStealInProgress.value;
+    return canStealSecond || canStealThird;
 });
 
 const canStealSecond = computed(() => {
@@ -621,6 +623,12 @@ const showRollForDoublePlayButton = computed(() => {
 const isWaitingForDoublePlayResolution = computed(() => {
   const isDPBall = !!gameStore.gameState?.doublePlayDetails;
   return isDPBall && amIOffensivePlayer.value && !offensiveDPResultVisible.value;
+});
+
+const isWaitingForQueuedStealResolution = computed(() => {
+    return amIOffensivePlayer.value &&
+           gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' &&
+           !!gameStore.gameState.currentPlay.payload.queuedDecisions;
 });
 
 function handleRollForDoublePlay() {
@@ -1396,7 +1404,8 @@ function handleVisibilityChange() {
             </div>
             <div v-else>
                 <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
-                <div v-else-if="isWaitingForDoublePlayResolution || (amIDisplayOffensivePlayer && (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT' || gameStore.gameState.currentPlay?.type === 'ADVANCE'))" class="waiting-text">Waiting for throw...</div>
+                <div v-if="isWaitingForQueuedStealResolution" class="waiting-text">Waiting for throw...</div>
+                <div v-else-if="isWaitingForDoublePlayResolution || (amIDisplayOffensivePlayer && (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT' || gameStore.gameState.currentPlay?.type === 'ADVANCE') && !isWaitingForQueuedStealResolution)" class="waiting-text">Waiting for throw...</div>
                 <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp) && !( amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
