@@ -409,6 +409,20 @@ async function createInningChangeEvent(gameId, finalState, userId, turnNumber, c
     }
 }
 
+// --- HELPER: Advances the game state to the next half-inning ---
+function advanceToNextHalfInning(state) {
+    const newState = JSON.parse(JSON.stringify(state)); // Deep copy to avoid mutation
+    newState.isTopInning = !newState.isTopInning;
+    if (newState.isTopInning) {
+        newState.inning++;
+    }
+    newState.outs = 0;
+    newState.bases = { first: null, second: null, third: null };
+    newState.isBetweenHalfInningsAway = false;
+    newState.isBetweenHalfInningsHome = false;
+    return newState;
+}
+
 // --- HELPER: Handles series logic after a game completes ---
 async function handleSeriesProgression(gameId, client) {
     // 1. Get game and series info
@@ -944,7 +958,11 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 newState.awaiting_lineup_change = false;
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
-                // --- ADDED ---
+
+                // --- REFACTOR: Use the new helper function to advance the state ---
+                newState = advanceToNextHalfInning(newState);
+                // --- END REFACTOR ---
+
                 // Now that the pitcher is selected, create the delayed inning change event,
                 // but only if one hasn't been created for this half-inning already.
                 const inningHalfString = newState.isTopInning ? 'Top' : 'Bottom';
@@ -1984,20 +2002,11 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       delete newState.stealAttemptDetails;
       delete newState.throwRollResult;
 
-      // --- REFACTORED INNING CHANGE LOGIC ---
-      // This is now the single source of truth for advancing to the next half-inning.
+      // --- REFACTOR: Use the new helper function to advance the state ---
       if (newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) {
-        newState.isTopInning = !newState.isTopInning;
-        if (newState.isTopInning) {
-          newState.inning++;
-        }
-        newState.outs = 0;
-        newState.bases = { first: null, second: null, third: null };
-        newState.isBetweenHalfInningsAway = false;
-        newState.isBetweenHalfInningsHome = false;
-
-        // Since the inning has now officially changed, create the event.
-        await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+          newState = advanceToNextHalfInning(newState);
+          // Since the inning has now officially changed, create the event.
+          await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
       }
 
       const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
