@@ -439,7 +439,7 @@ const isDisplayTopInning = computed(() => {
   // If we are between innings, the "isTopInning" flag has already flipped to the *next*
   // inning. For display purposes, we want to show the state of the inning that just
   // concluded, so we flip it back.
-  if (gameStore.isEffectivelyBetweenHalfInnings) {
+  if (gameStore.isEffectivelyBetweenHalfInnings.value) {
     return !gameStore.gameState.isTopInning;
   }
   return gameStore.gameState.isTopInning;
@@ -901,11 +901,11 @@ const batterToDisplay = computed(() => {
 const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
         return gameStore.gameState.lastCompletedAtBat.pitcher;
     }
     // In all other cases, show the data for the current at-bat.
-    return gameStore.gameState.currentAtBat?.pitcher ?? null;
+    return isDisplayTopInning.value ? gameStore.lineups.home.startingPitcher : gameStore.lineups.away.startingPitcher
 });
 
 
