@@ -534,15 +534,17 @@ const canAttemptSteal = computed(() => {
     if (!amIOffensivePlayer.value || !gameStore.gameState) {
         return false;
     }
-    // Allow stealing if it's a normal turn OR if a steal is already in progress (for chaining).
-    const isMyTurnToAct = isMyTurn.value && !gameStore.gameState.currentPlay;
-    if (!isMyTurnToAct && !isOffensiveStealInProgress.value) {
+    const isStealPhase = isMyTurn.value && (
+        !gameStore.gameState.currentPlay ||
+        (gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT' && !gameStore.gameState.currentPlay.payload.queuedDecisions)
+    );
+    if (!isStealPhase) {
         return false;
     }
     const { bases } = gameStore.gameState;
     const canStealSecond = bases.first && !bases.second;
     const canStealThird = bases.second && !bases.third;
-    return canStealSecond || canStealThird || isOffensiveStealInProgress.value;
+    return canStealSecond || canStealThird;
 });
 
 const canStealSecond = computed(() => {
@@ -649,6 +651,12 @@ const showRollForDoublePlayButton = computed(() => {
 const isWaitingForDoublePlayResolution = computed(() => {
   const isDPBall = !!gameStore.gameState?.doublePlayDetails;
   return isDPBall && amIOffensivePlayer.value && !offensiveDPResultVisible.value;
+});
+
+const isWaitingForQueuedStealResolution = computed(() => {
+    return amIOffensivePlayer.value &&
+           gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' &&
+           !!gameStore.gameState.currentPlay.payload.queuedDecisions;
 });
 
 function handleRollForDoublePlay() {
@@ -1451,7 +1459,7 @@ function handleVisibilityChange() {
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
-            <div v-else-if="isWaitingForDoublePlayResolution || (amIDisplayOffensivePlayer && (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT' || gameStore.gameState.currentPlay?.type === 'ADVANCE' && (isMyTurn.value || !gameStore.gameState.currentPlay.payload.choices)))" class="waiting-text">Waiting for throw...</div>
+            <div v-else-if="isWaitingForDoublePlayResolution || isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT' || gameStore.gameState.currentPlay?.type === 'ADVANCE' && (isMyTurn.value || !gameStore.gameState.currentPlay.payload.choices)))" class="waiting-text">Waiting for throw...</div>
         </div>
 
         <!-- Player Cards Wrapper -->
