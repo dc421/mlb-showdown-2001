@@ -2236,6 +2236,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
     const queuedDecisions = newState.currentPlay?.payload?.queuedDecisions;
 
+    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
     // --- SINGLE STEAL RESOLUTION ---
     if (newState.stealAttemptDetails && newState.stealAttemptDetails.isStealResultHiddenForDefense) {
         newState.stealAttemptDetails.isStealResultHiddenForDefense = false;
@@ -2289,7 +2290,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     else if (newState.currentPlay?.type === 'STEAL_ATTEMPT') {
         const { decisions } = newState.currentPlay.payload;
         const catcherArm = await getCatcherArm(defensiveTeam);
-        const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
         let allEvents = [];
         const contestedFromBase = throwToBase - 1;
         const originalBases = JSON.parse(JSON.stringify(newState.bases));
