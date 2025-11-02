@@ -571,46 +571,74 @@ const canDoubleSteal = computed(() => {
 
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
-const showNextHitterButton = computed(() => {
-  // NEW: If the inning ended on a caught stealing, always show the button.
-  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-    return true;
-  }
-  // Hide button during DP unless offensive player's timer is up
-  if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
-    return false;
-  }
-  if (isAwaitingBaserunningDecision.value) return false;
-  if (gameStore.amIReadyForNext) return false;
-
-  const atBatIsResolved = bothPlayersSetAction.value;
-
-  // Rule: If the at-bat is resolved, but the result isn't visible, NEVER show the button.
-  if ((atBatIsResolved || amIDisplayOffensivePlayer.value) && !isSwingResultVisible.value) {
-    return false;
-  }
-
-  // If the offensive player's DP timer is up, they should be able to proceed.
-  if (amIOffensivePlayer.value && offensiveDPResultVisible.value) {
-      return true;
-  }
-
-  if (gameStore.isBetweenHalfInnings) {
-    return true;
-  }
-
-  const opponentIsReady = gameStore.opponentReadyForNext;
-
-  return atBatIsResolved || opponentIsReady;
+const showRollForPitchButton = computed(() => {
+  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext));
+  console.log(`showRollForPitchButton: ${result}`);
+  return result;
 });
 
-const showRollForSwingButton = computed(() => {
-    if (!amIDisplayOffensivePlayer.value || isSwingResultVisible.value) {
-        return false;
+const showSwingAwayButton = computed(() => {
+  const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !( amIDisplayOffensivePlayer.value && gameStore.gameState.currentPlay?.payload.decisions);
+  console.log(`showSwingAwayButton: ${result}`);
+  return result;
+});
+
+const showNextHitterButton = computed(() => {
+  let reason = '';
+  let result = false;
+
+  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+    reason = 'Inning ended on caught stealing';
+    result = true;
+  } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
+    reason = 'Waiting for double play resolution';
+    result = false;
+  } else if (isAwaitingBaserunningDecision.value) {
+    reason = 'Awaiting baserunning decision';
+    result = false;
+  } else if (gameStore.amIReadyForNext) {
+    reason = 'I am ready for the next hitter';
+    result = false;
+  } else {
+    const atBatIsResolved = bothPlayersSetAction.value;
+    if ((atBatIsResolved || amIDisplayOffensivePlayer.value) && !isSwingResultVisible.value) {
+      reason = 'At-bat is resolved but result not visible';
+      result = false;
+    } else if (amIOffensivePlayer.value && offensiveDPResultVisible.value) {
+      reason = 'Offensive player DP timer is up';
+      result = true;
+    } else if (gameStore.isBetweenHalfInnings) {
+      reason = 'Between half innings';
+      result = true;
+    } else {
+      const opponentIsReady = gameStore.opponentReadyForNext;
+      result = atBatIsResolved || opponentIsReady;
+      reason = `Standard condition: atBatIsResolved=${atBatIsResolved}, opponentIsReady=${opponentIsReady}`;
     }
-    // Show the button only when the at-bat is freshly resolved,
-    // and the opponent has not already clicked "Next Hitter".
-    return bothPlayersSetAction.value || gameStore.opponentReadyForNext;
+  }
+
+  console.log(`showNextHitterButton: ${result} (Reason: ${reason})`);
+  return result;
+});
+
+
+const showRollForSwingButton = computed(() => {
+  let reason = '';
+  let result = false;
+
+  if (!amIDisplayOffensivePlayer.value) {
+    reason = 'Not the offensive player';
+    result = false;
+  } else if (isSwingResultVisible.value) {
+    reason = 'Swing result is already visible';
+    result = false;
+  } else {
+    result = bothPlayersSetAction.value || gameStore.opponentReadyForNext;
+    reason = `Ready for swing roll: bothPlayersSetAction=${bothPlayersSetAction.value}, opponentReadyForNext=${gameStore.opponentReadyForNext}`;
+  }
+
+  console.log(`showRollForSwingButton: ${result} (Reason: ${reason})`);
+  return result;
 });
 
 const showRollForDoublePlayButton = computed(() => {
@@ -998,6 +1026,7 @@ function handleSwing(action = null) {
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
+  console.log('--- 1. handleNextHitter called ---');
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
   gameStore.setIsStealResultVisible(false);
@@ -1005,6 +1034,7 @@ function handleNextHitter() {
   localStorage.removeItem(seenResultStorageKey);
 
   if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings) {
+    console.log('--- 1a. Setting anticipated batter ---');
     anticipatedBatter.value = nextBatterInLineup.value;
   }
   gameStore.setIsSwingResultVisible(false);
@@ -1225,7 +1255,7 @@ onMounted(async () => {
   socket.connect();
   socket.emit('join-game-room', gameId);
   socket.on('game-updated', (data) => {
-    console.log('--- 3. GameView: game-updated event received from socket. ---');
+    console.log('--- 3. GameView: game-updated event received from socket. ---', data);
     gameStore.updateGameData(data);
   });
 
@@ -1396,24 +1426,24 @@ function handleVisibilityChange() {
             </div>
             <div v-else>
                 <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
-                <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp) && !( amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
+                <button v-else-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
-                    <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && isRunnerOnThird && outsToDisplay < 2" class="infield-in-checkbox">
+                    <button v-if="showRollForPitchButton" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
+                    <div v-if="showRollForPitchButton && isRunnerOnThird && outsToDisplay < 2" class="infield-in-checkbox">
                         <label>
                             <input type="checkbox" v-model="infieldIn" />
                             Infield In
                         </label>
                     </div>
-                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp) && !( amIDisplayOffensivePlayer && gameStore.gameState.currentPlay?.payload.decisions)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-                    <button v-if="canStealSecond && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
-                    <button v-if="canStealThird && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
-                    <button v-if="canDoubleSteal && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
+                    <button v-if="showSwingAwayButton" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                    <button v-if="canStealSecond && showSwingAwayButton" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
+                    <button v-if="canStealThird && showSwingAwayButton" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
+                    <button v-if="canDoubleSteal && showSwingAwayButton" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
                 </div>
             </div>
 
