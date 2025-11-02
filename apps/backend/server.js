@@ -1998,9 +1998,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
        };
 
       // Clear details from the previous play.
-      delete newState.doublePlayDetails;
       delete newState.stealAttemptDetails;
-      delete newState.throwRollResult;
 
       // --- REFACTOR: Use the new helper function to advance the state ---
       if (newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) {
@@ -2050,6 +2048,10 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.homePlayerReadyForNext = false;
       newState.awayPlayerReadyForNext = false;
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
+      // --- THIS IS THE FIX ---
+      // Now that both players have acknowledged the result, clear the details.
+      delete newState.doublePlayDetails;
+      delete newState.throwRollResult;
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
