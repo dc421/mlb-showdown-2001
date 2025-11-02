@@ -17,6 +17,7 @@ function syncStateToUI() {
     if (gameStore.gameState) {
         // Create a comprehensive object for display
         const comprehensiveState = {
+            currentPlay: cloneDeep(gameStore.currentPlay),
             // Raw state from the store
             gameState: cloneDeep(gameStore.gameState),
             lineups: cloneDeep(gameStore.lineups),
@@ -53,6 +54,9 @@ function handleSubmit() {
         // IMPORTANT: Only send the gameState portion to the backend
         if (comprehensiveState.gameState) {
             gameStore.setGameState(gameId, comprehensiveState.gameState);
+             if (comprehensiveState.hasOwnProperty('currentPlay')) {
+                gameStore.currentPlay = cloneDeep(comprehensiveState.currentPlay);
+            }
             errorMessage.value = '';
         } else {
             errorMessage.value = 'Error: The submitted JSON must have a "gameState" property.';
