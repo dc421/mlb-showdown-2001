@@ -1405,12 +1405,14 @@ function handleVisibilityChange() {
             <div v-else-if="isDefensiveThrowDecision">
                 <h3>Defensive Throw</h3>
                 <p>Opponent is sending runners! Choose where to throw:</p>
-                <button v-for="option in defensiveThrowOptions"
-                        :key="option.from"
-                        @click="handleDefensiveThrow(option.toBase)"
-                        class="tactile-button">
-                    Throw {{ option.toBaseLabel }}
-                </button>
+                <div class="defensive-throw-decisions">
+                    <button v-for="option in defensiveThrowOptions"
+                            :key="option.from"
+                            @click="handleDefensiveThrow(option.toBase)"
+                            class="tactile-button">
+                        Throw {{ option.toBaseLabel }}
+                    </button>
+                </div>
             </div>
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
                 <div v-if="isSingleSteal">
@@ -2017,7 +2019,7 @@ function handleVisibilityChange() {
   width: 100%;
   margin: 0;
 }
-.runner-decisions-group, .steal-throw-decisions {
+.runner-decisions-group, .steal-throw-decisions, .defensive-throw-decisions {
     margin-top: 1rem;
     margin-bottom: 1rem;
     display: flex;
