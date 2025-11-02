@@ -17,6 +17,7 @@ function syncStateToUI() {
     if (gameStore.gameState) {
         // Create a comprehensive object for display
         const comprehensiveState = {
+            currentPlay: cloneDeep(gameStore.currentPlay),
             // Raw state from the store
             gameState: cloneDeep(gameStore.gameState),
             lineups: cloneDeep(gameStore.lineups),
@@ -53,6 +54,9 @@ function handleSubmit() {
         // IMPORTANT: Only send the gameState portion to the backend
         if (comprehensiveState.gameState) {
             gameStore.setGameState(gameId, comprehensiveState.gameState);
+             if (comprehensiveState.hasOwnProperty('currentPlay')) {
+                gameStore.currentPlay = cloneDeep(comprehensiveState.currentPlay);
+            }
             errorMessage.value = '';
         } else {
             errorMessage.value = 'Error: The submitted JSON must have a "gameState" property.';
@@ -61,6 +65,10 @@ function handleSubmit() {
         errorMessage.value = `Error parsing JSON: ${e.message}`;
         console.error("Failed to parse and set game state:", e);
     }
+}
+
+function loadScenario(scenario) {
+    gameStore.loadScenario(gameId, scenario);
 }
 
 // Watch for changes in the game state and update the textarea
@@ -92,6 +100,11 @@ onMounted(async () => {
         </div>
 
         <button @click="handleSubmit">Set Game State</button>
+
+        <div class="scenarios-container">
+            <h2>Load Scenario</h2>
+            <button @click="loadScenario('bases-loaded-no-outs')">Bases Loaded, No Outs</button>
+        </div>
     </div>
 </template>
 
