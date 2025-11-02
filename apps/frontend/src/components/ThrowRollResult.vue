@@ -74,6 +74,10 @@ const targetInfo = computed(() => {
         } else if (rollDetails.value.penalty < 0) {
             result += ` ${rollDetails.value.penalty}`;
         }
+        // NEW: Manually add the +5 for going home, as it's not in the penalty field
+        if (props.details.throwToBase === 4) {
+            result += ' +5';
+        }
         return result;
     }
     return `${rollDetails.value.target}`;
