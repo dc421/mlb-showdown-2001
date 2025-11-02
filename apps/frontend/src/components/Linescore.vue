@@ -20,8 +20,8 @@ const linescore = computed(() => {
 
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
-      if (event.log_message.includes('scores!') || event.log_message.includes('HOME RUN')) {
-        const runsFromScores = (event.log_message.match(/scores!/g) || []).length;
+      if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN')) {
+        const runsFromScores = (event.log_message.match(/scores/g) || []).length;
         const runsFromHomeRun = event.log_message.includes('HOME RUN') ? 1 : 0;
         const totalRunsInEvent = runsFromScores + runsFromHomeRun;
         if (isTop) {
