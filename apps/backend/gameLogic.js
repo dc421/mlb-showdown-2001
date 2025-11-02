@@ -130,7 +130,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     // --- End Infield In Logic ---
     else if (newState.outs <= 1 && newState.bases.first) {
         const dpRoll = Math.floor(Math.random() * 20) + 1;
-        const batterSpeed = getSpeedValue(batter);
+        const batterSpeed = parseInt(getSpeedValue(batter), 10);
         const isDoublePlay = (infieldDefense + dpRoll) > batterSpeed;
         const dpOutcome = isDoublePlay ? 'DOUBLE_PLAY' : 'FIELDERS_CHOICE';
 
@@ -189,7 +189,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
             for (const decision of decisions) {
                 const { runner, from } = decision;
                 const toBase = from + 2;
-                const runnerSpeed = getSpeedValue(runner);
+                const runnerSpeed = parseInt(getSpeedValue(runner), 10);
 
                 let effectiveSpeed = runnerSpeed;
                 if (toBase === 4) effectiveSpeed += 5; // going home
@@ -257,7 +257,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           for (const decision of potentialDecisions) {
               const { runner, from } = decision;
               const toBase = from + 2; // trying for the extra base
-              const runnerSpeed = getSpeedValue(runner);
+              const runnerSpeed = parseInt(getSpeedValue(runner), 10);
 
               let effectiveSpeed = runnerSpeed;
               if (toBase === 4) effectiveSpeed += 5; // going home
@@ -337,7 +337,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           const manualDecisions = potentialDecisions.filter(decision => {
               const { runner, from } = decision;
               const toBase = from + 2;
-              const runnerSpeed = getSpeedValue(runner);
+              const runnerSpeed = parseInt(getSpeedValue(runner), 10);
               const isAutoHold = (runnerSpeed === 10 && toBase === 3);
               if (isAutoHold) {
                   // The runner is already at 2nd base from the default advancement above.
@@ -372,7 +372,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (potentialDecisions.length > 0) {
           const decision = potentialDecisions[0];
           const toBase = 4; // trying for home
-          const runnerSpeed = getSpeedValue(decision.runner);
+          const runnerSpeed = parseInt(getSpeedValue(decision.runner), 10);
 
           let effectiveSpeed = runnerSpeed;
           effectiveSpeed += 5; // going home
@@ -503,7 +503,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
 
   if (runnerToChallenge) {
     const d20Roll = Math.floor(Math.random() * 20) + 1;
-    const baseSpeed = getSpeedValue(runnerToChallenge);
+    const baseSpeed = parseInt(getSpeedValue(runnerToChallenge), 10);
     let speed = baseSpeed;
     let penalty = 0;
     let defenseRoll = outfieldDefense + d20Roll;
