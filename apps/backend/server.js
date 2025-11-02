@@ -2181,12 +2181,13 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     newState.currentAtBat.pitchRollResult = null;
 
     // Check for inning end if an out was made on a single steal
-    if (isSingleSteal && newState.outs >= 3) {
+    if (isSingleSteal && !isSafe && newState.outs >= 3) {
         if (newState.isTopInning) {
             newState.isBetweenHalfInningsAway = true;
         } else {
             newState.isBetweenHalfInningsHome = true;
         }
+        newState.inningEndedOnCaughtStealing = true;
     }
 
     if (isSingleSteal) {
@@ -2314,7 +2315,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
             } else {
                 newState.isBetweenHalfInningsHome = true;
             }
-            newState.inningEndedOnCaughtStealing = true;
         }
 
         // After resolution, it's both players' turn to see the result and advance.
