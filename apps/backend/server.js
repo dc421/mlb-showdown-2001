@@ -963,9 +963,6 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 newState.awaiting_lineup_change = false;
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
-
-                // Now that the state is advanced and pitcher is set, create the inning change event.
-                await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
             }
         } else if (isSubForPitcherOnMound) {
             // This is a standard mid-inning pitching change.
