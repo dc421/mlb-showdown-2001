@@ -480,6 +480,10 @@ const pitcherOnlySetActions = computed(() => {
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
 // This refactored computed property avoids the reactive loop by not depending on `displayGameState`.
 const shouldHideCurrentAtBatOutcome = computed(() => {
+  // THIS IS THE FIX. When we are transitioning, we are DONE with the previous
+  // at-bat, and there is no longer an outcome to hide. This prevents the
+  // flicker that happens when `isSwingResultVisible` is reset to false.
+  if (isTransitioningToNextHitter.value) return false;
   if (!gameStore.gameState) return false;
 
   // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll result.
