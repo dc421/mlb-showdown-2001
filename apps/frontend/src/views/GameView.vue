@@ -99,15 +99,18 @@ const runnerDecisionsWithLabels = computed(() => {
         const fromBase = parseInt(decision.from, 10);
         let toBase;
         const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
+        const hitType = gameStore.gameState.currentPlay.payload.hitType;
 
         // The `decision.to` indicates the base they are *attempting* to reach.
         // For tag ups, this has been buggy, so we override it.
         if (isTagUp) {
             toBase = fromBase + 1;
+        } else if (hitType === '2B' && fromBase === 1) {
+            toBase = 4; // On a 2B, the decision for a runner on 1st is always to go home.
         } else if (decision.to) {
             toBase = parseInt(decision.to, 10);
         } else {
-            // If `to` is not specified, it's a standard advancement of one base.
+            // If `to` is not specified, it's a standard advancement of two bases (e.g., 1st to 3rd on a single).
             toBase = fromBase + 2;
         }
 
