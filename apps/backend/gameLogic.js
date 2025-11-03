@@ -187,7 +187,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         if (allDecisionsAutomatic) {
             for (const decision of decisions) {
                 const { runner, from } = decision;
-                const toBase = from + 2;
+                const toBase = from + 1;
                 const runnerSpeed = parseInt(getSpeedValue(runner), 10);
 
                 let effectiveSpeed = runnerSpeed;

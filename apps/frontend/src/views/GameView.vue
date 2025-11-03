@@ -655,7 +655,7 @@ const showRollForSwingButton = computed(() => {
 
 const showRollForDoublePlayButton = computed(() => {
   const isDPBall = !!gameStore.gameState?.doublePlayDetails;
-  return isDPBall && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value;
+  return isDPBall && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value && !!gameStore.amIReadyForNext;
 });
 
 const isWaitingForDoublePlayResolution = computed(() => {
