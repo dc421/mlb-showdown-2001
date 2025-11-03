@@ -511,4 +511,29 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
   return { newState, events };
 }
 
-module.exports = { applyOutcome, resolveThrow };
+function calculateStealResult(runner, toBase, catcherArm, getSpeedValue) {
+    const d20Roll = Math.floor(Math.random() * 20) + 1;
+    const defenseTotal = catcherArm + d20Roll;
+    const originalRunnerSpeed = getSpeedValue(runner);
+    let runnerSpeed = originalRunnerSpeed;
+    let penalty = 0;
+
+    if (toBase === 3) {
+        runnerSpeed -= 5;
+        penalty = 5;
+    }
+
+    const isSafe = runnerSpeed > defenseTotal;
+    const outcome = isSafe ? 'SAFE' : 'OUT';
+
+    return {
+        outcome,
+        roll: d20Roll,
+        defense: catcherArm,
+        target: originalRunnerSpeed,
+        penalty,
+        isSafe,
+    };
+}
+
+module.exports = { applyOutcome, resolveThrow, calculateStealResult };
