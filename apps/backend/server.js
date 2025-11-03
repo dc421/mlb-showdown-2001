@@ -955,22 +955,16 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         if (newState.awaiting_lineup_change) {
             // This is for when a new half-inning starts and a pitcher is needed.
             if (playerInCard.control !== null) {
+                // This is the mandatory pitcher selection. By making the sub, the user is ready.
+                // We advance the state here, now that the lineup will be valid.
+                newState = advanceToNextHalfInning(newState);
+
                 newState.awaiting_lineup_change = false;
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
 
-                // Now that the pitcher is selected, create the delayed inning change event,
-                // but only if one hasn't been created for this half-inning already.
-                const inningHalfString = newState.isTopInning ? 'Top' : 'Bottom';
-                const inningString = `${inningHalfString} ${getOrdinal(newState.inning)}`;
-                const existingEventResult = await client.query(
-                    `SELECT 1 FROM game_events WHERE game_id = $1 AND log_message LIKE $2`,
-                    [gameId, `%<b>${inningString}</b>%`]
-                );
-
-                if (existingEventResult.rows.length === 0) {
-                    await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
-                }
+                // Now that the state is advanced and pitcher is set, create the inning change event.
+                await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
             }
         } else if (isSubForPitcherOnMound) {
             // This is a standard mid-inning pitching change.
@@ -2003,14 +1997,14 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       delete newState.stealAttemptDetails;
 
       // --- REFACTOR: Use the new helper function to advance the state ---
-      if (newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) {
+      if ((newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) && !newState.awaiting_lineup_change) {
           newState = advanceToNextHalfInning(newState);
           // Since the inning has now officially changed, create the event.
           await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
       }
 
       // 4. Check if we are now awaiting a pitcher selection
-      if (newState.currentAtBat.pitcher === null) {
+      if (newState.currentAtBat.pitcher === null && !newState.isBetweenHalfInningsAway && !newState.isBetweenHalfInningsHome) {
           newState.awaiting_lineup_change = true;
       } else {
           newState.awaiting_lineup_change = false;
