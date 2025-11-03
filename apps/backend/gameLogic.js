@@ -166,9 +166,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         events.push(`${batter.displayName} grounds out.`);
         newState.outs++;
         if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third); }
-            if (newState.bases.second) { newState.bases.third = newState.bases.second; }
-            newState.bases.second = null;
+            if (newState.bases.third) { scoreRun(newState.bases.third);  newState.bases.third = null;}
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
         }
     }
   }
@@ -260,7 +259,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (newState.outs === 2) effectiveSpeed += 5;
 
           const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
-          const isAutoHold = (runnerSpeed === 10 && (toBase === 3 || toBase === 2)) || (runnerSpeed === 15 && toBase === 3);
+          const isAutoHold = runnerSpeed === 10 && toBase === 3;
 
           if (isAutoAdvance) return { ...decision, type: 'auto_advance' };
           if (isAutoHold) return { ...decision, type: 'auto_hold' };

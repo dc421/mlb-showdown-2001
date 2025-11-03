@@ -960,7 +960,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 wasReliefPitcher = true;
 
                 // --- REFACTOR: Use the new helper function to advance the state ---
-                //newState = advanceToNextHalfInning(newState);
+                newState = advanceToNextHalfInning(newState);
                 // --- END REFACTOR ---
 
                 // Now that the pitcher is selected, create the delayed inning change event,
@@ -2013,6 +2013,13 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
       }
 
+      // 4. Check if we are now awaiting a pitcher selection
+      if (newState.currentAtBat.pitcher === null) {
+          newState.awaiting_lineup_change = true;
+      } else {
+          newState.awaiting_lineup_change = false;
+      }
+
       const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
       newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
@@ -2054,6 +2061,8 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.homePlayerReadyForNext = false;
       newState.awayPlayerReadyForNext = false;
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
+      newState.inningEndedOnCaughtStealing = false,
+      // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       delete newState.doublePlayDetails;
       delete newState.lastStealResult;
@@ -2130,6 +2139,9 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     // This is the core of the fix. If a steal is ALREADY in progress,
     // this new request is a consecutive steal. We queue it up and lock
     // the offensive player until the defense resolves the first throw.
+    let isSingleSteal = false;
+    let isSafe = true; // Default to true, only becomes false if caught.
+
     if (newState.currentPlay?.type === 'STEAL_ATTEMPT') {
         newState.currentPlay.payload.queuedDecisions = decisions;
         // Lock the turn to the defensive player, creating the "waiting" state.
@@ -2137,7 +2149,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     } else {
         // This is the first steal attempt in a potential sequence.
         const stealingRunners = Object.keys(decisions).filter(key => decisions[key]);
-        const isSingleSteal = stealingRunners.length === 1;
+        isSingleSteal = stealingRunners.length === 1;
 
         if (isSingleSteal) {
             const fromBase = parseInt(stealingRunners[0], 10);
@@ -2155,7 +2167,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                     runnerSpeed -= 5;
                     penalty = 5;
                 }
-                const isSafe = runnerSpeed > defenseTotal;
+                isSafe = runnerSpeed > defenseTotal;
                 const outcome = isSafe ? 'SAFE' : 'OUT';
                 const runnerName = runner.name;
 
