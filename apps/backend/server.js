@@ -2132,6 +2132,9 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     // This is the core of the fix. If a steal is ALREADY in progress,
     // this new request is a consecutive steal. We queue it up and lock
     // the offensive player until the defense resolves the first throw.
+    let isSingleSteal = false;
+    let isSafe = true; // Default to true, only becomes false if caught.
+
     if (newState.currentPlay?.type === 'STEAL_ATTEMPT') {
         newState.currentPlay.payload.queuedDecisions = decisions;
         // Lock the turn to the defensive player, creating the "waiting" state.
@@ -2139,7 +2142,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     } else {
         // This is the first steal attempt in a potential sequence.
         const stealingRunners = Object.keys(decisions).filter(key => decisions[key]);
-        const isSingleSteal = stealingRunners.length === 1;
+        isSingleSteal = stealingRunners.length === 1;
 
         if (isSingleSteal) {
             const fromBase = parseInt(stealingRunners[0], 10);
@@ -2157,7 +2160,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                     runnerSpeed -= 5;
                     penalty = 5;
                 }
-                const isSafe = runnerSpeed > defenseTotal;
+                isSafe = runnerSpeed > defenseTotal;
                 const outcome = isSafe ? 'SAFE' : 'OUT';
                 const runnerName = runner.name;
 
