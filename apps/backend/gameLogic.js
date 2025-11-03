@@ -332,28 +332,20 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       newState.bases.second = null;
 
       const runnerFrom1 = state.bases.first;
+      newState.bases.first = null; // Clear first base now
+
       const potentialDecisions = runnerFrom1 ? [{ runner: runnerFrom1, from: 1 }] : [];
 
       let isAutomatic = false;
       let autoAdvance = false;
+      let autoHold = false;
 
       if (potentialDecisions.length > 0) {
           const decision = potentialDecisions[0];
-          const toBase = 4; // trying for home
           const runnerSpeed = parseInt(getSpeedValue(decision.runner), 10);
-
           let effectiveSpeed = runnerSpeed;
-          effectiveSpeed += 5; // going home
+          effectiveSpeed += 5; // bonus for going home on a double
           if (newState.outs === 2) effectiveSpeed += 5;
-
-          console.log('--- RUNNER ADVANCE DEBUG (2B) ---');
-          console.log('Runner Base Speed:', runnerSpeed);
-          console.log('Effective Speed:', effectiveSpeed);
-          console.log('Outs:', newState.outs);
-          console.log('Outfield Defense:', outfieldDefense);
-          console.log('Auto-Advance Check:', `${effectiveSpeed} >= ${outfieldDefense + 20}`);
-          console.log('Result:', effectiveSpeed >= (outfieldDefense + 20));
-          console.log('------------------------------------');
 
           if (effectiveSpeed >= (outfieldDefense + 20)) {
               isAutomatic = true;
@@ -361,24 +353,25 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           }
       }
 
+      let combinedEvent = initialEvent;
+
       if (isAutomatic) {
-          events.push(initialEvent);
           if (autoAdvance) {
               scoreRun(runnerFrom1, false);
-              events.push(`${runnerFrom1.name} scores from first without a throw!`);
+              combinedEvent += ` ${runnerFrom1.name} scores from first without a throw!`;
           }
-          newState.bases.first = null;
+          events.push(combinedEvent);
+          newState.bases.second = runnerData; // Batter placed on second since play is resolved
       } else {
           if (runnerFrom1) {
               newState.bases.third = runnerFrom1;
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent } };
+              // DECOUPLE batter from runner decision by saving batter data to the currentPlay
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent, batter: runnerData } };
           } else {
               events.push(initialEvent);
+              newState.bases.second = runnerData; // No runner decision, so batter is safe on second
           }
-          newState.bases.first = null;
       }
-
-      newState.bases.second = runnerData;
   }
   else if (outcome === 'IBB') {
     events.push(`${batter.displayName} is intentionally walked.`);
