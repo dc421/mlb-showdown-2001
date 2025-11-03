@@ -960,7 +960,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 wasReliefPitcher = true;
 
                 // --- REFACTOR: Use the new helper function to advance the state ---
-                //newState = advanceToNextHalfInning(newState);
+                newState = advanceToNextHalfInning(newState);
                 // --- END REFACTOR ---
 
                 // Now that the pitcher is selected, create the delayed inning change event,
@@ -2005,6 +2005,13 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           newState = advanceToNextHalfInning(newState);
           // Since the inning has now officially changed, create the event.
           await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+      }
+
+      // 4. Check if we are now awaiting a pitcher selection
+      if (newState.currentAtBat.pitcher === null) {
+          newState.awaiting_lineup_change = true;
+      } else {
+          newState.awaiting_lineup_change = false;
       }
 
       const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
