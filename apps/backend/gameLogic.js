@@ -259,7 +259,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (newState.outs === 2) effectiveSpeed += 5;
 
           const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
-          const isAutoHold = (runnerSpeed === 10 && (toBase === 3 || toBase === 2)) || (runnerSpeed === 15 && toBase === 3);
+          const isAutoHold = runnerSpeed === 10 && toBase === 3;
 
           if (isAutoAdvance) return { ...decision, type: 'auto_advance' };
           if (isAutoHold) return { ...decision, type: 'auto_hold' };
