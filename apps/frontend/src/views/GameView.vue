@@ -673,12 +673,19 @@ function handleRollForDoublePlay() {
   defensiveDPRollClicked.value = true;
 }
 
-watch(() => gameStore.gameState?.doublePlayDetails, (newDetails) => {
-  if (newDetails) {
-    // A new double play opportunity has arisen. Reset all local state.
+watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => {
+  const isNewDPPlay = newDetails && !oldDetails;
+  const isDPPlayOver = !newDetails && oldDetails;
+
+  // Only reset the local state at the very beginning or very end of the DP sequence.
+  // This prevents the flag from flipping mid-sequence when the object is updated.
+  if (isNewDPPlay || isDPPlayOver) {
     defensiveDPRollClicked.value = false;
     offensiveDPResultVisible.value = false;
-    // Start the timer for the offensive player immediately.
+  }
+
+  // If it's a new double play, start the timer for the offensive player.
+  if (isNewDPPlay) {
     if (amIOffensivePlayer.value) {
       setTimeout(() => {
         offensiveDPResultVisible.value = true;
