@@ -914,14 +914,23 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     // 1. Update bases (for pinch runners)
     if (newState.bases.first && newState.bases.first.card_id === playerOutId) {
         newState.bases.first = playerInCard;
+        if (newState.currentAtBat.basesBeforePlay.first?.card_id === playerOutId) {
+            newState.currentAtBat.basesBeforePlay.first = playerInCard;
+        }
         wasPinchRunner = true;
     }
     if (newState.bases.second && newState.bases.second.card_id === playerOutId) {
         newState.bases.second = playerInCard;
+        if (newState.currentAtBat.basesBeforePlay.second?.card_id === playerOutId) {
+            newState.currentAtBat.basesBeforePlay.second = playerInCard;
+        }
         wasPinchRunner = true;
     }
     if (newState.bases.third && newState.bases.third.card_id === playerOutId) {
         newState.bases.third = playerInCard;
+        if (newState.currentAtBat.basesBeforePlay.third?.card_id === playerOutId) {
+            newState.currentAtBat.basesBeforePlay.third = playerInCard;
+        }
         wasPinchRunner = true;
     }
 
