@@ -2254,8 +2254,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
-    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-
     // --- SINGLE STEAL RESOLUTION ---
     if (newState.pendingStealAttempt) {
         const { runner, throwToBase } = newState.pendingStealAttempt;
