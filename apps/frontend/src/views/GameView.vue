@@ -25,6 +25,7 @@ const nextGameId = ref(null);
 const offensiveDPResultVisible = ref(false);
 const defensiveDPRollClicked = ref(false);
 const hasRolledForSteal = ref(false);
+const isTransitioningToNextHitter = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -631,7 +632,10 @@ const showRollForSwingButton = computed(() => {
   let reason = '';
   let result = false;
 
-  if (!amIDisplayOffensivePlayer.value) {
+  if (isTransitioningToNextHitter.value) {
+    reason = 'Transitioning to next hitter';
+    result = false;
+  } else if (!amIDisplayOffensivePlayer.value) {
     reason = 'Not the offensive player';
     result = false;
   } else if (isSwingResultVisible.value) {
@@ -1041,6 +1045,7 @@ function handleSwing(action = null) {
 }
 function handleNextHitter() {
   console.log('--- 1. handleNextHitter called ---');
+  isTransitioningToNextHitter.value = true;
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
   gameStore.setIsStealResultVisible(false);
@@ -1138,6 +1143,7 @@ watch(batterToDisplay, (newBatter, oldBatter) => {
 watch(bothPlayersCaughtUp, (areThey) => {
     if (areThey) {
         anticipatedBatter.value = null;
+        isTransitioningToNextHitter.value = false;
     }
 });
 
