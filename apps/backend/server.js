@@ -2048,6 +2048,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.homePlayerReadyForNext = false;
       newState.awayPlayerReadyForNext = false;
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
+      newState.inningEndedOnCaughtStealing = false,
       // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       delete newState.doublePlayDetails;

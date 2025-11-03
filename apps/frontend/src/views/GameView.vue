@@ -497,7 +497,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!atBatIsResolved && !gameStore.opponentReadyForNext) return false;
 
   // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
-  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !isSwingResultVisible.value;
+  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !isSwingResultVisible.value && !gameStore.gameState.inningEndedOnCaughtStealing;
   if (isOffensivePlayerWaitingToRoll) {
     return true;
   }
@@ -574,13 +574,13 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext));
+  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && gameStore.amIReadyForNext.value);
   console.log(`showRollForPitchButton: ${result}`);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
-  const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(amIDisplayOffensivePlayer.value && !!gameStore.gameState.currentPlay && !gameStore.gameState.currentPlay?.payload.decisions[1]) && !isWaitingForQueuedStealResolution.value;
+  const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(amIDisplayOffensivePlayer.value && !!gameStore.gameState.currentPlay && !!gameStore.gameState.currentPlay?.payload.decisions[1]) && !isWaitingForQueuedStealResolution.value && !gameStore.gameState.inningEndedOnCaughtStealing;
   console.log(`showSwingAwayButton: ${result}`);
   return result;
 });
@@ -589,7 +589,7 @@ const showNextHitterButton = computed(() => {
   let reason = '';
   let result = false;
 
-  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+  if (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) {
     reason = 'Inning ended on caught stealing';
     result = true;
   } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
@@ -636,6 +636,9 @@ const showRollForSwingButton = computed(() => {
     result = false;
   } else if (isSwingResultVisible.value) {
     reason = 'Swing result is already visible';
+    result = false;
+  } else if (gameStore.gameState.inningEndedOnCaughtStealing) {
+    reason = 'inningEndedOnCaughtStealing true';
     result = false;
   } else {
     result = bothPlayersSetAction.value || gameStore.opponentReadyForNext;
@@ -699,7 +702,7 @@ const showThrowRollResult = computed(() => {
 });
 
 const showAutoThrowResult = computed(() => {
-  if (!gameStore.gameState?.throwRollResult) {
+  if (!gameStore.gameState?.throwRollResult  || (!!gameStore.gameState.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) {
     return false;
   }
   // If a swing result is visible, it means we're in a post-at-bat scenario
@@ -731,7 +734,7 @@ const stealResultDetails = computed(() => {
 });
 
 const showStealResult = computed(() => {
-  if (!stealResultDetails.value) {
+  if (!stealResultDetails.value || (gameStore.gameState.inningEndedOnCaughtStealing.value && gameStore.amIReadyForNext.value)) {
     return false;
   }
   // For the offensive player, show the result immediately.
@@ -1464,7 +1467,7 @@ function handleVisibilityChange() {
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
-            <div v-else-if="isWaitingForDoublePlayResolution || isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT' && !gameStore.gameState.currentPlay?.payload.decisions[1] || gameStore.gameState.currentPlay?.type === 'ADVANCE' && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))" class="waiting-text">Waiting for throw...</div>
+            <div v-else-if="isWaitingForDoublePlayResolution || isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT' && !!gameStore.gameState.currentPlay?.payload.decisions[1] || gameStore.gameState.currentPlay?.type === 'ADVANCE' && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))" class="waiting-text">Waiting for throw...</div>
         </div>
 
         <!-- Player Cards Wrapper -->

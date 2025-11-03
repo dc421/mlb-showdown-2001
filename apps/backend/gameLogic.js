@@ -166,9 +166,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         events.push(`${batter.displayName} grounds out.`);
         newState.outs++;
         if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third); }
-            if (newState.bases.second) { newState.bases.third = newState.bases.second; }
-            newState.bases.second = null;
+            if (newState.bases.third) { scoreRun(newState.bases.third);  newState.bases.third = null;}
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
         }
     }
   }
