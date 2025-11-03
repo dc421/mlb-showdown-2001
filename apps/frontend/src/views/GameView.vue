@@ -699,51 +699,14 @@ const showThrowRollResult = computed(() => {
 });
 
 const showAutoThrowResult = computed(() => {
-  if (!gameStore.gameState?.throwRollResult) {
-    return false;
-  }
-  // If a swing result is visible, it means we're in a post-at-bat scenario
-  // where a throw result should be shown.
-  if (isSwingResultVisible.value) {
-    return true;
-  }
-  // If there's no swing result visible, we might be in a steal scenario.
-  // In a steal, pitcherAction and batterAction are nullified before the steal.
-  const atBat = gameStore.gameState.currentAtBat;
-  if (atBat && !atBat.pitcherAction && !atBat.batterAction) {
-    return true; // This is likely a steal
-  }
-
-  return false; // Otherwise, hide it.
+  // This computed is now ONLY for post-at-bat throws (e.g., fielder's choice).
+  // Steals are handled by the new `showStealResult` computed.
+  return isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult;
 });
 
-const stealResultDetails = computed(() => {
-    const details = gameStore.gameState?.stealAttemptDetails;
-    if (!details) return null;
-
-    if (amIOffensivePlayer.value && details.clearedForOffense) {
-        return null;
-    }
-    if (amIDefensivePlayer.value && details.clearedForDefense) {
-        return null;
-    }
-    return details;
-});
-
+// NEW: This computed specifically controls the visibility of the steal result box.
 const showStealResult = computed(() => {
-  if (!stealResultDetails.value) {
-    return false;
-  }
-  // For the offensive player, show the result immediately.
-  if (amIDisplayOffensivePlayer.value) {
-    return true;
-  }
-  // For the defensive player, only show it after they've clicked the roll button.
-  if (amIDisplayDefensivePlayer.value) {
-    return hasRolledForSteal.value;
-  }
-  // Fallback for spectators, etc.
-  return true;
+  return !!gameStore.gameState?.lastStealResult;
 });
 
 const defensiveRatingsToDisplay = computed(() => {
@@ -1068,20 +1031,31 @@ function handleResolveSteal(throwToBase = null) {
 
 const isStealAttemptInProgress = computed(() => {
     if (!amIDefensivePlayer.value || !isMyTurn.value) return false;
-    // Single steal is handled by `stealAttemptDetails`, double steal by `currentPlay`.
-    const isSingleStealInProgress = !!gameStore.gameState?.stealAttemptDetails?.isStealResultHiddenForDefense;
-    const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT';
+    // A steal is in progress if there is a pending steal attempt from the backend.
+    const isSingleStealInProgress = !!gameStore.gameState?.pendingStealAttempt;
+    // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
+    const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isSingleStealInProgress;
     return isSingleStealInProgress || isDoubleStealInProgress;
 });
 
 const isSingleSteal = computed(() => {
-    // This now specifically checks for the single steal object from the backend
-    return isStealAttemptInProgress.value && !!gameStore.gameState.stealAttemptDetails;
+    return isStealAttemptInProgress.value && !!gameStore.gameState.pendingStealAttempt;
 });
 
 const stealingRunner = computed(() => {
     if (!isSingleSteal.value) return null;
-    return gameStore.gameState.stealAttemptDetails.runnerName;
+    return gameStore.gameState.pendingStealAttempt.runnerName;
+});
+
+const targetBase = computed(() => {
+    if (!isSingleSteal.value) return null;
+    const baseNumber = gameStore.gameState.pendingStealAttempt.throwToBase;
+    const getOrdinal = (n) => {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
+    return getOrdinal(baseNumber);
 });
 
 const isInfieldInDecision = computed(() => {
@@ -1333,7 +1307,7 @@ function handleVisibilityChange() {
           />
           <ThrowRollResult
             v-if="showStealResult"
-            :details="stealResultDetails"
+            :details="gameStore.gameState.lastStealResult"
             :teamColors="pitcherTeamColors"
           />
           <div class="defensive-ratings">
@@ -1419,7 +1393,7 @@ function handleVisibilityChange() {
             </div>
             <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
                 <div v-if="isSingleSteal">
-                    <h3>{{ stealingRunner }} is stealing!</h3>
+                    <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
                     <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
                 </div>
                 <div v-else>
