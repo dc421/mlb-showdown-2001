@@ -956,8 +956,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
             // This is for when a new half-inning starts and a pitcher is needed.
             if (playerInCard.control !== null) {
                 // This is the mandatory pitcher selection. By making the sub, the user is ready.
-                // We advance the state here, now that the lineup will be valid.
-                newState = advanceToNextHalfInning(newState);
+                // DO NOT ADVANCE THE STATE HERE. Let the '/next-hitter' endpoint handle it.
+                // The state will be advanced there, and the inning change event created.
+                // newState = advanceToNextHalfInning(newState);
 
                 newState.awaiting_lineup_change = false;
                 newState.currentAtBat.pitcher = playerInCard;
