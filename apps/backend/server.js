@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome, resolveThrow } = require('./gameLogic');
+const { applyOutcome, resolveThrow, calculateStealResult } = require('./gameLogic');
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
@@ -2156,27 +2156,16 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             const fromBase = parseInt(stealingRunners[0], 10);
             const toBase = fromBase + 1;
             const runner = newState.bases[baseMap[fromBase]];
-
             if (runner) {
                 const catcherArm = await getCatcherArm(defensiveTeam);
-                const d20Roll = Math.floor(Math.random() * 20) + 1;
-                const defenseTotal = catcherArm + d20Roll;
-                const originalRunnerSpeed = getSpeedValue(runner);
-                let runnerSpeed = originalRunnerSpeed;
-                let penalty = 0;
-                if (toBase === 3) {
-                    runnerSpeed -= 5;
-                    penalty = 5;
-                }
-                isSafe = runnerSpeed > defenseTotal;
-                const outcome = isSafe ? 'SAFE' : 'OUT';
+                const { outcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
                 const runnerName = runner.name;
 
                 if (!isSafe) {
                     newState.outs++;
                 }
 
-                let logMessage = outcome === 'SAFE'
+                const logMessage = outcome === 'SAFE'
                     ? `${runnerName} takes off for ${getOrdinal(toBase)}... SAFE!`
                     : `${runnerName} takes off for ${getOrdinal(toBase)}... CAUGHT STEALING! <strong>Outs: ${newState.outs}</strong>`;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
@@ -2186,12 +2175,12 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                 }
                 newState.bases[baseMap[fromBase]] = null;
 
-                // For a single steal, we create a pendingStealAttempt.
-                // The actual result will be created in resolve-steal.
                 newState.pendingStealAttempt = {
-                    runner: runner,
-                    runnerName: runnerName,
+                    runner,
+                    runnerName,
                     throwToBase: toBase,
+                    outcome,
+                    ...resultDetails
                 };
                 // We still use currentPlay to manage the overall "steal sequence" state
                 newState.currentPlay = {
@@ -2257,48 +2246,51 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
     // --- SINGLE STEAL RESOLUTION ---
     if (newState.pendingStealAttempt) {
-        const { runner, throwToBase } = newState.pendingStealAttempt;
-        const catcherArm = await getCatcherArm(defensiveTeam);
-        const d20Roll = Math.floor(Math.random() * 20) + 1;
-        const defenseTotal = catcherArm + d20Roll;
-        const originalRunnerSpeed = getSpeedValue(runner);
-        let runnerSpeed = originalRunnerSpeed;
-        let penalty = 0;
-        if (throwToBase === 3) { runnerSpeed -= 5; penalty = 5; }
-        const isSafe = runnerSpeed > defenseTotal;
-        const outcome = isSafe ? 'SAFE' : 'OUT';
-
-        // The result of this throw is now stored for the UI to display.
-        newState.lastStealResult = {
-            runner: runner.name, outcome, roll: d20Roll, defense: catcherArm,
-            target: originalRunnerSpeed, penalty, throwToBase
-        };
-
-        // This steal is no longer pending.
+        // The outcome was already calculated in initiate-steal. We just use it here.
+        const { outcome, runnerName, ...resultDetails } = newState.pendingStealAttempt;
+        newState.lastStealResult = { runner: runnerName, outcome, ...resultDetails };
         newState.pendingStealAttempt = null;
+
+        // FIX: Define queuedDecisions before using it.
+        const queuedDecisions = newState.currentPlay?.payload?.queuedDecisions;
 
         if (outcome === 'SAFE') {
             if (queuedDecisions) {
-                // A consecutive steal was queued. Set it up as the new pending steal.
-                const nextFromBase = parseInt(Object.keys(queuedDecisions)[0], 10);
-                const nextToBase = nextFromBase + 1;
-                const nextRunner = newState.bases[baseMap[nextFromBase]];
-                newState.pendingStealAttempt = {
-                    runner: nextRunner,
-                    runnerName: nextRunner.name,
-                    throwToBase: nextToBase,
-                };
+                const fromBase = parseInt(Object.keys(queuedDecisions)[0], 10);
+                const toBase = fromBase + 1;
+                const runner = newState.bases[baseMap[fromBase]];
+
+                if (runner) {
+                    const catcherArm = await getCatcherArm(defensiveTeam);
+                    const { outcome: newOutcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                    const newRunnerName = runner.name;
+
+                    if (!isSafe) { newState.outs++; }
+
+                    const logMessage = newOutcome === 'SAFE'
+                        ? `${newRunnerName} takes off for ${getOrdinal(toBase)}... SAFE!`
+                        : `${newRunnerName} takes off for ${getOrdinal(toBase)}... CAUGHT STEALING! <strong>Outs: ${newState.outs}</strong>`;
+                    await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
+
+                    if (isSafe) { newState.bases[baseMap[toBase]] = runner; }
+                    newState.bases[baseMap[fromBase]] = null;
+
+                    newState.pendingStealAttempt = {
+                        runner,
+                        runnerName: newRunnerName,
+                        throwToBase: toBase,
+                        outcome: newOutcome,
+                        ...resultDetails
+                    };
+                }
                 newState.currentPlay.payload = { decisions: queuedDecisions };
-                // It remains the defensive player's turn to resolve the next steal.
                 await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
             } else {
-                // No queued steal, the sequence is over. It's both players' turn to proceed.
                 newState.currentPlay = null;
                 await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
             }
         } else { // Caught stealing.
-            newState.currentPlay = null; // The play is over.
-            // It's the defensive player's turn to click 'Next Hitter'.
+            newState.currentPlay = null;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         }
         newState.currentAtBat.basesBeforePlay = { ...newState.bases };
