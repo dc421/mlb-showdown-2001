@@ -959,10 +959,6 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
 
-                // --- REFACTOR: Use the new helper function to advance the state ---
-                newState = advanceToNextHalfInning(newState);
-                // --- END REFACTOR ---
-
                 // Now that the pitcher is selected, create the delayed inning change event,
                 // but only if one hasn't been created for this half-inning already.
                 const inningHalfString = newState.isTopInning ? 'Top' : 'Bottom';
