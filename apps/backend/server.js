@@ -973,7 +973,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                 newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
 
-                // Now that the state is advanced and pitcher is set, create the inning change event.
+                // Now that the pitcher is set, create the inning change event that was skipped before.
                 await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
             }
         } else if (isSubForPitcherOnMound) {
