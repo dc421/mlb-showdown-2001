@@ -16,6 +16,7 @@ export const useGameStore = defineStore('game', () => {
   const teams = ref({ home: null, away: null });
   const setupState = ref(null);
   const playerSelectedForSwap = ref(null);
+  const snapshots = ref([]);
 
 async function swapPlayerPositions(gameId, playerAId, playerBId) {
   const auth = useAuthStore();
@@ -394,6 +395,67 @@ async function resetRolls(gameId) {
   const isSwingResultVisible = ref(false);
   const isStealResultVisible = ref(false);
 
+  async function fetchSnapshots(gameId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch snapshots');
+      snapshots.value = await response.json();
+    } catch (error) {
+      console.error('Error fetching snapshots:', error);
+    }
+  }
+
+  async function createSnapshot(gameId, snapshotName) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
+        body: JSON.stringify({ snapshot_name: snapshotName })
+      });
+      if (!response.ok) throw new Error('Failed to create snapshot');
+      await fetchSnapshots(gameId); // Refresh the list
+    } catch (error) {
+      console.error('Error creating snapshot:', error);
+    }
+  }
+
+  async function restoreSnapshot(gameId, snapshotId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots/${snapshotId}/restore`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to restore snapshot');
+      // Game state will be updated via websocket, but we can also fetch manually
+      await fetchGame(gameId);
+    } catch (error) {
+      console.error('Error restoring snapshot:', error);
+    }
+  }
+
+  async function deleteSnapshot(gameId, snapshotId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots/${snapshotId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to delete snapshot');
+      await fetchSnapshots(gameId); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting snapshot:', error);
+    }
+  }
+
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
   }
@@ -688,5 +750,10 @@ async function resetRolls(gameId) {
     playerSelectedForSwap,
     swapPlayerPositions,
     amIDefensivePlayer,
+    snapshots,
+    fetchSnapshots,
+    createSnapshot,
+    restoreSnapshot,
+    deleteSnapshot,
   };
 })
