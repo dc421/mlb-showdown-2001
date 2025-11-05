@@ -2161,7 +2161,9 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             const runner = newState.bases[baseMap[fromBase]];
             if (runner) {
                 const catcherArm = await getCatcherArm(defensiveTeam);
-                const { outcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                const stealResult = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                isSafe = stealResult.isSafe;
+                const { outcome, ...resultDetails } = stealResult;
                 const runnerName = runner.name;
 
                 if (!isSafe) {
