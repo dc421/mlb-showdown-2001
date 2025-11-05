@@ -452,7 +452,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events, scorers };
 }
 
-function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, initialEvent = '') {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
@@ -491,21 +491,25 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue) {
         throwToBase: throwTo
     };
 
+    let outcomeMessage = '';
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
-        events.push(`${runnerToChallenge.name} is SAFE at home!`);
+        outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
       } else {
         newState.bases[baseMap[throwTo]] = runnerToChallenge;
-        events.push(`${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`);
+        outcomeMessage = `${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`;
       }
       newState.bases[baseMap[fromBaseOfThrow]] = null;
     } else {
       newState.outs++;
       newState.bases[baseMap[fromBaseOfThrow]] = null;
-      // Return a fragment now, not a full event
-      events.push(`${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
+      outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`;
     }
+
+    // Consolidate the event message here
+    const finalMessage = initialEvent ? `${initialEvent} ${outcomeMessage}` : outcomeMessage;
+    events.push(finalMessage);
   }
 
   return { newState, events };
