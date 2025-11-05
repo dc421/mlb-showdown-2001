@@ -2408,14 +2408,12 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const { initialEvent } = newState.currentPlay.payload;
             const originalOuts = newState.outs;
 
-            // FIX: We no longer need to manually move the runner back. `resolveThrow`
-            // is smart enough to handle the state as it was left by `applyOutcome`.
-            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue);
+            // --- REFACTORED LOGIC ---
+            // Pass the initialEvent to the updated resolveThrow function.
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, initialEvent);
             newState = resolvedState;
 
             // --- FIX for 1B+ ---
-            // If the outcome was a 1B+ and the lead runner's decision just opened up
-            // second base, the batter now gets their automatic advance.
             const batterOnFirst = newState.bases.first;
             if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
                 newState.bases.second = batterOnFirst;
@@ -2434,14 +2432,13 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             newState.currentPlay = null;
 
             if (events.length > 0) {
-                let combinedLogMessage = initialEvent ? `${initialEvent} ${events.join(' ')}` : events.join(' ');
-                // Use the new outs count from the resolved state.
+                // The event from resolveThrow is now fully consolidated.
+                let consolidatedLogMessage = events[0];
                 if (newState.outs > originalOuts) {
-                    combinedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
+                    consolidatedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
                 }
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', combinedLogMessage]);
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', consolidatedLogMessage]);
             }
-
 
             if (newState.outs >= 3) {
                  if (newState.isTopInning) {
@@ -2460,7 +2457,11 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             newState.currentPlay.payload.choices = decisions;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         } else {
-            // --- No runners sent, proceed to next hitter ---
+            // --- No runners sent, log the initial event and proceed ---
+            const { initialEvent } = newState.currentPlay.payload;
+            if (initialEvent) {
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', initialEvent]);
+            }
             newState.currentPlay = null;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
         }
