@@ -961,20 +961,12 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         }
     } else {
         // Defensive substitutions can change the active pitcher on the mound.
-        if (newState.awaiting_lineup_change) {
-            // This is for when a new half-inning starts and a pitcher is needed.
-            if (playerInCard.control !== null) {
-                // This is the mandatory pitcher selection. By making the sub, the user is ready.
-                // DO NOT ADVANCE THE STATE HERE. Let the '/next-hitter' endpoint handle it.
-                // The state will be advanced there, and the inning change event created.
-                // newState = advanceToNextHalfInning(newState);
-
+        const wasAwaitingLineupChange = newState.awaiting_lineup_change;
+        if (wasAwaitingLineupChange) {
+            if (playerInCard.control !== null) { // A valid pitcher is being subbed in.
                 newState.awaiting_lineup_change = false;
-                newState.currentAtBat.pitcher = playerInCard;
                 wasReliefPitcher = true;
-
-                // Now that the pitcher is set, create the inning change event that was skipped before.
-                await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+                newState.currentAtBat.pitcher = playerInCard;
             }
         } else if (isSubForPitcherOnMound) {
             // This is a standard mid-inning pitching change.
@@ -989,6 +981,12 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
             } else {
                 newState.currentAwayPitcher = playerInCard;
             }
+        }
+
+        // --- THIS IS THE FIX ---
+        // If we just resolved the awaiting state, NOW we can create the event because the new pitcher is in place.
+        if (wasAwaitingLineupChange && !newState.awaiting_lineup_change) {
+            await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
         }
     }
 
@@ -2006,25 +2004,24 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // Clear details from the previous play.
       delete newState.stealAttemptDetails;
 
-      // --- REFACTOR: Use the new helper function to advance the state ---
-      if ((newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome) && !newState.awaiting_lineup_change) {
-          newState = advanceToNextHalfInning(newState);
-          // Since the inning has now officially changed, create the event.
-          await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
-      }
+      const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
-      // 4. Check if we are now awaiting a pitcher selection
-      if (newState.currentAtBat.pitcher === null && !newState.isBetweenHalfInningsAway && !newState.isBetweenHalfInningsHome) {
-          newState.awaiting_lineup_change = true;
+      // Logic to advance the batting order.
+      // If the inning ended, we first advance the state to the next half, THEN advance the new team's order.
+      if (wasBetweenHalfInnings) {
+        newState = advanceToNextHalfInning(newState);
+        const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+        newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
       } else {
-          newState.awaiting_lineup_change = false;
+        // Otherwise, it's a normal at-bat, advance the current team's order.
+        const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+        newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
       }
 
-      const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-      newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
-
-      // 3. Create a fresh scorecard for the new at-bat.
+      // Now that the state is correct for the new at-bat, get the players.
       const { batter, pitcher } = await getActivePlayers(gameId, newState);
+
+      // Create a fresh scorecard for the new at-bat.
       newState.currentAtBat = {
           batter: batter,
           pitcher: pitcher,
@@ -2036,16 +2033,22 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           awayScoreBeforePlay: newState.awayScore
       };
 
-      // NEW: If there is no runner on third base OR there are 2 outs, the infield must be brought back to normal.
-      if (!newState.bases.third || newState.outs >= 2) {
-          newState.currentAtBat.infieldIn = false;
-      }
-
-      // 4. Check if we are now awaiting a pitcher selection
-      if (newState.currentAtBat.pitcher === null) {
+      // Now that we have the new pitcher, determine if a lineup change is needed.
+      if (pitcher === null) {
           newState.awaiting_lineup_change = true;
       } else {
           newState.awaiting_lineup_change = false;
+      }
+
+      // If the inning ended AND we DON'T need a new pitcher, create the change event.
+      // This is the core of the fix: the event is suppressed if `awaiting_lineup_change` is true.
+      if (wasBetweenHalfInnings && !newState.awaiting_lineup_change) {
+        await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+      }
+
+      // If there is no runner on third base OR there are 2 outs, the infield must be brought back to normal.
+      if (!newState.bases.third || newState.outs >= 2) {
+          newState.currentAtBat.infieldIn = false;
       }
     }
 
