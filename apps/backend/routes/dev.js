@@ -70,7 +70,15 @@ router.post('/games/:gameId/snapshots', async (req, res) => {
             `INSERT INTO game_snapshots (game_id, snapshot_name, game_data, participants_data, latest_state_data, events_data, rosters_data)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING snapshot_id, snapshot_name, created_at`,
-            [gameId, snapshot_name, game_data, participants_data, latest_state_data, events_data, rosters_data]
+            [
+                gameId,
+                snapshot_name,
+                JSON.stringify(game_data),
+                JSON.stringify(participants_data),
+                JSON.stringify(latest_state_data),
+                JSON.stringify(events_data),
+                JSON.stringify(rosters_data)
+            ]
         );
 
         await client.query('COMMIT');
