@@ -413,7 +413,7 @@ const runScoredOnPlay = computed(() => {
   // Get the most recent event from the log
   const lastEvent = gameStore.gameEvents[gameStore.gameEvents.length - 1];
   // Check if its message contains the word "scores!" or "HOME RUN"
-  return lastEvent.log_message?.includes('scores!') || lastEvent.log_message?.includes('HOME RUN');
+  return lastEvent.log_message?.includes('scores') || lastEvent.log_message?.includes('HOME RUN') || lastEvent.log_message?.includes('SAFE at home');
 });
 
 const scoreUpdateVisible = computed(() => {

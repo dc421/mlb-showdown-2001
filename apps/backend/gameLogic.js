@@ -502,9 +502,15 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, initialEve
       }
       newState.bases[baseMap[fromBaseOfThrow]] = null;
     } else {
+      if (throwTo === 4) {
+        newState.outs++;
+      newState.bases[baseMap[fromBaseOfThrow]] = null;
+      outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at home!`;
+      } else{
       newState.outs++;
       newState.bases[baseMap[fromBaseOfThrow]] = null;
       outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`;
+      }
     }
 
     // Consolidate the event message here
