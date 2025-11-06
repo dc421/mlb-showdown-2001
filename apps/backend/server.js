@@ -2459,13 +2459,17 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 return res.status(400).json({ message: 'Invalid runner specified for the decision.' });
             }
 
-            // FIX: The throw is going to the runner's original base + 2 (e.g., 1st to 3rd).
-            const { hitType } = newState.currentPlay.payload;
+            const { type } = newState.currentPlay;
             let throwTo;
-            if (hitType === '2B') {
-                throwTo = 4; // On a double, a runner from 1st is always trying for home.
-            } else {
-                throwTo = decision.from + 2;
+            if (type === 'TAG_UP') {
+                throwTo = decision.from + 1;
+            } else { // Assumes ADVANCE
+                const { hitType } = newState.currentPlay.payload;
+                if (hitType === '2B') {
+                    throwTo = 4; // On a double, a runner from 1st is always trying for home.
+                } else {
+                    throwTo = decision.from + 2;
+                }
             }
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
