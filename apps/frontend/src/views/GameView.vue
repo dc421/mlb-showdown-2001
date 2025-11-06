@@ -932,12 +932,46 @@ const batterToDisplay = computed(() => {
 
 const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
-    // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
+
+    let basePitcher = null;
+
+    // Determine the correct base pitcher object to use
     if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
-        return gameStore.gameState.lastCompletedAtBat.pitcher;
+        basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
+    } else {
+        basePitcher = isDisplayTopInning.value ? gameStore.lineups.home.startingPitcher : gameStore.lineups.away.startingPitcher;
     }
-    // In all other cases, show the data for the current at-bat.
-    return isDisplayTopInning.value ? gameStore.lineups.home.startingPitcher : gameStore.lineups.away.startingPitcher
+
+    if (!basePitcher || typeof basePitcher.control !== 'number') {
+        return basePitcher;
+    }
+
+    // Replicate the backend getEffectiveControl logic
+    const pitcherStats = gameStore.gameState.pitcherStats;
+    if (!pitcherStats) {
+        return { ...basePitcher, effectiveControl: basePitcher.control };
+    }
+
+    const pitcherId = basePitcher.card_id;
+    const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    const inningsPitched = stats.innings_pitched || [];
+    const inningsPitchedCount = inningsPitched.length;
+
+    let controlPenalty = 0;
+    const modifiedIp = basePitcher.ip + (stats.fatigue_modifier || 0);
+    const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+
+    if (inningsPitchedCount > fatigueThreshold) {
+        controlPenalty = inningsPitchedCount - fatigueThreshold;
+    }
+
+    const effectiveControl = basePitcher.control - controlPenalty;
+
+    // Return a new object with the calculated effectiveControl
+    return {
+        ...basePitcher,
+        effectiveControl,
+    };
 });
 
 
@@ -1093,17 +1127,6 @@ const isInfieldInDecision = computed(() => {
     return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE';
 });
 
-const isPitcherTired = (pitcher) => {
-    if (!pitcher || !gameStore.gameState?.pitcherStats) {
-        return false;
-    }
-    const stats = gameStore.gameState.pitcherStats[pitcher.card_id];
-    if (!stats) {
-        return false;
-    }
-    const fatigueThreshold = pitcher.ip - Math.floor(stats.runs / 3);
-    return stats.ip > fatigueThreshold;
-};
 
 // in GameView.vue <script setup>
 
@@ -1562,7 +1585,7 @@ function handleVisibilityChange() {
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
                 <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: black }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher && leftPanelData.pitcher.card_id !== 'replacement_pitcher'">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-if="leftPanelData.pitcher && leftPanelData.pitcher.card_id !== 'replacement_pitcher'">{{ leftPanelData.pitcher.name }}</template>
                 <template v-else>TBD</template>
             </span>
           </div>
@@ -1648,7 +1671,7 @@ function handleVisibilityChange() {
               <hr />
               <span @click="selectedCard = rightPanelData.pitcher">
                 <strong :style="{ color: black }">Pitching: </strong>
-                <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }}</template>
                 <template v-else>TBD</template>
               </span>
           </div>

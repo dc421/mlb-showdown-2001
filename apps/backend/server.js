@@ -1715,19 +1715,17 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
             finalState.stealAttemptDetails = null;
         }
     }
-    // Clear the previous steal results when a new action is set
-    if (finalState.lastStealResult) {
-      finalState.lastStealResult = null;
-    }
-    if (finalState.pendingStealAttempt) {
-      finalState.pendingStealAttempt = null;
-    }
     const { offensiveTeam } = await getActivePlayers(gameId, finalState);
 
     finalState.currentAtBat.batterAction = action;
 
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction === 'pitch') {
+      // Now that both players have acted, clear any leftover steal/throw results from the previous state.
+      finalState.lastStealResult = null;
+      finalState.pendingStealAttempt = null;
+      finalState.throwRollResult = null;
+
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
 
@@ -1870,13 +1868,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             finalState.stealAttemptDetails = null;
         }
     }
-    // Clear the previous steal results when a new action is set
-    if (finalState.lastStealResult) {
-      finalState.lastStealResult = null;
-    }
-    if (finalState.pendingStealAttempt) {
-      finalState.pendingStealAttempt = null;
-    }
     const events = [];
 
     if (action === 'intentional_walk') {
@@ -1909,6 +1900,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         finalState.currentAtBat.pitchRollResult = { roll: pitchRoll, advantage, penalty: controlPenalty };
 
         if (finalState.currentAtBat.batterAction) {
+            // Now that both players have acted, clear any leftover steal/throw results from the previous state.
+            finalState.lastStealResult = null;
+            finalState.pendingStealAttempt = null;
+            finalState.throwRollResult = null;
+
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
             const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
@@ -2127,9 +2123,6 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // Now that both players have acknowledged the result, clear the details.
       newState.doublePlayDetails = null;
       newState.currentPlay = null;
-      delete newState.lastStealResult;
-      delete newState.throwRollResult;
-      delete newState.pendingStealAttempt;
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
@@ -2459,13 +2452,17 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 return res.status(400).json({ message: 'Invalid runner specified for the decision.' });
             }
 
-            // FIX: The throw is going to the runner's original base + 2 (e.g., 1st to 3rd).
-            const { hitType } = newState.currentPlay.payload;
+            const { type } = newState.currentPlay;
             let throwTo;
-            if (hitType === '2B') {
-                throwTo = 4; // On a double, a runner from 1st is always trying for home.
-            } else {
-                throwTo = decision.from + 2;
+            if (type === 'TAG_UP') {
+                throwTo = decision.from + 1;
+            } else { // Assumes ADVANCE
+                const { hitType } = newState.currentPlay.payload;
+                if (hitType === '2B') {
+                    throwTo = 4; // On a double, a runner from 1st is always trying for home.
+                } else {
+                    throwTo = decision.from + 2;
+                }
             }
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 

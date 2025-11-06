@@ -115,7 +115,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         await client.query('DELETE FROM game_participants WHERE game_id = $1', [gameId]);
 
         // 3. Restore game table data (update existing record)
-        const gameData = JSON.parse(snapshot.game_data);
+        const gameData = snapshot.game_data;
         await client.query(
             `UPDATE games SET
                 status = $1,
@@ -125,39 +125,39 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
                 use_dh = $5,
                 setup_rolls = $6
              WHERE game_id = $7`,
-            [gameData.status, gameData.completed_at, gameData.current_turn_user_id, gameData.home_team_user_id, gameData.use_dh, gameData.setup_rolls, gameId]
+            [gameData.status, gameData.completed_at, gameData.current_turn_user_id, gameData.home_team_user_id, gameData.use_dh, typeof gameData.setup_rolls === 'string' ? JSON.parse(gameData.setup_rolls) : gameData.setup_rolls, gameId]
         );
 
         // 4. Restore participants
-        const participantsData = JSON.parse(snapshot.participants_data);
+        const participantsData = snapshot.participants_data;
         for (const p of participantsData) {
             await client.query(
                 `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation, lineup)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
-                [p.game_id, p.user_id, p.roster_id, p.home_or_away, p.league_designation, p.lineup]
+                [p.game_id, p.user_id, p.roster_id, p.home_or_away, p.league_designation, typeof p.lineup === 'string' ? JSON.parse(p.lineup) : p.lineup]
             );
         }
 
         // 5. Restore rosters
-        const rostersData = JSON.parse(snapshot.rosters_data);
+        const rostersData = snapshot.rosters_data;
         for (const r of rostersData) {
             await client.query(
                 'INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)',
-                [r.game_id, r.user_id, r.roster_data]
+                [r.game_id, r.user_id, typeof r.roster_data === 'string' ? JSON.parse(r.roster_data) : r.roster_data]
             );
         }
 
         // 6. Restore game state (only the latest one)
-        const state = JSON.parse(snapshot.latest_state_data);
+        const state = snapshot.latest_state_data;
         if (state) {
             await client.query(
                 'INSERT INTO game_states (game_id, turn_number, state_data, created_at) VALUES ($1, $2, $3, $4)',
-                [state.game_id, state.turn_number, state.state_data, state.created_at]
+                [state.game_id, state.turn_number, typeof state.state_data === 'string' ? JSON.parse(state.state_data) : state.state_data, state.created_at]
             );
         }
 
         // 7. Restore game events
-        const eventsData = JSON.parse(snapshot.events_data);
+        const eventsData = snapshot.events_data;
         for (const e of eventsData) {
             await client.query(
                 `INSERT INTO game_events (game_id, turn_number, user_id, event_type, log_message, timestamp)
