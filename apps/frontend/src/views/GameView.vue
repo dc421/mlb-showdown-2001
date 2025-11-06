@@ -380,8 +380,8 @@ const scoreChangeMessage = computed(() => {
     const newHomeScore = gameStore.displayGameState?.homeScore;
 
     // The "before" scores come from the last *completed* at-bat.
-    const oldAwayScore = gameStore.gameState?.lastCompletedAtBat?.awayScoreBeforePlay;
-    const oldHomeScore = gameStore.gameState?.lastCompletedAtBat?.homeScoreBeforePlay;
+    const oldAwayScore = gameStore.displayGameState?.currentAtBat?.awayScoreBeforePlay;
+    const oldHomeScore = gameStore.displayGameState?.currentAtBat?.homeScoreBeforePlay;
 
     // Fallback if scores are not available yet.
     if (newAwayScore === undefined || newHomeScore === undefined) {
@@ -703,10 +703,10 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 
 const showThrowRollResult = computed(() => {
   const hasDetails = !!gameStore.gameState?.doublePlayDetails;
-  if (!hasDetails) return false;
+  if (!hasDetails || !gameStore.amIReadyForNext.value) return false;
 
   // Defensive player sees it only after clicking.
-  if (amIDefensivePlayer.value && !gameStore.amIReadyForNext.value) {
+  if (amIDefensivePlayer.value) {
     return defensiveDPRollClicked.value;
   }
 
@@ -1469,7 +1469,7 @@ function handleVisibilityChange() {
             <!-- Waiting Indicators -->
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
-            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
+            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take') && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
             <div v-else-if="isWaitingForDoublePlayResolution || isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices)) || (isOffensiveStealInProgress && !gameStore.gameState.pendingStealAttempt)" class="waiting-text">Waiting for throw...</div>
         </div>
 
