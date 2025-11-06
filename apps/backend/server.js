@@ -2068,6 +2068,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       newState.doublePlayDetails = null;
+      newState.currentPlay = null;
       delete newState.lastStealResult;
       delete newState.throwRollResult;
       delete newState.pendingStealAttempt;
