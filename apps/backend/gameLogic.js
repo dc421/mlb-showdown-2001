@@ -210,22 +210,24 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         }
 
         if (allDecisionsAutomatic) {
+            let combinedEvent = initialEvent;
             for (const outcome of automaticOutcomes) {
                 if (outcome.advance) {
                     const toBase = outcome.from + 1;
                     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
                     if (toBase === 4) {
                         scoreRun(outcome.runner, false);
-                        events.push(`${outcome.runner.name} tags up and scores without a throw.`);
+                        combinedEvent += ` ${outcome.runner.name} tags up and scores without a throw.`;
                     } else {
                         newState.bases[baseMap[toBase]] = outcome.runner;
-                        events.push(`${outcome.runner.name} tags up and advances without a throw.`);
+                        combinedEvent += ` ${outcome.runner.name} tags up and advances without a throw.`;
                     }
                     newState.bases[baseMap[outcome.from]] = null;
                 } else {
-                    events.push(`${outcome.runner.name} holds.`);
+                    combinedEvent += ` ${outcome.runner.name} holds.`;
                 }
             }
+            events.push(combinedEvent);
         } else {
             newState.currentPlay = { type: 'TAG_UP', payload: { decisions, initialEvent } };
         }
