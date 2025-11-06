@@ -229,6 +229,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
             }
             events.push(combinedEvent);
         } else {
+            events.push(initialEvent);
             newState.currentPlay = { type: 'TAG_UP', payload: { decisions, initialEvent } };
         }
     } else {
