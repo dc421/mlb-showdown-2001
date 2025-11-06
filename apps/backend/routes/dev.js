@@ -115,7 +115,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         await client.query('DELETE FROM game_participants WHERE game_id = $1', [gameId]);
 
         // 3. Restore game table data (update existing record)
-        const gameData = snapshot.game_data;
+        const gameData = JSON.parse(snapshot.game_data);
         await client.query(
             `UPDATE games SET
                 status = $1,
@@ -129,7 +129,8 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         );
 
         // 4. Restore participants
-        for (const p of snapshot.participants_data) {
+        const participantsData = JSON.parse(snapshot.participants_data);
+        for (const p of participantsData) {
             await client.query(
                 `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation, lineup)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -138,7 +139,8 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         }
 
         // 5. Restore rosters
-        for (const r of snapshot.rosters_data) {
+        const rostersData = JSON.parse(snapshot.rosters_data);
+        for (const r of rostersData) {
             await client.query(
                 'INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)',
                 [r.game_id, r.user_id, r.roster_data]
@@ -146,7 +148,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         }
 
         // 6. Restore game state (only the latest one)
-        const state = snapshot.latest_state_data;
+        const state = JSON.parse(snapshot.latest_state_data);
         if (state) {
             await client.query(
                 'INSERT INTO game_states (game_id, turn_number, state_data, created_at) VALUES ($1, $2, $3, $4)',
@@ -155,7 +157,8 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         }
 
         // 7. Restore game events
-        for (const e of snapshot.events_data) {
+        const eventsData = JSON.parse(snapshot.events_data);
+        for (const e of eventsData) {
             await client.query(
                 `INSERT INTO game_events (game_id, turn_number, user_id, event_type, log_message, timestamp)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
