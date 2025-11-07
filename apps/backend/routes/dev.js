@@ -139,7 +139,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
             await client.query(
                 `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation, lineup)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
-                [p.game_id, p.user_id, p.roster_id, p.home_or_away, p.league_designation, p.lineup]
+                [p.game_id, p.user_id, p.roster_id, p.home_or_away, p.league_designation, JSON.stringify(p.lineup)]
             );
         }
 
@@ -148,7 +148,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         for (const r of rostersData) {
             await client.query(
                 'INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)',
-                [r.game_id, r.user_id, r.roster_data]
+                [r.game_id, r.user_id, JSON.stringify(r.roster_data)]
             );
         }
 
@@ -157,7 +157,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         if (state) {
             await client.query(
                 'INSERT INTO game_states (game_id, turn_number, state_data, created_at) VALUES ($1, $2, $3, $4)',
-                [state.game_id, state.turn_number, state.state_data, state.created_at]
+                [state.game_id, state.turn_number, JSON.stringify(state.state_data), state.created_at]
             );
         }
 
@@ -222,7 +222,7 @@ router.post('/games/:gameId/set-state', async (req, res) => {
     // Merge the request body into the current state
     const newState = { ...currentState, ...req.body };
 
-    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+    await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, JSON.stringify(newState)]);
     await client.query('COMMIT');
 
     // After successfully setting the state, fetch the full processed game data
