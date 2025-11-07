@@ -1889,6 +1889,26 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
     } else {
         const pitchRoll = Math.floor(Math.random() * 20) + 1;
+
+        // --- THIS IS THE FIX: Calculate controlPenalty directly in this route ---
+        let controlPenalty = 0;
+        if (pitcher && currentState.pitcherStats) {
+            const pitcherId = pitcher.card_id;
+            const stats = currentState.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+            const inningsPitched = stats.innings_pitched || [];
+            let potentialInningsPitched = [...inningsPitched];
+            if (!potentialInningsPitched.includes(currentState.inning)) {
+                potentialInningsPitched.push(currentState.inning);
+            }
+            const inningsPitchedCount = potentialInningsPitched.length;
+            const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
+            const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+            if (inningsPitchedCount > fatigueThreshold) {
+                controlPenalty = inningsPitchedCount - fatigueThreshold;
+            }
+        }
+        // --- END FIX ---
+
         // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
         const advantage = batter.control !== null
             ? 'pitcher'
