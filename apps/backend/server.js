@@ -1790,11 +1790,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
         }
 
-        if ((finalState.awayScore + finalState.homeScore) > originalScore) {
-          const scoreString = finalState.isTopInning ? `${finalState.awayScore}-${finalState.homeScore}` : `${finalState.homeScore}-${finalState.awayScore}`;
-          combinedLogMessage += ` <strong>(Score: ${scoreString})</strong>`;
-        }
-
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
       }
       
@@ -1970,11 +1965,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 combinedLogMessage += ` <strong>Outs: 3</strong>`;
               } else if (finalState.outs > originalOuts) {
                 combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
-              }
-
-              if ((finalState.awayScore + finalState.homeScore) > originalScore) {
-                const scoreString = finalState.isTopInning ? `${finalState.awayScore}-${finalState.homeScore}` : `${finalState.homeScore}-${finalState.awayScore}`;
-                combinedLogMessage += ` <strong>(Score: ${scoreString})</strong>`;
               }
 
               await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
