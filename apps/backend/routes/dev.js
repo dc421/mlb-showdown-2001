@@ -1,21 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const { pool, io } = require('../server'); // Import io
+const { pool } = require('../db');
+const { io } = require('../server');
+const { getAndProcessGameData } = require('../gameUtils');
 const authenticateToken = require('../middleware/authenticateToken');
 
-// Middleware to check if the user is a superuser (optional, for dev routes)
 const isSuperuser = (req, res, next) => {
   if (req.user) {
     next();
   } else {
-    res.sendStatus(403); // Forbidden
+    res.sendStatus(403);
   }
 };
 
 router.use(authenticateToken);
 router.use(isSuperuser);
 
-// GET all snapshots for a game
 router.get('/games/:gameId/snapshots', async (req, res) => {
   const { gameId } = req.params;
   try {
@@ -30,7 +30,6 @@ router.get('/games/:gameId/snapshots', async (req, res) => {
   }
 });
 
-// POST (create) a new snapshot for a game
 router.post('/games/:gameId/snapshots', async (req, res) => {
     const { gameId } = req.params;
     const { snapshot_name } = req.body;
@@ -42,35 +41,28 @@ router.post('/games/:gameId/snapshots', async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Get game data
         const gameResult = await client.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
         if (gameResult.rows.length === 0) {
             return res.status(404).json({ message: 'Game not found.' });
         }
         const game_data = gameResult.rows[0];
 
-        // 2. Get participants data
         const participantsResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
         const participants_data = participantsResult.rows;
 
-        // 3. Get latest game state data
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
         const latest_state_data = stateResult.rows[0];
 
-        // 4. Get all game events data
         const eventsResult = await client.query('SELECT * FROM game_events WHERE game_id = $1', [gameId]);
         const events_data = eventsResult.rows;
 
-        // 5. Get game rosters data
         const rostersResult = await client.query('SELECT * FROM game_rosters WHERE game_id = $1', [gameId]);
         const rosters_data = rostersResult.rows;
 
-        // Ensure nested JSON is parsed, not double-stringified
         if (latest_state_data && typeof latest_state_data.state_data === 'string') {
             latest_state_data.state_data = JSON.parse(latest_state_data.state_data);
         }
         
-        // 6. Insert into snapshots table
         const newSnapshot = await client.query(
             `INSERT INTO game_snapshots (game_id, snapshot_name, game_data, participants_data, latest_state_data, events_data, rosters_data)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -98,7 +90,6 @@ router.post('/games/:gameId/snapshots', async (req, res) => {
     }
 });
 
-// POST to restore a snapshot
 router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => {
     const { gameId, snapshotId } = req.params;
     const client = await pool.connect();
@@ -106,20 +97,17 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
     try {
         await client.query('BEGIN');
 
-        // 1. Get the snapshot data
         const snapshotResult = await client.query('SELECT * FROM game_snapshots WHERE snapshot_id = $1 AND game_id = $2', [snapshotId, gameId]);
         if (snapshotResult.rows.length === 0) {
             return res.status(404).json({ message: 'Snapshot not found.' });
         }
         const snapshot = snapshotResult.rows[0];
 
-        // 2. Clear existing game data
         await client.query('DELETE FROM game_events WHERE game_id = $1', [gameId]);
         await client.query('DELETE FROM game_states WHERE game_id = $1', [gameId]);
         await client.query('DELETE FROM game_rosters WHERE game_id = $1', [gameId]);
         await client.query('DELETE FROM game_participants WHERE game_id = $1', [gameId]);
 
-        // 3. Restore game table data (update existing record)
         const gameData = snapshot.game_data;
         await client.query(
             `UPDATE games SET
@@ -133,7 +121,6 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
             [gameData.status, gameData.completed_at, gameData.current_turn_user_id, gameData.home_team_user_id, gameData.use_dh, gameData.setup_rolls, gameId]
         );
 
-        // 4. Restore participants
         const participantsData = snapshot.participants_data;
         for (const p of participantsData) {
             await client.query(
@@ -143,7 +130,6 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
             );
         }
 
-        // 5. Restore rosters
         const rostersData = snapshot.rosters_data;
         for (const r of rostersData) {
             await client.query(
@@ -152,7 +138,6 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
             );
         }
 
-        // 6. Restore game state (only the latest one)
         const state = snapshot.latest_state_data;
         if (state) {
             await client.query(
@@ -161,7 +146,6 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
             );
         }
 
-        // 7. Restore game events
         const eventsData = snapshot.events_data;
         for (const e of eventsData) {
             await client.query(
@@ -173,8 +157,7 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
 
         await client.query('COMMIT');
 
-        // Emit a socket event to notify clients
-        io.to(gameId).emit('game-updated', await require('../server').getAndProcessGameData(gameId, client));
+        io.to(gameId).emit('game-updated', await getAndProcessGameData(gameId, client));
 
         res.status(200).json({ message: 'Game state restored successfully.' });
 
@@ -187,7 +170,6 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
     }
 });
 
-// DELETE a snapshot
 router.delete('/games/:gameId/snapshots/:snapshotId', async (req, res) => {
     const { snapshotId, gameId } = req.params;
     try {
@@ -208,8 +190,6 @@ router.delete('/games/:gameId/snapshots/:snapshotId', async (req, res) => {
     }
 });
 
-
-// POST to set the game state (for debugging)
 router.post('/games/:gameId/set-state', async (req, res) => {
   const { gameId } = req.params;
   const client = await pool.connect();
@@ -219,14 +199,12 @@ router.post('/games/:gameId/set-state', async (req, res) => {
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    // Merge the request body into the current state
     const newState = { ...currentState, ...req.body };
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, JSON.stringify(newState)]);
     await client.query('COMMIT');
 
-    // After successfully setting the state, fetch the full processed game data
-    const gameData = await require('../server').getAndProcessGameData(gameId, client);
+    const gameData = await getAndProcessGameData(gameId, client);
     io.to(gameId).emit('game-updated', gameData);
 
     res.status(200).json({ message: 'Game state updated.' });
