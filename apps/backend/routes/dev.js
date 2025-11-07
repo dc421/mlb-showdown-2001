@@ -75,7 +75,7 @@ router.post('/games/:gameId/snapshots', async (req, res) => {
                 snapshot_name,
                 JSON.stringify(game_data),
                 JSON.stringify(participants_data),
-                JSON.stringify(latest_state_data),
+                JSON.stringify(latest_state_data || null),
                 JSON.stringify(events_data),
                 JSON.stringify(rosters_data)
             ]
@@ -129,7 +129,8 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         );
 
         // 4. Restore participants
-        for (const p of snapshot.participants_data) {
+        const participantsData = snapshot.participants_data;
+        for (const p of participantsData) {
             await client.query(
                 `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation, lineup)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -138,7 +139,8 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         }
 
         // 5. Restore rosters
-        for (const r of snapshot.rosters_data) {
+        const rostersData = snapshot.rosters_data;
+        for (const r of rostersData) {
             await client.query(
                 'INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)',
                 [r.game_id, r.user_id, r.roster_data]
@@ -155,7 +157,8 @@ router.post('/games/:gameId/snapshots/:snapshotId/restore', async (req, res) => 
         }
 
         // 7. Restore game events
-        for (const e of snapshot.events_data) {
+        const eventsData = snapshot.events_data;
+        for (const e of eventsData) {
             await client.query(
                 `INSERT INTO game_events (game_id, turn_number, user_id, event_type, log_message, timestamp)
                  VALUES ($1, $2, $3, $4, $5, $6)`,

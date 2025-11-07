@@ -232,6 +232,32 @@ const getSpeedValue = (runner) => {
   return speed; // Assume it's already a number if not A/B/C
 };
 
+function getEffectiveControl(pitcher, pitcherStats, inning) {
+    if (!pitcher || typeof pitcher.control !== 'number') return null;
+    if (!pitcherStats) return pitcher.control;
+
+    const pitcherId = pitcher.card_id;
+    const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    const inningsPitched = stats.innings_pitched || [];
+
+    // The fatigue calculation should include the current inning if the pitcher is on the mound,
+    // as they are "working" in that inning, even if they haven't recorded an out.
+    // The official fatigue should only update *after* a pitch, but for UI display,
+    // showing the potential fatigue is more informative. Let's not add the inning here to avoid complexity
+    // and stick to what's been persisted. The update in /pitch is what makes it official.
+    const inningsPitchedCount = inningsPitched.length;
+
+    let controlPenalty = 0;
+    const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
+    const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+
+    if (inningsPitchedCount > fatigueThreshold) {
+        controlPenalty = inningsPitchedCount - fatigueThreshold;
+    }
+
+    return pitcher.control - controlPenalty;
+}
+
 function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
         if (!p) return;
@@ -1617,7 +1643,39 @@ async function getAndProcessGameData(gameId, dbClient) {
       }
     }
     if (batter) processPlayers([batter]);
-    if (pitcher) processPlayers([pitcher]);
+    if (pitcher) {
+        processPlayers([pitcher]);
+        // Add effectiveControl to the active pitcher object
+        pitcher.effectiveControl = getEffectiveControl(pitcher, currentState.state_data.pitcherStats, currentState.state_data.inning);
+    }
+
+    // Add fatigue status to all bullpen pitchers in the rosters
+    const processRosterFatigue = (roster, pitcherStats, inning) => {
+        if (!roster) return;
+        roster.forEach(player => {
+            // FIX: A reliever is identified by having a base IP of 3 or less.
+            // The `player.ip > 0` check was preventing us from flagging relievers
+            // who were tired from a previous game but hadn't pitched in this one.
+            if (player.ip <= 3) { // It's a reliever
+                const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+                if (stats?.fatigue_modifier && stats.fatigue_modifier < 0) {
+                    player.fatigueStatus = 'tired';
+                } else {
+                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning);
+                    if (effectiveControl < player.control) {
+                         player.fatigueStatus = 'tired';
+                    } else {
+                         player.fatigueStatus = 'rested';
+                    }
+                }
+            }
+        });
+    };
+
+    if (currentState?.state_data?.pitcherStats) {
+        processRosterFatigue(rosters.home, currentState.state_data.pitcherStats, currentState.state_data.inning);
+        processRosterFatigue(rosters.away, currentState.state_data.pitcherStats, currentState.state_data.inning);
+    }
   }
 
   return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
@@ -1657,19 +1715,17 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
             finalState.stealAttemptDetails = null;
         }
     }
-    // Clear the previous steal results when a new action is set
-    if (finalState.lastStealResult) {
-      finalState.lastStealResult = null;
-    }
-    if (finalState.pendingStealAttempt) {
-      finalState.pendingStealAttempt = null;
-    }
     const { offensiveTeam } = await getActivePlayers(gameId, finalState);
 
     finalState.currentAtBat.batterAction = action;
 
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction === 'pitch') {
+      // Now that both players have acted, clear any leftover steal/throw results from the previous state.
+      finalState.lastStealResult = null;
+      finalState.pendingStealAttempt = null;
+      finalState.throwRollResult = null;
+
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
 
@@ -1812,13 +1868,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             finalState.stealAttemptDetails = null;
         }
     }
-    // Clear the previous steal results when a new action is set
-    if (finalState.lastStealResult) {
-      finalState.lastStealResult = null;
-    }
-    if (finalState.pendingStealAttempt) {
-      finalState.pendingStealAttempt = null;
-    }
     const events = [];
 
     if (action === 'intentional_walk') {
@@ -1851,6 +1900,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         finalState.currentAtBat.pitchRollResult = { roll: pitchRoll, advantage, penalty: controlPenalty };
 
         if (finalState.currentAtBat.batterAction) {
+            // Now that both players have acted, clear any leftover steal/throw results from the previous state.
+            finalState.lastStealResult = null;
+            finalState.pendingStealAttempt = null;
+            finalState.throwRollResult = null;
+
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
             const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
@@ -2068,9 +2122,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       newState.doublePlayDetails = null;
-      delete newState.lastStealResult;
-      delete newState.throwRollResult;
-      delete newState.pendingStealAttempt;
+      newState.currentPlay = null;
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
@@ -2161,7 +2213,9 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             const runner = newState.bases[baseMap[fromBase]];
             if (runner) {
                 const catcherArm = await getCatcherArm(defensiveTeam);
-                const { outcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                const stealResult = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                isSafe = stealResult.isSafe;
+                const { outcome, ...resultDetails } = stealResult;
                 const runnerName = runner.name;
 
                 if (!isSafe) {
@@ -2398,13 +2452,17 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 return res.status(400).json({ message: 'Invalid runner specified for the decision.' });
             }
 
-            // FIX: The throw is going to the runner's original base + 2 (e.g., 1st to 3rd).
-            const { hitType } = newState.currentPlay.payload;
+            const { type } = newState.currentPlay;
             let throwTo;
-            if (hitType === '2B') {
-                throwTo = 4; // On a double, a runner from 1st is always trying for home.
-            } else {
-                throwTo = decision.from + 2;
+            if (type === 'TAG_UP') {
+                throwTo = decision.from + 1;
+            } else { // Assumes ADVANCE
+                const { hitType } = newState.currentPlay.payload;
+                if (hitType === '2B') {
+                    throwTo = 4; // On a double, a runner from 1st is always trying for home.
+                } else {
+                    throwTo = decision.from + 2;
+                }
             }
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
