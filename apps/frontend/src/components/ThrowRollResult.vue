@@ -69,15 +69,15 @@ const rollInfo = computed(() => {
 const targetInfo = computed(() => {
     if (rollDetails.value.baseSpeed !== undefined) {
         let result = `${rollDetails.value.baseSpeed}`;
-        if (rollDetails.value.penalty > 0) {
-            result += ` +${rollDetails.value.penalty}`;
-        } else if (rollDetails.value.penalty < 0) {
-            result += ` ${rollDetails.value.penalty}`;
+        if (rollDetails.value.adjustments && Array.isArray(rollDetails.value.adjustments)) {
+            rollDetails.value.adjustments.forEach(adj => {
+                if (adj.value > 0) {
+                    result += ` +${adj.value}`;
+                } else if (adj.value < 0) {
+                    result += ` ${adj.value}`;
+                }
+            });
         }
-        // NEW: Manually add the +5 for going home, as it's not in the penalty field
-        //if (props.details.throwToBase === 4) {
-        //    result += ' +5';
-        //}
         return result;
     }
     return `${rollDetails.value.target}`;
