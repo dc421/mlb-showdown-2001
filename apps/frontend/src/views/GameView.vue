@@ -733,7 +733,7 @@ const showStealResult = computed(() => {
 
 const stealDisplayDetails = computed (() => {
   return !!gameStore.gameState?.pendingStealAttempt && amIDisplayOffensivePlayer.value
-   ? gameStore.gameState.pendingStealAttempt 
+   ? gameStore.gameState.pendingStealAttempt
    : gameStore.gameState.lastStealResult
 })
 
