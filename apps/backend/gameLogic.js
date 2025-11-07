@@ -245,10 +245,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       if (runnerFrom3) {
           scoreRun(runnerFrom3, false);
-          const currentScore = newState[scoreKey];
-          const otherScore = newState[newState.isTopInning ? 'homeScore' : 'awayScore'];
-          const scoreString = newState.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-          combinedEvent += ` ${runnerFrom3.name} scores! <strong>(Score: ${scoreString})</strong>`;
+          combinedEvent += ` ${runnerFrom3.name} scores!`;
       }
 
       const potentialDecisions = [
@@ -324,9 +321,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
 
       if (manualDecisions.length > 0) {
-          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, hitType: '1B', initialEvent: combinedEvent } };
+          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
       } else {
-          events.push(combinedEvent);
+          events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
       }
   }
   else if (outcome === '2B') {
@@ -335,18 +332,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (state.bases.third) {
         const runner = state.bases.third;
         scoreRun(runner, false);
-        const currentScore = newState[scoreKey];
-        const otherScore = newState[newState.isTopInning ? 'homeScore' : 'awayScore'];
-        const scoreString = newState.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-        combinedEvent += ` ${runner.name} scores! <strong>(Score: ${scoreString})</strong>`;
+        combinedEvent += ` ${runner.name} scores!`;
       }
       if (state.bases.second) {
         const runner = state.bases.second;
         scoreRun(runner, false);
-        const currentScore = newState[scoreKey];
-        const otherScore = newState[newState.isTopInning ? 'homeScore' : 'awayScore'];
-        const scoreString = newState.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-        combinedEvent += ` ${runner.name} scores! <strong>(Score: ${scoreString})</strong>`;
+        combinedEvent += ` ${runner.name} scores!`;
       }
       newState.bases.third = null;
       newState.bases.second = null;
@@ -378,15 +369,15 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               scoreRun(runnerFrom1, false);
               combinedEvent += ` ${runnerFrom1.name} scores from first without a throw!`;
           }
-          events.push(combinedEvent);
+          events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
           newState.bases.second = runnerData; // Batter placed on second since play is resolved
       } else {
           if (runnerFrom1) {
               newState.bases.third = runnerFrom1;
               // DECOUPLE batter from runner decision by saving batter data to the currentPlay
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData } };
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers } };
           } else {
-              events.push(combinedEvent);
+              events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
               newState.bases.second = runnerData; // No runner decision, so batter is safe on second
           }
       }
@@ -410,28 +401,19 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     if (newState.bases.third) {
         const runner = newState.bases.third;
         scoreRun(runner, false);
-        const currentScore = newState[scoreKey];
-        const otherScore = newState[newState.isTopInning ? 'homeScore' : 'awayScore'];
-        const scoreString = newState.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-        combinedEvent += ` ${runner.name} scores! <strong>(Score: ${scoreString})</strong>`;
+        combinedEvent += ` ${runner.name} scores!`;
     }
     if (newState.bases.second) {
         const runner = newState.bases.second;
         scoreRun(runner, false);
-        const currentScore = newState[scoreKey];
-        const otherScore = newState[newState.isTopInning ? 'homeScore' : 'awayScore'];
-        const scoreString = newState.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-        combinedEvent += ` ${runner.name} scores! <strong>(Score: ${scoreString})</strong>`;
+        combinedEvent += ` ${runner.name} scores!`;
     }
     if (newState.bases.first) {
         const runner = newState.bases.first;
         scoreRun(runner, false);
-        const currentScore = newState[scoreKey];
-        const otherScore = newState[newState.isTopInning ? 'homeScore' : 'awayScore'];
-        const scoreString = newState.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-        combinedEvent += ` ${runner.name} scores! <strong>(Score: ${scoreString})</strong>`;
+        combinedEvent += ` ${runner.name} scores!`;
     }
-    events.push(combinedEvent);
+    events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
     newState.bases.third = runnerData;
     newState.bases.second = null;
     newState.bases.first = null;
@@ -554,7 +536,9 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, initialEve
     }
 
     // Consolidate the event message here
-    const finalMessage = initialEvent ? `${initialEvent} ${outcomeMessage}` : outcomeMessage;
+    const { scorers } = newState.currentPlay.payload;
+    let messageWithScore = finalizeEvent(newState, initialEvent, scorers, scoreKey);
+    const finalMessage = messageWithScore ? `${messageWithScore} ${outcomeMessage}` : outcomeMessage;
     events.push(finalMessage);
   }
 
@@ -584,6 +568,16 @@ function calculateStealResult(runner, toBase, catcherArm, getSpeedValue) {
         penalty,
         isSafe,
     };
+}
+
+function finalizeEvent(state, event, scorers, scoreKey) {
+    if (scorers.length > 0) {
+        const currentScore = state[scoreKey];
+        const otherScore = state[state.isTopInning ? 'homeScore' : 'awayScore'];
+        const scoreString = state.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
+        return `${event} <strong>(Score: ${scoreString})</strong>`;
+    }
+    return event;
 }
 
 module.exports = { applyOutcome, resolveThrow, calculateStealResult };
