@@ -277,7 +277,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       // --- State Update ---
       newState.bases = { first: null, second: null, third: null };
-      let combinedEvent = initialEvent;
       let baseAheadIsOccupied = false;
 
       // Process lead runner (from 2nd) first, if they exist
