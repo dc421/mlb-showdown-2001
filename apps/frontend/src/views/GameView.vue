@@ -728,7 +728,7 @@ const showAutoThrowResult = computed(() => {
 
 // NEW: This computed specifically controls the visibility of the steal result box.
 const showStealResult = computed(() => {
-  return ((!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) && amIDisplayOffensivePlayer.value) ||
+  return ((!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) && amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction) ||
   (!!gameStore.gameState?.lastStealResult && amIDisplayDefensivePlayer.value);
 });
 
@@ -1182,7 +1182,7 @@ const isStealAttemptInProgress = computed(() => {
     const isSingleStealInProgress = !!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult;
     // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
     const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isSingleStealInProgress;
-    return isSingleStealInProgress || isDoubleStealInProgress;
+    return (isSingleStealInProgress || isDoubleStealInProgress) && !showStealResult.value;
 });
 
 const isSingleSteal = computed(() => {
