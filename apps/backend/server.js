@@ -259,6 +259,27 @@ function getEffectiveControl(pitcher, pitcherStats, inning) {
     return pitcher.control - controlPenalty;
 }
 
+// --- NEW HELPER: Updates a pitcher's stats for the start of an at-bat ---
+function updatePitcherFatigueForNewInning(state, pitcher) {
+    if (!pitcher || pitcher.card_id < 0) return state; // Return original state if no pitcher
+    if (!state.pitcherStats) {
+        state.pitcherStats = {};
+    }
+    const pitcherId = pitcher.card_id;
+
+    let stats = state.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    if (!stats.innings_pitched) {
+        stats.innings_pitched = [];
+    }
+
+    // Track unique innings pitched by directly modifying the state
+    if (!stats.innings_pitched.includes(state.inning)) {
+        stats.innings_pitched.push(state.inning);
+    }
+    state.pitcherStats[pitcherId] = stats;
+    return state;
+}
+
 function processPlayers(playersToProcess) {
     playersToProcess.forEach(p => {
         if (!p) return;
@@ -1834,29 +1855,9 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     processPlayers([batter, pitcher]);
     
     // --- Pitcher Fatigue Logic ---
-    if (!currentState.pitcherStats) { currentState.pitcherStats = {}; }
-    const pitcherId = pitcher.card_id;
-    let stats = currentState.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
-    if (!stats.innings_pitched) {
-        stats.innings_pitched = [];
-    }
-
-    // Track unique innings pitched
-    if (!stats.innings_pitched.includes(currentState.inning)) {
-        stats.innings_pitched.push(currentState.inning);
-    }
-    currentState.pitcherStats[pitcherId] = stats;
-
-    let controlPenalty = 0;
-    // Apply fatigue modifier from series carry-over
-    const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
-    const fatigueThreshold = modifiedIp - Math.floor(stats.runs / 3);
-    const inningsPitchedCount = stats.innings_pitched.length;
-
-    if (inningsPitchedCount > fatigueThreshold) {
-        controlPenalty = inningsPitchedCount - fatigueThreshold;
-    }
-    const effectiveControl = pitcher.control - controlPenalty;
+    // The fatigue calculation is now handled in the `/next-hitter` endpoint.
+    // We just need to retrieve the effectiveControl for the current at-bat.
+    const effectiveControl = getEffectiveControl(pitcher, currentState.pitcherStats, currentState.inning);
 
      let finalState = { ...currentState };
     if (finalState.stealAttemptDetails) {
@@ -2066,6 +2067,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // Now that the state is correct for the new at-bat, get the players.
       const { batter, pitcher } = await getActivePlayers(gameId, newState);
+
+      // --- NEW: Update pitcher fatigue for the new at-bat ---
+      newState = updatePitcherFatigueForNewInning(newState, pitcher);
 
       // Create a fresh scorecard for the new at-bat.
       newState.currentAtBat = {
