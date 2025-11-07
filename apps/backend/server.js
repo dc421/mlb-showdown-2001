@@ -1680,6 +1680,7 @@ async function getAndProcessGameData(gameId, dbClient) {
 
   return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
 }
+module.exports.getAndProcessGameData = getAndProcessGameData;
 
 // GET A SPECIFIC GAME'S STATE (now processed)
 app.get('/api/games/:gameId', authenticateToken, async (req, res) => {
