@@ -64,6 +64,11 @@ router.post('/games/:gameId/snapshots', async (req, res) => {
         // 5. Get game rosters data
         const rostersResult = await client.query('SELECT * FROM game_rosters WHERE game_id = $1', [gameId]);
         const rosters_data = rostersResult.rows;
+
+        // Ensure nested JSON is parsed, not double-stringified
+        if (latest_state_data && typeof latest_state_data.state_data === 'string') {
+            latest_state_data.state_data = JSON.parse(latest_state_data.state_data);
+        }
         
         // 6. Insert into snapshots table
         const newSnapshot = await client.query(
