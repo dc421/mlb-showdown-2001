@@ -998,6 +998,87 @@ const outsToDisplay = computed(() => {
 
 const isGameOver = computed(() => gameStore.game?.status === 'completed');
 
+const finalScoreMessage = computed(() => {
+  if (!isGameOver.value) {
+    return null;
+  }
+  const homeTeam = gameStore.teams.home;
+  const awayTeam = gameStore.teams.away;
+  const homeScore = gameStore.gameState.homeScore;
+  const awayScore = gameStore.gameState.awayScore;
+
+  let winningTeam;
+  let losingTeam;
+
+  if (homeScore > awayScore) {
+    winningTeam = homeTeam;
+    losingTeam = awayTeam;
+  } else {
+    winningTeam = awayTeam;
+    losingTeam = homeTeam;
+  }
+
+  return {
+    message: `<strong>FINAL</strong>: ${winningTeam.abbreviation.toUpperCase()} ${gameStore.gameState.homeScore > gameStore.gameState.awayScore ? gameStore.gameState.homeScore : gameStore.gameState.awayScore}, ${losingTeam.abbreviation.toUpperCase()} ${gameStore.gameState.homeScore < gameStore.gameState.awayScore ? gameStore.gameState.homeScore : gameStore.gameState.awayScore}`,
+    colors: {
+      primary: winningTeam.primary_color,
+      secondary: winningTeam.secondary_color,
+    }
+  };
+});
+
+const seriesScoreMessage = computed(() => {
+  if (!isGameOver.value || !gameStore.series) {
+    return null;
+  }
+
+  const series = gameStore.series;
+  const homeTeam = gameStore.teams.home;
+  const awayTeam = gameStore.teams.away;
+  const homeWins = series.home_wins;
+  const awayWins = series.away_wins;
+
+  // Assuming series object has number_of_games property
+  const gamesToWin = series.number_of_games ? Math.ceil(series.number_of_games / 2) : 999; // Use a large number if not present
+
+  if (homeWins === gamesToWin) {
+    return {
+      message: `${homeTeam.abbreviation.toUpperCase()} wins series ${homeWins}-${awayWins}`,
+      colors: { primary: homeTeam.primary_color, secondary: homeTeam.secondary_color }
+    };
+  }
+
+  if (awayWins === gamesToWin) {
+    return {
+      message: `${awayTeam.abbreviation.toUpperCase()} wins series ${awayWins}-${homeWins}`,
+      colors: { primary: awayTeam.primary_color, secondary: awayTeam.secondary_color }
+    };
+  }
+
+  if (homeWins === awayWins) {
+    return {
+      message: `Series tied ${homeWins}-${awayWins}`,
+      colors: { primary: '#ffffff', secondary: '#000000', forTie: true }
+    };
+  }
+
+  if (homeWins > awayWins) {
+    return {
+      message: `${homeTeam.abbreviation.toUpperCase()} leads series ${homeWins}-${awayWins}`,
+      colors: { primary: homeTeam.primary_color, secondary: homeTeam.secondary_color }
+    };
+  }
+
+  if (awayWins > homeWins) {
+     return {
+      message: `${awayTeam.abbreviation.toUpperCase()} leads series ${awayWins}-${homeWins}`,
+      colors: { primary: awayTeam.primary_color, secondary: awayTeam.secondary_color }
+    };
+  }
+
+  return null;
+});
+
 const seriesStatusText = computed(() => {
   const game = gameStore.game;
   const series = gameStore.series;
@@ -1329,16 +1410,6 @@ function handleVisibilityChange() {
 </script>
 
 <template>
-  <div v-if="isGameOver" class="game-over-modal">
-    <div class="game-over-content">
-        <h2>Game Over</h2>
-        <p v-if="seriesUpdateMessage">{{ seriesUpdateMessage }}</p>
-        <p v-else>This game is complete.</p>
-        <button v-if="nextGameId" @click="proceedToNextGame">Proceed to Next Game's Lineup</button>
-        <RouterLink v-else to="/dashboard" class="button-link">Return to Dashboard</RouterLink>
-    </div>
-  </div>
-
   <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
     <div @click.stop><PlayerCard :player="selectedCard" /></div>
   </div>
@@ -1408,6 +1479,10 @@ function handleVisibilityChange() {
             >
               {{ scoreChangeMessage.home.text }}
             </span>
+          </div>
+          <div v-if="finalScoreMessage" class="final-score-message" :style="{ backgroundColor: hexToRgba(finalScoreMessage.colors.primary), borderColor: hexToRgba(finalScoreMessage.colors.secondary), color: getContrastingTextColor(finalScoreMessage.colors.primary) }" v-html="finalScoreMessage.message">
+          </div>
+           <div v-if="seriesScoreMessage" class="series-score-message" :style="{ backgroundColor: hexToRgba(seriesScoreMessage.colors.primary), borderColor: hexToRgba(seriesScoreMessage.colors.secondary), color: getContrastingTextColor(seriesScoreMessage.colors.primary) }" v-html="seriesScoreMessage.message">
           </div>
       </div>
 
@@ -2139,42 +2214,25 @@ function handleVisibilityChange() {
   border: 3px solid;
   font-weight: bold;
 }
-
-.game-over-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.game-over-content {
-  background-color: white;
-  padding: 2rem 3rem;
-  border-radius: 8px;
+.final-score-message, .series-score-message {
+  padding: 0.5rem 1.5rem;
+  font-size: 1.5rem;
+  border-radius: 1px;
+  border: 3px solid;
   text-align: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  white-space: nowrap;
 }
 
-.game-over-content h2 {
-  margin-top: 0;
+.final-score-message {
+  top: -25px;
 }
 
-.game-over-content button, .game-over-content .button-link {
-    display: inline-block;
-    margin-top: 1rem;
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    font-weight: bold;
-    color: white;
-    background-color: #28a745;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none;
+.series-score-message {
+  bottom: 0px;
 }
+
 </style>
