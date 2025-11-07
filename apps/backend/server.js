@@ -2496,7 +2496,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 // The event from resolveThrow is now fully consolidated.
                 let consolidatedLogMessage = events[0];
                 if (newState.outs > originalOuts) {
-                    consolidatedLogMessage += `. <strong>Outs: ${newState.outs}</strong>`;
+                    consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', consolidatedLogMessage]);
             }
