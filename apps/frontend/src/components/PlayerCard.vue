@@ -122,12 +122,12 @@ function formatRange(range) {
 .fatigue-indicator {
   position: absolute;
   top: 13.5%; /* Fine-tuned position for the control circle */
-  right: 13%;
+  right: 9%;
   transform: translate(50%, -50%); /* Center it on the corner */
-  width: 20%; /* Relative to card width */
-  padding-bottom: 20%; /* Make it a circle */
+  width: 14%; /* Relative to card width */
+  padding-bottom: 1%; /* Make it a circle */
   background-color: red;
-  border: 2px solid white;
+  border: 1px solid white;
   border-radius: 50%;
   color: white;
   font-weight: bold;
@@ -135,13 +135,13 @@ function formatRange(range) {
   justify-content: center;
   align-items: center;
   font-size: 1.8vw; /* Responsive font size */
-  box-shadow: 0 0 8px rgba(0,0,0,0.7);
+  box-shadow: 0 0 0px rgba(0,0,0,0.7);
 }
 
 /* Media query for larger screens to cap font size */
 @media (min-width: 600px) {
   .fatigue-indicator {
-    font-size: 14px;
+    font-size: 22px;
   }
 }
 </style>
