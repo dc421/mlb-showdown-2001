@@ -73,11 +73,11 @@ router.post('/games/:gameId/snapshots', async (req, res) => {
             [
                 gameId,
                 snapshot_name,
-                game_data,
-                participants_data,
-                latest_state_data,
-                events_data,
-                rosters_data
+                JSON.stringify(game_data),
+                JSON.stringify(participants_data),
+                JSON.stringify(latest_state_data || null),
+                JSON.stringify(events_data),
+                JSON.stringify(rosters_data)
             ]
         );
 
