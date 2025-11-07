@@ -2556,6 +2556,12 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
         const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
+        if (!newState.currentPlay || !newState.currentPlay.payload) {
+            console.error(`Error in resolve-throw for game ${gameId}: currentPlay is missing or invalid.`);
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'Invalid game state for resolving a throw.' });
+        }
+
         const { payload } = newState.currentPlay;
         const { choices, initialEvent, decisions } = payload;
         const baseMap = { 1: 'first', 2: 'second', 3: 'third', 4: 'home' };
@@ -2576,17 +2582,24 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         }
 
 
+        const isTagUp = newState.currentPlay.type === 'TAG_UP';
+        const advancementBases = isTagUp ? 1 : 2;
+
         // 2. Handle runners who were sent.
         for (const decision of decisions) {
             const { runner, from } = decision;
+            const targetBase = from + advancementBases;
 
             if (choices[from.toString()]) { // This runner was sent.
-                const targetBase = from + 2;
-
                 if (targetBase !== throwTo) {
                     // This is the UNCONTESTED runner.
-                    finalBases[baseMap[targetBase]] = runner;
-                    allEvents.push(`${runner.name} advances to ${getOrdinal(targetBase)}.`);
+                    if (targetBase === 4) {
+                        newState[scoreKey]++;
+                        allEvents.push(`${runner.name} scores.`);
+                    } else {
+                        finalBases[baseMap[targetBase]] = runner;
+                        allEvents.push(`${runner.name} advances to ${getOrdinal(targetBase)}.`);
+                    }
                 }
             } else {
                 // This runner was HELD. They stay at their optimistically advanced base.
@@ -2596,7 +2609,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         }
 
         // 3. Resolve the contested throw.
-        const contestedDecision = decisions.find(d => d.from + 2 === throwTo);
+        const contestedDecision = decisions.find(d => d.from + advancementBases === throwTo);
         if (contestedDecision && choices[contestedDecision.from.toString()]) {
             const contestedRunner = contestedDecision.runner;
 
@@ -2618,11 +2631,16 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             };
 
             if (isSafe) {
-                newState[scoreKey]++;
-                allEvents.push(`${contestedRunner.name} is SAFE at ${baseMap[throwTo]}!`);
+                if (throwTo === 4) {
+                    newState[scoreKey]++;
+                    allEvents.push(`${contestedRunner.name} is SAFE at home!`);
+                } else {
+                    finalBases[baseMap[throwTo]] = contestedRunner;
+                    allEvents.push(`${contestedRunner.name} is SAFE at ${getOrdinal(throwTo)}!`);
+                }
             } else {
                 newState.outs++;
-                allEvents.push(`${contestedRunner.name} is THROWN OUT at ${baseMap[throwTo]}!`);
+                allEvents.push(`${contestedRunner.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
             }
         }
 
