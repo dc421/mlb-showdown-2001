@@ -240,12 +240,13 @@ function getEffectiveControl(pitcher, pitcherStats, inning) {
     const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
     const inningsPitched = stats.innings_pitched || [];
 
-    // The fatigue calculation should include the current inning if the pitcher is on the mound,
-    // as they are "working" in that inning, even if they haven't recorded an out.
-    // The official fatigue should only update *after* a pitch, but for UI display,
-    // showing the potential fatigue is more informative. Let's not add the inning here to avoid complexity
-    // and stick to what's been persisted. The update in /pitch is what makes it official.
-    const inningsPitchedCount = inningsPitched.length;
+    // For UI display purposes, we want to predict the fatigue for the current inning
+    // before the first pitch has been thrown.
+    let potentialInningsPitched = [...inningsPitched];
+    if (!potentialInningsPitched.includes(inning)) {
+        potentialInningsPitched.push(inning);
+    }
+    const inningsPitchedCount = potentialInningsPitched.length;
 
     let controlPenalty = 0;
     const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
