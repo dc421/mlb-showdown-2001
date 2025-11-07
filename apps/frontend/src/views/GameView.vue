@@ -703,7 +703,8 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 
 const showThrowRollResult = computed(() => {
   const hasDetails = !!gameStore.gameState?.doublePlayDetails;
-  if (!hasDetails || !gameStore.amIReadyForNext.value) return false;
+  if (!hasDetails) return false;
+  if(gameStore.amIReadyForNext.value) return false;
 
   // Defensive player sees it only after clicking.
   if (amIDefensivePlayer.value) {
