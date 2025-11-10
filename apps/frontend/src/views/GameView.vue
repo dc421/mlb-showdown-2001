@@ -380,8 +380,8 @@ const scoreChangeMessage = computed(() => {
     const newHomeScore = gameStore.displayGameState?.homeScore;
 
     // The "before" scores come from the last *completed* at-bat.
-    const oldAwayScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.currentAtBat?.awayScoreBeforePlay : gameStore.displayGameState?.lastCompletedAtBat?.awayScoreBeforePlay;
-    const oldHomeScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.currentAtBat?.homeScoreBeforePlay : gameStore.displayGameState?.lastCompletedAtBat?.homeScoreBeforePlay;
+    const oldAwayScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.lastCompletedAtBat?.awayScoreBeforePlay : gameStore.displayGameState?.currentAtBat?.awayScoreBeforePlay;
+    const oldHomeScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.lastCompletedAtBat?.homeScoreBeforePlay : gameStore.displayGameState?.currentAtBat?.homeScoreBeforePlay;
 
     // Fallback if scores are not available yet.
     if (newAwayScore === undefined || newHomeScore === undefined) {
@@ -582,7 +582,7 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext.value);
+  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showRollForPitchButton: ${result}`);
   return result;
 });
@@ -739,7 +739,7 @@ const isRunnerOnOffensiveTeam = computed(() => {
 
 const showStealResult = computed(() => {
   const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
-                                 (amIDisplayOffensivePlayer.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
+                                 (amIDisplayOffensivePlayer.value && isRunnerOnOffensiveTeam.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
                                  !gameStore.gameState.currentAtBat.batterAction;
 
   const defensivePlayerCondition = !!gameStore.gameState?.lastStealResult &&
@@ -1196,7 +1196,10 @@ function handleResolveSteal(throwToBase = null) {
 const isStealAttemptInProgress = computed(() => {
     if (!amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
-    const isSingleStealInProgress = !!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult;
+    const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
+                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.opponentReadyForNext))
+                                  //&& !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)
+                                  ;
     // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
     const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isSingleStealInProgress;
     return (isSingleStealInProgress || isDoubleStealInProgress) && !showStealResult.value;
@@ -1539,7 +1542,7 @@ function handleVisibilityChange() {
                     </button>
                 </div>
             </div>
-            <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && !showThrowRollResult">
+            <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && !showStealResult">
                 <div v-if="isSingleSteal">
                     <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
                     <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>

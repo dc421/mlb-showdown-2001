@@ -2320,8 +2320,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     // --- SINGLE STEAL RESOLUTION ---
     if (newState.pendingStealAttempt) {
         // The outcome was already calculated in initiate-steal. We just use it here.
-        const { outcome, runnerName, ...resultDetails } = newState.pendingStealAttempt;
-        newState.lastStealResult = { runner: runnerName, outcome, ...resultDetails };
+        const { outcome, runnerName, runner, ...resultDetails } = newState.pendingStealAttempt;
+
+        const offensiveTeam = newState.isTopInning ? newState.awayTeam : newState.homeTeam;
+        newState.lastStealResult = { runner: runnerName, outcome, runnerTeamId: offensiveTeam.team_id, ...resultDetails };
         newState.pendingStealAttempt = null;
 
         // FIX: Define queuedDecisions before using it.
