@@ -380,8 +380,8 @@ const scoreChangeMessage = computed(() => {
     const newHomeScore = gameStore.displayGameState?.homeScore;
 
     // The "before" scores come from the last *completed* at-bat.
-    const oldAwayScore = gameStore.displayGameState?.currentAtBat?.awayScoreBeforePlay;
-    const oldHomeScore = gameStore.displayGameState?.currentAtBat?.homeScoreBeforePlay;
+    const oldAwayScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.currentAtBat?.awayScoreBeforePlay : gameStore.displayGameState?.lastCompletedAtBat?.awayScoreBeforePlay;
+    const oldHomeScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.currentAtBat?.homeScoreBeforePlay : gameStore.displayGameState?.lastCompletedAtBat?.homeScoreBeforePlay;
 
     // Fallback if scores are not available yet.
     if (newAwayScore === undefined || newHomeScore === undefined) {
@@ -582,7 +582,7 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && gameStore.amIReadyForNext.value);
+  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext.value);
   console.log(`showRollForPitchButton: ${result}`);
   return result;
 });
