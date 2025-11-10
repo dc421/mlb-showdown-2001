@@ -67,6 +67,7 @@ const rollInfo = computed(() => {
 });
 
 const targetInfo = computed(() => {
+    // This part handles advances/tag-ups from 'throwRollResult'
     if (rollDetails.value.baseSpeed !== undefined) {
         let result = `${rollDetails.value.baseSpeed}`;
         if (rollDetails.value.adjustments && Array.isArray(rollDetails.value.adjustments)) {
@@ -80,7 +81,14 @@ const targetInfo = computed(() => {
         }
         return result;
     }
-    return `${rollDetails.value.target}`;
+
+    // This is the fallback, which handles 'lastStealResult' (single steals)
+    // and also the contested runner in 'throwRollResult' for double steals.
+    let result = `${rollDetails.value.target}`;
+    if (rollDetails.value.penalty && rollDetails.value.penalty > 0) {
+        result += ` -${rollDetails.value.penalty}`;
+    }
+    return result;
 });
 
 </script>
