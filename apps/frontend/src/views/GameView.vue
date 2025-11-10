@@ -588,7 +588,7 @@ const showRollForPitchButton = computed(() => {
 });
 
 const showSwingAwayButton = computed(() => {
-  const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !gameStore.gameState.inningEndedOnCaughtStealing;
+  const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showSwingAwayButton: ${result}`);
   return result;
 });
@@ -728,7 +728,7 @@ const showAutoThrowResult = computed(() => {
 
 // NEW: This computed specifically controls the visibility of the steal result box.
 const showStealResult = computed(() => {
-  return ((!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) && amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction) ||
+  return ((!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) && (amIDisplayOffensivePlayer.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) && !gameStore.gameState.currentAtBat.batterAction) ||
   (!!gameStore.gameState?.lastStealResult && amIDisplayDefensivePlayer.value);
 });
 
