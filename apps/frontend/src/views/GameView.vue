@@ -450,7 +450,7 @@ const isDisplayTopInning = computed(() => {
 });
 
 const batterLineupInfo = computed(() => {
-    if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
+    if (!gameStore.gameState || !gameStore.lineups?.away?.battingOrder) return null;
     const lineup = isDisplayTopInning.value ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
     if (!lineup || lineup.length === 0) return null;
     const pos = isDisplayTopInning.value ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
@@ -957,7 +957,7 @@ const pitcherToDisplay = computed(() => {
     if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
-        basePitcher = isDisplayTopInning.value ? gameStore.lineups.home.startingPitcher : gameStore.lineups.away.startingPitcher;
+        basePitcher = isDisplayTopInning.value ? gameStore.lineups?.home?.startingPitcher : gameStore.lineups?.away?.startingPitcher;
     }
 
     if (!basePitcher || typeof basePitcher.control !== 'number') {
@@ -1434,7 +1434,7 @@ function handleVisibilityChange() {
     <div @click.stop><PlayerCard :player="selectedCard" /></div>
   </div>
 
-  <div class="game-view-container" v-if="gameStore.gameState && gameStore.lineups?.home && gameStore.lineups?.away">
+  <div class="game-view-container" v-if="gameStore.gameState && (isGameOver || (gameStore.lineups?.home && gameStore.lineups?.away))">
     
     <!-- TOP SECTION: AT-BAT DISPLAY -->
     <div class="at-bat-container">
@@ -1507,7 +1507,7 @@ function handleVisibilityChange() {
       </div>
 
       <!-- PLAYER CARDS & ACTIONS -->
-      <div class="player-cards-and-actions-container">
+      <div v-if="!isGameOver" class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
         <div class="actions-container">
             <!-- PITCHER SELECTION STATE -->
@@ -1640,7 +1640,7 @@ function handleVisibilityChange() {
     </div>
 
     <!-- BOTTOM SECTION: INFO PANELS -->
-    <div class="info-container">
+    <div v-if="!isGameOver" class="info-container">
       <!-- Left Panel (User's Team) -->
       <div class="lineup-panel" v-if="leftPanelData.team">
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
