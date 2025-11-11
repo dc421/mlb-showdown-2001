@@ -103,7 +103,7 @@ const homeTotalRuns = computed(() => {
           <th></th>
           <th v-for="inning in linescore.innings"
               :key="inning"
-              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && gameStore.isSwingResultVisible) && !gameStore.opponentReadyForNext) }">
+              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && ((gameStore.isSwingResultVisible || (gameStore.gameState.stealAttemptDetails && gameStore.isStealResultVisible)) && (!gameStore.gameState.stealAttemptDetails || gameStore.isStealResultVisible))) && !gameStore.opponentReadyForNext) }">
               {{ inning }}
           </th>
           <th>R</th>
