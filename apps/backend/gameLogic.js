@@ -547,7 +547,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, initialEve
     }
 
     // Consolidate the event message here
-    const { scorers } = newState.currentPlay.payload;
+    const { scorers = [] } = newState.currentPlay.payload;
     let messageWithScore = finalizeEvent(newState, initialEvent, scorers, scoreKey);
     const finalMessage = messageWithScore ? `${messageWithScore} ${outcomeMessage}` : outcomeMessage;
     events.push(finalMessage);

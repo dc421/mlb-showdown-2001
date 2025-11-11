@@ -2461,7 +2461,6 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
         if (sentRunners.length === 1) {
             const fromBaseStr = sentRunners[0];
-            // FIX: The `decision` object from the currentPlay payload is the source of truth.
             const decision = newState.currentPlay.payload.decisions.find(d => d.from.toString() === fromBaseStr);
 
             if (!decision || !decision.runner) {
@@ -2472,10 +2471,10 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             let throwTo;
             if (type === 'TAG_UP') {
                 throwTo = decision.from + 1;
-            } else { // Assumes ADVANCE
+            } else {
                 const { hitType } = newState.currentPlay.payload;
                 if (hitType === '2B') {
-                    throwTo = 4; // On a double, a runner from 1st is always trying for home.
+                    throwTo = 4;
                 } else {
                     throwTo = decision.from + 2;
                 }
@@ -2485,12 +2484,9 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const { initialEvent } = newState.currentPlay.payload;
             const originalOuts = newState.outs;
 
-            // --- REFACTORED LOGIC ---
-            // Pass the initialEvent to the updated resolveThrow function.
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, initialEvent);
             newState = resolvedState;
 
-            // --- FIX for 1B+ ---
             const batterOnFirst = newState.bases.first;
             if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
                 newState.bases.second = batterOnFirst;
@@ -2498,18 +2494,13 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'game_event', stealEvent]);
             }
-            // --- END FIX ---
-
-            // --- NEW FIX for 2B ---
             if (newState.currentPlay?.payload?.hitType === '2B' && newState.currentPlay?.payload?.batter) {
                 newState.bases.second = newState.currentPlay.payload.batter;
             }
-            // --- END NEW FIX ---
 
             newState.currentPlay = null;
 
             if (events.length > 0) {
-                // The event from resolveThrow is now fully consolidated.
                 let consolidatedLogMessage = events[0];
                 if (newState.outs > originalOuts) {
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
@@ -2530,11 +2521,9 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
 
         } else if (sentRunners.length > 1) {
-            // --- Multiple runners sent, ask defense for throw choice ---
             newState.currentPlay.payload.choices = decisions;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         } else {
-            // --- No runners sent, log the initial event and proceed ---
             const { initialEvent } = newState.currentPlay.payload;
             if (initialEvent) {
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', initialEvent]);
