@@ -206,7 +206,7 @@ const baserunningOptionGroups = computed(() => {
 });
 
 const isAdvancementOrTagUpDecision = computed(() => {
-    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !isSwingResultVisible.value) {
+    if (isGameOver.value || !amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !isSwingResultVisible.value) {
         return false;
     }
     const type = gameStore.gameState.currentPlay.type;
@@ -214,7 +214,7 @@ const isAdvancementOrTagUpDecision = computed(() => {
 });
 
 const isDefensiveThrowDecision = computed(() => {
-    if (!amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
+    if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
         return false;
     }
     const { type, payload } = gameStore.gameState.currentPlay;
@@ -540,7 +540,7 @@ const isOffensiveStealInProgress = computed(() => {
 });
 
 const canAttemptSteal = computed(() => {
-    if (!amIOffensivePlayer.value || !gameStore.gameState) {
+    if (isGameOver.value || !amIOffensivePlayer.value || !gameStore.gameState) {
         return false;
     }
     const isStealPhase = isMyTurn.value && (
@@ -583,18 +583,21 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
+  if (isGameOver.value) return false;
   const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showRollForPitchButton: ${result}`);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
+  if (isGameOver.value) return false;
   const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showSwingAwayButton: ${result}`);
   return result;
 });
 
 const showNextHitterButton = computed(() => {
+  if (isGameOver.value) return false;
   let reason = '';
   let result = false;
 
@@ -637,6 +640,7 @@ const showNextHitterButton = computed(() => {
 
 
 const showRollForSwingButton = computed(() => {
+  if (isGameOver.value) return false;
   let reason = '';
   let result = false;
 
@@ -662,6 +666,7 @@ const showRollForSwingButton = computed(() => {
 });
 
 const showRollForDoublePlayButton = computed(() => {
+  if (isGameOver.value) return false;
   const isDPBall = !!gameStore.gameState?.doublePlayDetails;
   return isDPBall && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value && !gameStore.amIReadyForNext;
 });
@@ -951,6 +956,9 @@ watch(nextBatterInLineup, (newNextBatter) => {
 }, { immediate: true });
 
 const batterToDisplay = computed(() => {
+    if (isGameOver.value) {
+        return gameStore.gameState?.lastCompletedAtBat?.batter ?? null;
+    }
     if (anticipatedBatter.value) {
         return anticipatedBatter.value;
     }
@@ -967,6 +975,9 @@ const batterToDisplay = computed(() => {
 });
 
 const pitcherToDisplay = computed(() => {
+    if (isGameOver.value) {
+        return gameStore.gameState?.lastCompletedAtBat?.pitcher ?? null;
+    }
     if (!gameStore.gameState) return null;
 
     let basePitcher = null;
@@ -1213,7 +1224,7 @@ function handleResolveSteal(throwToBase = null) {
 
 
 const isStealAttemptInProgress = computed(() => {
-    if (!amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
+    if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
     const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
                                  (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.opponentReadyForNext))
@@ -1245,6 +1256,7 @@ const targetBase = computed(() => {
 });
 
 const isInfieldInDecision = computed(() => {
+    if (isGameOver.value) return false;
     return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE';
 });
 
@@ -1526,9 +1538,9 @@ function handleVisibilityChange() {
       </div>
 
       <!-- PLAYER CARDS & ACTIONS -->
-      <div v-if="!isGameOver" class="player-cards-and-actions-container">
+      <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-        <div class="actions-container">
+        <div v-if="!isGameOver" class="actions-container">
             <!-- PITCHER SELECTION STATE -->
         <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
                 <h3>Invalid Lineup</h3>
@@ -1660,7 +1672,7 @@ function handleVisibilityChange() {
     </div>
 
     <!-- BOTTOM SECTION: INFO PANELS -->
-    <div v-if="!isGameOver" class="info-container">
+    <div class="info-container">
       <!-- Left Panel (User's Team) -->
       <div class="lineup-panel" v-if="leftPanelData.team">
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
