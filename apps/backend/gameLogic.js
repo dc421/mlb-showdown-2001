@@ -323,7 +323,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (manualDecisions.length > 0) {
           newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
       } else {
-          events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
+          events.push(combinedEvent);
       }
   }
   else if (outcome === '2B') {
@@ -369,7 +369,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               scoreRun(runnerFrom1, false);
               combinedEvent += ` ${runnerFrom1.name} scores from first without a throw!`;
           }
-          events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
+          events.push(combinedEvent);
           newState.bases.second = runnerData; // Batter placed on second since play is resolved
       } else {
           if (runnerFrom1) {
@@ -377,7 +377,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               // DECOUPLE batter from runner decision by saving batter data to the currentPlay
               newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers } };
           } else {
-              events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
+              events.push(combinedEvent);
               newState.bases.second = runnerData; // No runner decision, so batter is safe on second
           }
       }
@@ -413,7 +413,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         scoreRun(runner, false);
         combinedEvent += ` ${runner.name} scores!`;
     }
-    events.push(finalizeEvent(newState, combinedEvent, scorers, scoreKey));
+    events.push(combinedEvent);
     newState.bases.third = runnerData;
     newState.bases.second = null;
     newState.bases.first = null;
@@ -579,16 +579,6 @@ function calculateStealResult(runner, toBase, catcherArm, getSpeedValue) {
         penalty,
         isSafe,
     };
-}
-
-function finalizeEvent(state, event, scorers, scoreKey) {
-    if (scorers.length > 0) {
-        const currentScore = state[scoreKey];
-        const otherScore = state[state.isTopInning ? 'homeScore' : 'awayScore'];
-        const scoreString = state.isTopInning ? `${currentScore}-${otherScore}` : `${otherScore}-${currentScore}`;
-        return `${event} <strong>(Score: ${scoreString})</strong>`;
-    }
-    return event;
 }
 
 module.exports = { applyOutcome, resolveThrow, calculateStealResult };
