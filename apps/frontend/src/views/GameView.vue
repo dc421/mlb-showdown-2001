@@ -728,9 +728,14 @@ const showAutoThrowResult = computed(() => {
 
 // NEW: This computed specifically controls the visibility of the steal result box.
 const isRunnerOnOffensiveTeam = computed(() => {
+  if(!gameStore.gameState?.lastStealResult && gameStore.gameState?.pendingStealAttempt && !gameStore.inningEndedOnCaughtStealing){
+    return true
+  }
+
   if (!gameStore.gameState?.lastStealResult?.runnerTeamId) {
     return false;
   }
+
   const offensiveTeam = isDisplayTopInning.value
     ? gameStore.gameState.awayTeam
     : gameStore.gameState.homeTeam;
@@ -739,7 +744,7 @@ const isRunnerOnOffensiveTeam = computed(() => {
 
 const showStealResult = computed(() => {
   const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
-                                 (amIDisplayOffensivePlayer.value && isRunnerOnOffensiveTeam.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
+                                 (amIDisplayOffensivePlayer.value && (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
                                  !gameStore.gameState.currentAtBat.batterAction;
 
   const defensivePlayerCondition = !!gameStore.gameState?.lastStealResult &&
