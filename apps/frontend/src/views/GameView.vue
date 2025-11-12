@@ -1590,8 +1590,10 @@ function handleVisibilityChange() {
             <div v-else-if="isInfieldInDecision">
                 <h3>Infield In Play</h3>
                 <p>The defense has the infield in. What will the runner on third do?</p>
-                <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
-                <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+                <div class="infield-in-decisions">
+                    <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
+                    <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+                </div>
             </div>
             <div v-else>
                 <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW</strong></button>
@@ -2182,7 +2184,7 @@ function handleVisibilityChange() {
   width: 100%;
   margin: 0;
 }
-.runner-decisions-group, .steal-throw-decisions, .defensive-throw-decisions {
+.runner-decisions-group, .steal-throw-decisions, .defensive-throw-decisions, .infield-in-decisions {
     margin-top: 1rem;
     margin-bottom: 1rem;
     display: flex;
