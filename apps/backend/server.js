@@ -2389,6 +2389,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         const originalBases = JSON.parse(JSON.stringify(newState.bases));
         const outcomes = {};
         let contestedRunnerDetails = {};
+        const originalOuts = newState.outs;
 
         for (const fromBaseStr in decisions) {
             if (decisions[fromBaseStr]) {
@@ -2427,7 +2428,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
             }
         });
 
-        const logMessage = allEvents.join(' ');
+        let logMessage = allEvents.join(' ');
+        if (newState.outs > originalOuts) {
+            logMessage += ` Outs: ${newState.outs}`;
+        }
         newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage };
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
         newState.currentPlay = null;
