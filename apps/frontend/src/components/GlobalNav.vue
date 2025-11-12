@@ -39,7 +39,7 @@ const isGamePage = computed(() => route.name === 'game');
 <style scoped>
 .global-nav {
   background-color: #343a40;
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 1rem;
   display: flex;
   align-items: center;
   position: sticky;

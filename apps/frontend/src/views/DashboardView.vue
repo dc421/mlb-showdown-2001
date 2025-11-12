@@ -16,11 +16,17 @@ const myTeamDisplayName = computed(() => {
   return format.replace('{city}', team.city).replace('{name}', team.name);
 });
 
-// in DashboardView.vue
 const gamesToJoin = computed(() => {
     if (!authStore.user) return [];
-    // Filter by user ID instead of email for better reliability
     return authStore.openGames.filter(game => game.host_user_id !== authStore.user.userId);
+});
+
+const activeGames = computed(() => {
+  return authStore.myGames.filter(game => game.status !== 'completed');
+});
+
+const completedGames = computed(() => {
+  return authStore.myGames.filter(game => game.status === 'completed');
 });
 
 function getGameTypeName(seriesType) {
@@ -81,45 +87,47 @@ onUnmounted(() => {
       <div class="team-info">
         <h1>{{ myTeamDisplayName }}</h1>
         <p>Owner: {{ authStore.user.owner }}</p>
+        <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
       </div>
     </header>
 
     <main class="dashboard-main">
       <div class="panel">
-        <h2>Your Roster</h2>
-        <div class="roster-controls">
-            <p v-if="authStore.myRoster">You have a saved roster ready for action.</p>
-            <p v-else>You haven't created your roster yet.</p>
-            <button @click="goToRosterBuilder">{{ authStore.myRoster ? 'Edit Your Roster' : 'Create Your Roster' }}</button>
-        </div>
-      </div>
-      <div class="panel">
-        <h2>Active Games</h2>
+        <h2>New Game</h2>
         <div class="series-options">
             <label><input type="radio" v-model="seriesType" value="exhibition"> Exhibition</label>
             <label><input type="radio" v-model="seriesType" value="regular_season"> Regular Season (7 Games)</label>
             <label><input type="radio" v-model="seriesType" value="playoff"> Playoff (Best of 7)</label>
         </div>
         <button @click="handleCreateGame" :disabled="!authStore.myRoster" class="action-btn">+ Create New Game</button>
-        <ul v-if="authStore.myGames.length > 0" class="game-list">
-            <li v-for="game in authStore.myGames" :key="game.game_id">
+        <h3 class="join-header">Open Games to Join</h3>
+        <ul v-if="gamesToJoin.length > 0" class="game-list">
+          <li v-for="game in gamesToJoin" :key="game.game_id">
+            <span>{{ getGameTypeName(game.series_type) }} vs. {{ game.full_display_name }}</span>
+            <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster">Join</button>
+          </li>
+        </ul>
+        <p v-else>No open games to join.</p>
+      </div>
+      <div class="panel">
+        <h2>Active Games</h2>
+        <ul v-if="activeGames.length > 0" class="game-list">
+            <li v-for="game in activeGames" :key="game.game_id">
                 <RouterLink :to="game.status === 'pending' ? `/game/${game.game_id}/setup` : (game.status === 'lineups' ? `/game/${game.game_id}/lineup` : `/game/${game.game_id}`)">
                     <GameScorecard :game="game" />
                 </RouterLink>
             </li>
         </ul>
-        <p v-else>You are not in any active games.</p>
+        <p v-else>You have no active games.</p>
       </div>
        <div class="panel">
-        <h2>Open Games to Join</h2>
-         <ul v-if="authStore.openGames.length > 0" class="game-list">
-         <!-- in DashboardView.vue template -->
-<li v-for="game in gamesToJoin" :key="game.game_id">
-  <span>{{ getGameTypeName(game.series_type) }} vs. {{ game.full_display_name }}</span>
-  <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster">Join</button>
-</li>
+        <h2>Completed Games</h2>
+        <ul v-if="completedGames.length > 0" class="game-list">
+          <li v-for="game in completedGames" :key="game.game_id">
+            <GameScorecard :game="game" />
+          </li>
         </ul>
-        <p v-else>No open games to join.</p>
+        <p v-else>You have no completed games.</p>
       </div>
     </main>
 
@@ -140,7 +148,7 @@ onUnmounted(() => {
   gap: 2rem;
   padding: 2rem;
   border-radius: 8px;
-  margin: 2rem;
+  margin: 2rem 2rem 1rem 2rem;
 }
 .team-logo {
   height: 100px;
@@ -167,12 +175,15 @@ onUnmounted(() => {
   flex-direction: column;
 }
 .panel h2 { margin-top: 0; }
-.roster-controls {
-    text-align: center;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+.roster-btn {
+  margin-top: 1rem;
+  background-color: rgba(255,255,255,0.2);
+  border: 1px solid currentColor;
+  color: inherit;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
 }
 .action-btn { float: right; }
 .game-list {
@@ -209,6 +220,13 @@ onUnmounted(() => {
   margin-bottom: 1rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #eee;
+}
+
+.join-header {
+  margin-top: 2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+  text-align: center;
 }
 
 @media (max-width: 768px) {

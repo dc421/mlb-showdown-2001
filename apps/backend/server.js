@@ -1320,13 +1320,21 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
         let gameState = null;
-        if (game.status === 'in_progress') {
+        if (game.status === 'in_progress' || game.status === 'completed') {
             const stateResult = await pool.query(
                 'SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1',
                 [game.game_id]
             );
             if (stateResult.rows.length > 0) {
                 gameState = stateResult.rows[0].state_data;
+            }
+        }
+
+        let series = null;
+        if (game.series_id) {
+            const seriesResult = await pool.query('SELECT * FROM series WHERE id = $1', [game.series_id]);
+            if (seriesResult.rows.length > 0) {
+                series = seriesResult.rows[0];
             }
         }
 
@@ -1341,7 +1349,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
 
-        processedGames.push({ ...game, opponent, gameState, home_team_abbr, away_team_abbr, status_text });
+        processedGames.push({ ...game, opponent, gameState, series, home_team_abbr, away_team_abbr, status_text });
     }
 
     res.json(processedGames);
