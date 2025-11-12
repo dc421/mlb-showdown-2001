@@ -74,50 +74,65 @@ const statusText = computed(() => {
   return text;
 });
 
-const finalScoreText = computed(() => {
-  if (props.game.status !== 'completed' || !gameState.value) return '';
-
-  const myUserId = authStore.user?.userId;
-  const isHome = props.game.home_team_user_id === myUserId;
-
-  const myRuns = isHome ? gameState.value.homeScore : gameState.value.awayScore;
-  const oppRuns = isHome ? gameState.value.awayScore : gameState.value.homeScore;
-
-  const result = myRuns > oppRuns ? 'W' : 'L';
-
-  return `Final: ${result} ${myRuns}-${oppRuns}`;
+const isWin = computed(() => {
+    if (props.game.status !== 'completed' || !gameState.value) return false;
+    const myUserId = authStore.user?.userId;
+    const isHome = props.game.home_team_user_id === myUserId;
+    const myRuns = isHome ? gameState.value.homeScore : gameState.value.awayScore;
+    const oppRuns = isHome ? gameState.value.awayScore : gameState.value.homeScore;
+    return myRuns > oppRuns;
 });
 
-const seriesScoreText = computed(() => {
-  if (props.game.status !== 'completed' || !props.game.series) return '';
+const formattedFinalScore = computed(() => {
+    if (props.game.status !== 'completed' || !gameState.value) return '';
 
-  const myUserId = authStore.user?.userId;
-  const isSeriesHome = props.game.series.series_home_user_id === myUserId;
+    const { homeScore, awayScore, inning } = gameState.value;
+    const homeAbbr = homeTeamAbbr.value;
+    const awayAbbr = awayTeamAbbr.value;
 
-  const myWins = isSeriesHome ? props.game.series.home_wins : props.game.series.away_wins;
-  const oppWins = isSeriesHome ? props.game.series.away_wins : props.game.series.home_wins;
+    const winningAbbr = homeScore > awayScore ? homeAbbr : awayAbbr;
+    const winningScore = Math.max(homeScore, awayScore);
+    const losingAbbr = homeScore < awayScore ? homeAbbr : awayAbbr;
+    const losingScore = Math.min(homeScore, awayScore);
 
-  if (myWins === oppWins) return `Series Tied ${myWins}-${oppWins}`;
+    let scoreString = `FINAL: ${winningAbbr} ${winningScore}, ${losingAbbr} ${losingScore}`;
+    if (inning > 9) {
+        scoreString += ` (${inning})`;
+    }
+    return scoreString;
+});
 
-  return myWins > oppWins ? `You Lead Series ${myWins}-${oppWins}` : `You Trail Series ${oppWins}-${myWins}`;
+const gameSubtitle = computed(() => {
+    const date = new Date(props.game.created_at).toLocaleDateString();
+    let seriesInfo = 'Exhibition';
+
+    if (props.game.series_type !== 'exhibition' && props.game.series) {
+        const myUserId = authStore.user?.userId;
+        const isSeriesHome = props.game.series.series_home_user_id === myUserId;
+        const myWins = isSeriesHome ? props.game.series.home_wins : props.game.series.away_wins;
+        const oppWins = isSeriesHome ? props.game.series.away_wins : props.game.series.home_wins;
+
+        if (myWins === oppWins) {
+            seriesInfo = `Series Tied ${myWins}-${oppWins}`;
+        } else if (myWins > oppWins) {
+            seriesInfo = `You Lead Series ${myWins}-${oppWins}`;
+        } else {
+            seriesInfo = `You Trail Series ${oppWins}-${myWins}`;
+        }
+    }
+    return `${seriesInfo} · ${date}`;
 });
 
 </script>
 
 <template>
   <div class="game-scorecard">
-    <div v-if="game.status === 'completed' && gameState" class="game-details">
-      <div class="line-1">
-         <div class="opponent-info">
-          <span v-if="game.opponent">
-            <span v-if="game.game_in_series" class="game-number">Game {{ game.game_in_series }}</span>
-            vs. {{ game.opponent.full_display_name }}
-          </span>
-        </div>
-        <div class="final-score">{{ finalScoreText }}</div>
+    <div v-if="game.status === 'completed' && gameState" class="game-details completed-game">
+      <div class="final-score" :class="{ 'win': isWin, 'loss': !isWin }">
+        {{ formattedFinalScore }}
       </div>
-      <div class="line-2">
-        <div class="series-score">{{ seriesScoreText }}</div>
+      <div class="series-score">
+        {{ gameSubtitle }}
       </div>
     </div>
     <div v-else-if="(game.status === 'in_progress' && gameState) || isPreGame" class="game-details">
@@ -222,9 +237,24 @@ const seriesScoreText = computed(() => {
   font-weight: bold;
 }
 
+.final-score.win {
+  color: #28a745; /* Green for win */
+}
+
+.final-score.loss {
+  color: #dc3545; /* Red for loss */
+}
+
 .series-score {
   font-style: italic;
   font-size: 0.9rem;
   color: #555;
+}
+
+.completed-game {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center align the content */
+    gap: 0.25rem;
 }
 </style>
