@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome, resolveThrow, calculateStealResult } = require('./gameLogic');
+const { applyOutcome, resolveThrow, calculateStealResult, checkWalkOff } = require('./gameLogic');
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
@@ -213,6 +213,23 @@ async function getInfieldDefense(defensiveParticipant) {
 }
 
 // --- HELPER FUNCTIONS ---
+
+async function getHomeTeamAbbr(gameId, client) {
+  const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+  if (!game.rows[0] || !game.rows[0].home_team_user_id) return 'HOME';
+  const homeTeamResult = await client.query('SELECT t.abbreviation FROM teams t WHERE t.user_id = $1', [game.rows[0].home_team_user_id]);
+  return homeTeamResult.rows[0]?.abbreviation || 'HOME';
+}
+
+async function finalizeGameIfOver(newState, gameId, client) {
+  if (newState.gameOver) {
+    await client.query(
+      `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+      [gameId]
+    );
+    await handleSeriesProgression(gameId, client);
+  }
+}
 
 function getOrdinal(n) {
     const s = ["th", "st", "nd", "rd"];
@@ -1752,6 +1769,8 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
 
+      const homeTeamAbbr = await getHomeTeamAbbr(gameId, client);
+
       const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
 
       // --- THIS IS THE FIX ---
@@ -1775,7 +1794,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           }
       }
 
-      const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+      const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, homeTeamAbbr);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1817,13 +1836,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
 
       // --- NEW: Check for Game Over ---
-      if (finalState.gameOver) {
-        await client.query(
-          `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
-          [gameId]
-        );
-        await handleSeriesProgression(gameId, client);
-      }
+      await finalizeGameIfOver(finalState, gameId, client);
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
@@ -1873,7 +1886,8 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         // Add the scores before the outcome is applied.
         currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
         currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
-        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue, 0, null);
+        const homeTeamAbbr = await getHomeTeamAbbr(gameId, client);
+        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue, 0, null, homeTeamAbbr);
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
@@ -1947,7 +1961,8 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+            const homeTeamAbbr = await getHomeTeamAbbr(gameId, client);
+            const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, homeTeamAbbr);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
@@ -1994,13 +2009,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
 
             // --- NEW: Check for Game Over ---
-            if (finalState.gameOver) {
-              await client.query(
-                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
-                [gameId]
-              );
-              await handleSeriesProgression(gameId, client);
-            }
+            await finalizeGameIfOver(finalState, gameId, client);
         }
     }
     
@@ -2489,6 +2498,9 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, initialEvent);
             newState = resolvedState;
 
+            const homeTeamAbbr = await getHomeTeamAbbr(gameId, client);
+            checkWalkOff(newState, events, homeTeamAbbr);
+
             const batterOnFirst = newState.bases.first;
             if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
                 newState.bases.second = batterOnFirst;
@@ -2522,6 +2534,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             newState.homePlayerReadyForNext = false;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
 
+            await finalizeGameIfOver(newState, gameId, client);
         } else if (sentRunners.length > 1) {
             newState.currentPlay.payload.choices = decisions;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
@@ -2655,6 +2668,9 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         newState.bases = finalBases;
         newState.currentPlay = null;
 
+        const homeTeamAbbr = await getHomeTeamAbbr(gameId, client);
+        checkWalkOff(newState, allEvents, homeTeamAbbr);
+
         if (allEvents.length > 0) {
             // Sort events to be more logical: lead runner first.
             allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
@@ -2675,6 +2691,8 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
 
         newState.awayPlayerReadyForNext = false;
         newState.homePlayerReadyForNext = false;
+
+        await finalizeGameIfOver(newState, gameId, client);
 
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
@@ -2774,11 +2792,16 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
         if (newState.outs >= 3) {
         }
+
+        const homeTeamAbbr = await getHomeTeamAbbr(gameId, client);
+        checkWalkOff(newState, events, homeTeamAbbr);
         
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
         if (events.length > 0) {
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'infield-in-gb', events.join(' ')]);
         }
+
+        await finalizeGameIfOver(newState, gameId, client);
 
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]); // Both players need to see the result
         await client.query('COMMIT');

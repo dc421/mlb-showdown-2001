@@ -4,7 +4,7 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null) {
+function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null, homeTeamAbbr = 'HOME') {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
@@ -440,11 +440,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   }
 
   // --- Walk-off Win Check ---
-  if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
-    newState.gameOver = true;
-    newState.winningTeam = 'home';
-    events.push(`HOME TEAM WINS! WALK-OFF!`);
-  }
+  checkWalkOff(newState, events, homeTeamAbbr);
 
   // --- Handle Inning Change & Game Over Check ---
   if (newState.outs >= 3 && !newState.gameOver) {
@@ -591,4 +587,12 @@ function finalizeEvent(state, event, scorers, scoreKey) {
     return event;
 }
 
-module.exports = { applyOutcome, resolveThrow, calculateStealResult };
+function checkWalkOff(state, events, homeTeamAbbr = 'HOME') {
+  if (!state.gameOver && !state.isTopInning && state.inning >= 9 && state.homeScore > state.awayScore) {
+    state.gameOver = true;
+    state.winningTeam = 'home';
+    events.push(`${homeTeamAbbr} WINS! WALK-OFF!`);
+  }
+}
+
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, checkWalkOff };
