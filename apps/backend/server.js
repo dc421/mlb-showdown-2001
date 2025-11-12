@@ -237,6 +237,18 @@ function getOrdinal(n) {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// --- NEW HELPER: Appends the score to a log message if it has changed ---
+function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHomeScore) {
+    const scoreChanged = finalState.awayScore > originalAwayScore || finalState.homeScore > originalHomeScore;
+    if (scoreChanged) {
+        const scoreString = finalState.isTopInning
+            ? `${finalState.awayScore}-${finalState.homeScore}`
+            : `${finalState.homeScore}-${finalState.awayScore}`;
+        return `${logMessage} <strong>(Score: ${scoreString})</strong>`;
+    }
+    return logMessage;
+}
+
 const getSpeedValue = (runner) => {
   // Pitchers always have C/10 speed
   if (runner.control !== null && typeof runner.control !== 'undefined') {
@@ -1337,13 +1349,21 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
         let gameState = null;
-        if (game.status === 'in_progress') {
+        if (game.status === 'in_progress' || game.status === 'completed') {
             const stateResult = await pool.query(
                 'SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1',
                 [game.game_id]
             );
             if (stateResult.rows.length > 0) {
                 gameState = stateResult.rows[0].state_data;
+            }
+        }
+
+        let series = null;
+        if (game.series_id) {
+            const seriesResult = await pool.query('SELECT * FROM series WHERE id = $1', [game.series_id]);
+            if (seriesResult.rows.length > 0) {
+                series = seriesResult.rows[0];
             }
         }
 
@@ -1358,7 +1378,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
 
-        processedGames.push({ ...game, opponent, gameState, home_team_abbr, away_team_abbr, status_text });
+        processedGames.push({ ...game, opponent, gameState, series, home_team_abbr, away_team_abbr, status_text });
     }
 
     res.json(processedGames);
@@ -1830,7 +1850,8 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
         }
 
-        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
+        const finalLogMessage = appendScoreToLog(combinedLogMessage, finalState, currentState.awayScore, currentState.homeScore);
+        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', finalLogMessage]);
       }
       
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
@@ -1894,10 +1915,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         finalState.currentAtBat.pitchRollResult = { roll: 'IBB', outcome: 'IBB' };
 
         for (const logMessage of walkEvents) {
-          let finalLog = logMessage;
-          if ((finalState.awayScore + finalState.homeScore) > (currentState.awayScore + currentState.homeScore)) {
-              finalLog += ` <strong>(Score: ${finalState.awayScore}-${finalState.homeScore})</strong>`;
-          }
+          const finalLog = appendScoreToLog(logMessage, finalState, currentState.awayScore, currentState.homeScore);
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'walk', finalLog]);
         }
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
@@ -2002,8 +2020,8 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
               } else if (finalState.outs > originalOuts) {
                 combinedLogMessage += ` <strong>Outs: ${finalState.outs}</strong>`;
               }
-
-              await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', combinedLogMessage]);
+              const finalLogMessage = appendScoreToLog(combinedLogMessage, finalState, currentState.awayScore, currentState.homeScore);
+              await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', finalLogMessage]);
             }
 
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
@@ -2388,6 +2406,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         const originalBases = JSON.parse(JSON.stringify(newState.bases));
         const outcomes = {};
         let contestedRunnerDetails = {};
+        const originalOuts = newState.outs;
 
         for (const fromBaseStr in decisions) {
             if (decisions[fromBaseStr]) {
@@ -2426,7 +2445,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
             }
         });
 
-        const logMessage = allEvents.join(' ');
+        let logMessage = allEvents.join(' ');
+        if (newState.outs > originalOuts) {
+            logMessage += ` Outs: ${newState.outs}`;
+        }
         newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage };
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
         newState.currentPlay = null;
@@ -2519,7 +2541,8 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 if (newState.outs > originalOuts) {
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', consolidatedLogMessage]);
+                const finalLogMessage = appendScoreToLog(consolidatedLogMessage, newState, currentState.awayScore, currentState.homeScore);
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage]);
             }
 
             if (newState.outs >= 3) {
@@ -2678,7 +2701,8 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             if (newState.outs > originalOuts) {
                 combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
             }
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', combinedLogMessage]);
+            const finalLogMessage = appendScoreToLog(combinedLogMessage, newState, currentState.awayScore, currentState.homeScore);
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage]);
         }
 
         if (newState.outs >= 3) {
@@ -2798,7 +2822,8 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
         
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
         if (events.length > 0) {
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'infield-in-gb', events.join(' ')]);
+            const finalLogMessage = appendScoreToLog(events.join(' '), newState, currentState.awayScore, currentState.homeScore);
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'infield-in-gb', finalLogMessage]);
         }
 
         await finalizeGameIfOver(newState, gameId, client);
