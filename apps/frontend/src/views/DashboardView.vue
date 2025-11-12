@@ -177,13 +177,22 @@ onUnmounted(() => {
 .panel h2 { margin-top: 0; }
 .roster-btn {
   margin-top: 1rem;
-  background-color: rgba(255,255,255,0.2);
-  border: 1px solid currentColor;
+  padding: .5rem 1rem;
+  font-size: 1rem;
+  border-radius: 5px;
   color: inherit;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border: 1px solid currentColor;
+  transition: all 0.1s ease-in-out;
   cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.2);
   font-weight: bold;
+}
+.roster-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+.roster-btn:active {
+  background-color: rgba(255, 255, 255, 0.4);
+  box-shadow: none;
 }
 .action-btn { float: right; }
 .game-list {
