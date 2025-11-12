@@ -1811,10 +1811,10 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           }
       }
 
-      const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+      const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
-      finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
+      finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalOutcome, batter, eventCount: events.length };
       
       
       if ((events && events.length > 0) || finalState.doublePlayDetails) {
@@ -1981,10 +1981,10 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events, scorers } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+            const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
-            finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome, batter, eventCount: events.length };
+            finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalOutcome, batter, eventCount: events.length };
 
             // --- ADD THESE DEBUG LOGS ---
         console.log('--- PITCH OUTS DEBUG ---');

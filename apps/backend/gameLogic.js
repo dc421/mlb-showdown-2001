@@ -24,7 +24,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
       if (swingRoll === highestGB) {
           outcome = '1B'; // Convert the outcome to a single
-          events.push(`The high-end ground ball finds a hole through the drawn-in infield for a SINGLE!`);
+          events.push(`The ground ball finds a hole through the drawn-in infield for a SINGLE!`);
       }
   }
 
@@ -471,7 +471,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     }
   }
 
-  return { newState, events, scorers };
+  return { newState, events, scorers, outcome };
 }
 
 function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '') {
