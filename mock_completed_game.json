@@ -1,0 +1,67 @@
+
+{
+  "game": {
+    "game_id": 1,
+    "status": "completed",
+    "home_team_user_id": 1,
+    "away_team_user_id": 2
+  },
+  "series": null,
+  "gameState": {
+    "state_data": {
+      "inning": 9,
+      "isTopInning": false,
+      "awayScore": 2,
+      "homeScore": 3,
+      "outs": 3,
+      "bases": {
+        "first": null,
+        "second": null,
+        "third": null
+      },
+      "gameOver": true,
+      "winningTeam": "home",
+      "homeTeam": { "userId": 1, "battingOrderPosition": 0, "used_player_ids": [] },
+      "awayTeam": { "userId": 2, "battingOrderPosition": 0, "used_player_ids": [] },
+      "homeDefensiveRatings": { "catcherArm": 0, "infieldDefense": 0, "outfieldDefense": 0 },
+      "awayDefensiveRatings": { "catcherArm": 0, "infieldDefense": 0, "outfieldDefense": 0 },
+      "currentHomePitcher": { "card_id": 201, "name": "Whitey Ford", "displayName": "Whitey Ford", "control": 5, "ip": 9 },
+      "currentAwayPitcher": { "card_id": 401, "name": "Bob Gibson", "displayName": "Bob Gibson", "control": 6, "ip": 9 },
+      "lastCompletedAtBat": {
+        "batter": { "card_id": 101, "name": "Mickey Mantle", "displayName": "Mickey Mantle" },
+        "pitcher": { "card_id": 401, "name": "Bob Gibson", "displayName": "Bob Gibson", "control": 6, "ip": 9 }
+      },
+       "currentAtBat": {
+        "batter": { "card_id": 101, "name": "Mickey Mantle", "displayName": "Mickey Mantle" },
+        "pitcher": { "card_id": 401, "name": "Bob Gibson", "displayName": "Bob Gibson", "control": 6, "ip": 9 }
+      }
+    }
+  },
+  "gameEvents": [],
+  "batter": { "card_id": 101, "name": "Mickey Mantle", "displayName": "Mickey Mantle" },
+  "pitcher": { "card_id": 401, "name": "Bob Gibson", "displayName": "Bob Gibson", "control": 6, "ip": 9 },
+  "lineups": {
+    "home": {
+      "battingOrder": [
+        { "position": "CF", "player": { "card_id": 101, "name": "Mickey Mantle", "displayName": "Mickey Mantle" } },
+        { "position": "2B", "player": { "card_id": 102, "name": "Joe Morgan", "displayName": "Joe Morgan" } }
+      ],
+      "startingPitcher": { "card_id": 201, "name": "Whitey Ford", "displayName": "Whitey Ford", "control": 5, "ip": 9 }
+    },
+    "away": {
+      "battingOrder": [
+        { "position": "SS", "player": { "card_id": 301, "name": "Cal Ripken Jr.", "displayName": "Cal Ripken Jr." } },
+        { "position": "RF", "player": { "card_id": 302, "name": "Roberto Clemente", "displayName": "Roberto Clemente" } }
+      ],
+      "startingPitcher": { "card_id": 401, "name": "Bob Gibson", "displayName": "Bob Gibson", "control": 6, "ip": 9 }
+    }
+  },
+  "rosters": {
+    "home": [],
+    "away": []
+  },
+  "teams": {
+    "home": { "city": "New York", "logo_url": "" },
+    "away": { "city": "Pittsburgh", "logo_url": "" }
+  }
+}

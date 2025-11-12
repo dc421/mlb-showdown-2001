@@ -1638,7 +1638,7 @@ async function getAndProcessGameData(gameId, dbClient) {
   const eventsResult = await dbClient.query('SELECT * FROM game_events WHERE game_id = $1 ORDER BY "timestamp" ASC', [gameId]);
   let batter = null, pitcher = null, lineups = { home: null, away: null }, rosters = { home: [], away: [] };
 
-  if (game.status === 'in_progress') {
+  if (game.status === 'in_progress' || game.status === 'completed') {
     const activePlayers = await getActivePlayers(gameId, currentState.state_data);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
