@@ -124,7 +124,9 @@ onUnmounted(() => {
         <h2>Completed Games</h2>
         <ul v-if="completedGames.length > 0" class="game-list">
           <li v-for="game in completedGames" :key="game.game_id">
-            <GameScorecard :game="game" />
+            <RouterLink :to="`/game/${game.game_id}`">
+              <GameScorecard :game="game" />
+            </RouterLink>
           </li>
         </ul>
         <p v-else>You have no completed games.</p>
