@@ -487,8 +487,8 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (isTransitioningToNextHitter.value) return false;
   if (!gameStore.gameState) return false;
 
-  // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll result.
-  if (showRollForDoublePlayButton.value) {
+  // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll or throw roll result.
+  if (showRollForDoublePlayButton.value || showDefensiveRollForThrowButton.value && !showThrowRollResult.value) {
     return true;
   }
 
@@ -607,7 +607,10 @@ const showNextHitterButton = computed(() => {
   } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
     reason = 'Waiting for double play resolution';
     result = false;
-  } else if (isAwaitingBaserunningDecision.value) {
+  } else if (showDefensiveRollForThrowButton.value && (amIDefensivePlayer.value || !gameStore.gameState.currentPlay)) {
+    reason = 'Waiting for advance resolution';
+    result = false;
+  }else if (isAwaitingBaserunningDecision.value) {
     reason = 'Awaiting baserunning decision';
     result = false;
   } else if (amIDisplayDefensivePlayer && gameStore.gameState.currentPlay?.type === 'INFIELD_IN_CHOICE' && isSwingResultVisible) {
