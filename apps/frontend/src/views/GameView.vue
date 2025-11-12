@@ -224,7 +224,7 @@ const isDefensiveThrowDecision = computed(() => {
 const isAwaitingBaserunningDecision = computed(() => {
     if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
         const type = gameStore.gameState.currentPlay.type;
-        return (type === 'ADVANCE' || type === 'TAG_UP');
+        return (type === 'ADVANCE' || type === 'TAG_UP' || type === 'INFIELD_IN_CHOICE');
     }
     return false;
 });
@@ -419,7 +419,7 @@ const runScoredOnPlay = computed(() => {
 
 const scoreUpdateVisible = computed(() => {
   const swingIsVisible = isSwingResultVisible.value || (amIDisplayOffensivePlayer.value && isSwingResultVisible.value);
-  return runScoredOnPlay.value && swingIsVisible;
+  return runScoredOnPlay.value && swingIsVisible && !shouldHideCurrentAtBatOutcome.value;
 });
 
 // in GameView.vue
@@ -610,6 +610,9 @@ const showNextHitterButton = computed(() => {
   } else if (isAwaitingBaserunningDecision.value) {
     reason = 'Awaiting baserunning decision';
     result = false;
+  } else if (amIDisplayDefensivePlayer && gameStore.gameState.currentPlay?.type === 'INFIELD_IN_CHOICE' && isSwingResultVisible) {
+    reason = 'Awaiting infield in decision';
+    result = false;
   } else if ((amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))) {
     reason = 'Awaiting advance throw decision';
     result = false;
@@ -708,7 +711,9 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 }, { immediate: true });
 
 const showDefensiveRollForThrowButton = computed(() => {
-    return amIDefensivePlayer.value && isSwingResultVisible.value && gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value;
+    return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value
+    // here put something that makes it clear the offense has sent a runner
+    ;
 });
 
 function handleRollForThrow() {
@@ -1236,7 +1241,9 @@ const isStealAttemptInProgress = computed(() => {
 });
 
 const isSingleSteal = computed(() => {
-    return isStealAttemptInProgress.value && !!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult;
+    return (isStealAttemptInProgress.value && !!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
+    // this part to deal with a later double steal (next inning or after IBB)
+    !(gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT');
 });
 
 const stealingRunner = computed(() => {
@@ -1257,7 +1264,7 @@ const targetBase = computed(() => {
 
 const isInfieldInDecision = computed(() => {
     if (isGameOver.value) return false;
-    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE';
+    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE' && !showRollForSwingButton.value;
 });
 
 
@@ -2268,7 +2275,7 @@ function handleVisibilityChange() {
 }
 .final-score-message, .series-score-message {
   padding: 0.5rem 1.5rem;
-  font-size: 1.5rem;
+  font-size: 2.5rem;
   border-radius: 1px;
   border: 3px solid;
   text-align: center;
@@ -2280,7 +2287,7 @@ function handleVisibilityChange() {
 }
 
 .final-score-message {
-  top: -25px;
+  top: 100px;
 }
 
 .series-score-message {

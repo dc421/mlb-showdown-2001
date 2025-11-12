@@ -103,7 +103,7 @@ const homeTotalRuns = computed(() => {
           <th></th>
           <th v-for="inning in linescore.innings"
               :key="inning"
-              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && ((gameStore.isSwingResultVisible || (gameStore.gameState.stealAttemptDetails && gameStore.isStealResultVisible)) && (!gameStore.gameState.stealAttemptDetails || gameStore.isStealResultVisible))) && !gameStore.opponentReadyForNext) }">
+              :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && gameStore.isSwingResultVisible) && !gameStore.opponentReadyForNext) }">
               {{ inning }}
           </th>
           <th>R</th>
@@ -115,7 +115,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.away" 
             :key="`away-${index}`"
-            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ awayTotalRuns }}</td>
@@ -125,7 +125,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.home" 
             :key="`home-${index}`"
-            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ homeTotalRuns }}</td>
