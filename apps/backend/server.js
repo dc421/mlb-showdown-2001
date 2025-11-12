@@ -2428,7 +2428,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         });
 
         const logMessage = allEvents.join(' ');
-        newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage };
+        newState.throwRollResult = { ...contestedRunnerDetails, type: newState.currentPlay.type, consolidatedOutcome: logMessage };
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
         newState.currentPlay = null;
 
@@ -2735,6 +2735,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
             const isSafe = runnerSpeed >= defenseTotal;
 
             newState.throwRollResult = {
+                type: newState.currentPlay.type,
                 roll: d20Roll,
                 defense: infieldDefense,
                 target: runnerSpeed,

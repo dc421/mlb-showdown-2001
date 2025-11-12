@@ -514,6 +514,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, initialEve
     const isSafe = speed >= defenseRoll;
 
     newState.throwRollResult = {
+        type,
         roll: d20Roll,
         defense: outfieldDefense,
         target: speed,
