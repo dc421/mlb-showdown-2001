@@ -73,11 +73,54 @@ const statusText = computed(() => {
   }
   return text;
 });
+
+const finalScoreText = computed(() => {
+  if (props.game.status !== 'completed' || !gameState.value) return '';
+
+  const myUserId = authStore.user?.userId;
+  const isHome = props.game.home_team_user_id === myUserId;
+
+  const myRuns = isHome ? gameState.value.homeScore : gameState.value.awayScore;
+  const oppRuns = isHome ? gameState.value.awayScore : gameState.value.homeScore;
+
+  const result = myRuns > oppRuns ? 'W' : 'L';
+
+  return `Final: ${result} ${myRuns}-${oppRuns}`;
+});
+
+const seriesScoreText = computed(() => {
+  if (props.game.status !== 'completed' || !props.game.series) return '';
+
+  const myUserId = authStore.user?.userId;
+  const isSeriesHome = props.game.series.series_home_user_id === myUserId;
+
+  const myWins = isSeriesHome ? props.game.series.home_wins : props.game.series.away_wins;
+  const oppWins = isSeriesHome ? props.game.series.away_wins : props.game.series.home_wins;
+
+  if (myWins === oppWins) return `Series Tied ${myWins}-${oppWins}`;
+
+  return myWins > oppWins ? `You Lead Series ${myWins}-${oppWins}` : `You Trail Series ${oppWins}-${myWins}`;
+});
+
 </script>
 
 <template>
   <div class="game-scorecard">
-    <div v-if="(game.status === 'in_progress' && gameState) || isPreGame" class="game-details">
+    <div v-if="game.status === 'completed' && gameState" class="game-details">
+      <div class="line-1">
+         <div class="opponent-info">
+          <span v-if="game.opponent">
+            <span v-if="game.game_in_series" class="game-number">Game {{ game.game_in_series }}</span>
+            vs. {{ game.opponent.full_display_name }}
+          </span>
+        </div>
+        <div class="final-score">{{ finalScoreText }}</div>
+      </div>
+      <div class="line-2">
+        <div class="series-score">{{ seriesScoreText }}</div>
+      </div>
+    </div>
+    <div v-else-if="(game.status === 'in_progress' && gameState) || isPreGame" class="game-details">
       <div class="line-1">
         <div class="opponent-info">
           <span v-if="game.opponent">
@@ -173,5 +216,15 @@ const statusText = computed(() => {
     color: black;
     font-style: italic;
     font-weight: normal;
+}
+
+.final-score {
+  font-weight: bold;
+}
+
+.series-score {
+  font-style: italic;
+  font-size: 0.9rem;
+  color: #555;
 }
 </style>

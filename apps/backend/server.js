@@ -1332,13 +1332,21 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
         let gameState = null;
-        if (game.status === 'in_progress') {
+        if (game.status === 'in_progress' || game.status === 'completed') {
             const stateResult = await pool.query(
                 'SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1',
                 [game.game_id]
             );
             if (stateResult.rows.length > 0) {
                 gameState = stateResult.rows[0].state_data;
+            }
+        }
+
+        let series = null;
+        if (game.series_id) {
+            const seriesResult = await pool.query('SELECT * FROM series WHERE id = $1', [game.series_id]);
+            if (seriesResult.rows.length > 0) {
+                series = seriesResult.rows[0];
             }
         }
 
@@ -1353,7 +1361,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
 
-        processedGames.push({ ...game, opponent, gameState, home_team_abbr, away_team_abbr, status_text });
+        processedGames.push({ ...game, opponent, gameState, series, home_team_abbr, away_team_abbr, status_text });
     }
 
     res.json(processedGames);
@@ -1630,7 +1638,7 @@ async function getAndProcessGameData(gameId, dbClient) {
   const eventsResult = await dbClient.query('SELECT * FROM game_events WHERE game_id = $1 ORDER BY "timestamp" ASC', [gameId]);
   let batter = null, pitcher = null, lineups = { home: null, away: null }, rosters = { home: [], away: [] };
 
-  if (game.status === 'in_progress') {
+  if (game.status === 'in_progress' || game.status === 'completed') {
     const activePlayers = await getActivePlayers(gameId, currentState.state_data);
     batter = activePlayers.batter;
     pitcher = activePlayers.pitcher;
@@ -2389,6 +2397,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         const originalBases = JSON.parse(JSON.stringify(newState.bases));
         const outcomes = {};
         let contestedRunnerDetails = {};
+        const originalOuts = newState.outs;
 
         for (const fromBaseStr in decisions) {
             if (decisions[fromBaseStr]) {
@@ -2427,7 +2436,10 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
             }
         });
 
-        const logMessage = allEvents.join(' ');
+        let logMessage = allEvents.join(' ');
+        if (newState.outs > originalOuts) {
+            logMessage += ` Outs: ${newState.outs}`;
+        }
         newState.throwRollResult = { ...contestedRunnerDetails, type: newState.currentPlay.type, consolidatedOutcome: logMessage };
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
         newState.currentPlay = null;
