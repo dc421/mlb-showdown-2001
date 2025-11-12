@@ -103,7 +103,8 @@ const formattedFinalScore = computed(() => {
 });
 
 const gameSubtitle = computed(() => {
-    const date = new Date(props.game.created_at).toLocaleDateString();
+    const dateString = props.game.status === 'completed' ? props.game.completed_at : props.game.created_at;
+    const date = new Date(dateString).toLocaleDateString();
     let seriesInfo = 'Exhibition';
 
     if (props.game.series_type !== 'exhibition' && props.game.series) {

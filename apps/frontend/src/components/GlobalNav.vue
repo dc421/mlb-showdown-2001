@@ -46,10 +46,7 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   position: sticky;
   top: 0;
   z-index: 1000;
-}
-
-.global-nav.dashboard-page {
-  position: static;
+  margin-bottom: 1rem;
 }
 .global-nav a {
   color: white;
