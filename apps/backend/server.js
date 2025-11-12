@@ -214,6 +214,22 @@ async function getInfieldDefense(defensiveParticipant) {
 
 // --- HELPER FUNCTIONS ---
 
+function finalizeEvent(state, initialEvent, scorers, scoreKey) {
+    let message = initialEvent;
+    if (scorers && scorers.length > 0) {
+        const scoreEvents = scorers.map(s => `${s} scores!`).join(' ');
+        message = `${message} ${scoreEvents}`;
+    }
+    const scoreChanged = state[scoreKey] > (scoreKey === 'awayScore' ? state.currentAtBat.awayScoreBeforePlay : state.currentAtBat.homeScoreBeforePlay);
+    if (scoreChanged) {
+        const scoreString = state.isTopInning
+            ? `${state.awayScore}-${state.homeScore}`
+            : `${state.homeScore}-${state.awayScore}`;
+        return `${message} <strong>(Score: ${scoreString})</strong>`;
+    }
+    return message;
+}
+
 function getOrdinal(n) {
     const s = ["th", "st", "nd", "rd"];
     const v = n % 100;
@@ -2508,7 +2524,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             const { initialEvent } = newState.currentPlay.payload;
             const originalOuts = newState.outs;
 
-            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, initialEvent);
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent);
             newState = resolvedState;
 
             const batterOnFirst = newState.bases.first;
