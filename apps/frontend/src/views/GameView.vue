@@ -719,6 +719,25 @@ const showDefensiveRollForThrowButton = computed(() => {
     ;
 });
 
+const defensiveThrowMessage = computed(() => {
+  if (!showDefensiveRollForThrowButton.value) {
+    return null;
+  }
+  const throwDetails = gameStore.gameState.throwRollResult;
+  if (!throwDetails || !throwDetails.runnerName || !throwDetails.toBase) {
+    return null;
+  }
+
+  const getOrdinal = (n) => {
+    if (n === 4) return 'Home!';
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]) + '!';
+  }
+
+  return `${throwDetails.runnerName} is trying for ${getOrdinal(throwDetails.toBase)}`;
+});
+
 function handleRollForThrow() {
     defensiveThrowRollClicked.value = true;
 }
@@ -1606,6 +1625,9 @@ function handleVisibilityChange() {
                 </div>
             </div>
             <div v-else>
+                <div v-if="defensiveThrowMessage" class="waiting-text">
+                  <h3>{{ defensiveThrowMessage }}</h3>
+                </div>
                 <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW</strong></button>
                 <button v-else-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
                 <button v-else-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
