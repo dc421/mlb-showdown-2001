@@ -474,7 +474,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events, scorers };
 }
 
-function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, initialEvent = '') {
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '') {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
