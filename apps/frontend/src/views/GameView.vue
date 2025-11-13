@@ -715,7 +715,7 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 
 const showDefensiveRollForThrowButton = computed(() => {
     return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value
-    // here put something that makes it clear the offense has sent a runner
+    // this is to say when two runners are sent we can just show the result after picking the base to throw at
     ;
 });
 
@@ -724,7 +724,7 @@ const defensiveThrowMessage = computed(() => {
     return null;
   }
   const throwDetails = gameStore.gameState.throwRollResult;
-  if (!throwDetails || !throwDetails.runnerName || !throwDetails.toBase) {
+  if (!throwDetails || !throwDetails.runner || !throwDetails.throwToBase) {
     return null;
   }
 
@@ -735,7 +735,7 @@ const defensiveThrowMessage = computed(() => {
     return n + (s[(v - 20) % 10] || s[v] || s[0]) + '!';
   }
 
-  return `${throwDetails.runnerName} is trying for ${getOrdinal(throwDetails.toBase)}`;
+  return `${throwDetails.runner} is trying for ${getOrdinal(throwDetails.throwToBase)}`;
 });
 
 function handleRollForThrow() {
