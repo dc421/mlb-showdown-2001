@@ -115,7 +115,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         }
         // Case 2: Any other situation with a runner on third.
         else {
-            events.push(`${batter.displayName} hits a ground ball to the drawn-in infield...`);
             newState.currentPlay = {
                 type: 'INFIELD_IN_CHOICE',
                 payload: {

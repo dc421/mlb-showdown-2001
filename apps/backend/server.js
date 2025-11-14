@@ -2794,7 +2794,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
             }
 
         } else { // Hold runner
-            events.push(`${batter.name} hits a ground ball, the runner on third holds.`);
+            events.push(`${batter.name} grounds out, the runner on third holds.`);
             newState.outs++;
 
             if (newState.outs < 3) {
@@ -2817,7 +2817,11 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
         
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
         if (events.length > 0) {
-            const finalLogMessage = appendScoreToLog(events.join(' '), newState, currentState.awayScore, currentState.homeScore);
+            let logMessage = events.join(' ');
+            if (newState.outs > currentState.outs) {
+                logMessage += ` <strong>Outs: ${newState.outs}</strong>`;
+            }
+            const finalLogMessage = appendScoreToLog(logMessage, newState, currentState.awayScore, currentState.homeScore);
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'infield-in-gb', finalLogMessage]);
         }
 
