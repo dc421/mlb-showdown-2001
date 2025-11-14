@@ -229,12 +229,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         // If there are manual decisions, create a play
         if (manualDecisions.length > 0) {
             events.push(combinedEvent);
-            newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, initialEvent: combinedEvent } };
+            newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, autoHoldDecisions, initialEvent: combinedEvent } };
         } else {
             // Otherwise, process auto-holds and finalize the event
-            for (const decision of autoHoldDecisions) {
-                combinedEvent += ` ${decision.runner.name} holds.`;
-            }
             events.push(combinedEvent);
         }
     } else {
@@ -294,9 +291,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               baseAheadIsOccupied = false;
           } else {
               newState.bases.third = runnerFrom2;
-              if (decisionR2.type === 'auto_hold') {
-                combinedEvent += ` ${runnerFrom2.name} holds at third.`;
-              }
               baseAheadIsOccupied = true;
           }
       } else if (runnerFrom2) {
@@ -312,9 +306,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               combinedEvent += ` ${runnerFrom1.name} takes third without a throw.`;
           } else {
               newState.bases.second = runnerFrom1;
-              if (decisionR1.type === 'auto_hold' || (decisionR1.type === 'auto_advance' && baseAheadIsOccupied)) {
-                  combinedEvent += ` ${runnerFrom1.name} holds at second.`;
-              }
           }
       } else if (runnerFrom1) {
           newState.bases.second = runnerFrom1;
@@ -330,7 +321,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
 
       if (manualDecisions.length > 0) {
-          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
+          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, autoHoldDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
       } else {
           events.push(combinedEvent);
       }

@@ -2550,7 +2550,18 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
-            const { initialEvent } = newState.currentPlay.payload;
+            let { initialEvent, autoHoldDecisions = [] } = newState.currentPlay.payload;
+            const sentRunnerFromBase = parseInt(fromBaseStr, 10);
+            const runnersWhoHeld = autoHoldDecisions.filter(d => d.from !== sentRunnerFromBase);
+            if (runnersWhoHeld.length > 0) {
+                const heldMessages = runnersWhoHeld.map(d => {
+                    const advancement = newState.currentPlay.type === 'TAG_UP' ? 1 : 1;
+                    const holdBase = d.from + advancement;
+                    return `${d.runner.name} holds at ${getOrdinal(holdBase)}.`;
+                });
+                initialEvent += ` ${heldMessages.join(' ')}`;
+            }
+
             const originalOuts = newState.outs;
 
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent);
@@ -2593,8 +2604,18 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
         } else if (sentRunners.length > 1) {
             newState.currentPlay.payload.choices = decisions;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
-        } else {
-            const { initialEvent } = newState.currentPlay.payload;
+        } else { // 0 runners sent
+            let { initialEvent, autoHoldDecisions = [] } = newState.currentPlay.payload;
+
+            if (autoHoldDecisions.length > 0) {
+                const heldMessages = autoHoldDecisions.map(d => {
+                    const advancement = newState.currentPlay.type === 'TAG_UP' ? 1 : 1; // On a single, they hold at the next base
+                    const holdBase = d.from + advancement;
+                    return `${d.runner.name} holds at ${getOrdinal(holdBase)}.`;
+                });
+                initialEvent += ` ${heldMessages.join(' ')}`;
+            }
+
             if (initialEvent) {
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', initialEvent]);
             }
