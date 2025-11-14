@@ -2742,7 +2742,8 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
     try {
         await client.query('BEGIN');
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
-        let newState = JSON.parse(JSON.stringify(stateResult.rows[0].state_data));
+        const currentState = stateResult.rows[0].state_data;
+        let newState = JSON.parse(JSON.stringify(currentState));
         const currentTurn = stateResult.rows[0].turn_number;
 
         if (newState.currentPlay?.type !== 'INFIELD_IN_CHOICE') {
