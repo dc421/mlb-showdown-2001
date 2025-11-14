@@ -92,6 +92,37 @@ async function handleSubstitution(playerIn) {
     gameStore.playerSelectedForSwap = null;
 }
 
+const isMyTurn = computed(() => {
+  if (!authStore.user || !gameStore.game) return false;
+  if (Number(gameStore.game.current_turn_user_id) === 0) return true;
+  return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
+});
+
+const isGameOver = computed(() => gameStore.game?.status === 'completed');
+
+// in GameView.vue
+
+const amIOffensivePlayer = computed(() => {
+    if (!authStore.user || !gameStore.gameState) return false;
+    const offensiveTeam = gameStore.gameState.isTopInning ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+    // This is the most reliable way to check, using the game state
+    return Number(authStore.user.userId) === Number(offensiveTeam.userId);
+});
+
+const amIDefensivePlayer = computed(() => {
+    if (!authStore.user || !gameStore.gameState) return false;
+    // By definition, if you are not on offense, you are on defense.
+    return !amIOffensivePlayer.value;
+});
+
+const isDefensiveThrowDecision = computed(() => {
+    if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
+        return false;
+    }
+    const { type, payload } = gameStore.gameState.currentPlay;
+    return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
+});
+
 const runnerDecisionsWithLabels = computed(() => {
     if (!gameStore.gameState?.currentPlay?.payload?.decisions) {
         return [];
@@ -220,14 +251,6 @@ const isAdvancementOrTagUpDecision = computed(() => {
     return type === 'ADVANCE' || type === 'TAG_UP';
 });
 
-const isDefensiveThrowDecision = computed(() => {
-    if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
-        return false;
-    }
-    const { type, payload } = gameStore.gameState.currentPlay;
-    return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
-});
-
 const isAwaitingBaserunningDecision = computed(() => {
     if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
         const type = gameStore.gameState.currentPlay.type;
@@ -241,12 +264,6 @@ const infieldIn = ref(false);
 
 const REPLACEMENT_HITTER = { card_id: 'replacement_hitter', displayName: 'Replacement Hitter', control: null };
 const REPLACEMENT_PITCHER = { card_id: 'replacement_pitcher', displayName: 'Replacement Pitcher', control: 0, ip: 1 };
-
-const isMyTurn = computed(() => {
-  if (!authStore.user || !gameStore.game) return false;
-  if (Number(gameStore.game.current_turn_user_id) === 0) return true;
-  return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
-});
 
 const isMyTeamAwaitingLineupChange = computed(() => {
     if (!gameStore.gameState || !gameStore.myTeam) return false;
@@ -427,21 +444,6 @@ const runScoredOnPlay = computed(() => {
 const scoreUpdateVisible = computed(() => {
   const swingIsVisible = isSwingResultVisible.value || (amIDisplayOffensivePlayer.value && isSwingResultVisible.value);
   return runScoredOnPlay.value && swingIsVisible && !shouldHideCurrentAtBatOutcome.value;
-});
-
-// in GameView.vue
-
-const amIOffensivePlayer = computed(() => {
-    if (!authStore.user || !gameStore.gameState) return false;
-    const offensiveTeam = gameStore.gameState.isTopInning ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
-    // This is the most reliable way to check, using the game state
-    return Number(authStore.user.userId) === Number(offensiveTeam.userId);
-});
-
-const amIDefensivePlayer = computed(() => {
-    if (!authStore.user || !gameStore.gameState) return false;
-    // By definition, if you are not on offense, you are on defense.
-    return !amIOffensivePlayer.value;
 });
 
 
@@ -1091,8 +1093,6 @@ const outsToDisplay = computed(() => {
   // out count at all times, whether the state is rolled back or not.
   return gameStore.displayGameState?.outs ?? 0;
 });
-
-const isGameOver = computed(() => gameStore.game?.status === 'completed');
 
 const finalScoreMessage = computed(() => {
   if (!isGameOver.value) {
