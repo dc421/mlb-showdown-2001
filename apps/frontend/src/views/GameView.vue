@@ -1000,9 +1000,8 @@ const batterToDisplay = computed(() => {
     if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !(!!gameStore.gameState.lastStealResult & !gameStore.gameState.pendingStealAttempt)) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
-    // MODIFIED: The single source of truth for the current batter is the lineup,
-    // as `currentAtBat.batter` can become stale after a substitution.
-    return batterLineupInfo.value?.player ?? gameStore.gameState.currentAtBat?.batter ?? null;
+    // The single source of truth for the current batter is the store's `batter` ref.
+    return gameStore.batter;
 });
 
 const pitcherToDisplay = computed(() => {
@@ -1017,7 +1016,7 @@ const pitcherToDisplay = computed(() => {
     if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
-        basePitcher = isDisplayTopInning.value ? gameStore.lineups?.home?.startingPitcher : gameStore.lineups?.away?.startingPitcher;
+        basePitcher = gameStore.pitcher;
     }
 
     if (!basePitcher || typeof basePitcher.control !== 'number') {
