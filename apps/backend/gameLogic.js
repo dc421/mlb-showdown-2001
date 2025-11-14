@@ -372,13 +372,14 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           events.push(combinedEvent);
           newState.bases.second = runnerData; // Batter placed on second since play is resolved
       } else {
+          // THIS IS THE FIX. Place the batter on second base *before* creating the
+          // ADVANCE play. This ensures the frontend has the correct state.
+          newState.bases.second = runnerData;
           if (runnerFrom1) {
               newState.bases.third = runnerFrom1;
-              // DECOUPLE batter from runner decision by saving batter data to the currentPlay
               newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers } };
           } else {
               events.push(combinedEvent);
-              newState.bases.second = runnerData; // No runner decision, so batter is safe on second
           }
       }
   }
@@ -413,7 +414,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         scoreRun(runner, false);
         combinedEvent += ` ${runner.name} scores!`;
     }
+    // No runner advancement decisions on a triple, so we push the event.
     events.push(combinedEvent);
+    // And place the batter directly on third.
     newState.bases.third = runnerData;
     newState.bases.second = null;
     newState.bases.first = null;
