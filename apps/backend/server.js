@@ -2156,10 +2156,15 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- NEW: Update pitcher fatigue for the new at-bat ---
       newState = updatePitcherFatigueForNewInning(newState, pitcher);
 
+      // Calculate effectiveControl and attach it to the pitcher object for this specific at-bat.
+      if (pitcher) {
+          pitcher.effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
+      }
+
       // Create a fresh scorecard for the new at-bat.
       newState.currentAtBat = {
           batter: batter,
-          pitcher: pitcher,
+          pitcher: pitcher, // This pitcher object now includes effectiveControl
           pitcherAction: null, batterAction: null,
           pitchRollResult: null, swingRollResult: null,
           outsBeforePlay: newState.outs,
