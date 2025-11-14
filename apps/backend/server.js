@@ -974,8 +974,11 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
         playerOutCard = playerOutResult.rows[0];
     }
-    
-    newState[teamKey].used_player_ids.push(playerOutId);
+    const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
+    const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
+    if (committedPlayerIds.includes(parseInt(playerOutId, 10))) {
+      newState[teamKey].used_player_ids.push(playerOutId);
+    }
 
     // Get the correct user ID for the team being substituted
     const teamUserId = newState[teamKey].userId;
@@ -1763,6 +1766,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await commitPlayersInGame(gameId, client);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -1877,6 +1881,31 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   }
 });
 
+async function commitPlayersInGame(gameId, client) {
+    const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
+    const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
+
+    const participantsResult = await client.query('SELECT lineup FROM game_participants WHERE game_id = $1', [gameId]);
+    if (participantsResult.rows.length === 0) return;
+
+    const currentPlayerIds = new Set(committedPlayerIds.map(id => parseInt(id, 10)));
+    participantsResult.rows.forEach(p => {
+        if (p.lineup && p.lineup.battingOrder) {
+            p.lineup.battingOrder.forEach(spot => {
+                if (spot.card_id > 0) {
+                    currentPlayerIds.add(parseInt(spot.card_id, 10));
+                }
+            });
+        }
+        if (p.lineup && p.lineup.startingPitcher && p.lineup.startingPitcher > 0) {
+             currentPlayerIds.add(parseInt(p.lineup.startingPitcher, 10));
+        }
+    });
+
+    const updatedPlayerIds = Array.from(currentPlayerIds);
+    await client.query('UPDATE games SET committed_player_ids = $1::jsonb WHERE game_id = $2', [JSON.stringify(updatedPlayerIds), gameId]);
+}
+
 app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const { action } = req.body;
@@ -1884,6 +1913,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await commitPlayersInGame(gameId, client);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -2057,6 +2087,7 @@ app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    await commitPlayersInGame(gameId, client);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let finalState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
