@@ -2696,13 +2696,18 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         newState.bases = finalBases;
         newState.currentPlay = null;
 
+        // Sort events to be more logical: lead runner first.
+        allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
+        let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
+        if (newState.outs > originalOuts) {
+            combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
+        }
+
+        if (newState.throwRollResult) {
+            newState.throwRollResult.consolidatedOutcome = combinedLogMessage;
+        }
+
         if (allEvents.length > 0) {
-            // Sort events to be more logical: lead runner first.
-            allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
-            let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
-            if (newState.outs > originalOuts) {
-                combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
-            }
             const finalLogMessage = appendScoreToLog(combinedLogMessage, newState, currentState.awayScore, currentState.homeScore);
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage]);
         }
@@ -2724,7 +2729,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         
         const gameData = await getAndProcessGameData(gameId, client);
         io.to(gameId).emit('game-updated', gameData);
-        res.sendStatus(200);
+        res.status(200).json(gameData);
 
     } catch (error) {
         await client.query('ROLLBACK');

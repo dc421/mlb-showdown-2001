@@ -714,9 +714,11 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 }, { immediate: true });
 
 const showDefensiveRollForThrowButton = computed(() => {
-    return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value
-    // this is to say when two runners are sent we can just show the result after picking the base to throw at
-    && !gameStore.gameState?.throwRollResult?.consolidatedOutcome;
+    // This is the key change: if there are multiple throw options, we skip this button.
+    if (defensiveThrowOptions.value.length > 1) {
+        return false;
+    }
+    return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value;
 });
 
 const defensiveThrowMessage = computed(() => {
@@ -765,8 +767,9 @@ const showAutoThrowResult = computed(() => {
     if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult) {
         return false;
     }
-    // NEW: If there's a consolidated outcome, show it to both players immediately.
-    if (gameStore.gameState.throwRollResult.consolidatedOutcome) {
+    // This is the key change: if there are multiple runners, show the result immediately
+    // after the defensive player makes their choice.
+    if (defensiveThrowOptions.value.length > 1) {
         return true;
     }
     if (amIDefensivePlayer.value) {
