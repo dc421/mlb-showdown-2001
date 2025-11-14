@@ -4,11 +4,14 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+
 function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
   const scorers = [];
+  const originalAwayScore = state.awayScore;
+  const originalHomeScore = state.homeScore;
   let hitMessage = '';
 
   // --- Handle Highest GB Rule ---
@@ -271,58 +274,69 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           return { ...decision, type: 'manual' };
       });
 
-      let manualDecisions = processedDecisions.filter(d => d.type === 'manual');
+      const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
       const autoHoldDecisions = processedDecisions.filter(d => d.type === 'auto_hold');
-
-      if (manualDecisions.length > 0) {
-          manualDecisions = manualDecisions.concat(autoHoldDecisions.map(d => ({ ...d, type: 'manual' })));
-      }
 
       // --- State Update ---
       newState.bases = { first: null, second: null, third: null };
-      let baseAheadIsOccupied = false;
 
-      // Process lead runner (from 2nd) first, if they exist
-      const decisionR2 = processedDecisions.find(d => d.from === 2);
-      if (decisionR2) {
-          if (decisionR2.type === 'auto_advance') {
+      if (manualDecisions.length > 0) {
+          // --- SCENARIO 1: User decision is required ---
+          const allUserDecisions = manualDecisions.concat(autoHoldDecisions.map(d => ({ ...d, type: 'manual' })));
+
+          // Optimistic state update: runners advance one base
+          if (runnerFrom2) newState.bases.third = runnerFrom2;
+          if (runnerFrom1) newState.bases.second = runnerFrom1;
+
+          // Handle auto-advances that happen before the manual decision
+          const runnerFrom2Decision = processedDecisions.find(d => d.from === 2 && d.type === 'auto_advance');
+          if (runnerFrom2Decision) {
               scoreRun(runnerFrom2, false);
               combinedEvent += ` ${runnerFrom2.name} scores from second without a throw.`;
-              baseAheadIsOccupied = false;
-          } else {
+              newState.bases.third = null; // He's not on third anymore
+          }
+
+          newState.bases.first = runnerData;
+          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: allUserDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
+
+      } else {
+          // --- SCENARIO 2: All runner movement is automatic ---
+          let baseAheadIsOccupied = false;
+
+          // Process lead runner (from 2nd)
+          const decisionR2 = processedDecisions.find(d => d.from === 2);
+          if (decisionR2 && decisionR2.type === 'auto_advance') {
+              scoreRun(runnerFrom2, false);
+              combinedEvent += ` ${runnerFrom2.name} scores from second without a throw.`;
+          } else if (runnerFrom2) { // Auto-advance one base
               newState.bases.third = runnerFrom2;
               baseAheadIsOccupied = true;
           }
-      } else if (runnerFrom2) {
-          newState.bases.third = runnerFrom2;
-          baseAheadIsOccupied = true;
-      }
 
-      // Process trail runner (from 1st)
-      const decisionR1 = processedDecisions.find(d => d.from === 1);
-      if (decisionR1) {
-          if (decisionR1.type === 'auto_advance' && !baseAheadIsOccupied) {
-              newState.bases.third = runnerFrom1;
-              combinedEvent += ` ${runnerFrom1.name} takes third without a throw.`;
-          } else {
+          // Process trail runner (from 1st)
+          const decisionR1 = processedDecisions.find(d => d.from === 1);
+          if (decisionR1) {
+              if (decisionR1.type === 'auto_advance' && !baseAheadIsOccupied) {
+                  newState.bases.third = runnerFrom1;
+                  combinedEvent += ` ${runnerFrom1.name} takes third without a throw.`;
+              } else { // This covers auto_hold
+                  newState.bases.second = runnerFrom1;
+                  if (decisionR1.type === 'auto_hold') {
+                    combinedEvent += ` ${runnerFrom1.name} holds at second.`;
+                  }
+              }
+          } else if (runnerFrom1) { // Auto-advance one base
               newState.bases.second = runnerFrom1;
           }
-      } else if (runnerFrom1) {
-          newState.bases.second = runnerFrom1;
-      }
 
-      newState.bases.first = runnerData;
+          newState.bases.first = runnerData;
 
-      // Handle 1B+ for the batter
-      if (outcome === '1B+' && !newState.bases.second) {
-          newState.bases.second = newState.bases.first;
-          newState.bases.first = null;
-          combinedEvent += ` ${batter.displayName} steals second without a throw.`;
-      }
+          if (outcome === '1B+' && !newState.bases.second) {
+              newState.bases.second = newState.bases.first;
+              newState.bases.first = null;
+              combinedEvent += ` ${batter.displayName} steals second without a throw.`;
+          }
 
-      if (manualDecisions.length > 0) {
-          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: manualDecisions, autoHoldDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
-      } else {
           events.push(combinedEvent);
       }
   }
