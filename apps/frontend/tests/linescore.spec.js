@@ -54,6 +54,15 @@ test.describe('Linescore component', () => {
       });
     });
 
+    // ADDED: Mock image requests to prevent them from hitting the backend proxy and causing timeouts.
+    await page.route('**/images/*', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'image/jpeg',
+        body: Buffer.from(''), // Empty buffer for the image body
+      });
+    });
+
     // 3. Navigate to the game view.
     await page.goto('http://localhost:5173/game/1');
 
@@ -123,6 +132,15 @@ test.describe('Linescore component', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(mockGameData),
+      });
+    });
+
+    // ADDED: Mock image requests to prevent them from hitting the backend proxy and causing timeouts.
+    await page.route('**/images/*', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'image/jpeg',
+        body: Buffer.from(''), // Empty buffer for the image body
       });
     });
 

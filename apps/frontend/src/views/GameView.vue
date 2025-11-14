@@ -1013,9 +1013,19 @@ const pitcherToDisplay = computed(() => {
     }
     if (!gameStore.gameState) return null;
 
+    // NEW LOGIC: If the outcome is hidden, we must show the pitcher and their stats
+    // from the beginning of the at-bat to avoid revealing information.
+    if (shouldHideCurrentAtBatOutcome.value) {
+        // atBatToDisplay correctly selects whether to show the current or last completed at-bat
+        // based on who is waiting. The pitcher object on that at-bat will have the
+        // effectiveControl as it was at the start of that specific at-bat.
+        return atBatToDisplay.value?.pitcher ?? null;
+    }
+
+
     let basePitcher = null;
 
-    // Determine the correct base pitcher object to use
+    // Determine the correct base pitcher object to use (for LIVE state)
     if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
@@ -1026,7 +1036,7 @@ const pitcherToDisplay = computed(() => {
         return basePitcher;
     }
 
-    // Replicate the backend getEffectiveControl logic
+    // Replicate the backend getEffectiveControl logic for the LIVE view
     const pitcherStats = gameStore.gameState.pitcherStats;
     if (!pitcherStats) {
         return { ...basePitcher, effectiveControl: basePitcher.control };
