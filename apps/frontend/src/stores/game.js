@@ -133,7 +133,7 @@ async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
+    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -141,7 +141,9 @@ async function resolveDefensiveThrow(gameId, throwTo) {
       },
       body: JSON.stringify({ throwTo })
     });
-    // The websocket event will handle the state update
+    if (!response.ok) throw new Error('Failed to resolve throw');
+    const updatedGameData = await response.json();
+    updateGameData(updatedGameData); // Update the store with the new data
   } catch (error) {
     console.error("Error resolving throw:", error);
   }
