@@ -175,62 +175,67 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     newState.outs++;
     const initialEvent = `${batter.displayName} flies out.`;
     if (newState.outs < 3 && (state.bases.first || state.bases.second || state.bases.third)) {
-        const decisions = [
+        const potentialDecisions = [
             { runner: state.bases.third, from: 3 },
             { runner: state.bases.second, from: 2 },
             { runner: state.bases.first, from: 1 },
         ].filter(d => d.runner);
 
-        let allDecisionsAutomatic = decisions.length > 0;
-        const automaticOutcomes = [];
+        let processedDecisions = potentialDecisions.map(decision => {
+            const { runner, from } = decision;
+            const toBase = from + 1;
+            const runnerSpeed = parseInt(getSpeedValue(runner), 10);
 
-        if (allDecisionsAutomatic) {
-            for (const decision of decisions) {
-                const { runner, from } = decision;
-                const toBase = from + 1;
-                const runnerSpeed = parseInt(getSpeedValue(runner), 10);
+            let effectiveSpeed = runnerSpeed;
+            if (toBase === 4) effectiveSpeed += 5; // going home
+            if (toBase === 2) effectiveSpeed -= 5; // going to 2nd on tag
 
-                let effectiveSpeed = runnerSpeed;
-                if (toBase === 4) effectiveSpeed += 5; // going home
-                if (toBase === 2) effectiveSpeed -= 5; // going to 2nd on tag
+            const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
+            const isAutoHold = (runnerSpeed === 10 && (toBase === 2 || toBase === 3)) || (runnerSpeed === 15 && toBase === 2);
 
-                // Per user, use >= for auto-advance.
-                const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
-                const isAutoHold = (runnerSpeed === 10 && (toBase === 2 || toBase === 3)) || (runnerSpeed === 15 && toBase === 2);
+            if (isAutoAdvance) return { ...decision, type: 'auto_advance' };
+            if (isAutoHold) return { ...decision, type: 'auto_hold' };
+            return { ...decision, type: 'manual' };
+        });
 
-                if (isAutoAdvance) {
-                    automaticOutcomes.push({ ...decision, advance: true });
-                } else if (isAutoHold) {
-                    automaticOutcomes.push({ ...decision, advance: false });
-                } else {
-                    allDecisionsAutomatic = false;
-                    break;
-                }
-            }
+        const hasManualDecision = processedDecisions.some(d => d.type === 'manual');
+
+        if (hasManualDecision) {
+            processedDecisions = processedDecisions.map(d =>
+                d.type === 'auto_hold' ? { ...d, type: 'manual' } : d
+            );
         }
 
-        if (allDecisionsAutomatic) {
-            let combinedEvent = initialEvent;
-            for (const outcome of automaticOutcomes) {
-                if (outcome.advance) {
-                    const toBase = outcome.from + 1;
-                    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-                    if (toBase === 4) {
-                        scoreRun(outcome.runner, false);
-                        combinedEvent += ` ${outcome.runner.name} tags up and scores without a throw.`;
-                    } else {
-                        newState.bases[baseMap[toBase]] = outcome.runner;
-                        combinedEvent += ` ${outcome.runner.name} tags up and advances without a throw.`;
-                    }
-                    newState.bases[baseMap[outcome.from]] = null;
-                } else {
-                    combinedEvent += ` ${outcome.runner.name} holds.`;
-                }
+        const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
+        const autoAdvanceDecisions = processedDecisions.filter(d => d.type === 'auto_advance');
+        const autoHoldDecisions = processedDecisions.filter(d => d.type === 'auto_hold');
+
+        let combinedEvent = initialEvent;
+        const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+        // Process automatic advances first
+        for (const decision of autoAdvanceDecisions) {
+            const toBase = decision.from + 1;
+            if (toBase === 4) {
+                scoreRun(decision.runner, false);
+                combinedEvent += ` ${decision.runner.name} tags up and scores without a throw.`;
+            } else {
+                newState.bases[baseMap[toBase]] = decision.runner;
+                combinedEvent += ` ${decision.runner.name} tags up and advances without a throw.`;
+            }
+            newState.bases[baseMap[decision.from]] = null;
+        }
+
+        // If there are manual decisions, create a play
+        if (manualDecisions.length > 0) {
+            events.push(combinedEvent);
+            newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, initialEvent: combinedEvent } };
+        } else {
+            // Otherwise, process auto-holds and finalize the event
+            for (const decision of autoHoldDecisions) {
+                combinedEvent += ` ${decision.runner.name} holds.`;
             }
             events.push(combinedEvent);
-        } else {
-            events.push(initialEvent);
-            newState.currentPlay = { type: 'TAG_UP', payload: { decisions, initialEvent } };
         }
     } else {
         events.push(initialEvent);
@@ -270,7 +275,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           return { ...decision, type: 'manual' };
       });
 
-      const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
+      let manualDecisions = processedDecisions.filter(d => d.type === 'manual');
+      const autoHoldDecisions = processedDecisions.filter(d => d.type === 'auto_hold');
+
+      if (manualDecisions.length > 0) {
+          manualDecisions = manualDecisions.concat(autoHoldDecisions.map(d => ({ ...d, type: 'manual' })));
+      }
 
       // --- State Update ---
       newState.bases = { first: null, second: null, third: null };
