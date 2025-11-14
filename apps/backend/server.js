@@ -2120,7 +2120,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       }
 
       // Now that the state is correct for the new at-bat, get the players.
-      const { batter, pitcher } = await getActivePlayers(gameId, newState);
+      const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, newState);
 
       // --- NEW: Update pitcher fatigue for the new at-bat ---
       newState = updatePitcherFatigueForNewInning(newState, pitcher);
@@ -2137,12 +2137,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           awayScoreBeforePlay: newState.awayScore
       };
 
-      // Now that we have the new pitcher, determine if a lineup change is needed.
-      if (pitcher === null) {
-          newState.awaiting_lineup_change = true;
-      } else {
-          newState.awaiting_lineup_change = false;
-      }
+      // --- THIS IS THE FIX ---
+      // Validate the new defensive lineup. This will correctly set awaiting_lineup_change.
+      newState = await validateLineup(defensiveTeam, newState, client);
 
       // If the inning ended AND we DON'T need a new pitcher, create the change event.
       // This is the core of the fix: the event is suppressed if `awaiting_lineup_change` is true.
