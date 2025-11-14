@@ -54,6 +54,14 @@ test.describe('Linescore component', () => {
       });
     });
 
+    await page.route('**/api/point-sets', (route) => {
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([])
+        });
+    });
+
     // ADDED: Mock image requests to prevent them from hitting the backend proxy and causing timeouts.
     await page.route('**/images/*', (route) => {
       route.fulfill({
@@ -136,6 +144,14 @@ test.describe('Linescore component', () => {
         contentType: 'application/json',
         body: JSON.stringify(mockGameData),
       });
+    });
+
+    await page.route('**/api/point-sets', (route) => {
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify([])
+        });
     });
 
     // ADDED: Mock image requests to prevent them from hitting the backend proxy and causing timeouts.
