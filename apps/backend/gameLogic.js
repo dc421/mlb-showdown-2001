@@ -9,6 +9,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
   const scorers = [];
+  let hitMessage = '';
 
   // --- Handle Highest GB Rule ---
   if (outcome.includes('GB') && state.currentAtBat.infieldIn && chartHolder && swingRoll > 0) {
@@ -24,7 +25,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
       if (swingRoll === highestGB) {
           outcome = '1B'; // Convert the outcome to a single
-          events.push(`The ground ball finds a hole through the drawn-in infield for a SINGLE!`);
+          hitMessage = `${batter.displayName} finds a hole through the drawn-in infield for a SINGLE!`;
       }
   }
 
@@ -242,7 +243,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     }
   }
   else if (outcome === 'SINGLE' || outcome === '1B' || outcome === '1B+') {
-      let combinedEvent = `${batter.displayName} hits a SINGLE!`;
+      let combinedEvent = hitMessage || `${batter.displayName} hits a SINGLE!`;
 
       const runnerFrom3 = state.bases.third;
       const runnerFrom2 = state.bases.second;
@@ -250,7 +251,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       if (runnerFrom3) {
           scoreRun(runnerFrom3, false);
-          combinedEvent += ` ${runnerFrom3.name} scores!`;
       }
 
       const potentialDecisions = [
