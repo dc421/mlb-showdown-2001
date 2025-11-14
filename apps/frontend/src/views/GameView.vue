@@ -1629,7 +1629,7 @@ function handleVisibilityChange() {
                 </div>
             </div>
             <div v-else>
-                <div v-if="defensiveThrowMessage" class="waiting-text">
+                <div v-if="defensiveThrowMessage">
                   <h3>{{ defensiveThrowMessage }}</h3>
                 </div>
                 <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW</strong></button>
