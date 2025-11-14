@@ -949,8 +949,17 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const isOffensiveSub = teamKey === offensiveTeamKey;
     // --- END REVISED TEAM IDENTIFICATION LOGIC ---
 
-    if (newState[teamKey].used_player_ids.includes(playerInId)) {
-        return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
+    const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
+    const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
+
+    // Allow re-entry ONLY if no action has been taken yet (committed_player_ids is empty)
+    if (newState[teamKey].used_player_ids.includes(parseInt(playerInId))) {
+        if (committedPlayerIds.length === 0) {
+            // Player can re-enter, so remove them from the used list.
+            newState[teamKey].used_player_ids = newState[teamKey].used_player_ids.filter(id => id !== parseInt(playerInId));
+        } else {
+            return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
+        }
     }
 
     let logMessage = '';
@@ -974,10 +983,10 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
         playerOutCard = playerOutResult.rows[0];
     }
-    const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
-    const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
-    if (committedPlayerIds.includes(parseInt(playerOutId, 10))) {
-      newState[teamKey].used_player_ids.push(playerOutId);
+
+    // A player who is subbed out is now considered "used".
+    if (playerOutId > 0) { // Don't add replacement players to the used list
+        newState[teamKey].used_player_ids.push(parseInt(playerOutId));
     }
 
     // Get the correct user ID for the team being substituted
