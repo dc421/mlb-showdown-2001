@@ -27,6 +27,7 @@ const defensiveDPRollClicked = ref(false);
 const defensiveThrowRollClicked = ref(false);
 const hasRolledForSteal = ref(false);
 const isTransitioningToNextHitter = ref(false);
+const wasMultiThrowSituation = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -138,6 +139,12 @@ const defensiveThrowOptions = computed(() => {
     const allDecisions = runnerDecisionsWithLabels.value;
 
     return allDecisions.filter(decision => choices[decision.from]);
+});
+
+watch(defensiveThrowOptions, (newOptions) => {
+    if (newOptions.length > 1) {
+        wasMultiThrowSituation.value = true;
+    }
 });
 
 const baserunningOptionGroups = computed(() => {
@@ -715,7 +722,7 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 
 const showDefensiveRollForThrowButton = computed(() => {
     // This is the key change: if there are multiple throw options, we skip this button.
-    if (defensiveThrowOptions.value.length > 1) {
+    if (wasMultiThrowSituation.value) {
         return false;
     }
     return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value;
@@ -769,7 +776,7 @@ const showAutoThrowResult = computed(() => {
     }
     // This is the key change: if there are multiple runners, show the result immediately
     // after the defensive player makes their choice.
-    if (defensiveThrowOptions.value.length > 1) {
+    if (wasMultiThrowSituation.value) {
         return true;
     }
     if (amIDefensivePlayer.value) {
@@ -1243,6 +1250,7 @@ function handleNextHitter() {
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
   defensiveThrowRollClicked.value = false;
+  wasMultiThrowSituation.value = false;
 
   if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings) {
     console.log('--- 1a. Setting anticipated batter ---');
