@@ -11,38 +11,38 @@ test.describe('Linescore component', () => {
 
     // 2. Mock the game data API response to simulate the exact scenario.
     const mockGameData = {
-      game: { id: 1, home_team_user_id: 2, away_team_user_id: 1 }, // User 1 is the away team.
-      series: { series_type: 'exhibition' }, // Required to prevent component crashes.
+      game: { id: 1, home_team_user_id: 2, away_team_user_id: 1, game_in_series: 1, series_id: 1, home_team_id: 1, away_team_id: 2 },
+      series: { series_type: 'exhibition' },
       gameState: {
         state_data: {
-          inning: 1,
-          isTopInning: true,
-          outs: 0, // Server reports 0 outs for the *next* half-inning.
-          homeScore: 0,
-          awayScore: 0,
-          bases: {},
-          isBetweenHalfInningsAway: true, // The critical flag: away team just finished batting.
-          isBetweenHalfInningsHome: false,
+          inning: 1, isTopInning: true, outs: 0, homeScore: 0, awayScore: 0, bases: {},
+          isBetweenHalfInningsAway: true, isBetweenHalfInningsHome: false,
           homeDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
           awayDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
-          // These objects are required to prevent component crashes.
-          homeTeam: { userId: 2, battingOrderPosition: 1, used_player_ids: [] },
-          awayTeam: { userId: 1, battingOrderPosition: 1, used_player_ids: [] },
-          currentAtBat: { homeScoreBeforePlay: 0, awayScoreBeforePlay: 0 },
+          homeTeam: { userId: 2, battingOrderPosition: 0, used_player_ids: [] },
+          awayTeam: { userId: 1, battingOrderPosition: 3, used_player_ids: [] },
+          currentAtBat: {
+            batter: { card_id: 101, name: 'Home Batter' }, pitcher: { card_id: 201, name: 'Away Pitcher' },
+            basesBeforePlay: {}, outsBeforePlay: 0, homeScoreBeforePlay: 0, awayScoreBeforePlay: 0,
+          },
+          lastCompletedAtBat: {
+            batter: { card_id: 102, name: 'Away Batter' }, pitcher: { card_id: 202, name: 'Home Pitcher' },
+            basesBeforePlay: {}, outsBeforePlay: 2, homeScoreBeforePlay: 0, awayScoreBeforePlay: 0,
+          }
         }
       },
-      // The event log contains the third-out play and the inning change message,
-      // both of which will be hidden by `gameEventsToDisplay`.
       gameEvents: [
         { event_type: "inning-change-message", log_message: "<strong>Top 1st</strong>" },
         { event_type: "at-bat-result", log_message: "A fly out ends the inning." },
         { event_type: "inning-change-message", log_message: "<strong>Bottom 1st</strong>" },
       ],
-      // Abbreviated team/player data to prevent crashes.
-      teams: { away: { abbreviation: 'AWAY' }, home: { abbreviation: 'HOME' } },
-      batter: { image_url: '' },
-      pitcher: { image_url: '' },
-      lineups: { home: {}, away: {} },
+      teams: { away: { abbreviation: 'AWAY', city: 'Away', logo_url: '' }, home: { abbreviation: 'HOME', city: 'Home', logo_url: '' } },
+      batter: { card_id: 101, name: 'Home Batter', image_url: '' },
+      pitcher: { card_id: 201, name: 'Away Pitcher', image_url: '' },
+      lineups: {
+        home: { battingOrder: Array(9).fill(0).map((_, i) => ({ player: { card_id: 100 + i, displayName: `H${i}`, position: '1B' }, position: '1B' })) },
+        away: { battingOrder: Array(9).fill(0).map((_, i) => ({ player: { card_id: 200 + i, displayName: `A${i}`, position: '1B' }, position: '1B' })) }
+      },
       rosters: { home: [], away: [] },
     };
 
@@ -97,33 +97,36 @@ test.describe('Linescore component', () => {
     });
 
     const mockGameData = {
-      game: { id: 1, home_team_user_id: 2, away_team_user_id: 1 },
+      game: { id: 1, home_team_user_id: 2, away_team_user_id: 1, game_in_series: 1, series_id: 1, home_team_id: 1, away_team_id: 2 },
       series: { series_type: 'exhibition' },
       gameState: {
         state_data: {
-          inning: 1,
-          isTopInning: true,
-          outs: 3,
-          homeScore: 0,
-          awayScore: 0,
-          bases: {},
-          isBetweenHalfInningsAway: true,
-          isBetweenHalfInningsHome: false,
+          inning: 1, isTopInning: true, outs: 3, homeScore: 0, awayScore: 0, bases: {},
+          isBetweenHalfInningsAway: true, isBetweenHalfInningsHome: false,
           homeDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
           awayDefensiveRatings: { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 },
-          homeTeam: { userId: 2, battingOrderPosition: 1, used_player_ids: [] },
-          awayTeam: { userId: 1, battingOrderPosition: 1, used_player_ids: [] },
-          currentAtBat: { homeScoreBeforePlay: 0, awayScoreBeforePlay: 0 },
+          homeTeam: { userId: 2, battingOrderPosition: 0, used_player_ids: [] },
+          awayTeam: { userId: 1, battingOrderPosition: 3, used_player_ids: [] },
+          currentAtBat: {
+            batter: { card_id: 101, name: 'Home Batter' }, pitcher: { card_id: 201, name: 'Away Pitcher' },
+            basesBeforePlay: {}, outsBeforePlay: 0, homeScoreBeforePlay: 0, awayScoreBeforePlay: 0,
+          },
+          lastCompletedAtBat: {
+            batter: { card_id: 102, name: 'Away Batter' }, pitcher: { card_id: 202, name: 'Home Pitcher' },
+            basesBeforePlay: {}, outsBeforePlay: 2, homeScoreBeforePlay: 0, awayScoreBeforePlay: 0,
+          }
         }
       },
-      // Provide a minimal event log to prevent the linescore component from crashing.
       gameEvents: [
         { event_type: "inning-change-message", log_message: "<strong>Top 1st</strong>" },
       ],
-      teams: { away: { abbreviation: 'AWAY' }, home: { abbreviation: 'HOME' } },
-      batter: { image_url: '' },
-      pitcher: { image_url: '' },
-      lineups: { home: {}, away: {} },
+      teams: { away: { abbreviation: 'AWAY', city: 'Away', logo_url: '' }, home: { abbreviation: 'HOME', city: 'Home', logo_url: '' } },
+      batter: { card_id: 101, name: 'Home Batter', image_url: '' },
+      pitcher: { card_id: 201, name: 'Away Pitcher', image_url: '' },
+      lineups: {
+        home: { battingOrder: Array(9).fill(0).map((_, i) => ({ player: { card_id: 100 + i, displayName: `H${i}`, position: '1B' }, position: '1B' })) },
+        away: { battingOrder: Array(9).fill(0).map((_, i) => ({ player: { card_id: 200 + i, displayName: `A${i}`, position: '1B' }, position: '1B' })) }
+      },
       rosters: { home: [], away: [] },
     };
 
