@@ -27,9 +27,15 @@ async function swapPlayerPositions(gameId, playerAId, playerBId) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ playerAId, playerBId })
     });
-        if (!response.ok) throw new Error('Failed to swap player positions');
+    if (!response.ok) throw new Error('Failed to swap player positions');
 
-    await fetchGame(gameId); // Refresh game state after successful swap
+    // Manually fetch and apply the updated state to win the race against the websocket.
+    const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+    });
+    if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after swap');
+    updateGameData(await updatedGameData.json());
+
   } catch (error) {
     console.error('Error swapping player positions:', error);
     alert(`Error: ${error.message}`);
@@ -253,9 +259,14 @@ async function submitSwing(gameId, action = null) {
         body: JSON.stringify(substitutionData)
       });
       if (!response.ok) throw new Error('Failed to make substitution');
-      // After a successful substitution, re-fetch the entire game state
-      // to ensure the UI is perfectly in sync with the backend.
-      await fetchGame(gameId);
+
+      // Manually fetch and apply the updated state to win the race against the websocket.
+      const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
+          headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after substitution');
+      updateGameData(await updatedGameData.json());
+
     } catch (error) {
       console.error('Error making substitution:', error);
       alert(`Error: ${error.message}`);
