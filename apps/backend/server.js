@@ -2783,10 +2783,10 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
             if (isSafe) {
                 newState[scoreKey]++;
-                events.push(`${runnerOnThird.name} is SENT HOME... SAFE! The batter reaches on a fielder's choice.`);
+                events.push(`${runnerOnThird.name} is SENT HOME... SAFE! ${batter.displayName} reaches on a fielder's choice.`);
             } else {
                 newState.outs++;
-                events.push(`${runnerOnThird.name} is THROWN OUT at the plate! The batter reaches on a fielder's choice.`);
+                events.push(`${runnerOnThird.name} is THROWN OUT at the plate! ${batter.displayName} reaches on a fielder's choice.`);
             }
             newState.bases.third = null; // Runner from third is no longer there.
 
@@ -2799,7 +2799,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
             }
 
         } else { // Hold runner
-            events.push(`${batter.name} grounds out, the runner on third holds.`);
+            events.push(`${batter.displayName} grounds out, the runner on third holds.`);
             newState.outs++;
 
             if (newState.outs < 3) {
