@@ -554,7 +554,7 @@ function recordOutsForPitcher(state, pitcher, count) {
 }
 
 
-function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', pitcherOfRecord = null) {
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', teamInfo = {}, pitcherOfRecord = null) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
