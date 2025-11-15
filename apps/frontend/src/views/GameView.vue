@@ -360,10 +360,15 @@ const myRoster = computed(() => gameStore.myTeam ? gameStore.rosters[gameStore.m
 const myBenchAndBullpen = computed(() => {
     if (!myLineup.value?.battingOrder || !myRoster.value) return [];
     const onFieldIds = new Set(myLineup.value.battingOrder.map(s => s.player.card_id));
-    if (myLineup.value.startingPitcher) {
-        onFieldIds.add(myLineup.value.startingPitcher.card_id);
+    const benchAndBullpen = myRoster.value.filter(p => !onFieldIds.has(p.card_id));
+
+    // Ensure the original starting pitcher is in the bullpen if they've been subbed out
+    const originalSP = gameStore.rosters[gameStore.myTeam]?.find(p => p.card_id === myLineup.value.startingPitcher?.card_id);
+    if (originalSP && !onFieldIds.has(originalSP.card_id) && !benchAndBullpen.some(p => p.card_id === originalSP.card_id)) {
+        benchAndBullpen.push(originalSP);
     }
-    return myRoster.value.filter(p => !onFieldIds.has(p.card_id));
+
+    return benchAndBullpen;
 });
 const myBench = computed(() => myBenchAndBullpen.value.filter(p => p.control === null));
 const myBullpen = computed(() => myBenchAndBullpen.value.filter(p => p.control !== null));
@@ -380,8 +385,14 @@ const homeBenchAndBullpen = computed(() => {
 const awayBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.away?.battingOrder || !gameStore.rosters.away) return [];
     const lineupIds = new Set(gameStore.lineups.away.battingOrder.map(s => s.player.card_id));
-    if (gameStore.lineups.away.startingPitcher) { lineupIds.add(gameStore.lineups.away.startingPitcher.card_id); }
-    return gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
+    const benchAndBullpen = gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
+
+    const originalSP = gameStore.rosters.away?.find(p => p.card_id === gameStore.lineups.away.startingPitcher?.card_id);
+    if (originalSP && !lineupIds.has(originalSP.card_id) && !benchAndBullpen.some(p => p.card_id === originalSP.card_id)) {
+        benchAndBullpen.push(originalSP);
+    }
+
+    return benchAndBullpen;
 });
 
 const leftPanelData = computed(() => {
@@ -425,10 +436,11 @@ const rightPanelData = computed(() => {
 });
 
 const usedPlayerIds = computed(() => {
-    if (!gameStore.gameState) return new Set();
-    const homeUsed = gameStore.gameState.homeTeam?.used_player_ids || [];
-    const awayUsed = gameStore.gameState.awayTeam?.used_player_ids || [];
-    return new Set([...homeUsed, ...awayUsed]);
+    if (!gameStore.game) return new Set();
+    const committedIds = gameStore.game.committed_player_ids || [];
+    const pendingHome = gameStore.gameState?.homeTeam?.pending_sub_outs || [];
+    const pendingAway = gameStore.gameState?.awayTeam?.pending_sub_outs || [];
+    return new Set([...committedIds, ...pendingHome, ...pendingAway]);
 });
 
 

@@ -72,7 +72,7 @@ test.describe('Linescore component', () => {
     });
 
     // 3. Navigate to the game view.
-    await page.goto('http://localhost:5173/game/1');
+    await page.goto('http://localhost:5173/game/1', { waitUntil: 'domcontentloaded' });
 
     // Wait for a key element to be visible, ensuring the Vue app is mounted.
     await page.waitForSelector('.linescore-table');
@@ -163,7 +163,7 @@ test.describe('Linescore component', () => {
       });
     });
 
-    await page.goto('http://localhost:5173/game/1');
+    await page.goto('http://localhost:5173/game/1', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.linescore-table');
 
     await page.evaluate(() => {
