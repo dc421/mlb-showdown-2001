@@ -257,6 +257,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       if (runnerFrom3) {
           scoreRun(runnerFrom3, false);
+          combinedEvent += ` ${runnerFrom3.name} scores!`;
       }
 
       const potentialDecisions = [
