@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog } = require('./gameLogic');
+const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher } = require('./gameLogic');
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
@@ -2334,7 +2334,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                 const runnerName = runner.name;
 
                 if (!isSafe) {
-                    newState.outs++;
+                    recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                 }
 
                 const logMessage = outcome === 'SAFE'
@@ -2512,7 +2512,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
                 newState.bases[baseMap[toBase]] = runner;
                 allEvents.push(isContested ? `${runner.name} is SAFE at ${getOrdinal(toBase)}!` : `${runner.name} advances to ${getOrdinal(toBase)}.`);
             } else {
-                newState.outs++;
+                recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                 allEvents.push(`${runner.name} is OUT at ${getOrdinal(toBase)}!`);
             }
         });
@@ -2601,7 +2601,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
             const originalOuts = newState.outs;
 
-            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent);
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent, decision.runner.pitcherOfRecordId ? { card_id: decision.runner.pitcherOfRecordId } : null);
             newState = resolvedState;
 
             const batterOnFirst = newState.bases.first;
