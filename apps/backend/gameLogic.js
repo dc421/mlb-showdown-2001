@@ -53,6 +53,14 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     newState[scoreKey]++;
     scorers.push(runnerOnBase.name);
 
+    // --- Walk-off Win Check ---
+    if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
+        if (!newState.gameOver) {
+            newState.gameOver = true;
+            newState.winningTeam = 'home';
+        }
+    }
+
     const pitcherId = runnerOnBase.pitcherOfRecordId;
     if (newState.pitcherStats[pitcherId]) {
       newState.pitcherStats[pitcherId].runs++;
@@ -492,10 +500,11 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   }
 
   // --- Walk-off Win Check ---
-  if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
-    newState.gameOver = true;
-    newState.winningTeam = 'home';
-    events.push(`HOME TEAM WINS! WALK-OFF!`);
+  if (newState.gameOver && newState.winningTeam === 'home' && !newState.isTopInning) {
+      const isWalkoffEventPresent = events.some(e => e.includes('WALK-OFF!'));
+      if (!isWalkoffEventPresent) {
+          events.push(`HOME TEAM WINS! WALK-OFF!`);
+      }
   }
 
   // --- Handle Inning Change & Game Over Check ---
@@ -587,6 +596,13 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
+        // --- Walk-off Win Check ---
+        if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
+            if (!newState.gameOver) {
+                newState.gameOver = true;
+                newState.winningTeam = 'home';
+            }
+        }
         outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
       } else {
         newState.bases[baseMap[throwTo]] = runnerToChallenge;
