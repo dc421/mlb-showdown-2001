@@ -113,10 +113,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       events.push(`${batter.displayName} lays down a sacrifice bunt.`);
       recordOuts(1);
       if (newState.outs < 3) {
-        // Note: scoreRun is not possible here based on preceding logic
-        if (second) { newState.bases.third = second; }
-        if (first) { newState.bases.second = first; }
-        newState.bases.first = null; // Batter is out
+        if (second) { newState.bases.third = second; newState.bases.second = null; }
+        if (first) { newState.bases.second = first; newState.bases.first = null; }
+        else { newState.bases.first = null; }
       }
     }
   }
@@ -274,7 +273,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       const runnerFrom1 = state.bases.first;
 
       if (runnerFrom3) {
-          scoreRun(runnerFrom3, false);
+          const scoreMsg = scoreRun(runnerFrom3);
+          if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
       }
 
       const potentialDecisions = [
@@ -503,7 +503,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   if (newState.gameOver && newState.winningTeam === 'home' && !newState.isTopInning) {
       const isWalkoffEventPresent = events.some(e => e.includes('WALK-OFF!'));
       if (!isWalkoffEventPresent) {
-          events.push(`HOME TEAM WINS! WALK-OFF!`);
+          const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
+          events.push(`${winningTeamName.toUpperCase()} WINS! WALK-OFF!`);
       }
   }
 
@@ -607,14 +608,16 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
+        outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
         // --- Walk-off Win Check ---
         if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
             if (!newState.gameOver) {
                 newState.gameOver = true;
                 newState.winningTeam = 'home';
+                const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
+                outcomeMessage += ` ${winningTeamName.toUpperCase()} WINS! WALK-OFF!`;
             }
         }
-        outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
       } else {
         newState.bases[baseMap[throwTo]] = runnerToChallenge;
         outcomeMessage = `${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`;
@@ -630,18 +633,9 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
         }
     }
 
-    // Consolidate the event message here
-    const { scorers = [], hitType } = newState.currentPlay.payload;
-    let allScorers = [...scorers];
-    if (isSafe && throwTo === 4) {
-        // The runner involved in the throw also scored.
-        allScorers.push(runnerToChallenge.name);
-    }
-    let messageWithScore = finalizeEvent(newState, initialEvent, allScorers, scoreKey);
-
-    // Append the specific outcome of the throw
-    const finalMessage = messageWithScore ? `${messageWithScore} ${outcomeMessage}` : outcomeMessage;
-
+    // This is the fix. The initialEvent already contains the scoring messages.
+    // We just need to append the outcome of this specific throw.
+    const finalMessage = `${initialEvent} ${outcomeMessage}`;
     events.push(finalMessage);
   }
 
