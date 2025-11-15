@@ -416,8 +416,20 @@ const scoreChangeMessage = computed(() => {
     const awayTeamName = gameStore.teams?.away?.abbreviation.toUpperCase() || 'AWAY';
     const homeTeamName = gameStore.teams?.home?.abbreviation.toUpperCase() || 'HOME';
 
-    const awayScored = oldAwayScore !== undefined && newAwayScore > oldAwayScore;
-    const homeScored = oldHomeScore !== undefined && newHomeScore > oldHomeScore;
+    let awayScored = oldAwayScore !== undefined && newAwayScore > oldAwayScore;
+    let homeScored = oldHomeScore !== undefined && newHomeScore > oldHomeScore;
+
+    // --- THIS IS THE FIX ---
+    // Override highlighting logic during a baserunning decision, because the
+    // `...ScoreBeforePlay` might have been updated prematurely on the backend.
+    const isDuringBaserunningDecision = isAdvancementOrTagUpDecision.value || isAwaitingBaserunningDecision.value;
+    if (isDuringBaserunningDecision && runScoredOnPlay.value) {
+        if (isDisplayTopInning.value) { // Away team is batting
+            awayScored = true;
+        } else { // Home team is batting
+            homeScored = true;
+        }
+    }
 
     return {
         away: {
