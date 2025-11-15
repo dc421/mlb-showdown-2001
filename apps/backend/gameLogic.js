@@ -274,7 +274,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       const runnerFrom1 = state.bases.first;
 
       if (runnerFrom3) {
-          scoreRun(runnerFrom3, false);
+          const scoreMsg = scoreRun(runnerFrom3);
+          if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
       }
 
       const potentialDecisions = [
