@@ -220,13 +220,7 @@ function finalizeEvent(state, initialEvent, scorers, scoreKey) {
         const scoreEvents = scorers.map(s => `${s} scores!`).join(' ');
         message = `${message} ${scoreEvents}`;
     }
-    const scoreChanged = state[scoreKey] > (scoreKey === 'awayScore' ? state.currentAtBat.awayScoreBeforePlay : state.currentAtBat.homeScoreBeforePlay);
-    if (scoreChanged) {
-        const scoreString = state.isTopInning
-            ? `${state.awayScore}-${state.homeScore}`
-            : `${state.homeScore}-${state.awayScore}`;
-        return `${message} <strong>(Score: ${scoreString})</strong>`;
-    }
+    // No longer appends score here. The main route will handle it.
     return message;
 }
 
@@ -1850,7 +1844,13 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
                 }
                 combinedLogMessage = `${batter.displayName} hits into a fielder's choice.${scorersString}`;
             }
-        } else {
+        } else if (finalState.currentPlay?.payload?.initialEvent) {
+            // This is the key change. If a play is pending, we don't log the event now.
+            // The initialEvent is already stored in the currentPlay payload.
+            // We just let the state save and wait for the user's decision.
+            combinedLogMessage = null;
+        }
+        else {
             combinedLogMessage = events.join(' ');
         }
 
@@ -2047,7 +2047,13 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     }
                     combinedLogMessage = `${batter.displayName} hits into a fielder's choice.${scorersString}`;
                 }
-              } else {
+              } else if (finalState.currentPlay?.payload?.initialEvent) {
+                  // This is the key change. If a play is pending, we don't log the event now.
+                  // The initialEvent is already stored in the currentPlay payload.
+                  // We just let the state save and wait for the user's decision.
+                  combinedLogMessage = null;
+              }
+              else {
                   combinedLogMessage = events.join(' ');
               }
 
@@ -2597,8 +2603,18 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 if (newState.outs > originalOuts) {
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
-                const finalLogMessage = appendScoreToLog(consolidatedLogMessage, newState, currentState.awayScore, currentState.homeScore);
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage]);
+                // Don't append score here directly. Instead, check if there's an initial event to prepend.
+                const initialEvent = currentState.currentPlay?.payload?.initialEvent || '';
+                const scorers = currentState.currentPlay?.payload?.scorers || [];
+
+                let finalMessage = consolidatedLogMessage;
+                if (initialEvent) {
+                    const scoreEvents = scorers.map(s => `${s.name} scores!`).join(' ');
+                    finalMessage = `${initialEvent} ${scoreEvents} ${consolidatedLogMessage}`.trim();
+                }
+
+                const finalLogMessageWithScore = appendScoreToLog(finalMessage, newState, currentState.awayScore, currentState.homeScore);
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessageWithScore]);
             }
 
             if (newState.outs >= 3) {

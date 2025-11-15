@@ -39,18 +39,21 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   };
 
   const scoreRun = (runnerOnBase, generateLog = true) => {
-    if (!runnerOnBase) return;
+    if (!runnerOnBase) return null;
     newState[scoreKey]++;
     scorers.push(runnerOnBase.name);
-    if (generateLog) {
-      events.push(`${runnerOnBase.name} scores!`);
-    }
+
     const pitcherId = runnerOnBase.pitcherOfRecordId;
     if (newState.pitcherStats[pitcherId]) {
       newState.pitcherStats[pitcherId].runs++;
     } else {
       newState.pitcherStats[pitcherId] = { ip: 0, runs: 1 };
     }
+
+    if (generateLog) {
+        return `${runnerOnBase.name} scores!`;
+    }
+    return null;
   };
   
   // --- HANDLE OUTCOMES ---
@@ -142,7 +145,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           playResultDescription = `It's a DOUBLE PLAY!`;
           newState.outs += 2;
           if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
+            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; } // Score doesn't need to be logged here, server handles it
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
           }
           newState.bases.first = null; // Runner from first is out
@@ -150,7 +153,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           playResultDescription = `Batter is SAFE, out at second. Fielder's choice.`;
           newState.outs++;
           if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
+            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; } // Score doesn't need to be logged here, server handles it
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
           }
           newState.bases.first = runnerData; // Batter is safe at first
@@ -166,12 +169,17 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         };
 
     } else {
-        events.push(`${batter.displayName} grounds out.`);
+        let groundOutEvent = `${batter.displayName} grounds out.`;
         newState.outs++;
         if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third);  newState.bases.third = null;}
+            if (newState.bases.third) {
+                const scoreMsg = scoreRun(newState.bases.third);
+                if (scoreMsg) groundOutEvent += ` ${scoreMsg}`;
+                newState.bases.third = null;
+            }
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
         }
+        events.push(groundOutEvent);
     }
   }
   else if (outcome.includes('FB')) {
@@ -344,13 +352,13 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       if (state.bases.third) {
         const runner = state.bases.third;
-        scoreRun(runner, false);
-        combinedEvent += ` ${runner.name} scores!`;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
       }
       if (state.bases.second) {
         const runner = state.bases.second;
-        scoreRun(runner, false);
-        combinedEvent += ` ${runner.name} scores!`;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
       }
       newState.bases.third = null;
       newState.bases.second = null;
@@ -397,35 +405,43 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
   }
   else if (outcome === 'IBB') {
-    events.push(`${batter.displayName} is intentionally walked.`);
-    if (newState.bases.first && newState.bases.second && newState.bases.third) { scoreRun(newState.bases.third); }
+    let walkEvent = `${batter.displayName} is intentionally walked.`;
+    if (newState.bases.first && newState.bases.second && newState.bases.third) {
+        const scoreMsg = scoreRun(newState.bases.third);
+        if (scoreMsg) walkEvent += ` ${scoreMsg}`;
+    }
     if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
     if (newState.bases.first) { newState.bases.second = newState.bases.first; }
     newState.bases.first = runnerData;
+    events.push(walkEvent);
   }
   else if (outcome === 'BB') {
-    events.push(`${batter.displayName} walks.`);
-    if (newState.bases.first && newState.bases.second && newState.bases.third) { scoreRun(newState.bases.third); }
+    let walkEvent = `${batter.displayName} walks.`;
+    if (newState.bases.first && newState.bases.second && newState.bases.third) {
+        const scoreMsg = scoreRun(newState.bases.third);
+        if (scoreMsg) walkEvent += ` ${scoreMsg}`;
+    }
     if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
     if (newState.bases.first) { newState.bases.second = newState.bases.first; }
     newState.bases.first = runnerData;
+    events.push(walkEvent);
   }
   else if (outcome === '3B') {
     let combinedEvent = `${batter.displayName} hits a TRIPLE!`;
     if (newState.bases.third) {
         const runner = newState.bases.third;
-        scoreRun(runner, false);
-        combinedEvent += ` ${runner.name} scores!`;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
     }
     if (newState.bases.second) {
         const runner = newState.bases.second;
-        scoreRun(runner, false);
-        combinedEvent += ` ${runner.name} scores!`;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
     }
     if (newState.bases.first) {
         const runner = newState.bases.first;
-        scoreRun(runner, false);
-        combinedEvent += ` ${runner.name} scores!`;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
     }
     // No runner advancement decisions on a triple, so we push the event.
     events.push(combinedEvent);
@@ -435,12 +451,22 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     newState.bases.first = null;
   }
   else if (outcome === 'HR') {
-    events.push(`${batter.displayName} hits a HOME RUN!`);
-    if (newState.bases.third) { scoreRun(newState.bases.third); }
-    if (newState.bases.second) { scoreRun(newState.bases.second); }
-    if (newState.bases.first) { scoreRun(newState.bases.first); }
+    let hrEvent = `${batter.displayName} hits a HOME RUN!`;
+    if (newState.bases.third) {
+        const scoreMsg = scoreRun(newState.bases.third);
+        if (scoreMsg) hrEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.second) {
+        const scoreMsg = scoreRun(newState.bases.second);
+        if (scoreMsg) hrEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.first) {
+        const scoreMsg = scoreRun(newState.bases.first);
+        if (scoreMsg) hrEvent += ` ${scoreMsg}`;
+    }
     scoreRun(runnerData, false); // Batter scores, but don't log it.
     newState.bases = { first: null, second: null, third: null };
+    events.push(hrEvent);
   }
   else if (outcome === 'SO') {
     events.push(`${batter.displayName} strikes out.`);
