@@ -951,15 +951,14 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
     const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
     const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
+    const playerInIdInt = parseInt(playerInId, 10);
 
-    // Allow re-entry ONLY if no action has been taken yet (committed_player_ids is empty)
-    if (newState[teamKey].used_player_ids.includes(parseInt(playerInId))) {
-        if (committedPlayerIds.length === 0) {
-            // Player can re-enter, so remove them from the used list.
-            newState[teamKey].used_player_ids = newState[teamKey].used_player_ids.filter(id => id !== parseInt(playerInId));
-        } else {
-            return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
-        }
+    if (committedPlayerIds.includes(playerInIdInt)) {
+        return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
+    }
+
+    if (newState[teamKey].used_player_ids.includes(playerInIdInt)) {
+        newState[teamKey].used_player_ids = newState[teamKey].used_player_ids.filter(id => id !== playerInIdInt);
     }
 
     let logMessage = '';
@@ -1775,10 +1774,11 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await commitPlayersInGame(gameId, client);
-    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
+
+    currentState = await lockInUsedPlayers(gameId, currentState, client);
     
     let finalState = { ...currentState };
     if (finalState.stealAttemptDetails) {
@@ -1890,29 +1890,25 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   }
 });
 
-async function commitPlayersInGame(gameId, client) {
+async function lockInUsedPlayers(gameId, currentState, client) {
     const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
-    const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
+    const committedPlayerIds = new Set(gameResult.rows[0].committed_player_ids || []);
 
-    const participantsResult = await client.query('SELECT lineup FROM game_participants WHERE game_id = $1', [gameId]);
-    if (participantsResult.rows.length === 0) return;
+    const usedHomeIds = currentState.homeTeam.used_player_ids || [];
+    const usedAwayIds = currentState.awayTeam.used_player_ids || [];
 
-    const currentPlayerIds = new Set(committedPlayerIds.map(id => parseInt(id, 10)));
-    participantsResult.rows.forEach(p => {
-        if (p.lineup && p.lineup.battingOrder) {
-            p.lineup.battingOrder.forEach(spot => {
-                if (spot.card_id > 0) {
-                    currentPlayerIds.add(parseInt(spot.card_id, 10));
-                }
-            });
-        }
-        if (p.lineup && p.lineup.startingPitcher && p.lineup.startingPitcher > 0) {
-             currentPlayerIds.add(parseInt(p.lineup.startingPitcher, 10));
-        }
-    });
+    usedHomeIds.forEach(id => committedPlayerIds.add(id));
+    usedAwayIds.forEach(id => committedPlayerIds.add(id));
 
-    const updatedPlayerIds = Array.from(currentPlayerIds);
-    await client.query('UPDATE games SET committed_player_ids = $1::jsonb WHERE game_id = $2', [JSON.stringify(updatedPlayerIds), gameId]);
+    const updatedPlayerIds = Array.from(committedPlayerIds);
+    if (updatedPlayerIds.length > 0) {
+        await client.query('UPDATE games SET committed_player_ids = $1::jsonb WHERE game_id = $2', [JSON.stringify(updatedPlayerIds), gameId]);
+    }
+
+    currentState.homeTeam.used_player_ids = [];
+    currentState.awayTeam.used_player_ids = [];
+
+    return currentState;
 }
 
 app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
@@ -1922,10 +1918,10 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await commitPlayersInGame(gameId, client);
-    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
+    currentState = await lockInUsedPlayers(gameId, currentState, client);
 
     const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
@@ -2096,7 +2092,6 @@ app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await commitPlayersInGame(gameId, client);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let finalState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -2278,9 +2273,12 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+    let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
+
+    newState = await lockInUsedPlayers(gameId, newState, client);
+
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
