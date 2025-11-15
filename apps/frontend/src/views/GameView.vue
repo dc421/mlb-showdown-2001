@@ -39,6 +39,40 @@ const black = ref('#000000');
 const isSubModeActive = ref(false);
 const playerToSubOut = ref(null);
 
+function isPlayerSubEligible(player) {
+    if (!player) return true;
+    if (!myLineup.value) return true;
+
+    const startingPitcher = myLineup.value.startingPitcher;
+    if (!startingPitcher || player.card_id !== startingPitcher.card_id) {
+        return true;
+    }
+
+    const pitcherStats = gameStore.gameState?.pitcherStats;
+    const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+    if (!stats) {
+        return true; // Not enough data, so don't block.
+    }
+
+    // Condition 1: Recorded 12 or more outs.
+    if (stats.outs_recorded >= 12) {
+        return true;
+    }
+
+    // Condition 2: Is at or over their fatigue limit.
+    const inningsPitched = Math.floor((stats.outs_recorded || 0) / 3);
+    if (inningsPitched > 0) { // Only check fatigue if they've actually pitched.
+        const fatigueModifier = stats.fatigue_modifier || 0;
+        const modifiedIp = player.ip + fatigueModifier;
+        const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+        if (inningsPitched >= fatigueThreshold) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function toggleSubMode() {
   isSubModeActive.value = !isSubModeActive.value;
   playerToSubOut.value = null;
@@ -1773,7 +1807,7 @@ function handleVisibilityChange() {
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH',
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
                             'active': playerToSubOut?.player.card_id === spot.player.card_id
                         }">
                       ⇄
@@ -1786,7 +1820,7 @@ function handleVisibilityChange() {
             <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
                   class="sub-icon"
                   :class="{
-                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher,
+                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && isPlayerSubEligible(leftPanelData.pitcher),
                       'active': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id
                   }">
                 ⇄
