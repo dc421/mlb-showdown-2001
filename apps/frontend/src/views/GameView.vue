@@ -848,7 +848,15 @@ const isRunnerOnOffensiveTeam = computed(() => {
   return gameStore.gameState.lastStealResult.runnerTeamId === offensiveTeam.team_id;
 });
 
+const isDoubleStealResultAvailable = computed(() => {
+    return !!gameStore.gameState?.throwRollResult?.consolidatedOutcome;
+});
+
 const showStealResult = computed(() => {
+  if (isDoubleStealResultAvailable.value) {
+      // Only show to the players involved in the game
+      return amIDisplayOffensivePlayer.value || amIDisplayDefensivePlayer.value;
+  }
   const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
                                  (amIDisplayOffensivePlayer.value && (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
                                  !gameStore.gameState.currentAtBat.batterAction;
@@ -861,6 +869,9 @@ const showStealResult = computed(() => {
 });
 
 const stealDisplayDetails = computed (() => {
+  if (isDoubleStealResultAvailable.value) {
+    return gameStore.gameState.throwRollResult;
+  }
   return !!gameStore.gameState?.pendingStealAttempt && amIDisplayOffensivePlayer.value
    ? gameStore.gameState.pendingStealAttempt
    : gameStore.gameState.lastStealResult
