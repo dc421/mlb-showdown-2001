@@ -769,7 +769,7 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 
 const showDefensiveRollForThrowButton = computed(() => {
     // This is the key change: if there are multiple throw options, we skip this button.
-    if (wasMultiThrowSituation.value) {
+    if (wasMultiThrowSituation.value || !!gameStore.gameState?.throwRollResult?.consolidatedOutcome) {
         return false;
     }
     return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value;
@@ -853,17 +853,13 @@ const isDoubleStealResultAvailable = computed(() => {
 });
 
 const showStealResult = computed(() => {
-  if (isDoubleStealResultAvailable.value) {
-      // Only show to the players involved in the game
-      return amIDisplayOffensivePlayer.value || amIDisplayDefensivePlayer.value;
-  }
-  const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
+  const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
                                  (amIDisplayOffensivePlayer.value && (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
-                                 !gameStore.gameState.currentAtBat.batterAction;
+                                 (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
-  const defensivePlayerCondition = !!gameStore.gameState?.lastStealResult &&
+  const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
                                  amIDisplayDefensivePlayer.value &&
-                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.opponentReadyForNext));
+                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext));
 
   return offensivePlayerCondition || defensivePlayerCondition;
 });
@@ -1343,9 +1339,9 @@ const isStealAttemptInProgress = computed(() => {
 });
 
 const isSingleSteal = computed(() => {
-    return (isStealAttemptInProgress.value && !!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
+    return (isStealAttemptInProgress.value && (!!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult)) &&
     // this part to deal with a later double steal (next inning or after IBB)
-    !(gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT');
+    !gameStore.gameState?.throwRollResult?.consolidatedOutcome;
 });
 
 const stealingRunner = computed(() => {
@@ -1606,7 +1602,7 @@ function handleVisibilityChange() {
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction) &&
-            !isStealAttemptInProgress && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
+            !isStealAttemptInProgress && !gameStore.gameState?.throwRollResult?.consolidatedOutcome && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
           <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
