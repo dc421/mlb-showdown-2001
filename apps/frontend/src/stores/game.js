@@ -651,9 +651,6 @@ async function resetRolls(gameId) {
   });
 
   const displayGameState = computed(() => {
-    if (game.value?.status === 'completed') {
-      return gameState.value;
-    }
     if (!gameState.value) {
       // Return a default, safe object to prevent crashes.
       return {

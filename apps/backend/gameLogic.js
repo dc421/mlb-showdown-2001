@@ -5,7 +5,7 @@ function getOrdinal(n) {
 }
 
 
-function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null) {
+function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null, teamInfo = {}) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
   const events = [];
@@ -501,8 +501,15 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
     if (isGameOver) {
       newState.gameOver = true;
-      newState.winningTeam = newState.homeScore > newState.awayScore ? 'home' : 'away';
-      events.push(`That's the ballgame! Final Score: Away ${newState.awayScore}, Home ${newState.homeScore}.`);
+      const homeTeamWon = newState.homeScore > newState.awayScore;
+      newState.winningTeam = homeTeamWon ? 'home' : 'away';
+
+      const winningAbbr = homeTeamWon ? teamInfo.home_team_abbr : teamInfo.away_team_abbr;
+      const winningScore = homeTeamWon ? newState.homeScore : newState.awayScore;
+      const losingAbbr = homeTeamWon ? teamInfo.away_team_abbr : teamInfo.home_team_abbr;
+      const losingScore = homeTeamWon ? newState.awayScore : newState.homeScore;
+
+      events.push(`That's the ballgame! Final Score: ${winningAbbr} ${winningScore}, ${losingAbbr} ${losingScore}.`);
     } else {
       // It's just an inning change, not the end of the game.
       // SET THE FLAGS, but do not advance the inning state here.

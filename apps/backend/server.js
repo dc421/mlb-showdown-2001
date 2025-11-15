@@ -1818,7 +1818,18 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           }
       }
 
-      const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+      const teams = await client.query(
+        `SELECT t.abbreviation, p.home_or_away
+         FROM teams t JOIN users u ON t.user_id = u.user_id
+         JOIN game_participants p ON u.user_id = p.user_id
+         WHERE p.game_id = $1`, [gameId]
+      );
+      const teamInfo = {
+        home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+        away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+      };
+
+      const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
       finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalOutcome, batter, eventCount: events.length };
@@ -1945,7 +1956,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         // Add the scores before the outcome is applied.
         currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
         currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
-        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue, 0, null);
+        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue, 0, null, {});
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
@@ -2016,7 +2027,18 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                     if (swingRoll >= min && swingRoll <= max) { outcome = chartHolder.chart_data[range]; break; }
                 }
             }
-            const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder);
+            const teams = await client.query(
+                `SELECT t.abbreviation, p.home_or_away
+                 FROM teams t JOIN users u ON t.user_id = u.user_id
+                 JOIN game_participants p ON u.user_id = p.user_id
+                 WHERE p.game_id = $1`, [gameId]
+              );
+              const teamInfo = {
+                home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+                away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+              };
+
+            const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
             finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalOutcome, batter, eventCount: events.length };
