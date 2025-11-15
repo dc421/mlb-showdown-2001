@@ -267,7 +267,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
       if (runnerFrom3) {
           scoreRun(runnerFrom3, false);
-          combinedEvent += ` ${runnerFrom3.name} scores!`;
       }
 
       const potentialDecisions = [
@@ -607,9 +606,17 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     }
 
     // Consolidate the event message here
-    const { scorers = [] } = newState.currentPlay.payload;
-    let messageWithScore = finalizeEvent(newState, initialEvent, scorers, scoreKey);
+    const { scorers = [], hitType } = newState.currentPlay.payload;
+    let allScorers = [...scorers];
+    if (isSafe && throwTo === 4) {
+        // The runner involved in the throw also scored.
+        allScorers.push(runnerToChallenge.name);
+    }
+    let messageWithScore = finalizeEvent(newState, initialEvent, allScorers, scoreKey);
+
+    // Append the specific outcome of the throw
     const finalMessage = messageWithScore ? `${messageWithScore} ${outcomeMessage}` : outcomeMessage;
+
     events.push(finalMessage);
   }
 
@@ -641,4 +648,15 @@ function calculateStealResult(runner, toBase, catcherArm, getSpeedValue) {
     };
 }
 
-module.exports = { applyOutcome, resolveThrow, calculateStealResult };
+function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHomeScore) {
+    const scoreChanged = finalState.awayScore > originalAwayScore || finalState.homeScore > originalHomeScore;
+    if (scoreChanged && logMessage) {
+        const scoreString = finalState.isTopInning
+            ? `${finalState.awayScore}-${finalState.homeScore}`
+            : `${finalState.homeScore}-${finalState.awayScore}`;
+        return `${logMessage} <strong>(Score: ${scoreString})</strong>`;
+    }
+    return logMessage;
+}
+
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog };
