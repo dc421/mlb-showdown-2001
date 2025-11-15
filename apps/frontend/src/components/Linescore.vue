@@ -20,10 +20,11 @@ const linescore = computed(() => {
 
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
-      if (event.log_message.includes('scores!') || event.log_message.includes('HOME RUN')) {
-        const runsFromScores = (event.log_message.match(/scores!/g) || []).length;
+      if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN') || event.log_message.includes('SAFE at home')) {
+        const runsFromScores = (event.log_message.match(/scores/g) || []).length;
         const runsFromHomeRun = event.log_message.includes('HOME RUN') ? 1 : 0;
-        const totalRunsInEvent = runsFromScores + runsFromHomeRun;
+        const runsFromSAFEathome = event.log_message.includes('SAFE at home') ? 1 : 0;
+        const totalRunsInEvent = runsFromScores + runsFromHomeRun + runsFromSAFEathome;
         if (isTop) {
           awayRunsInInning += totalRunsInEvent;
         } else {
@@ -115,7 +116,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.away" 
             :key="`away-${index}`"
-            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ awayTotalRuns }}</td>
@@ -125,7 +126,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.home" 
             :key="`home-${index}`"
-            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ homeTotalRuns }}</td>

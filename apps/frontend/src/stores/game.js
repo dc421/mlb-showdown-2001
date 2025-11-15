@@ -16,6 +16,7 @@ export const useGameStore = defineStore('game', () => {
   const teams = ref({ home: null, away: null });
   const setupState = ref(null);
   const playerSelectedForSwap = ref(null);
+  const snapshots = ref([]);
 
 async function swapPlayerPositions(gameId, playerAId, playerBId) {
   const auth = useAuthStore();
@@ -26,9 +27,15 @@ async function swapPlayerPositions(gameId, playerAId, playerBId) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ playerAId, playerBId })
     });
-        if (!response.ok) throw new Error('Failed to swap player positions');
+    if (!response.ok) throw new Error('Failed to swap player positions');
 
-    await fetchGame(gameId); // Refresh game state after successful swap
+    // Manually fetch and apply the updated state to win the race against the websocket.
+    const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+    });
+    if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after swap');
+    updateGameData(await updatedGameData.json());
+
   } catch (error) {
     console.error('Error swapping player positions:', error);
     alert(`Error: ${error.message}`);
@@ -102,11 +109,31 @@ async function setGameState(gameId, partialState) {
   }
 }
 
+async function loadScenario(gameId, scenario) {
+  const auth = useAuthStore();
+  if (!auth.token) return;
+  try {
+    await fetch(`${auth.API_URL}/api/dev/games/${gameId}/load-scenario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      },
+      body: JSON.stringify({ scenario })
+    });
+    // The game-updated event will refresh the UI automatically, but we can fetch
+    // for immediate feedback.
+    await fetchGame(gameId);
+  } catch (error) {
+    console.error("Error loading scenario:", error);
+  }
+}
+
 async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
+    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,7 +141,9 @@ async function resolveDefensiveThrow(gameId, throwTo) {
       },
       body: JSON.stringify({ throwTo })
     });
-    // The websocket event will handle the state update
+    if (!response.ok) throw new Error('Failed to resolve throw');
+    const updatedGameData = await response.json();
+    updateGameData(updatedGameData); // Update the store with the new data
   } catch (error) {
     console.error("Error resolving throw:", error);
   }
@@ -232,9 +261,14 @@ async function submitSwing(gameId, action = null) {
         body: JSON.stringify(substitutionData)
       });
       if (!response.ok) throw new Error('Failed to make substitution');
-      // After a successful substitution, re-fetch the entire game state
-      // to ensure the UI is perfectly in sync with the backend.
-      await fetchGame(gameId);
+
+      // Manually fetch and apply the updated state to win the race against the websocket.
+      const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
+          headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after substitution');
+      updateGameData(await updatedGameData.json());
+
     } catch (error) {
       console.error('Error making substitution:', error);
       alert(`Error: ${error.message}`);
@@ -337,7 +371,8 @@ async function resolveSteal(gameId, throwToBase) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ throwToBase })
       });
-      // The game-updated socket event will refresh the state.
+      // The game-updated socket event should refresh the state, but we'll fetch manually to be safe.
+      await fetchGame(gameId);
     } catch (error) { console.error("Error resolving steal:", error); }
   }
 
@@ -346,7 +381,7 @@ async function submitInfieldInDecision(gameId, sendRunner) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/infield-in-play`, {
+    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-infield-in-gb`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ sendRunner })
@@ -372,6 +407,67 @@ async function resetRolls(gameId) {
   const isOutcomeHidden = ref(false);
   const isSwingResultVisible = ref(false);
   const isStealResultVisible = ref(false);
+
+  async function fetchSnapshots(gameId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to fetch snapshots');
+      snapshots.value = await response.json();
+    } catch (error) {
+      console.error('Error fetching snapshots:', error);
+    }
+  }
+
+  async function createSnapshot(gameId, snapshotName) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
+        body: JSON.stringify({ snapshot_name: snapshotName })
+      });
+      if (!response.ok) throw new Error('Failed to create snapshot');
+      await fetchSnapshots(gameId); // Refresh the list
+    } catch (error) {
+      console.error('Error creating snapshot:', error);
+    }
+  }
+
+  async function restoreSnapshot(gameId, snapshotId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots/${snapshotId}/restore`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to restore snapshot');
+      // Game state will be updated via websocket, but we can also fetch manually
+      await fetchGame(gameId);
+    } catch (error) {
+      console.error('Error restoring snapshot:', error);
+    }
+  }
+
+  async function deleteSnapshot(gameId, snapshotId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots/${snapshotId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to delete snapshot');
+      await fetchSnapshots(gameId); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting snapshot:', error);
+    }
+  }
 
   function setOutcomeHidden(value) {
     isOutcomeHidden.value = value;
@@ -433,7 +529,14 @@ async function resetRolls(gameId) {
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
     // We need to continue hiding just the inning change message.
     if (isEffectivelyBetween && !amIReadyForNext.value) {
-        return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        // --- THIS IS THE FIX ---
+        // Only hide the last event if it's the inning change system message.
+        // Otherwise, in the 'awaiting pitcher' scenario, the last event is the
+        // 3rd out, and we must show it.
+        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
+        if (lastEvent && lastEvent.event_type === 'system') {
+            return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        }
     }
 
     // In all other cases (e.g., mid-inning play revealed, or after "Next Hitter" is clicked), show the full log.
@@ -548,6 +651,9 @@ async function resetRolls(gameId) {
   });
 
   const displayGameState = computed(() => {
+    if (game.value?.status === 'completed') {
+      return gameState.value;
+    }
     if (!gameState.value) {
       // Return a default, safe object to prevent crashes.
       return {
@@ -619,16 +725,34 @@ async function resetRolls(gameId) {
       ? (opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay)
       : gameState.value.bases;
 
+    // --- THIS IS THE COMPREHENSIVE FIX ---
+    // If the game is between innings and we're awaiting a pitcher selection,
+    // the server state has already advanced to the *next* inning. We need to
+    // roll back the inning and isTopInning values to match the display outs and bases.
+    let inning = gameState.value.inning;
+    let isTopInning = gameState.value.isTopInning;
+
+    if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
+      if (gameState.value.isTopInning) { // Server says Top 2, we want to show Bottom 1
+        inning = gameState.value.inning - 1;
+        isTopInning = false;
+      } else { // Server says Bottom 1, we want to show Top 1
+        isTopInning = true;
+      }
+    }
+
     // In all other cases, return the current, authoritative state from the server, but with our overrides.
     return {
       ...gameState.value,
       outs: displayOuts.value,
       bases: bases,
+      inning,
+      isTopInning,
     };
   });
 
   return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
-    fetchGame, declareHomeTeam,setGameState,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
+    fetchGame, declareHomeTeam,setGameState,loadScenario,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     isSwingResultVisible, setIsSwingResultVisible,
     isStealResultVisible, setIsStealResultVisible,
@@ -642,5 +766,10 @@ async function resetRolls(gameId) {
     playerSelectedForSwap,
     swapPlayerPositions,
     amIDefensivePlayer,
+    snapshots,
+    fetchSnapshots,
+    createSnapshot,
+    restoreSnapshot,
+    deleteSnapshot,
   };
 })
