@@ -8,6 +8,16 @@ function getOrdinal(n) {
 function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+
+  const recordOuts = (count) => {
+    if (!pitcher) return;
+    const pitcherId = pitcher.card_id;
+    if (!newState.pitcherStats[pitcherId]) {
+      newState.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0 };
+    }
+    newState.pitcherStats[pitcherId].outs_recorded += count;
+    newState.outs += count;
+  };
   const events = [];
   const scorers = [];
   const originalAwayScore = state.awayScore;
@@ -49,7 +59,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     if (newState.pitcherStats[pitcherId]) {
       newState.pitcherStats[pitcherId].runs++;
     } else {
-      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1 };
+      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0 };
     }
   };
   
@@ -59,7 +69,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     // Bases Loaded: Fielder's choice, out at home.
     if (first && second && third) {
       events.push(`${batter.displayName} bunts into a fielder's choice, the runner from third is out at home.`);
-      newState.outs++;
+      recordOuts(1);
       if (newState.outs < 3) {
         newState.bases.third = second;
         newState.bases.second = first;
@@ -69,13 +79,13 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     // Runner on 3rd (and maybe 2nd): Runners hold.
     else if (third && second && !first) {
       events.push(`${batter.displayName} lays down a bunt, but the runners hold.`);
-      newState.outs++;
+      recordOuts(1);
       newState.bases.first = null; // Batter is out
     }
     // Runner on 3rd (and maybe 1st): Runner on 3rd holds.
     else if (third && first && !second) {
       events.push(`${batter.displayName} lays down a sacrifice bunt. The runner on first advances.`);
-      newState.outs++;
+      recordOuts(1);
       if (newState.outs < 3) {
         newState.bases.second = first;
         newState.bases.first = null; // Batter is out
@@ -84,13 +94,13 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     // Runner on 3rd only: Runner holds.
     else if (third && !first && !second) {
       events.push(`${batter.displayName} lays down a bunt, but the runner on third holds.`);
-      newState.outs++;
+      recordOuts(1);
       newState.bases.first = null; // Batter is out
     }
     // Standard sacrifice bunt cases
     else {
       events.push(`${batter.displayName} lays down a sacrifice bunt.`);
-      newState.outs++;
+      recordOuts(1);
       if (newState.outs < 3) {
         // Note: scoreRun is not possible here based on preceding logic
         if (second) { newState.bases.third = second; }
@@ -140,7 +150,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         let playResultDescription = '';
         if (isDoublePlay) {
           playResultDescription = `It's a DOUBLE PLAY!`;
-          newState.outs += 2;
+          recordOuts(2);
           if (newState.outs < 3 && !state.infieldIn) {
             if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
@@ -148,7 +158,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           newState.bases.first = null; // Runner from first is out
         } else {
           playResultDescription = `Batter is SAFE, out at second. Fielder's choice.`;
-          newState.outs++;
+          recordOuts(1);
           if (newState.outs < 3 && !state.infieldIn) {
             if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; }
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
@@ -167,7 +177,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
     } else {
         events.push(`${batter.displayName} grounds out.`);
-        newState.outs++;
+        recordOuts(1);
         if (newState.outs < 3 && !state.infieldIn) {
             if (newState.bases.third) { scoreRun(newState.bases.third);  newState.bases.third = null;}
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
@@ -175,7 +185,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     }
   }
   else if (outcome.includes('FB')) {
-    newState.outs++;
+    recordOuts(1);
     const initialEvent = `${batter.displayName} flies out.`;
     if (newState.outs < 3 && (state.bases.first || state.bases.second || state.bases.third)) {
         const potentialDecisions = [
@@ -444,15 +454,15 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   }
   else if (outcome === 'SO') {
     events.push(`${batter.displayName} strikes out.`);
-    newState.outs++;
+    recordOuts(1);
   }
   else if (outcome === 'PU') {
     events.push(`${batter.displayName} pops out.`);
-    newState.outs++;
+    recordOuts(1);
 }
   else { 
     events.push(`${batter.displayName} is out.`);
-    newState.outs++;
+    recordOuts(1);
   }
 
   // --- Walk-off Win Check ---
