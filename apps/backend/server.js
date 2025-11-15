@@ -2710,7 +2710,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
                 if (consolidatedLogMessage) {
-                    const finalLogMessageWithScore = appendScoreToLog(consolidatedLogMessage, newState, currentState.awayScore, currentState.homeScore);
+                    const finalLogMessageWithScore = appendScoreToLog(consolidatedLogMessage, newState, currentState.currentAtBat.awayScoreBeforePlay, currentState.currentAtBat.homeScoreBeforePlay);
                     await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessageWithScore]);
                 }
             }
@@ -2749,7 +2749,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             if (initialEvent) {
-                const finalLogMessage = appendScoreToLog(initialEvent, newState, currentState.awayScore, currentState.homeScore);
+                const finalLogMessage = appendScoreToLog(initialEvent, newState, currentState.currentAtBat.awayScoreBeforePlay, currentState.currentAtBat.homeScoreBeforePlay);
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage]);
             }
             newState.currentPlay = null;
