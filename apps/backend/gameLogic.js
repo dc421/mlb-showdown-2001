@@ -369,7 +369,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               combinedEvent += ` ${batter.displayName} steals second without a throw.`;
           }
 
-          events.push(combinedEvent);
+          events.push(appendScoreToLog(combinedEvent, newState, originalAwayScore, originalHomeScore));
       }
   }
   else if (outcome === '2B') {
