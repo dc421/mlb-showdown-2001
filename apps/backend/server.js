@@ -2603,17 +2603,8 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 if (newState.outs > originalOuts) {
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
-                // Don't append score here directly. Instead, check if there's an initial event to prepend.
-                const initialEvent = currentState.currentPlay?.payload?.initialEvent || '';
-                const scorers = currentState.currentPlay?.payload?.scorers || [];
 
-                let finalMessage = consolidatedLogMessage;
-                if (initialEvent) {
-                    const scoreEvents = scorers.map(s => `${s.name} scores!`).join(' ');
-                    finalMessage = `${initialEvent} ${scoreEvents} ${consolidatedLogMessage}`.trim();
-                }
-
-                const finalLogMessageWithScore = appendScoreToLog(finalMessage, newState, currentState.awayScore, currentState.homeScore);
+                const finalLogMessageWithScore = appendScoreToLog(consolidatedLogMessage, newState, currentState.awayScore, currentState.homeScore);
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessageWithScore]);
             }
 
