@@ -309,7 +309,7 @@ function processPlayers(playersToProcess) {
     return playersToProcess;
 };
 
-async function validateLineup(participant, newState, client) {
+async function validateLineup(participant, newState, client, gameId) {
     const lineup = participant.lineup.battingOrder;
     const playerCardIds = lineup.map(p => p.card_id).filter(id => id > 0);
 
@@ -354,6 +354,22 @@ async function validateLineup(participant, newState, client) {
     const pitcher = newState.currentAtBat.pitcher;
     if (!pitcher || pitcher.control === null) {
         isLineupValid = false;
+    }
+
+    // --- NEW: Bench Player Restriction ---
+    if (newState.inning < 7) {
+        const rosterResult = await client.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, participant.user_id]);
+        if (rosterResult.rows.length > 0) {
+            const initialRoster = rosterResult.rows[0].roster_data;
+            const benchPlayerIds = initialRoster.filter(p => p.assignment === 'BENCH').map(p => p.card_id);
+
+            for (const playerInLineup of lineup) {
+                if (playerInLineup.position !== 'DH' && benchPlayerIds.includes(playerInLineup.card_id)) {
+                    isLineupValid = false;
+                    break;
+                }
+            }
+        }
     }
 
     newState.awaiting_lineup_change = !isLineupValid;
@@ -883,6 +899,35 @@ app.get('/api/available-teams', async (req, res) => {
   }
 });
 
+async function validatePitcherSubstitution(gameState, playerOutId, client) {
+    const playerOutCardResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
+    if (playerOutCardResult.rows.length === 0) {
+        return { isValid: true }; // Not a real player, validation doesn't apply
+    }
+    const playerOutCard = playerOutCardResult.rows[0];
+
+    // Rule only applies to pitchers
+    if (playerOutCard.control === null) {
+        return { isValid: true };
+    }
+
+    const teamKey = gameState.isTopInning ? 'homeTeam' : 'awayTeam';
+    const pitcherStats = gameState.pitcherStats[playerOutId];
+
+    // Check if playerOutId is the starting pitcher for their team
+    const participant = await client.query('SELECT lineup FROM game_participants WHERE user_id = $1', [gameState[teamKey].userId]);
+    const startingPitcherId = participant.rows[0].lineup.startingPitcher;
+
+    if (playerOutId == startingPitcherId) {
+        const outsRecorded = pitcherStats ? (pitcherStats.outs_recorded || 0) : 0;
+        if (outsRecorded < 12) {
+            return { isValid: false, message: `Starting pitcher must record at least 12 outs before being substituted. Outs recorded: ${outsRecorded}` };
+        }
+    }
+
+    return { isValid: true };
+}
+
 app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const { playerInId, playerOutId, position } = req.body;
@@ -939,12 +984,31 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
     const playerInIdInt = parseInt(playerInId, 10);
 
+    const pitcherValidationResult = await validatePitcherSubstitution(newState, playerOutId, client);
+    if (!pitcherValidationResult.isValid) {
+        return res.status(400).json({ message: pitcherValidationResult.message });
+    }
+
     if (committedPlayerIds.includes(playerInIdInt)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
     }
 
-    if (newState[teamKey].used_player_ids.includes(playerInIdInt)) {
-        newState[teamKey].used_player_ids = newState[teamKey].used_player_ids.filter(id => id !== playerInIdInt);
+    // Initialize pending lists if they don't exist
+    if (!newState[teamKey].pending_sub_ins) newState[teamKey].pending_sub_ins = [];
+    if (!newState[teamKey].pending_sub_outs) newState[teamKey].pending_sub_outs = [];
+
+    // If the player coming OUT was just subbed IN, this is an "undo"
+    if (newState[teamKey].pending_sub_ins.includes(playerOutId)) {
+        newState[teamKey].pending_sub_ins = newState[teamKey].pending_sub_ins.filter(id => id !== playerOutId);
+        newState[teamKey].pending_sub_outs = newState[teamKey].pending_sub_outs.filter(id => id !== playerInId);
+    } else {
+        // Otherwise, it's a standard substitution.
+        if (playerOutId > 0) {
+            newState[teamKey].pending_sub_outs.push(parseInt(playerOutId));
+        }
+        if (playerInId > 0) {
+            newState[teamKey].pending_sub_ins.push(parseInt(playerInId));
+        }
     }
 
     let logMessage = '';
@@ -967,11 +1031,6 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     } else {
         const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
         playerOutCard = playerOutResult.rows[0];
-    }
-
-    // A player who is subbed out is now considered "used".
-    if (playerOutId > 0) { // Don't add replacement players to the used list
-        newState[teamKey].used_player_ids.push(parseInt(playerOutId));
     }
 
     // Get the correct user ID for the team being substituted
@@ -1103,7 +1162,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
-    newState = await validateLineup(participant, newState, client);
+    newState = await validateLineup(participant, newState, client, gameId);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
@@ -1185,7 +1244,7 @@ app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
-    newState = await validateLineup(participant, newState, client);
+    newState = await validateLineup(participant, newState, client, gameId);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('COMMIT');
@@ -1764,7 +1823,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    currentState = await lockInUsedPlayers(gameId, currentState, client);
+    currentState = await commitPendingSubstitutions(gameId, currentState, client);
     
     let finalState = { ...currentState };
     if (finalState.stealAttemptDetails) {
@@ -1895,23 +1954,30 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   }
 });
 
-async function lockInUsedPlayers(gameId, currentState, client) {
+async function commitPendingSubstitutions(gameId, currentState, client) {
     const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
     const committedPlayerIds = new Set(gameResult.rows[0].committed_player_ids || []);
 
-    const usedHomeIds = currentState.homeTeam.used_player_ids || [];
-    const usedAwayIds = currentState.awayTeam.used_player_ids || [];
+    const pendingHomeOuts = currentState.homeTeam.pending_sub_outs || [];
+    const pendingAwayOuts = currentState.awayTeam.pending_sub_outs || [];
 
-    usedHomeIds.forEach(id => committedPlayerIds.add(id));
-    usedAwayIds.forEach(id => committedPlayerIds.add(id));
+    pendingHomeOuts.forEach(id => committedPlayerIds.add(id));
+    pendingAwayOuts.forEach(id => committedPlayerIds.add(id));
 
     const updatedPlayerIds = Array.from(committedPlayerIds);
     if (updatedPlayerIds.length > 0) {
         await client.query('UPDATE games SET committed_player_ids = $1::jsonb WHERE game_id = $2', [JSON.stringify(updatedPlayerIds), gameId]);
     }
 
-    currentState.homeTeam.used_player_ids = [];
-    currentState.awayTeam.used_player_ids = [];
+    // Clear all pending lists for both teams
+    if (currentState.homeTeam) {
+        currentState.homeTeam.pending_sub_outs = [];
+        currentState.homeTeam.pending_sub_ins = [];
+    }
+    if (currentState.awayTeam) {
+        currentState.awayTeam.pending_sub_outs = [];
+        currentState.awayTeam.pending_sub_ins = [];
+    }
 
     return currentState;
 }
@@ -1926,7 +1992,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-    currentState = await lockInUsedPlayers(gameId, currentState, client);
+    currentState = await commitPendingSubstitutions(gameId, currentState, client);
 
     const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
@@ -2214,7 +2280,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // --- THIS IS THE FIX ---
       // Validate the new defensive lineup. This will correctly set awaiting_lineup_change.
-      newState = await validateLineup(defensiveTeam, newState, client);
+      newState = await validateLineup(defensiveTeam, newState, client, gameId);
 
       // If the inning ended AND we DON'T need a new pitcher, create the change event.
       // This is the core of the fix: the event is suppressed if `awaiting_lineup_change` is true.
@@ -2312,7 +2378,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    newState = await lockInUsedPlayers(gameId, newState, client);
+    newState = await commitPendingSubstitutions(gameId, newState, client);
 
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
@@ -2644,7 +2710,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
                 if (consolidatedLogMessage) {
-                    const finalLogMessageWithScore = appendScoreToLog(consolidatedLogMessage, newState, currentState.awayScore, currentState.homeScore);
+                    const finalLogMessageWithScore = appendScoreToLog(consolidatedLogMessage, newState, currentState.currentAtBat.awayScoreBeforePlay, currentState.currentAtBat.homeScoreBeforePlay);
                     await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessageWithScore]);
                 }
             }
@@ -2683,7 +2749,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             if (initialEvent) {
-                const finalLogMessage = appendScoreToLog(initialEvent, newState, currentState.awayScore, currentState.homeScore);
+                const finalLogMessage = appendScoreToLog(initialEvent, newState, currentState.currentAtBat.awayScoreBeforePlay, currentState.currentAtBat.homeScoreBeforePlay);
                 await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage]);
             }
             newState.currentPlay = null;
