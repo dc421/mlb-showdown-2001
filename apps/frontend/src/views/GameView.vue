@@ -701,7 +701,6 @@ const showNextHitterButton = computed(() => {
 
 
 const showRollForSwingButton = computed(() => {
-  if (isGameOver.value) return false;
   let reason = '';
   let result = false;
 
@@ -805,13 +804,13 @@ const showThrowRollResult = computed(() => {
   if(gameStore.amIReadyForNext) return false;
 
   // Defensive player sees it only after clicking.
-  if (amIDefensivePlayer.value) {
+  if (amIDisplayDefensivePlayer.value) {
     return defensiveDPRollClicked.value;
   }
 
   // Offensive player sees it after their timer.
-  if (amIOffensivePlayer.value && !gameStore.amIReadyForNext.value) {
-    return offensiveDPResultVisible.value && isSwingResultVisible.value;
+  if (amIDisplayOffensivePlayer.value && !gameStore.amIReadyForNext.value) {
+    return (offensiveDPResultVisible.value || gameStore.opponentReadyForNext) && isSwingResultVisible.value;
   }
 
   // Spectators see it immediately.
@@ -1045,8 +1044,8 @@ watch(nextBatterInLineup, (newNextBatter) => {
 }, { immediate: true });
 
 const batterToDisplay = computed(() => {
-    if (isGameOver.value) {
-        return gameStore.gameState?.lastCompletedAtBat?.batter ?? null;
+    if (isGameOver.value && isSwingResultVisible.value) {
+        return gameStore.gameState?.currentAtBat?.batter ?? null;
     }
     if (anticipatedBatter.value) {
         return anticipatedBatter.value;
@@ -1141,7 +1140,7 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if (!isGameOver.value) {
+  if (!isGameOver.value || !isSwingResultVisible.value) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1639,7 +1638,7 @@ function handleVisibilityChange() {
       <!-- PLAYER CARDS & ACTIONS -->
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-        <div v-if="!isGameOver" class="actions-container">
+        <div v-if="!(isGameOver && isSwingResultVisible)" class="actions-container">
             <!-- PITCHER SELECTION STATE -->
         <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
                 <h3>Invalid Lineup</h3>
