@@ -503,7 +503,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   if (newState.gameOver && newState.winningTeam === 'home' && !newState.isTopInning) {
       const isWalkoffEventPresent = events.some(e => e.includes('WALK-OFF!'));
       if (!isWalkoffEventPresent) {
-          events.push(`HOME TEAM WINS! WALK-OFF!`);
+          const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
+          events.push(`${winningTeamName.toUpperCase()} WINS! WALK-OFF!`);
       }
   }
 
@@ -542,7 +543,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events, scorers, outcome };
 }
 
-function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '') {
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', teamInfo = {}) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
@@ -596,14 +597,16 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
+        outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
         // --- Walk-off Win Check ---
         if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
             if (!newState.gameOver) {
                 newState.gameOver = true;
                 newState.winningTeam = 'home';
+                const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
+                outcomeMessage += ` ${winningTeamName.toUpperCase()} WINS! WALK-OFF!`;
             }
         }
-        outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
       } else {
         newState.bases[baseMap[throwTo]] = runnerToChallenge;
         outcomeMessage = `${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`;
