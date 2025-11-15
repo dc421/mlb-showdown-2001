@@ -128,7 +128,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         if (first && second && third) {
             events.push(`${batter.displayName} hits a grounder to the drawn-in infield. The throw comes home...`);
             events.push(`The runner from third is out at the plate!`);
-            newState.outs++;
+            recordOuts(1);
             if (newState.outs < 3) {
                 newState.bases.third = second;
                 newState.bases.second = first;
@@ -543,7 +543,18 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   return { newState, events, scorers, outcome };
 }
 
-function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', teamInfo = {}) {
+function recordOutsForPitcher(state, pitcher, count) {
+  if (!pitcher) return;
+  const pitcherId = pitcher.card_id;
+  if (!state.pitcherStats[pitcherId]) {
+    state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0 };
+  }
+  state.pitcherStats[pitcherId].outs_recorded += count;
+  state.outs += count;
+}
+
+
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', pitcherOfRecord = null) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
@@ -613,15 +624,13 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
       }
       newState.bases[baseMap[fromBaseOfThrow]] = null;
     } else {
-      if (throwTo === 4) {
-        newState.outs++;
-      newState.bases[baseMap[fromBaseOfThrow]] = null;
-      outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at home!`;
-      } else{
-      newState.outs++;
-      newState.bases[baseMap[fromBaseOfThrow]] = null;
-      outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`;
-      }
+        recordOutsForPitcher(newState, pitcherOfRecord, 1);
+        newState.bases[baseMap[fromBaseOfThrow]] = null;
+        if (throwTo === 4) {
+          outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at home!`;
+        } else {
+          outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`;
+        }
     }
 
     // This is the fix. The initialEvent already contains the scoring messages.
@@ -669,4 +678,4 @@ function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHom
     return logMessage;
 }
 
-module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog };
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher };
