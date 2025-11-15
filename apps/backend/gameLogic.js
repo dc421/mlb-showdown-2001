@@ -113,10 +113,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       events.push(`${batter.displayName} lays down a sacrifice bunt.`);
       recordOuts(1);
       if (newState.outs < 3) {
-        // Note: scoreRun is not possible here based on preceding logic
-        if (second) { newState.bases.third = second; }
-        if (first) { newState.bases.second = first; }
-        newState.bases.first = null; // Batter is out
+        if (second) { newState.bases.third = second; newState.bases.second = null; }
+        if (first) { newState.bases.second = first; newState.bases.first = null; }
+        else { newState.bases.first = null; }
       }
     }
   }
