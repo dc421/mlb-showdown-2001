@@ -622,18 +622,9 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
       }
     }
 
-    // Consolidate the event message here
-    const { scorers = [], hitType } = newState.currentPlay.payload;
-    let allScorers = [...scorers];
-    if (isSafe && throwTo === 4) {
-        // The runner involved in the throw also scored.
-        allScorers.push(runnerToChallenge.name);
-    }
-    let messageWithScore = finalizeEvent(newState, initialEvent, allScorers, scoreKey);
-
-    // Append the specific outcome of the throw
-    const finalMessage = messageWithScore ? `${messageWithScore} ${outcomeMessage}` : outcomeMessage;
-
+    // This is the fix. The initialEvent already contains the scoring messages.
+    // We just need to append the outcome of this specific throw.
+    const finalMessage = `${initialEvent} ${outcomeMessage}`;
     events.push(finalMessage);
   }
 
