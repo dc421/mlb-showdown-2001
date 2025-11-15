@@ -770,13 +770,13 @@ const showThrowRollResult = computed(() => {
   if(gameStore.amIReadyForNext) return false;
 
   // Defensive player sees it only after clicking.
-  if (amIDefensivePlayer.value) {
+  if (amIDisplayDefensivePlayer.value) {
     return defensiveDPRollClicked.value;
   }
 
   // Offensive player sees it after their timer.
-  if (amIOffensivePlayer.value && !gameStore.amIReadyForNext.value) {
-    return offensiveDPResultVisible.value && isSwingResultVisible.value;
+  if (amIDisplayOffensivePlayer.value && !gameStore.amIReadyForNext.value) {
+    return (offensiveDPResultVisible.value || gameStore.opponentReadyForNext) && isSwingResultVisible.value;
   }
 
   // Spectators see it immediately.
