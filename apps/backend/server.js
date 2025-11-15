@@ -2683,7 +2683,8 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             if (initialEvent) {
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', initialEvent]);
+                const finalLogMessage = appendScoreToLog(initialEvent, newState, currentState.awayScore, currentState.homeScore);
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage]);
             }
             newState.currentPlay = null;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
