@@ -228,7 +228,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
         // If there are manual decisions, create a play
         if (manualDecisions.length > 0) {
-            events.push(combinedEvent);
             newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, autoHoldDecisions, initialEvent: combinedEvent } };
         } else {
             // Otherwise, process auto-holds and finalize the event
