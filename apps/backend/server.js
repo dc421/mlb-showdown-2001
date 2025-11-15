@@ -1950,7 +1950,17 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         // Add the scores before the outcome is applied.
         currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
         currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
-        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue, 0, null, {});
+        const teams = await client.query(
+            `SELECT t.abbreviation, p.home_or_away
+             FROM teams t JOIN users u ON t.user_id = u.user_id
+             JOIN game_participants p ON u.user_id = p.user_id
+             WHERE p.game_id = $1`, [gameId]
+          );
+        const teamInfo = {
+            home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+            away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+        };
+        const { newState, events: walkEvents } = applyOutcome(currentState, 'IBB', batter, pitcher, 0, 0, getSpeedValue, 0, null, teamInfo);
         finalState = { ...newState };
         finalState.currentAtBat.pitcherAction = 'intentional_walk';
         finalState.currentAtBat.batterAction = 'take';
@@ -2587,6 +2597,17 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
             const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
+            const teams = await client.query(
+              `SELECT t.abbreviation, p.home_or_away
+               FROM teams t JOIN users u ON t.user_id = u.user_id
+               JOIN game_participants p ON u.user_id = p.user_id
+               WHERE p.game_id = $1`, [gameId]
+            );
+            const teamInfo = {
+              home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+              away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+            };
+
             let { initialEvent, autoHoldDecisions = [] } = newState.currentPlay.payload;
             const sentRunnerFromBase = parseInt(fromBaseStr, 10);
             const runnersWhoHeld = autoHoldDecisions.filter(d => d.from !== sentRunnerFromBase);
@@ -2601,7 +2622,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
             const originalOuts = newState.outs;
 
-            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent);
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent, teamInfo);
             newState = resolvedState;
 
             const batterOnFirst = newState.bases.first;
@@ -2628,7 +2649,13 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 }
             }
 
-            if (newState.outs >= 3) {
+            if (newState.gameOver) {
+              await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+                [gameId]
+              );
+              await handleSeriesProgression(gameId, client);
+            } else if (newState.outs >= 3) {
                  if (newState.isTopInning) {
                     newState.isBetweenHalfInningsAway = true;
                 } else {
