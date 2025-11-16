@@ -266,10 +266,10 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
             newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, autoHoldDecisions, initialEvent: combinedEvent } };
         } else {
             // Otherwise, process auto-holds and finalize the event
-            events.push(combinedEvent);
+            events.push(`${combinedEvent} Outs: ${newState.outs}`);
         }
     } else {
-        events.push(initialEvent);
+        events.push(`${initialEvent} Outs: ${newState.outs}`);
     }
   }
   else if (outcome === 'SINGLE' || outcome === '1B' || outcome === '1B+') {
