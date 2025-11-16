@@ -899,7 +899,7 @@ app.get('/api/available-teams', async (req, res) => {
   }
 });
 
-async function validatePitcherSubstitution(gameState, playerOutId, client) {
+async function validatePitcherSubstitution(gameState, playerOutId, client, gameId) {
     const playerOutCardResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
     if (playerOutCardResult.rows.length === 0) {
         return { isValid: true }; // Not a real player, validation doesn't apply
@@ -915,12 +915,17 @@ async function validatePitcherSubstitution(gameState, playerOutId, client) {
     const pitcherStats = gameState.pitcherStats[playerOutId];
 
     // Check if playerOutId is the starting pitcher for their team
-    const participant = await client.query('SELECT lineup FROM game_participants WHERE user_id = $1', [gameState[teamKey].userId]);
-    const startingPitcherId = participant.rows[0].lineup.startingPitcher;
+    const participantResult = await client.query('SELECT lineup FROM game_participants WHERE user_id = $1 AND game_id = $2', [gameState[teamKey].userId, gameId]);
+    const participant = participantResult.rows[0];
+    const startingPitcherId = participant.lineup.startingPitcher;
 
     if (playerOutId == startingPitcherId) {
         const outsRecorded = pitcherStats ? (pitcherStats.outs_recorded || 0) : 0;
         if (outsRecorded < 12) {
+            const effectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, gameState.inning);
+            if (effectiveControl < playerOutCard.control) {
+                return { isValid: true }; // Pitcher is tired, can be subbed out.
+            }
             return { isValid: false, message: `Starting pitcher must record at least 12 outs before being substituted. Outs recorded: ${outsRecorded}` };
         }
     }
@@ -984,31 +989,13 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
     const playerInIdInt = parseInt(playerInId, 10);
 
-    const pitcherValidationResult = await validatePitcherSubstitution(newState, playerOutId, client);
+    const pitcherValidationResult = await validatePitcherSubstitution(newState, playerOutId, client, gameId);
     if (!pitcherValidationResult.isValid) {
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
 
     if (committedPlayerIds.includes(playerInIdInt)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
-    }
-
-    // Initialize pending lists if they don't exist
-    if (!newState[teamKey].pending_sub_ins) newState[teamKey].pending_sub_ins = [];
-    if (!newState[teamKey].pending_sub_outs) newState[teamKey].pending_sub_outs = [];
-
-    // If the player coming OUT was just subbed IN, this is an "undo"
-    if (newState[teamKey].pending_sub_ins.includes(playerOutId)) {
-        newState[teamKey].pending_sub_ins = newState[teamKey].pending_sub_ins.filter(id => id !== playerOutId);
-        newState[teamKey].pending_sub_outs = newState[teamKey].pending_sub_outs.filter(id => id !== playerInId);
-    } else {
-        // Otherwise, it's a standard substitution.
-        if (playerOutId > 0) {
-            newState[teamKey].pending_sub_outs.push(parseInt(playerOutId));
-        }
-        if (playerInId > 0) {
-            newState[teamKey].pending_sub_ins.push(parseInt(playerInId));
-        }
     }
 
     let logMessage = '';
@@ -1955,30 +1942,47 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 });
 
 async function commitPendingSubstitutions(gameId, currentState, client) {
-    const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
+    // 1. Get initial rosters and current committed players
+    const rosterResult = await client.query('SELECT user_id, roster_data FROM game_rosters WHERE game_id = $1', [gameId]);
+    const gameResult = await client.query('SELECT committed_player_ids, home_team_user_id FROM games WHERE game_id = $1', [gameId]);
+
     const committedPlayerIds = new Set(gameResult.rows[0].committed_player_ids || []);
+    const homeUserId = gameResult.rows[0].home_team_user_id;
 
-    const pendingHomeOuts = currentState.homeTeam.pending_sub_outs || [];
-    const pendingAwayOuts = currentState.awayTeam.pending_sub_outs || [];
+    const homeRoster = rosterResult.rows.find(r => r.user_id === homeUserId)?.roster_data || [];
+    const awayRoster = rosterResult.rows.find(r => r.user_id !== homeUserId)?.roster_data || [];
 
-    pendingHomeOuts.forEach(id => committedPlayerIds.add(id));
-    pendingAwayOuts.forEach(id => committedPlayerIds.add(id));
+    // 2. Get current lineups
+    const participants = await client.query('SELECT user_id, lineup FROM game_participants WHERE game_id = $1', [gameId]);
+    const homeParticipant = participants.rows.find(p => p.user_id === homeUserId);
+    const awayParticipant = participants.rows.find(p => p.user_id !== homeUserId);
 
+    const homeLineupIds = new Set(homeParticipant.lineup.battingOrder.map(p => p.card_id));
+    const awayLineupIds = new Set(awayParticipant.lineup.battingOrder.map(p => p.card_id));
+
+    // Also include the current pitchers on the mound
+    if (currentState.currentHomePitcher) homeLineupIds.add(currentState.currentHomePitcher.card_id);
+    if (currentState.currentAwayPitcher) awayLineupIds.add(currentState.currentAwayPitcher.card_id);
+
+    // 3. Identify players who have been removed and commit them
+    homeRoster.forEach(player => {
+        if (!homeLineupIds.has(player.card_id)) {
+            committedPlayerIds.add(player.card_id);
+        }
+    });
+    awayRoster.forEach(player => {
+        if (!awayLineupIds.has(player.card_id)) {
+            committedPlayerIds.add(player.card_id);
+        }
+    });
+
+    // 4. Update the database with the new list of committed players
     const updatedPlayerIds = Array.from(committedPlayerIds);
     if (updatedPlayerIds.length > 0) {
         await client.query('UPDATE games SET committed_player_ids = $1::jsonb WHERE game_id = $2', [JSON.stringify(updatedPlayerIds), gameId]);
     }
 
-    // Clear all pending lists for both teams
-    if (currentState.homeTeam) {
-        currentState.homeTeam.pending_sub_outs = [];
-        currentState.homeTeam.pending_sub_ins = [];
-    }
-    if (currentState.awayTeam) {
-        currentState.awayTeam.pending_sub_outs = [];
-        currentState.awayTeam.pending_sub_ins = [];
-    }
-
+    // This function now only returns the state, it doesn't need to modify it.
     return currentState;
 }
 
