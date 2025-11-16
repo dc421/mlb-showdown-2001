@@ -1159,7 +1159,7 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if (!isGameOver.value || !isSwingResultVisible.value) {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult)) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1657,7 +1657,7 @@ function handleVisibilityChange() {
       <!-- PLAYER CARDS & ACTIONS -->
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-        <div v-if="!(isGameOver && isSwingResultVisible)" class="actions-container">
+        <div v-if="!(isGameOver && isSwingResultVisible && !(showDefensiveRollForThrowButton && !showThrowRollResult))" class="actions-container">
             <!-- PITCHER SELECTION STATE -->
         <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
                 <h3>Invalid Lineup</h3>
