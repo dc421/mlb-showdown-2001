@@ -985,8 +985,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const isOffensiveSub = teamKey === offensiveTeamKey;
     // --- END REVISED TEAM IDENTIFICATION LOGIC ---
 
-    const gameResult = await client.query('SELECT committed_player_ids FROM games WHERE game_id = $1', [gameId]);
-    const committedPlayerIds = gameResult.rows[0].committed_player_ids || [];
+    const homeUsed = newState.homeTeam.used_player_ids || [];
+    const awayUsed = newState.awayTeam.used_player_ids || [];
+    const allUsedPlayerIds = [...homeUsed, ...awayUsed];
     const playerInIdInt = parseInt(playerInId, 10);
 
     const pitcherValidationResult = await validatePitcherSubstitution(newState, playerOutId, client, gameId);
@@ -994,7 +995,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
 
-    if (committedPlayerIds.includes(playerInIdInt)) {
+    if (playerInIdInt > 0 && allUsedPlayerIds.includes(playerInIdInt)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
     }
 
@@ -1138,6 +1139,17 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         logMessage = `${teamName} brings in ${playerInCard.name} to relieve ${playerOutCard.name}.`;
     } else {
         logMessage = `${teamName} substitutes ${playerInCard.name} for ${playerOutCard.name}. ${playerInCard.name} will now play ${position}.`;
+    }
+
+    // --- NEW: Add the outgoing player to the used list ---
+    const playerOutIdInt = parseInt(playerOutId, 10);
+    if (playerOutIdInt > 0) { // Don't add replacement players to the used list
+        if (!newState[teamKey].used_player_ids) {
+            newState[teamKey].used_player_ids = [];
+        }
+        if (!newState[teamKey].used_player_ids.includes(playerOutIdInt)) {
+            newState[teamKey].used_player_ids.push(playerOutIdInt);
+        }
     }
 
     await client.query('UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3', [JSON.stringify(participant.lineup), gameId, userId]);
@@ -1810,8 +1822,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    currentState = await commitPendingSubstitutions(gameId, currentState, client);
-    
     let finalState = { ...currentState };
     if (finalState.stealAttemptDetails) {
         finalState.stealAttemptDetails.clearedForOffense = true;
@@ -1941,51 +1951,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   }
 });
 
-async function commitPendingSubstitutions(gameId, currentState, client) {
-    // 1. Get initial rosters and current committed players
-    const rosterResult = await client.query('SELECT user_id, roster_data FROM game_rosters WHERE game_id = $1', [gameId]);
-    const gameResult = await client.query('SELECT committed_player_ids, home_team_user_id FROM games WHERE game_id = $1', [gameId]);
-
-    const committedPlayerIds = new Set(gameResult.rows[0].committed_player_ids || []);
-    const homeUserId = gameResult.rows[0].home_team_user_id;
-
-    const homeRoster = rosterResult.rows.find(r => r.user_id === homeUserId)?.roster_data || [];
-    const awayRoster = rosterResult.rows.find(r => r.user_id !== homeUserId)?.roster_data || [];
-
-    // 2. Get current lineups
-    const participants = await client.query('SELECT user_id, lineup FROM game_participants WHERE game_id = $1', [gameId]);
-    const homeParticipant = participants.rows.find(p => p.user_id === homeUserId);
-    const awayParticipant = participants.rows.find(p => p.user_id !== homeUserId);
-
-    const homeLineupIds = new Set(homeParticipant.lineup.battingOrder.map(p => p.card_id));
-    const awayLineupIds = new Set(awayParticipant.lineup.battingOrder.map(p => p.card_id));
-
-    // Also include the current pitchers on the mound
-    if (currentState.currentHomePitcher) homeLineupIds.add(currentState.currentHomePitcher.card_id);
-    if (currentState.currentAwayPitcher) awayLineupIds.add(currentState.currentAwayPitcher.card_id);
-
-    // 3. Identify players who have been removed and commit them
-    homeRoster.forEach(player => {
-        if (!homeLineupIds.has(player.card_id)) {
-            committedPlayerIds.add(player.card_id);
-        }
-    });
-    awayRoster.forEach(player => {
-        if (!awayLineupIds.has(player.card_id)) {
-            committedPlayerIds.add(player.card_id);
-        }
-    });
-
-    // 4. Update the database with the new list of committed players
-    const updatedPlayerIds = Array.from(committedPlayerIds);
-    if (updatedPlayerIds.length > 0) {
-        await client.query('UPDATE games SET committed_player_ids = $1::jsonb WHERE game_id = $2', [JSON.stringify(updatedPlayerIds), gameId]);
-    }
-
-    // This function now only returns the state, it doesn't need to modify it.
-    return currentState;
-}
-
 app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const { action } = req.body;
@@ -1996,7 +1961,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-    currentState = await commitPendingSubstitutions(gameId, currentState, client);
 
     const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
