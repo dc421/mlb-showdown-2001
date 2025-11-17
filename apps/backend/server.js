@@ -1141,7 +1141,6 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         logMessage = `${teamName} substitutes ${playerInCard.name} for ${playerOutCard.name}. ${playerInCard.name} will now play ${position}.`;
     }
 
-    // --- NEW: Add the outgoing player to the used list ---
     const playerOutIdInt = parseInt(playerOutId, 10);
     if (playerOutIdInt > 0) { // Don't add replacement players to the used list
         if (!newState[teamKey].used_player_ids) {
@@ -2345,8 +2344,6 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-
-    newState = await commitPendingSubstitutions(gameId, newState, client);
 
     const { defensiveTeam } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };

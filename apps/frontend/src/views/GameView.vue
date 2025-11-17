@@ -454,11 +454,10 @@ const rightPanelData = computed(() => {
 });
 
 const usedPlayerIds = computed(() => {
-    if (!gameStore.game) return new Set();
-    const committedIds = gameStore.game.committed_player_ids || [];
-    const pendingHome = gameStore.gameState?.homeTeam?.pending_sub_outs || [];
-    const pendingAway = gameStore.gameState?.awayTeam?.pending_sub_outs || [];
-    return new Set([...committedIds, ...pendingHome, ...pendingAway]);
+    if (!gameStore.gameState) return new Set();
+    const homeUsed = gameStore.gameState.homeTeam?.used_player_ids || [];
+    const awayUsed = gameStore.gameState.awayTeam?.used_player_ids || [];
+    return new Set([...homeUsed, ...awayUsed]);
 });
 
 
