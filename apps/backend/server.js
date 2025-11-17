@@ -2937,6 +2937,10 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
             if (isSafe) {
                 newState[scoreKey]++;
                 events.push(`${runnerOnThird.name} is SENT HOME... SAFE! ${batter.displayName} reaches on a fielder's choice.`);
+                if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
+                    newState.gameOver = true;
+                    newState.winningTeam = 'home';
+                }
             } else {
                 newState.outs++;
                 events.push(`${runnerOnThird.name} is THROWN OUT at the plate! ${batter.displayName} reaches on a fielder's choice.`);
@@ -2970,7 +2974,19 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
         newState.currentPlay = null;
 
-        if (newState.outs >= 3) {
+        if (newState.gameOver) {
+            events.push(`WALK-OFF!`);
+            await client.query(
+              `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+              [gameId]
+            );
+            await handleSeriesProgression(gameId, client);
+        } else if (newState.outs >= 3) {
+             if (newState.isTopInning) {
+                newState.isBetweenHalfInningsAway = true;
+            } else {
+                newState.isBetweenHalfInningsHome = true;
+            }
         }
         
         await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
