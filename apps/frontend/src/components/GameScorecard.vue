@@ -141,7 +141,7 @@ const gameSubtitle = computed(() => {
         <div class="opponent-info">
           <span v-if="game.opponent">
             <span v-if="game.game_in_series" class="game-number">Game {{ game.game_in_series }}</span>
-            vs. {{ game.opponent.full_display_name }}
+            vs. {{ game.opponent.team_city }}
           </span>
           <span v-else-if="isPreGame">Waiting for opponent...</span>
         </div>
