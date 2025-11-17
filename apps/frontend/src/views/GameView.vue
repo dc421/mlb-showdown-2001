@@ -802,7 +802,7 @@ const showDefensiveRollForThrowButton = computed(() => {
     if (wasMultiThrowSituation.value || !!gameStore.gameState?.throwRollResult?.consolidatedOutcome) {
         return false;
     }
-    return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value;
+    return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value && !(gameStore.gameState?.currentAtBat.pitcherAction === 'intentional_walk');
 });
 
 const defensiveThrowMessage = computed(() => {
@@ -848,7 +848,7 @@ const showThrowRollResult = computed(() => {
 });
 
 const showAutoThrowResult = computed(() => {
-    if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult) {
+    if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult || (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext) || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
         return false;
     }
     // This is the key change: if there are multiple runners, show the result immediately
