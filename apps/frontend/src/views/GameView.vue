@@ -454,11 +454,10 @@ const rightPanelData = computed(() => {
 });
 
 const usedPlayerIds = computed(() => {
-    if (!gameStore.game) return new Set();
-    const committedIds = gameStore.game.committed_player_ids || [];
-    const pendingHome = gameStore.gameState?.homeTeam?.pending_sub_outs || [];
-    const pendingAway = gameStore.gameState?.awayTeam?.pending_sub_outs || [];
-    return new Set([...committedIds, ...pendingHome, ...pendingAway]);
+    if (!gameStore.gameState) return new Set();
+    const homeUsed = gameStore.gameState.homeTeam?.used_player_ids || [];
+    const awayUsed = gameStore.gameState.awayTeam?.used_player_ids || [];
+    return new Set([...homeUsed, ...awayUsed]);
 });
 
 
@@ -1187,17 +1186,24 @@ const finalScoreMessage = computed(() => {
 
   let winningTeam;
   let losingTeam;
+  let isWalkOff = false;
 
   if (homeScore > awayScore) {
     winningTeam = homeTeam;
     losingTeam = awayTeam;
+    // Walk-off condition: home team wins and it's the bottom of the 9th or later.
+    if (!gameStore.gameState.isTopInning && gameStore.gameState.inning >= 9) {
+      isWalkOff = true;
+    }
   } else {
     winningTeam = awayTeam;
     losingTeam = homeTeam;
   }
 
+  const winningTeamName = isWalkOff ? winningTeam.city : winningTeam.abbreviation.toUpperCase();
+
   return {
-    message: `<strong>FINAL</strong>: ${winningTeam.abbreviation.toUpperCase()} ${gameStore.gameState.homeScore > gameStore.gameState.awayScore ? gameStore.gameState.homeScore : gameStore.gameState.awayScore}, ${losingTeam.abbreviation.toUpperCase()} ${gameStore.gameState.homeScore < gameStore.gameState.awayScore ? gameStore.gameState.homeScore : gameStore.gameState.awayScore}`,
+    message: `<strong>FINAL</strong>: ${winningTeamName} ${homeScore > awayScore ? homeScore : awayScore}, ${losingTeam.abbreviation.toUpperCase()} ${homeScore < awayScore ? homeScore : awayScore}`,
     colors: {
       primary: winningTeam.primary_color,
       secondary: winningTeam.secondary_color,
