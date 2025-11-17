@@ -31,6 +31,96 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const originalHomeScore = state.homeScore;
   let hitMessage = '';
 
+  const isWalkOffSituation = !newState.isTopInning && newState.inning >= 9 && newState.homeScore <= newState.awayScore;
+
+  if (isWalkOffSituation && ['SINGLE', '1B', '1B+', '2B', '3B'].includes(outcome)) {
+    let basesToAdvanceOnHit = 0;
+    if (outcome === '1B' || outcome === 'SINGLE' || outcome === '1B+') basesToAdvanceOnHit = 1;
+    if (outcome === '2B') basesToAdvanceOnHit = 2;
+    if (outcome === '3B') basesToAdvanceOnHit = 3;
+
+    const runnersOnBaseForCheck = [
+        { runner: state.bases.third, from: 3 },
+        { runner: state.bases.second, from: 2 },
+        { runner: state.bases.first, from: 1 },
+    ].filter(r => r.runner);
+
+    let autoScoredCount = 0;
+    for (const { from } of runnersOnBaseForCheck) {
+        if (from + basesToAdvanceOnHit >= 4) {
+            autoScoredCount++;
+        }
+    }
+    const runsNeededToWin = newState.awayScore - newState.homeScore + 1;
+
+    if (autoScoredCount >= runsNeededToWin) {
+        const runnersOnBase = [
+            { runner: state.bases.third, from: 3 },
+            { runner: state.bases.second, from: 2 },
+            { runner: state.bases.first, from: 1 },
+        ].filter(r => r.runner);
+
+        let basesToAdvance = 0;
+        for (let b = 1; b <= 3; b++) {
+            const scored = runnersOnBase.filter(r => r.from + b >= 4).length;
+            if (scored >= runsNeededToWin) {
+                basesToAdvance = b;
+                break;
+            }
+        }
+
+        if (basesToAdvance === 0) basesToAdvance = basesToAdvanceOnHit;
+
+
+        let finalOutcome = '1B';
+        if (basesToAdvance === 2) finalOutcome = '2B';
+        if (basesToAdvance === 3) finalOutcome = '3B';
+
+        const allRunners = [
+            ...runnersOnBase,
+            { runner: batter, from: 0 }
+        ];
+
+        const newBases = { first: null, second: null, third: null };
+        const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+        let runnersScoredCount = 0;
+
+        for (const { runner, from } of allRunners) {
+            const toBase = from + basesToAdvance;
+            if (toBase >= 4) {
+                if (runnersScoredCount < runsNeededToWin) {
+                    scoreRun(runner, false);
+                    runnersScoredCount++;
+                }
+            } else {
+                if (from === 0) { // Batter
+                    newBases[baseMap[toBase]] = runner;
+                } else { // Runner on base
+                    newBases[baseMap[toBase]] = runner;
+                }
+            }
+        }
+
+        newState.bases = newBases;
+        let hitType = 'SINGLE';
+        if (finalOutcome === '2B') hitType = 'DOUBLE';
+        if (finalOutcome === '3B') hitType = 'TRIPLE';
+
+        let eventMessage = `${batter.displayName} hits a walk-off ${hitType}!`;
+        const winningScorerName = scorers[scorers.length - 1];
+        if (winningScorerName) {
+            eventMessage += ` ${winningScorerName} scores.`;
+        }
+
+        events.push(eventMessage);
+
+        newState.gameOver = true;
+        newState.winningTeam = 'home';
+        outcome = 'WALKOFF_HANDLED';
+    }
+  }
+
+
   // --- Handle Highest GB Rule ---
   if (outcome.includes('GB') && state.currentAtBat.infieldIn && chartHolder && swingRoll > 0) {
       let highestGB = -1;
@@ -312,7 +402,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       // --- State Update ---
       newState.bases = { first: null, second: null, third: null };
 
-      if (manualDecisions.length > 0) {
+      if (manualDecisions.length > 0 && !newState.gameOver) {
           // --- SCENARIO 1: User decision is required ---
           const allUserDecisions = manualDecisions.concat(autoHoldDecisions.map(d => ({ ...d, type: 'manual' })));
 
@@ -421,7 +511,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           // THIS IS THE FIX. Place the batter on second base *before* creating the
           // ADVANCE play. This ensures the frontend has the correct state.
           newState.bases.second = runnerData;
-          if (runnerFrom1) {
+          if (runnerFrom1 && !newState.gameOver) {
               newState.bases.third = runnerFrom1;
               newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers } };
           } else {
