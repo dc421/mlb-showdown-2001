@@ -14,14 +14,13 @@ const showSubModal = ref(false);
 const route = useRoute();
 const router = useRouter();
 const gameStore = useGameStore();
-const { isSwingResultVisible, isStealResultVisible } = storeToRefs(gameStore);
+const { isSwingResultVisible, isStealResultVisible, nextGameId } = storeToRefs(gameStore);
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
-const nextGameId = ref(null);
 const offensiveDPResultVisible = ref(false);
 const defensiveDPRollClicked = ref(false);
 const defensiveThrowRollClicked = ref(false);
@@ -1593,7 +1592,6 @@ onMounted(async () => {
     const opponentWins = myTeamIsSeriesHome ? data.away_wins : data.home_wins;
 
     seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
-    nextGameId.value = data.nextGameId;
     gameStore.checkLineupForNextGame(data.nextGameId);
   });
 

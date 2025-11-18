@@ -8,6 +8,7 @@ export const useGameStore = defineStore('game', () => {
   const game = ref(null);
   const series = ref(null);
   const gameState = ref(null);
+  const nextGameId = ref(null);
   const gameEvents = ref([]);
   const batter = ref(null);
   const pitcher = ref(null);
@@ -62,6 +63,9 @@ async function fetchGame(gameId) {
       
       
       game.value = data.game;
+      if (data.nextGameId) {
+        nextGameId.value = data.nextGameId;
+      }
       
       series.value = data.series;
       gameState.value = data.gameState ? data.gameState.state_data : null;
@@ -565,6 +569,7 @@ async function resetRolls(gameId) {
   function updateGameData(data) {
     console.log('📥 STORE: Received game data from socket.');
     if (data.game) game.value = data.game;
+    if (data.nextGameId) nextGameId.value = data.nextGameId;
     if (data.series) series.value = data.series;
     if (data.gameState) gameState.value = data.gameState.state_data;
     if (data.gameEvents) gameEvents.value = data.gameEvents;
@@ -579,6 +584,7 @@ async function resetRolls(gameId) {
     game.value = null;
     series.value = null;
     gameState.value = null;
+    nextGameId.value = null;
     gameEvents.value = [];
     batter.value = null;
     pitcher.value = null;
@@ -769,7 +775,7 @@ async function resetRolls(gameId) {
     };
   });
 
-  return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
+  return { game, series, gameState, nextGameId, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,loadScenario,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     isSwingResultVisible, setIsSwingResultVisible,
