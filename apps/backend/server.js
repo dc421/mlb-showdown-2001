@@ -899,33 +899,35 @@ app.get('/api/available-teams', async (req, res) => {
   }
 });
 
-async function validatePitcherSubstitution(gameState, playerOutId, client, gameId) {
-    const playerOutCardResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
-    if (playerOutCardResult.rows.length === 0) {
-        return { isValid: true }; // Not a real player, validation doesn't apply
-    }
-    const playerOutCard = playerOutCardResult.rows[0];
-
+// This function no longer needs to be async or take the client, as all data is passed in.
+function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, startingPitcherId, isOffensiveSub) {
     // Rule only applies to pitchers
     if (playerOutCard.control === null) {
         return { isValid: true };
     }
 
-    const teamKey = gameState.isTopInning ? 'homeTeam' : 'awayTeam';
-    const pitcherStats = gameState.pitcherStats[playerOutId];
-
-    // Check if playerOutId is the starting pitcher for their team
-    const participantResult = await client.query('SELECT lineup FROM game_participants WHERE user_id = $1 AND game_id = $2', [gameState[teamKey].userId, gameId]);
-    const participant = participantResult.rows[0];
-    const startingPitcherId = participant.lineup.startingPitcher;
+    const pitcherStats = gameState.pitcherStats ? gameState.pitcherStats[playerOutId] : null;
 
     if (playerOutId == startingPitcherId) {
         const outsRecorded = pitcherStats ? (pitcherStats.outs_recorded || 0) : 0;
         if (outsRecorded < 12) {
+            // Check 1: Is the pitcher tired RIGHT NOW? (Primarily for defensive subs)
             const effectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, gameState.inning);
             if (effectiveControl < playerOutCard.control) {
                 return { isValid: true }; // Pitcher is tired, can be subbed out.
             }
+
+            // Check 2: If it's an offensive sub, will the pitcher be tired for their NEXT defensive inning?
+            if (isOffensiveSub) {
+                // If the offensive team is the away team (top of inning), their next defensive inning is the bottom of the current inning.
+                // If the offensive team is the home team (bottom of inning), their next defensive inning is the top of the next inning.
+                const nextDefensiveInning = !gameState.isTopInning ? gameState.inning + 1 : gameState.inning;
+                const projectedEffectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, nextDefensiveInning);
+                if (projectedEffectiveControl < playerOutCard.control) {
+                    return { isValid: true }; // Pitcher WILL BE tired, can be pinch-hit/run for.
+                }
+            }
+
             return { isValid: false, message: `Starting pitcher must record at least 12 outs before being substituted. Outs recorded: ${outsRecorded}` };
         }
     }
@@ -990,7 +992,17 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const allUsedPlayerIds = [...homeUsed, ...awayUsed];
     const playerInIdInt = parseInt(playerInId, 10);
 
-    const pitcherValidationResult = await validatePitcherSubstitution(newState, playerOutId, client, gameId);
+    let playerOutCard;
+    if (parseInt(playerOutId, 10) === -1) {
+        playerOutCard = REPLACEMENT_HITTER_CARD;
+    } else if (parseInt(playerOutId, 10) === -2) {
+        playerOutCard = REPLACEMENT_PITCHER_CARD;
+    } else {
+        const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
+        playerOutCard = playerOutResult.rows[0];
+    }
+
+    const pitcherValidationResult = validatePitcherSubstitution(newState, playerOutCard, playerOutId, participant.lineup.startingPitcher, isOffensiveSub);
     if (!pitcherValidationResult.isValid) {
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
@@ -1009,16 +1021,6 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     } else {
         const playerInResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerInId]);
         playerInCard = playerInResult.rows[0];
-    }
-
-    let playerOutCard;
-    if (parseInt(playerOutId, 10) === -1) {
-        playerOutCard = REPLACEMENT_HITTER_CARD;
-    } else if (parseInt(playerOutId, 10) === -2) {
-        playerOutCard = REPLACEMENT_PITCHER_CARD;
-    } else {
-        const playerOutResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerOutId]);
-        playerOutCard = playerOutResult.rows[0];
     }
 
     // Get the correct user ID for the team being substituted
