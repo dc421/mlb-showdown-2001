@@ -678,14 +678,14 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  if (isGameOver.value) return false;
+  if (isGameOver.value && isSwingResultVisible.value) return false;
   const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showRollForPitchButton: ${result}`);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
-  if (isGameOver.value) return false;
+  if (isGameOver.value && isSwingResultVisible.value) return false;
   const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showSwingAwayButton: ${result}`);
   return result;
