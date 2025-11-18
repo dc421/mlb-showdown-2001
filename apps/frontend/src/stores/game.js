@@ -12,6 +12,7 @@ export const useGameStore = defineStore('game', () => {
   const batter = ref(null);
   const pitcher = ref(null);
   const lineups = ref({ home: null, away: null });
+  const nextLineupIsSet = ref(false);
   const rosters = ref({ home: [], away: [] });
   const teams = ref({ home: null, away: null });
   const setupState = ref(null);
@@ -177,6 +178,23 @@ async function resolveDefensiveThrow(gameId, throwTo) {
       setupState.value = await response.json();
     } catch (error) {
       console.error("Error in fetchGameSetup:", error);
+    }
+  }
+
+  async function checkLineupForNextGame(gameId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/games/${gameId}/my-lineup`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to check lineup status');
+      const data = await response.json();
+      nextLineupIsSet.value = data.hasLineup;
+    } catch (error) {
+      console.error(error);
+      // Assume lineup is not set if the check fails
+      nextLineupIsSet.value = false;
     }
   }
 
@@ -771,5 +789,7 @@ async function resetRolls(gameId) {
     createSnapshot,
     restoreSnapshot,
     deleteSnapshot,
+    checkLineupForNextGame,
+    nextLineupIsSet,
   };
 })

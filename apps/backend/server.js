@@ -3140,6 +3140,30 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
   }
 });
 
+// GET A USER'S LINEUP STATUS FOR A SPECIFIC GAME
+app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
+  const { gameId } = req.params;
+  const userId = req.user.userId;
+  try {
+    const participantResult = await pool.query(
+      `SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2`,
+      [gameId, userId]
+    );
+
+    if (participantResult.rows.length === 0) {
+      // If the user is not a participant, they technically don't have a lineup set.
+      return res.json({ hasLineup: false });
+    }
+
+    const participant = participantResult.rows[0];
+    res.json({ hasLineup: !!participant.lineup });
+
+  } catch (error) {
+    console.error(`Error fetching user lineup info for game ${gameId}:`, error);
+    res.status(500).json({ message: 'Server error fetching lineup data.' });
+  }
+});
+
 // TEST ROUTE
 app.get('/api/test', async (req, res) => {
     try {
