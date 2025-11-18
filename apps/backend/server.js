@@ -335,7 +335,7 @@ async function validateLineup(participant, newState, client, gameId) {
 
     let isLineupValid = true;
     for (const playerInLineup of lineup) {
-        if (playerInLineup.card_id < 0) continue; // Skip replacement players for now
+        if (playerInLineup.card_id < 0) continue;
 
         const card = cardsById[playerInLineup.card_id];
         if (!card) {
@@ -364,13 +364,11 @@ async function validateLineup(participant, newState, client, gameId) {
         }
     }
 
-    // Also check the current pitcher on the mound
     const pitcher = newState.currentAtBat.pitcher;
     if (isLineupValid && (!pitcher || pitcher.control === null)) {
         isLineupValid = false;
     }
 
-    // --- NEW: Bench Player Restriction ---
     if (isLineupValid && newState.inning < 7) {
         const benchPlayerIds = await getInitialBenchPlayerIds(gameId, participant.user_id, client);
         if (benchPlayerIds.length > 0) {
