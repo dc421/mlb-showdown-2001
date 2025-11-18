@@ -31,6 +31,32 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const originalHomeScore = state.homeScore;
   let hitMessage = '';
 
+  const scoreRun = (runnerOnBase, generateLog = true) => {
+    if (!runnerOnBase) return null;
+    newState[scoreKey]++;
+    scorers.push(runnerOnBase.name);
+
+    // --- Walk-off Win Check ---
+    if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
+        if (!newState.gameOver) {
+            newState.gameOver = true;
+            newState.winningTeam = 'home';
+        }
+    }
+
+    const pitcherId = runnerOnBase.pitcherOfRecordId;
+    if (newState.pitcherStats[pitcherId]) {
+      newState.pitcherStats[pitcherId].runs++;
+    } else {
+      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0 };
+    }
+
+    if (generateLog) {
+        return `${runnerOnBase.name} scores!`;
+    }
+    return null;
+  };
+
   const isWalkOffSituation = !newState.isTopInning && newState.inning >= 9 && newState.homeScore <= newState.awayScore;
 
   if (isWalkOffSituation && ['SINGLE', '1B', '1B+', '2B', '3B'].includes(outcome)) {
@@ -145,32 +171,6 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     pitcherOfRecordId: pitcher.card_id
   };
 
-  const scoreRun = (runnerOnBase, generateLog = true) => {
-    if (!runnerOnBase) return null;
-    newState[scoreKey]++;
-    scorers.push(runnerOnBase.name);
-
-    // --- Walk-off Win Check ---
-    if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
-        if (!newState.gameOver) {
-            newState.gameOver = true;
-            newState.winningTeam = 'home';
-        }
-    }
-
-    const pitcherId = runnerOnBase.pitcherOfRecordId;
-    if (newState.pitcherStats[pitcherId]) {
-      newState.pitcherStats[pitcherId].runs++;
-    } else {
-      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0 };
-    }
-
-    if (generateLog) {
-        return `${runnerOnBase.name} scores!`;
-    }
-    return null;
-  };
-  
   // --- HANDLE OUTCOMES ---
   if (outcome === 'BUNT') {
     const { first, second, third } = state.bases;
