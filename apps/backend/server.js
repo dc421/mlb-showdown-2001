@@ -83,7 +83,12 @@ app.use('/images', express.static(path.join(__dirname, 'card_images')));
 // in server.js
 async function getActivePlayers(gameId, currentState) {
     try {
-        const participantsResult = await pool.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
+        const participantsResult = await pool.query(`
+            SELECT p.*, u.team_id
+            FROM game_participants p
+            JOIN users u ON p.user_id = u.user_id
+            WHERE p.game_id = $1
+        `, [gameId]);
         const game = await pool.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
 
         const homeParticipant = participantsResult.rows.find(p => p.user_id === game.rows[0].home_team_user_id);
@@ -774,7 +779,12 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       [JSON.stringify({ battingOrder, startingPitcher }), gameId, userId]
     );
 
-    const allParticipants = await client.query('SELECT user_id, roster_id, lineup FROM game_participants WHERE game_id = $1', [gameId]);
+    const allParticipants = await client.query(`
+      SELECT p.user_id, p.roster_id, p.lineup, u.team_id
+      FROM game_participants p
+      JOIN users u ON p.user_id = u.user_id
+      WHERE p.game_id = $1
+    `, [gameId]);
     
     if (allParticipants.rows.length === 2 && allParticipants.rows.every(p => p.lineup !== null)) {
       const game = await client.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
@@ -826,8 +836,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         pitcherStats: await initializePitcherFatigue(gameId, client),
         isBetweenHalfInningsAway: false,
         isBetweenHalfInningsHome: false,
-        awayTeam: { userId: awayParticipant.user_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
-        homeTeam: { userId: homeParticipant.user_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        awayTeam: { userId: awayParticipant.user_id, team_id: awayParticipant.team_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        homeTeam: { userId: homeParticipant.user_id, team_id: homeParticipant.team_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
         homeDefensiveRatings: {
             catcherArm: await getCatcherArm(homeParticipant),
             infieldDefense: await getInfieldDefense(homeParticipant),
