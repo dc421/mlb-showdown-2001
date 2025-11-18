@@ -309,6 +309,15 @@ function processPlayers(playersToProcess) {
     return playersToProcess;
 };
 
+async function getInitialBenchPlayerIds(gameId, userId, client) {
+    const rosterResult = await client.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, userId]);
+    if (rosterResult.rows.length > 0) {
+        const initialRoster = rosterResult.rows[0].roster_data;
+        return initialRoster.filter(p => p.assignment === 'BENCH').map(p => p.card_id);
+    }
+    return [];
+}
+
 async function validateLineup(participant, newState, client, gameId) {
     const lineup = participant.lineup.battingOrder;
     const playerCardIds = lineup.map(p => p.card_id).filter(id => id > 0);
@@ -352,17 +361,14 @@ async function validateLineup(participant, newState, client, gameId) {
 
     // Also check the current pitcher on the mound
     const pitcher = newState.currentAtBat.pitcher;
-    if (!pitcher || pitcher.control === null) {
+    if (isLineupValid && (!pitcher || pitcher.control === null)) {
         isLineupValid = false;
     }
 
     // --- NEW: Bench Player Restriction ---
-    if (newState.inning < 7) {
-        const rosterResult = await client.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, participant.user_id]);
-        if (rosterResult.rows.length > 0) {
-            const initialRoster = rosterResult.rows[0].roster_data;
-            const benchPlayerIds = initialRoster.filter(p => p.assignment === 'BENCH').map(p => p.card_id);
-
+    if (isLineupValid && newState.inning < 7) {
+        const benchPlayerIds = await getInitialBenchPlayerIds(gameId, participant.user_id, client);
+        if (benchPlayerIds.length > 0) {
             for (const playerInLineup of lineup) {
                 if (playerInLineup.position !== 'DH' && benchPlayerIds.includes(playerInLineup.card_id)) {
                     isLineupValid = false;
@@ -778,11 +784,21 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       const awayParticipant = allParticipants.rows.find(p => Number(p.user_id) !== Number(homePlayerId));
 
       // --- NEW: Snapshot the rosters for this game ---
-      const homeRosterCardsResult = await client.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [homeParticipant.roster_id]);
+      const homeRosterCardsResult = await client.query(`
+          SELECT cp.*, rc.assignment
+          FROM cards_player cp
+          JOIN roster_cards rc ON cp.card_id = rc.card_id
+          WHERE rc.roster_id = $1
+      `, [homeParticipant.roster_id]);
       const homeRosterData = homeRosterCardsResult.rows;
       await client.query(`INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)`, [gameId, homeParticipant.user_id, JSON.stringify(homeRosterData)]);
 
-      const awayRosterCardsResult = await client.query(`SELECT * FROM cards_player WHERE card_id = ANY(SELECT card_id FROM roster_cards WHERE roster_id = $1)`, [awayParticipant.roster_id]);
+      const awayRosterCardsResult = await client.query(`
+          SELECT cp.*, rc.assignment
+          FROM cards_player cp
+          JOIN roster_cards rc ON cp.card_id = rc.card_id
+          WHERE rc.roster_id = $1
+      `, [awayParticipant.roster_id]);
       const awayRosterData = awayRosterCardsResult.rows;
       await client.query(`INSERT INTO game_rosters (game_id, user_id, roster_data) VALUES ($1, $2, $3)`, [gameId, awayParticipant.user_id, JSON.stringify(awayRosterData)]);
       // --- END NEW ---
