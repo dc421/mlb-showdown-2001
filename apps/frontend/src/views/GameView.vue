@@ -51,21 +51,33 @@ function isPlayerSubEligible(player) {
     const pitcherStats = gameStore.gameState?.pitcherStats;
     const stats = pitcherStats ? pitcherStats[player.card_id] : null;
     if (!stats) {
-        return true; // Not enough data, so don't block.
+        return true; // Not enough data, assume eligible.
     }
 
-    // Condition 1: Recorded 12 or more outs.
+    // Condition 1: Recorded 12 or more outs (min 4 IP).
     if (stats.outs_recorded >= 12) {
         return true;
     }
 
     // Condition 2: Is at or over their fatigue limit.
-    const inningsPitched = Math.floor((stats.outs_recorded || 0) / 3);
-    if (inningsPitched > 0) { // Only check fatigue if they've actually pitched.
+    // We use the unique innings pitched array for accuracy.
+    const inningsPitchedCount = stats.innings_pitched?.length || 0;
+
+    // If the pitcher is on offense, we project their fatigue for the *next* inning
+    // to see if they will be tired when they next take the mound.
+    let projectedInnings = inningsPitchedCount;
+    if (amIDisplayOffensivePlayer.value) {
+        projectedInnings += 1;
+    }
+
+    // Only check fatigue if they've actually pitched or are projected to pitch.
+    if (projectedInnings > 0) {
         const fatigueModifier = stats.fatigue_modifier || 0;
         const modifiedIp = player.ip + fatigueModifier;
         const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
-        if (inningsPitched >= fatigueThreshold) {
+
+        // They are eligible if their projected innings meets or exceeds the threshold.
+        if (projectedInnings >= fatigueThreshold) {
             return true;
         }
     }
