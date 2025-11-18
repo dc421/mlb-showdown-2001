@@ -1852,7 +1852,7 @@ function handleVisibilityChange() {
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player) && (spot.position === 'P' || !amIDisplayDefensivePlayer || gameStore.gameState.inning >= 7),
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
                             'active': playerToSubOut?.player.card_id === spot.player.card_id
                         }">
                       ⇄
@@ -1895,7 +1895,7 @@ function handleVisibilityChange() {
                   <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
-                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7) }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
