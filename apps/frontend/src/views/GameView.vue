@@ -883,7 +883,9 @@ const isDoubleStealResultAvailable = computed(() => {
 
 const showStealResult = computed(() => {
   const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
-                                 (amIDisplayOffensivePlayer.value && (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)) &&
+                                 amIDisplayOffensivePlayer.value &&
+                                 (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && 
+                                 !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
                                  (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
   const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
@@ -1200,10 +1202,10 @@ const finalScoreMessage = computed(() => {
     losingTeam = homeTeam;
   }
 
-  const winningTeamName = isWalkOff ? winningTeam.city : winningTeam.abbreviation.toUpperCase();
+  const winningTeamName = isWalkOff ? winningTeam.abbreviation.toUpperCase() : winningTeam.abbreviation.toUpperCase();
 
   return {
-    message: `<strong>FINAL</strong>: ${winningTeamName} ${homeScore > awayScore ? homeScore : awayScore}, ${losingTeam.abbreviation.toUpperCase()} ${homeScore < awayScore ? homeScore : awayScore}`,
+    message: `<strong>FINAL</strong>: ${winningTeam.abbreviation.toUpperCase()} ${homeScore > awayScore ? homeScore : awayScore}, ${losingTeam.abbreviation.toUpperCase()} ${homeScore < awayScore ? homeScore : awayScore}`,
     colors: {
       primary: winningTeam.primary_color,
       secondary: winningTeam.secondary_color,

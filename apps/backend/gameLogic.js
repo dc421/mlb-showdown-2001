@@ -511,7 +511,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       const isWalkoffEventPresent = events.some(e => e.includes('WALK-OFF!'));
       if (!isWalkoffEventPresent) {
           const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
-          events.push(`${winningTeamName.toUpperCase()} WINS! WALK-OFF!`);
+          events.push(` WALK-OFF!`);
       }
   }
 
@@ -622,7 +622,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
                 newState.gameOver = true;
                 newState.winningTeam = 'home';
                 const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
-                outcomeMessage += ` ${winningTeamName.toUpperCase()} WINS! WALK-OFF!`;
+                outcomeMessage += ` WALK-OFF!`;
             }
         }
       } else {
