@@ -973,6 +973,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
+    const initialStateResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number ASC LIMIT 1', [gameId]);
+    const initialState = initialStateResult.rows[0].state_data;
+
     let newState = JSON.parse(JSON.stringify(currentState));
 
     // --- START REVISED TEAM IDENTIFICATION LOGIC ---
@@ -1028,7 +1031,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         playerOutCard = playerOutResult.rows[0];
     }
 
-    const pitcherValidationResult = validatePitcherSubstitution(newState, playerOutCard, playerOutId, participant.lineup.startingPitcher, isOffensiveSub);
+    const originalStartingPitcher = teamKey === 'homeTeam' ? initialState.currentHomePitcher : initialState.currentAwayPitcher;
+
+    const pitcherValidationResult = validatePitcherSubstitution(newState, playerOutCard, playerOutId, originalStartingPitcher.card_id, isOffensiveSub);
     if (!pitcherValidationResult.isValid) {
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
