@@ -418,8 +418,14 @@ const leftPanelData = computed(() => {
     const teamData = isHome ? gameStore.teams.home : gameStore.teams.away;
     const lineupData = isHome ? gameStore.lineups.home : gameStore.lineups.away;
     const benchAndBullpen = isHome ? homeBenchAndBullpen.value : awayBenchAndBullpen.value;
-    const pitcher = isHome ? homePitcher.value : awayPitcher.value;
+    let pitcher = isHome ? homePitcher.value : awayPitcher.value;
     const colors = isHome ? homeTeamColors.value : awayTeamColors.value;
+
+    // THIS IS THE SECOND PART OF THE FIX:
+    // If we are awaiting a lineup change, the pitcher for the panel should also be null.
+    if (gameStore.gameState?.awaiting_lineup_change && amIDefensivePlayer.value) {
+        pitcher = null;
+    }
 
     return {
         team: teamData,
@@ -1104,6 +1110,13 @@ const pitcherToDisplay = computed(() => {
         return gameStore.gameState?.lastCompletedAtBat?.pitcher ?? null;
     }
     if (!gameStore.gameState) return null;
+
+    // THIS IS THE FIX: If the current team is awaiting a lineup change (i.e., needs to select a pitcher),
+    // we should show a null pitcher, which will trigger the "TBD" or "Selecting Pitcher..." card.
+    // Use `amIDefensivePlayer` which reflects the true state, not the display state.
+    if (gameStore.gameState.awaiting_lineup_change && amIDefensivePlayer.value) {
+        return null;
+    }
 
     // NEW LOGIC: If the outcome is hidden, we must show the pitcher and their stats
     // from the beginning of the at-bat to avoid revealing information.
