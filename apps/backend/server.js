@@ -1134,7 +1134,15 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         // --- THIS IS THE FIX ---
         // If we just resolved the awaiting state, NOW we can create the event because the new pitcher is in place.
         if (wasAwaitingLineupChange && !newState.awaiting_lineup_change) {
-            await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+            const inningString = `<b>${newState.isTopInning ? 'Top' : 'Bottom'} ${getOrdinal(newState.inning)}</b>`;
+            const existingEventResult = await client.query(
+                `SELECT 1 FROM game_events WHERE game_id = $1 AND event_type = 'system' AND log_message LIKE $2`,
+                [gameId, `%${inningString}%`]
+            );
+
+            if (existingEventResult.rows.length === 0) {
+                await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+            }
         }
     }
 
