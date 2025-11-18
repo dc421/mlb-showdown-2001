@@ -1577,8 +1577,8 @@ onMounted(async () => {
   
   // --- THIS IS THE DEBUG LOG ---
   console.log('--- GameView Mounted: Checking Store Data ---');
-  console.log('gameState:', gameStore.gameState);
-  console.log('gameEvents:', gameStore.gameEvents);
+  console.log('gameState:', JSON.stringify(gameStore.gameState, null, 2));
+  console.log('gameEvents:', JSON.stringify(gameStore.gameEvents, null, 2));
 
   socket.connect();
   socket.emit('join-game-room', gameId);
@@ -1853,7 +1853,7 @@ function handleVisibilityChange() {
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player) && (spot.position === 'P' || !amIDisplayDefensivePlayer || gameStore.gameState.inning >= 7),
                             'active': playerToSubOut?.player.card_id === spot.player.card_id
                         }">
                       ⇄
