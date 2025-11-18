@@ -1309,6 +1309,10 @@ function proceedToNextGame() {
     }
 }
 
+const showSetLineupForNextGameButton = computed(() => {
+  return isGameOver.value && nextGameId.value && !gameStore.nextLineupIsSet;
+});
+
  
 function hexToRgba(hex, alpha = 0.95) {
   if (!hex || !/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
@@ -1580,6 +1584,10 @@ onMounted(async () => {
   console.log('gameState:', JSON.stringify(gameStore.gameState, null, 2));
   console.log('gameEvents:', JSON.stringify(gameStore.gameEvents, null, 2));
 
+  if (import.meta.env.DEV) {
+    window.socket = socket;
+  }
+
   socket.connect();
   socket.emit('join-game-room', gameId);
   socket.on('game-updated', (data) => {
@@ -1595,6 +1603,7 @@ onMounted(async () => {
 
     seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
     nextGameId.value = data.nextGameId;
+    gameStore.checkLineupForNextGame(data.nextGameId);
   });
 
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -1760,6 +1769,7 @@ function handleVisibilityChange() {
                 <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
+                <button v-if="showSetLineupForNextGameButton" class="action-button tactile-button" @click="proceedToNextGame()"><strong>Set Lineup for Next Game</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
