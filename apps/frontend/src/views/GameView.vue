@@ -1112,6 +1112,11 @@ const batterToDisplay = computed(() => {
 });
 
 const pitcherToDisplay = computed(() => {
+    // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
+    // change just happened), we should not show any pitcher, forcing the "TBD" state.
+    if (gameStore.gameState?.awaiting_lineup_change) {
+        return null;
+    }
     if (isGameOver.value) {
         return gameStore.gameState?.lastCompletedAtBat?.pitcher ?? null;
     }
