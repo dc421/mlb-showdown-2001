@@ -1226,7 +1226,7 @@ const finalScoreMessage = computed(() => {
 });
 
 const seriesScoreMessage = computed(() => {
-  if (!isGameOver.value || !gameStore.series) {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult)) {
     return null;
   }
 
@@ -1239,37 +1239,23 @@ const seriesScoreMessage = computed(() => {
   // Assuming series object has number_of_games property
   const gamesToWin = series.number_of_games ? Math.ceil(series.number_of_games / 2) : 999; // Use a large number if not present
 
-  if (homeWins === gamesToWin) {
-    return {
-      message: `${homeTeam.abbreviation.toUpperCase()} wins series ${homeWins}-${awayWins}`,
-      colors: { primary: homeTeam.primary_color, secondary: homeTeam.secondary_color }
-    };
-  }
-
-  if (awayWins === gamesToWin) {
-    return {
-      message: `${awayTeam.abbreviation.toUpperCase()} wins series ${awayWins}-${homeWins}`,
-      colors: { primary: awayTeam.primary_color, secondary: awayTeam.secondary_color }
-    };
-  }
-
   if (homeWins === awayWins) {
     return {
-      message: `Series tied ${homeWins}-${awayWins}`,
-      colors: { primary: '#ffffff', secondary: '#000000', forTie: true }
+      message: `<strong>SERIES</strong>: TIED ${homeWins}-${awayWins}`,
+      colors: { primary: '#acadb0', secondary: '#000000', forTie: true }
     };
   }
 
   if (homeWins > awayWins) {
     return {
-      message: `${homeTeam.abbreviation.toUpperCase()} leads series ${homeWins}-${awayWins}`,
+      message: `<strong>SERIES</strong>: ${homeTeam.abbreviation.toUpperCase()} ${homeWins}-${awayWins}`,
       colors: { primary: homeTeam.primary_color, secondary: homeTeam.secondary_color }
     };
   }
 
   if (awayWins > homeWins) {
      return {
-      message: `${awayTeam.abbreviation.toUpperCase()} leads series ${awayWins}-${homeWins}`,
+      message: `<strong>SERIES</strong>: ${awayTeam.abbreviation.toUpperCase()} ${awayWins}-${homeWins}`,
       colors: { primary: awayTeam.primary_color, secondary: awayTeam.secondary_color }
     };
   }
@@ -2428,7 +2414,6 @@ function handleVisibilityChange() {
 }
 .final-score-message, .series-score-message {
   padding: 0.5rem 1.5rem;
-  font-size: 2.5rem;
   border-radius: 1px;
   border: 3px solid;
   text-align: center;
@@ -2440,11 +2425,13 @@ function handleVisibilityChange() {
 }
 
 .final-score-message {
+  font-size: 2rem;
   top: 100px;
 }
 
 .series-score-message {
-  bottom: 0px;
+  font-size: 3rem;
+  bottom: 120px;
 }
 
 </style>
