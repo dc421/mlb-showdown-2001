@@ -331,6 +331,12 @@ const playersInInvalidPositions = computed(() => {
             return; // Skip empty spots and Designated Hitters
         }
 
+        // New Bench Player Rule
+        if (gameStore.gameState?.inning < 7 && player.assignment === 'BENCH') {
+            invalidPlayerIds.add(player.card_id);
+            return; // No need to check other rules if this one fails
+        }
+
         const isAPitcher = player.control !== null;
         const ratings = player.fielding_ratings || {};
 
