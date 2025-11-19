@@ -901,7 +901,7 @@ const isDoubleStealResultAvailable = computed(() => {
 const showStealResult = computed(() => {
   const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
                                  amIDisplayOffensivePlayer.value &&
-                                 (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) &&
+                                 (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && 
                                  !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
                                  (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
