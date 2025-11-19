@@ -1114,7 +1114,7 @@ const batterToDisplay = computed(() => {
 const pitcherToDisplay = computed(() => {
     // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
     // change just happened), we should not show any pitcher, forcing the "TBD" state.
-    if (gameStore.gameState?.awaiting_lineup_change) {
+    if (isMyTeamAwaitingLineupChange.value) {
         return null;
     }
     if (isGameOver.value) {
@@ -1301,7 +1301,9 @@ function proceedToNextGame() {
 }
 
 const showSetLineupForNextGameButton = computed(() => {
-  return isGameOver.value && nextGameId.value && !gameStore.nextLineupIsSet;
+  return isGameOver.value && nextGameId.value && !gameStore.nextLineupIsSet
+   && isSwingResultVisible.value && !(!showAutoThrowResult.value && gameStore.gameState?.throwRollResult)
+   ;
 });
 
  
@@ -1798,7 +1800,7 @@ function handleVisibilityChange() {
               :primary-color="controlledPlayerTeamColors.primary"
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
-                <div v-if="gameStore.gameState.awaiting_lineup_change" class="selecting-pitcher-text">
+                <div v-if="gameStore.gameState.awaiting_lineup_change || !!pitcherToDisplay" class="selecting-pitcher-text">
                     <h3><em>Selecting Pitcher...</em></h3>
                 </div>
                 <template v-else>
