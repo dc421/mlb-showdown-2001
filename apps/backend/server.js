@@ -361,7 +361,13 @@ function validateLineup(participant, newState) {
         }
     }
 
-    const pitcher = newState.currentAtBat?.pitcher;
+    // --- THIS IS THE FIX ---
+    // The validation must check the designated pitcher for the team whose lineup is being validated,
+    // not the active pitcher on the mound, who belongs to the opposing team.
+    const pitcher = participant.home_or_away === 'home'
+        ? newState.currentHomePitcher
+        : newState.currentAwayPitcher;
+
     if (isLineupValid && (!pitcher || pitcher.control === null)) {
         isLineupValid = false;
     }
