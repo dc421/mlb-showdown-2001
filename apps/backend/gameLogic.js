@@ -142,6 +142,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
         newState.gameOver = true;
         newState.winningTeam = 'home';
+        newState.walkoffAdjustedOutcome = finalOutcome;
         outcome = 'WALKOFF_HANDLED';
     }
   }
