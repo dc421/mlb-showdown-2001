@@ -315,8 +315,7 @@ const isMyTeamAwaitingLineupChange = computed(() => {
     // NEW: Also check that the invalid lineup *is mine* before showing the message.
     return gameStore.gameState.awaiting_lineup_change &&
            amIDisplayDefensivePlayer.value &&
-           playersInInvalidPositions.value.size > 0 &&
-           !gameStore.opponentReadyForNext.value;
+           playersInInvalidPositions.value.size > 0;
 });
 
 const playersInInvalidPositions = computed(() => {
@@ -542,6 +541,13 @@ const scoreUpdateVisible = computed(() => {
 // NEW: A display-only computed to handle inning-change visuals
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
+
+  // If the game is blocked awaiting a lineup change, we must show the state of the NEW inning
+  // so the defensive player can make the necessary changes.
+  if (gameStore.gameState.awaiting_lineup_change) {
+      return gameStore.gameState.isTopInning;
+  }
+
   // If we are between innings, the "isTopInning" flag has already flipped to the *next*
   // inning. For display purposes, we want to show the state of the inning that just
   // concluded, so we flip it back.
