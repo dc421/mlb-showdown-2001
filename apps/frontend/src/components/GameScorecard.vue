@@ -124,6 +124,13 @@ const gameSubtitle = computed(() => {
     return `${seriesInfo} · ${date}`;
 });
 
+const gameHeaderText = computed(() => {
+    if (props.game.game_in_series) {
+        return `Game ${props.game.game_in_series}`;
+    }
+    return 'Exhibition';
+});
+
 </script>
 
 <template>
@@ -140,8 +147,7 @@ const gameSubtitle = computed(() => {
       <div class="line-1">
         <div class="opponent-info">
           <span v-if="game.opponent">
-            <span v-if="game.game_in_series" class="game-number">Game {{ game.game_in_series }}</span>
-            vs. {{ game.opponent.full_display_name }}
+            {{ gameHeaderText }}
           </span>
           <span v-else-if="isPreGame">Waiting for opponent...</span>
         </div>

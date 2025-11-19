@@ -23,7 +23,8 @@ const linescore = computed(() => {
       if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN') || event.log_message.includes('SAFE at home')) {
         const runsFromScores = (event.log_message.match(/scores/g) || []).length;
         const runsFromHomeRun = event.log_message.includes('HOME RUN') ? 1 : 0;
-        const totalRunsInEvent = runsFromScores + runsFromHomeRun;
+        const runsFromSAFEathome = event.log_message.includes('SAFE at home') ? 1 : 0;
+        const totalRunsInEvent = runsFromScores + runsFromHomeRun + runsFromSAFEathome;
         if (isTop) {
           awayRunsInInning += totalRunsInEvent;
         } else {

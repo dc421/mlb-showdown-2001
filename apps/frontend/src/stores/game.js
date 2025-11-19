@@ -8,10 +8,12 @@ export const useGameStore = defineStore('game', () => {
   const game = ref(null);
   const series = ref(null);
   const gameState = ref(null);
+  const nextGameId = ref(null);
   const gameEvents = ref([]);
   const batter = ref(null);
   const pitcher = ref(null);
   const lineups = ref({ home: null, away: null });
+  const nextLineupIsSet = ref(false);
   const rosters = ref({ home: [], away: [] });
   const teams = ref({ home: null, away: null });
   const setupState = ref(null);
@@ -27,9 +29,15 @@ async function swapPlayerPositions(gameId, playerAId, playerBId) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ playerAId, playerBId })
     });
-        if (!response.ok) throw new Error('Failed to swap player positions');
+    if (!response.ok) throw new Error('Failed to swap player positions');
 
-    await fetchGame(gameId); // Refresh game state after successful swap
+    // Manually fetch and apply the updated state to win the race against the websocket.
+    const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+    });
+    if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after swap');
+    updateGameData(await updatedGameData.json());
+
   } catch (error) {
     console.error('Error swapping player positions:', error);
     alert(`Error: ${error.message}`);
@@ -55,6 +63,9 @@ async function fetchGame(gameId) {
       
       
       game.value = data.game;
+      if (data.nextGameId) {
+        nextGameId.value = data.nextGameId;
+      }
       
       series.value = data.series;
       gameState.value = data.gameState ? data.gameState.state_data : null;
@@ -127,7 +138,7 @@ async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
+    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -135,7 +146,9 @@ async function resolveDefensiveThrow(gameId, throwTo) {
       },
       body: JSON.stringify({ throwTo })
     });
-    // The websocket event will handle the state update
+    if (!response.ok) throw new Error('Failed to resolve throw');
+    const updatedGameData = await response.json();
+    updateGameData(updatedGameData); // Update the store with the new data
   } catch (error) {
     console.error("Error resolving throw:", error);
   }
@@ -169,6 +182,23 @@ async function resolveDefensiveThrow(gameId, throwTo) {
       setupState.value = await response.json();
     } catch (error) {
       console.error("Error in fetchGameSetup:", error);
+    }
+  }
+
+  async function checkLineupForNextGame(gameId) {
+    const auth = useAuthStore();
+    if (!auth.token) return;
+    try {
+      const response = await fetch(`${auth.API_URL}/api/games/${gameId}/my-lineup`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!response.ok) throw new Error('Failed to check lineup status');
+      const data = await response.json();
+      nextLineupIsSet.value = data.hasLineup;
+    } catch (error) {
+      console.error(error);
+      // Assume lineup is not set if the check fails
+      nextLineupIsSet.value = false;
     }
   }
 
@@ -253,9 +283,14 @@ async function submitSwing(gameId, action = null) {
         body: JSON.stringify(substitutionData)
       });
       if (!response.ok) throw new Error('Failed to make substitution');
-      // After a successful substitution, re-fetch the entire game state
-      // to ensure the UI is perfectly in sync with the backend.
-      await fetchGame(gameId);
+
+      // Manually fetch and apply the updated state to win the race against the websocket.
+      const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
+          headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+      if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after substitution');
+      updateGameData(await updatedGameData.json());
+
     } catch (error) {
       console.error('Error making substitution:', error);
       alert(`Error: ${error.message}`);
@@ -534,6 +569,7 @@ async function resetRolls(gameId) {
   function updateGameData(data) {
     console.log('📥 STORE: Received game data from socket.');
     if (data.game) game.value = data.game;
+    if (data.nextGameId) nextGameId.value = data.nextGameId;
     if (data.series) series.value = data.series;
     if (data.gameState) gameState.value = data.gameState.state_data;
     if (data.gameEvents) gameEvents.value = data.gameEvents;
@@ -548,6 +584,7 @@ async function resetRolls(gameId) {
     game.value = null;
     series.value = null;
     gameState.value = null;
+    nextGameId.value = null;
     gameEvents.value = [];
     batter.value = null;
     pitcher.value = null;
@@ -738,7 +775,7 @@ async function resetRolls(gameId) {
     };
   });
 
-  return { game, series, gameState, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
+  return { game, series, gameState, nextGameId, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
     fetchGame, declareHomeTeam,setGameState,loadScenario,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
     isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
     isSwingResultVisible, setIsSwingResultVisible,
@@ -758,5 +795,7 @@ async function resetRolls(gameId) {
     createSnapshot,
     restoreSnapshot,
     deleteSnapshot,
+    checkLineupForNextGame,
+    nextLineupIsSet,
   };
 })
