@@ -314,28 +314,26 @@ function processPlayers(playersToProcess) {
     return playersToProcess;
 };
 
-async function getInitialBenchPlayerIds(gameId, userId, client) {
-    const rosterResult = await client.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, userId]);
-    if (rosterResult.rows.length > 0) {
-        const initialRoster = rosterResult.rows[0].roster_data;
-        return initialRoster.filter(p => p.assignment === 'BENCH').map(p => p.card_id);
-    }
-    return [];
-}
-
-async function validateLineup(participant, newState, client, gameId) {
+function validateLineup(participant, newState) {
     const lineup = participant.lineup.battingOrder;
-    const playerCardIds = lineup.map(p => p.card_id).filter(id => id > 0);
 
-    const cardsResult = await client.query('SELECT card_id, fielding_ratings, control FROM cards_player WHERE card_id = ANY($1::int[])', [playerCardIds]);
-    const cardsById = cardsResult.rows.reduce((acc, card) => {
+    const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    const teamState = newState[teamKey];
+    if (!teamState || !teamState.roster) {
+        // Defensive: If roster isn't in the state for some reason (e.g., older game),
+        // we'll skip the more advanced validation for now.
+        newState.awaiting_lineup_change = false;
+        return newState;
+    }
+
+    const cardsById = teamState.roster.reduce((acc, card) => {
         acc[card.card_id] = card;
         return acc;
     }, {});
 
     let isLineupValid = true;
     for (const playerInLineup of lineup) {
-        if (playerInLineup.card_id < 0) continue;
+        if (playerInLineup.card_id < 0) continue; // Skip replacement players
 
         const card = cardsById[playerInLineup.card_id];
         if (!card) {
@@ -347,7 +345,6 @@ async function validateLineup(participant, newState, client, gameId) {
         if (position === 'DH') continue;
 
         let isPlayerEligible = false;
-
         if (card.fielding_ratings && card.fielding_ratings[position] !== undefined) {
             isPlayerEligible = true;
         } else if (position === '1B' && card.control === null) {
@@ -364,19 +361,18 @@ async function validateLineup(participant, newState, client, gameId) {
         }
     }
 
-    const pitcher = newState.currentAtBat.pitcher;
+    const pitcher = newState.currentAtBat?.pitcher;
     if (isLineupValid && (!pitcher || pitcher.control === null)) {
         isLineupValid = false;
     }
 
     if (isLineupValid && newState.inning < 7) {
-        const benchPlayerIds = await getInitialBenchPlayerIds(gameId, participant.user_id, client);
-        if (benchPlayerIds.length > 0) {
-            for (const playerInLineup of lineup) {
-                if (playerInLineup.position !== 'DH' && benchPlayerIds.includes(playerInLineup.card_id)) {
-                    isLineupValid = false;
-                    break;
-                }
+        for (const playerInLineup of lineup) {
+            const card = cardsById[playerInLineup.card_id];
+            // The new rule: A player with 'BENCH' assignment cannot be in a defensive position.
+            if (card && card.assignment === 'BENCH' && playerInLineup.position !== 'DH') {
+                isLineupValid = false;
+                break;
             }
         }
     }
@@ -834,8 +830,8 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         pitcherStats: await initializePitcherFatigue(gameId, client),
         isBetweenHalfInningsAway: false,
         isBetweenHalfInningsHome: false,
-        awayTeam: { userId: awayParticipant.user_id, team_id: awayParticipant.team_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
-        homeTeam: { userId: homeParticipant.user_id, team_id: homeParticipant.team_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [] },
+        awayTeam: { userId: awayParticipant.user_id, team_id: awayParticipant.team_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], roster: awayRosterData },
+        homeTeam: { userId: homeParticipant.user_id, team_id: homeParticipant.team_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], roster: homeRosterData },
         homeDefensiveRatings: {
             catcherArm: await getCatcherArm(homeParticipant),
             infieldDefense: await getInfieldDefense(homeParticipant),
@@ -1199,7 +1195,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
-    newState = await validateLineup(participant, newState, client, gameId);
+    newState = validateLineup(participant, newState);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
@@ -1281,7 +1277,7 @@ app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
-    newState = await validateLineup(participant, newState, client, gameId);
+    newState = validateLineup(participant, newState);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('COMMIT');
@@ -2286,7 +2282,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // --- THIS IS THE FIX ---
       // Validate the new defensive lineup. This will correctly set awaiting_lineup_change.
-      newState = await validateLineup(defensiveTeam, newState, client, gameId);
+      newState = validateLineup(defensiveTeam, newState);
 
       // If the inning ended AND we DON'T need a new pitcher, create the change event.
       // This is the core of the fix: the event is suppressed if `awaiting_lineup_change` is true.

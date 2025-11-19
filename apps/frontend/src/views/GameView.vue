@@ -14,14 +14,13 @@ const showSubModal = ref(false);
 const route = useRoute();
 const router = useRouter();
 const gameStore = useGameStore();
-const { isSwingResultVisible, isStealResultVisible } = storeToRefs(gameStore);
+const { isSwingResultVisible, isStealResultVisible, nextGameId } = storeToRefs(gameStore);
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
-const nextGameId = ref(null);
 const offensiveDPResultVisible = ref(false);
 const defensiveDPRollClicked = ref(false);
 const defensiveThrowRollClicked = ref(false);
@@ -679,14 +678,14 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  if (isGameOver.value) return false;
+  if (isGameOver.value && isSwingResultVisible.value) return false;
   const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showRollForPitchButton: ${result}`);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
-  if (isGameOver.value) return false;
+  if (isGameOver.value && isSwingResultVisible.value) return false;
   const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
   console.log(`showSwingAwayButton: ${result}`);
   return result;
@@ -1595,7 +1594,6 @@ onMounted(async () => {
     const opponentWins = myTeamIsSeriesHome ? data.away_wins : data.home_wins;
 
     seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
-    nextGameId.value = data.nextGameId;
     gameStore.checkLineupForNextGame(data.nextGameId);
   });
 
@@ -1856,7 +1854,7 @@ function handleVisibilityChange() {
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player) && (spot.position === 'P' || !amIDisplayDefensivePlayer || gameStore.gameState.inning >= 7),
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
                             'active': playerToSubOut?.player.card_id === spot.player.card_id
                         }">
                       ⇄
@@ -1899,7 +1897,7 @@ function handleVisibilityChange() {
                   <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
-                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7) }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
