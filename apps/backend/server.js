@@ -507,7 +507,7 @@ function advanceToNextHalfInning(state) {
 }
 
 // --- HELPER: Handles series logic after a game completes ---
-async function handleSeriesProgression(gameId, client) {
+async function handleSeriesProgression(gameId, client, finalState) {
     // 1. Get all game and series info in one query for efficiency and clarity.
     const gameAndSeriesResult = await client.query(`
         SELECT
@@ -531,9 +531,6 @@ async function handleSeriesProgression(gameId, client) {
     const seriesInfo = gameAndSeriesResult.rows[0];
     const { series_id, game_home_user_id, game_in_series, series_home_user_id, series_type } = seriesInfo;
     let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
-
-    const finalStateResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
-    const finalState = finalStateResult.rows[0].state_data;
 
     const participantsResult = await client.query('SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1', [gameId]);
     const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== game_home_user_id);
@@ -1737,6 +1734,14 @@ async function getAndProcessGameData(gameId, dbClient) {
       series = seriesResult.rows[0];
   }
 
+  let nextGameId = null;
+  if (game.series_id && game.status === 'completed') {
+      const nextGameResult = await dbClient.query('SELECT game_id FROM games WHERE series_id = $1 AND game_in_series = $2', [game.series_id, game.game_in_series + 1]);
+      if (nextGameResult.rows.length > 0) {
+          nextGameId = nextGameResult.rows[0].game_id;
+      }
+  }
+
   const participantsResult = await dbClient.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
   const teamsData = {};
   for (const p of participantsResult.rows) {
@@ -1749,7 +1754,7 @@ async function getAndProcessGameData(gameId, dbClient) {
   }
 
   if (game.status === 'pending') {
-    return { game, series, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData };
+    return { game, series, gameState: null, gameEvents: [], batter: null, pitcher: null, lineups: {}, rosters: {}, teams: teamsData, nextGameId };
   }
 
   const stateResult = await dbClient.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
@@ -1843,7 +1848,7 @@ async function getAndProcessGameData(gameId, dbClient) {
     }
   }
 
-  return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
+  return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData, nextGameId };
 }
 module.exports.getAndProcessGameData = getAndProcessGameData;
 
@@ -1985,7 +1990,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
           `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
           [gameId]
         );
-        await handleSeriesProgression(gameId, client);
+        await handleSeriesProgression(gameId, client, finalState);
       }
     }
     
@@ -2189,7 +2194,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
                 `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
                 [gameId]
               );
-              await handleSeriesProgression(gameId, client);
+              await handleSeriesProgression(gameId, client, finalState);
             }
         }
     }
@@ -2738,7 +2743,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
                 [gameId]
               );
-              await handleSeriesProgression(gameId, client);
+              await handleSeriesProgression(gameId, client, newState);
             } else if (newState.outs >= 3) {
                  if (newState.isTopInning) {
                     newState.isBetweenHalfInningsAway = true;
@@ -3033,7 +3038,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
               `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
               [gameId]
             );
-            await handleSeriesProgression(gameId, client);
+            await handleSeriesProgression(gameId, client, newState);
         } else if (newState.outs >= 3) {
              if (newState.isTopInning) {
                 newState.isBetweenHalfInningsAway = true;
