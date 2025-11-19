@@ -1235,6 +1235,9 @@ const seriesScoreMessage = computed(() => {
   }
 
   const series = gameStore.series;
+  if (!series) {
+    return null;
+  }
   const homeTeam = gameStore.teams.home;
   const awayTeam = gameStore.teams.away;
   const homeWins = series.home_wins;
