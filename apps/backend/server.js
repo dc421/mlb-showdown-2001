@@ -760,7 +760,11 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
     await client.query('BEGIN');
 
     // --- NEW: Enforce Pitching Rotation ---
-    const mandatoryPitcherId = await getMandatoryPitcher(gameId, userId, client);
+    const { mandatoryPitcherId, unavailablePitcherIds } = await getPitcherAvailability(gameId, userId, client);
+    if (unavailablePitcherIds.includes(Number(startingPitcher))) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'This pitcher is unavailable because they pitched in a recent game in this series.' });
+    }
     if (mandatoryPitcherId && Number(mandatoryPitcherId) !== Number(startingPitcher)) {
         await client.query('ROLLBACK'); // Release the transaction
         const requiredPitcherResult = await client.query('SELECT name FROM cards_player WHERE card_id = $1', [mandatoryPitcherId]);
@@ -3051,62 +3055,82 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 });
 
 
-// --- HELPER: Determines the mandatory starting pitcher for a series game ---
-async function getMandatoryPitcher(gameId, userId, dbClient) {
+// --- HELPER: Determines pitcher availability for a series game ---
+async function getPitcherAvailability(gameId, userId, dbClient) {
     const participantResult = await dbClient.query(
       `SELECT roster_id FROM game_participants WHERE game_id = $1 AND user_id = $2`,
       [gameId, userId]
     );
 
     if (participantResult.rows.length === 0) {
-      // This case should be handled by the calling route, but we'll be safe.
-      return null;
+      return { mandatoryPitcherId: null, unavailablePitcherIds: [] };
     }
     const rosterId = participantResult.rows[0].roster_id;
 
     let mandatoryPitcherId = null;
+    let unavailablePitcherIds = [];
     const gameDetailsResult = await dbClient.query('SELECT series_id, game_in_series FROM games WHERE game_id = $1', [gameId]);
 
     if (gameDetailsResult.rows.length > 0) {
         const { series_id, game_in_series } = gameDetailsResult.rows[0];
 
-        if (series_id && game_in_series > 3) {
-            if (game_in_series === 4) {
-                const previousStartersResult = await dbClient.query(
+        if (series_id && game_in_series > 1) {
+            // Find recently used pitchers
+            const recentGames = [];
+            if (game_in_series > 1) recentGames.push(game_in_series - 1);
+            if (game_in_series > 2) recentGames.push(game_in_series - 2);
+            if (game_in_series > 3) recentGames.push(game_in_series - 3);
+
+            if (recentGames.length > 0) {
+                 const recentStartersResult = await dbClient.query(
                     `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
                      FROM game_participants gp
                      JOIN games g ON g.game_id = gp.game_id
-                     WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series IN (1, 2, 3) AND gp.lineup IS NOT NULL`,
-                    [series_id, userId]
+                     WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series = ANY($3::int[]) AND gp.lineup IS NOT NULL`,
+                    [series_id, userId, recentGames]
                 );
-                const previousStarterIds = previousStartersResult.rows.map(r => r.pitcher_id);
+                unavailablePitcherIds = recentStartersResult.rows.map(r => r.pitcher_id);
+            }
 
-                const rosterSPsResult = await dbClient.query(
-                    `SELECT card_id FROM roster_cards WHERE roster_id = $1 AND assignment = 'SP'`,
-                    [rosterId]
-                );
-                const rosterSPIds = rosterSPsResult.rows.map(r => r.card_id);
+            // Determine mandatory pitcher for games 4+
+            if (game_in_series > 3) {
+                if (game_in_series === 4) {
+                    const previousStartersResult = await dbClient.query(
+                        `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
+                         FROM game_participants gp
+                         JOIN games g ON g.game_id = gp.game_id
+                         WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series IN (1, 2, 3) AND gp.lineup IS NOT NULL`,
+                        [series_id, userId]
+                    );
+                    const previousStarterIds = previousStartersResult.rows.map(r => r.pitcher_id);
 
-                const game4Starter = rosterSPIds.find(id => !previousStarterIds.includes(id));
-                if (game4Starter) {
-                    mandatoryPitcherId = game4Starter;
-                }
-            } else { // Games 5, 6, 7
-                const sourceGameNumber = game_in_series - 4;
-                const sourceGameStarterResult = await dbClient.query(
-                    `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
-                     FROM game_participants gp
-                     JOIN games g ON g.game_id = gp.game_id
-                     WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series = $3`,
-                    [series_id, userId, sourceGameNumber]
-                );
-                if (sourceGameStarterResult.rows.length > 0) {
-                    mandatoryPitcherId = sourceGameStarterResult.rows[0].pitcher_id;
+                    const rosterSPsResult = await dbClient.query(
+                        `SELECT card_id FROM roster_cards WHERE roster_id = $1 AND assignment = 'SP'`,
+                        [rosterId]
+                    );
+                    const rosterSPIds = rosterSPsResult.rows.map(r => r.card_id);
+
+                    const game4Starter = rosterSPIds.find(id => !previousStarterIds.includes(id));
+                    if (game4Starter) {
+                        mandatoryPitcherId = game4Starter;
+                    }
+                } else { // Games 5, 6, 7
+                    const sourceGameNumber = game_in_series - 4;
+                    const sourceGameStarterResult = await dbClient.query(
+                        `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
+                         FROM game_participants gp
+                         JOIN games g ON g.game_id = gp.game_id
+                         WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series = $3`,
+                        [series_id, userId, sourceGameNumber]
+                    );
+                    if (sourceGameStarterResult.rows.length > 0) {
+                        mandatoryPitcherId = sourceGameStarterResult.rows[0].pitcher_id;
+                    }
                 }
             }
         }
     }
-    return mandatoryPitcherId;
+    return { mandatoryPitcherId, unavailablePitcherIds };
 }
 
 
@@ -3126,9 +3150,9 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
     }
     const rosterId = participantResult.rows[0].roster_id;
 
-    const mandatoryPitcherId = await getMandatoryPitcher(gameId, userId, pool);
+    const { mandatoryPitcherId, unavailablePitcherIds } = await getPitcherAvailability(gameId, userId, pool);
 
-    res.json({ roster_id: rosterId, mandatoryPitcherId });
+    res.json({ roster_id: rosterId, mandatoryPitcherId, unavailablePitcherIds });
 
   } catch (error) {
     console.error(`Error fetching participant info for game ${gameId}:`, error);
