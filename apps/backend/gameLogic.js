@@ -592,6 +592,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     events.push(`${batter.displayName} pops out.`);
     recordOuts(1);
 }
+  else if (outcome === 'WALKOFF_HANDLED') {
+      // Do nothing, events are already handled
+  }
   else { 
     events.push(`${batter.displayName} is out.`);
     recordOuts(1);
