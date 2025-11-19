@@ -594,6 +594,8 @@ async function handleSeriesProgression(gameId, client) {
         home_wins: series.home_wins,
         away_wins: series.away_wins
     });
+
+    return newGameId;
 }
 
 
@@ -1710,7 +1712,7 @@ app.post('/api/games/:gameId/join', authenticateToken, async (req, res) => {
 });
 
 // --- NEW REUSABLE FUNCTION ---
-async function getAndProcessGameData(gameId, dbClient) {
+async function getAndProcessGameData(gameId, dbClient, nextGameId = null) {
   const allCardsResult = await dbClient.query('SELECT name, team FROM cards_player');
   const gameResult = await dbClient.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
   if (gameResult.rows.length === 0) {
@@ -1829,7 +1831,7 @@ async function getAndProcessGameData(gameId, dbClient) {
     }
   }
 
-  return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData };
+  return { game, series, gameState: currentState, gameEvents: eventsResult.rows, batter, pitcher, lineups, rosters, teams: teamsData, nextGameId };
 }
 module.exports.getAndProcessGameData = getAndProcessGameData;
 
@@ -1966,18 +1968,19 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
 
       // --- NEW: Check for Game Over ---
+      let nextGameId = null;
       if (finalState.gameOver) {
         await client.query(
           `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
           [gameId]
         );
-        await handleSeriesProgression(gameId, client);
+        nextGameId = await handleSeriesProgression(gameId, client);
       }
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
     await client.query('COMMIT');
-    const gameData = await getAndProcessGameData(gameId, client);
+    const gameData = await getAndProcessGameData(gameId, client, nextGameId);
     io.to(gameId).emit('game-updated', gameData);
     res.sendStatus(200);
   } catch (error) {
@@ -2170,19 +2173,20 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
 
             // --- NEW: Check for Game Over ---
+            let nextGameId = null;
             if (finalState.gameOver) {
               await client.query(
                 `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
                 [gameId]
               );
-              await handleSeriesProgression(gameId, client);
+              nextGameId = await handleSeriesProgression(gameId, client);
             }
         }
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, finalState]);
     await client.query('COMMIT');
-    const gameData = await getAndProcessGameData(gameId, client);
+    const gameData = await getAndProcessGameData(gameId, client, nextGameId);
     io.to(gameId).emit('game-updated', gameData);
     res.status(200).json({ message: 'Pitch action complete.' });
   } catch (error) {
