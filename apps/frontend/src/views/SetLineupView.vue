@@ -14,7 +14,8 @@ const gameId = route.params.id;
 const startingPitcher = ref(null);
 const battingOrder = ref([]);
 const hasSubmitted = ref(false); // New state for the waiting screen
-const mandatoryPitcherId = ref(null); // To store the required pitcher ID
+const mandatoryPitcherId = ref(null);
+const unavailablePitcherIds = ref([]);
 const useDh = computed(() => gameStore.game?.use_dh !== false);
 
 const defensivePositions = computed(() => {
@@ -26,7 +27,9 @@ const defensivePositions = computed(() => {
 });
 
 const starters = computed(() => authStore.activeRosterCards.filter(p => p.is_starter));
-const startingPitchers = computed(() => starters.value.filter(p => p.displayPosition === 'SP'));
+const allStartingPitchers = computed(() => starters.value.filter(p => p.displayPosition === 'SP'));
+const availableStartingPitchers = computed(() => allStartingPitchers.value.filter(p => !unavailablePitcherIds.value.includes(p.card_id)));
+const unavailableStartingPitchers = computed(() => allStartingPitchers.value.filter(p => unavailablePitcherIds.value.includes(p.card_id)));
 const positionPlayers = computed(() => starters.value.filter(p => p.displayPosition !== 'SP' && p.displayPosition !== 'RP'));
 
 const availableBatters = computed(() => {
@@ -154,6 +157,9 @@ onMounted(async () => {
         if (participantInfo.mandatoryPitcherId) {
             mandatoryPitcherId.value = participantInfo.mandatoryPitcherId;
         }
+        if (participantInfo.unavailablePitcherIds) {
+            unavailablePitcherIds.value = participantInfo.unavailablePitcherIds;
+        }
 
         // Pass the selectedPointSetId to the action.
         await authStore.fetchRosterDetails(participantInfo.roster_id, authStore.selectedPointSetId);
@@ -194,9 +200,15 @@ onUnmounted(() => {
             <div v-for="p in availableBatters" :key="p.card_id" class="player-item" @click="addToLineup(p)">
               {{ p.displayName }} ({{ p.displayPosition }})
             </div>
-            <h3>Starting Pitchers ({{ startingPitchers.length }})</h3>
-            <div v-for="p in startingPitchers" :key="p.card_id" class="player-item">
+            <h3>Starting Pitchers ({{ availableStartingPitchers.length }})</h3>
+            <div v-for="p in availableStartingPitchers" :key="p.card_id" class="player-item">
               {{ p.displayName }} (SP)
+            </div>
+             <div v-if="unavailableStartingPitchers.length > 0">
+                <h3 class="unavailable-header">Unavailable SPs</h3>
+                <div v-for="p in unavailableStartingPitchers" :key="p.card_id" class="player-item unavailable" title="Pitched recently in this series">
+                {{ p.displayName }} (SP)
+                </div>
             </div>
           </div>
         </div>
@@ -204,9 +216,16 @@ onUnmounted(() => {
           <h2>Starting Pitcher</h2>
           <select v-model="startingPitcher" class="pitcher-select" :disabled="mandatoryPitcherId">
             <option :value="null" disabled>Select an SP...</option>
-            <option v-for="p in startingPitchers" :key="p.card_id" :value="p">
-              {{ p.displayName }}
-            </option>
+            <optgroup label="Available">
+                <option v-for="p in availableStartingPitchers" :key="p.card_id" :value="p">
+                {{ p.displayName }}
+                </option>
+            </optgroup>
+            <optgroup label="Unavailable" v-if="unavailableStartingPitchers.length > 0">
+                <option v-for="p in unavailableStartingPitchers" :key="p.card_id" :value="p" disabled>
+                {{ p.displayName }}
+                </option>
+            </optgroup>
           </select>
           <p v-if="mandatoryPitcherId" class="rotation-notice">
             Pitching rotation is set for this game.
@@ -264,4 +283,7 @@ onUnmounted(() => {
   .subtitle { text-align: center; color: #dc3545; font-weight: bold; margin-top: -1rem; margin-bottom: 1rem; }
   .waiting-message { text-align: center; }
   .rotation-notice { font-style: italic; color: #555; font-size: 0.9rem; text-align: center; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .unavailable-header { color: #999; }
+  .player-item.unavailable { color: #999; cursor: not-allowed; font-style: italic; }
+  .player-item.unavailable:hover { background-color: inherit; }
 </style>
