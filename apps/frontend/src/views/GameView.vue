@@ -1098,6 +1098,12 @@ watch(nextBatterInLineup, (newNextBatter) => {
   }
 }, { immediate: true });
 
+watch(nextGameId, (newId) => {
+  if (newId) {
+    gameStore.checkLineupForNextGame(newId);
+  }
+}, { immediate: true });
+
 const batterToDisplay = computed(() => {
     if (isGameOver.value && isSwingResultVisible.value) {
         return gameStore.gameState?.currentAtBat?.batter ?? null;
@@ -1603,6 +1609,7 @@ onMounted(async () => {
     const opponentWins = myTeamIsSeriesHome ? data.away_wins : data.home_wins;
 
     seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
+    gameStore.nextGameId = data.nextGameId;
     gameStore.checkLineupForNextGame(data.nextGameId);
   });
 
@@ -1769,7 +1776,6 @@ function handleVisibilityChange() {
                 <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
-                <button v-if="showSetLineupForNextGameButton" class="action-button tactile-button" @click="proceedToNextGame()"><strong>Set Lineup for Next Game</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
@@ -1792,6 +1798,10 @@ function handleVisibilityChange() {
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.opponentReadyForNext" class="waiting-text">Waiting for pitch...</div>
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
             <div v-else-if="isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices)) || (isOffensiveStealInProgress && !gameStore.gameState.pendingStealAttempt)" class="waiting-text">Waiting for throw...</div>
+        </div>
+
+        <div v-else-if="showSetLineupForNextGameButton" class="actions-container">
+            <button class="action-button tactile-button" @click="proceedToNextGame()"><strong>Set Lineup for Next Game</strong></button>
         </div>
 
         <!-- Player Cards Wrapper -->
