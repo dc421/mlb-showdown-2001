@@ -508,44 +508,60 @@ function advanceToNextHalfInning(state) {
 
 // --- HELPER: Handles series logic after a game completes ---
 async function handleSeriesProgression(gameId, client) {
-    // 1. Get game and series info
-    const gameResult = await client.query('SELECT series_id, home_team_user_id, game_in_series FROM games WHERE game_id = $1', [gameId]);
-    if (!gameResult.rows[0] || !gameResult.rows[0].series_id) {
-        return; // Not a series game, do nothing.
-    }
-    const { series_id, home_team_user_id, game_in_series } = gameResult.rows[0];
+    // 1. Get all game and series info in one query for efficiency and clarity.
+    const gameAndSeriesResult = await client.query(`
+        SELECT
+            g.series_id,
+            g.home_team_user_id as game_home_user_id,
+            g.game_in_series,
+            s.series_home_user_id,
+            s.series_away_user_id,
+            s.home_wins,
+            s.away_wins,
+            s.series_type
+        FROM games g
+        JOIN series s ON g.series_id = s.id
+        WHERE g.game_id = $1
+    `, [gameId]);
 
-    const seriesResult = await client.query('SELECT * FROM series WHERE id = $1', [series_id]);
-    const series = seriesResult.rows[0];
+    if (gameAndSeriesResult.rows.length === 0) {
+        return; // Not a series game.
+    }
+
+    const seriesInfo = gameAndSeriesResult.rows[0];
+    const { series_id, game_home_user_id, game_in_series, series_home_user_id, series_type } = seriesInfo;
+    let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
 
     const finalStateResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     const finalState = finalStateResult.rows[0].state_data;
 
     const participantsResult = await client.query('SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1', [gameId]);
-    const gameAwayUser = participantsResult.rows.find(p => p.user_id !== home_team_user_id);
+    const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== game_home_user_id);
+    const gameAwayUserId = gameAwayParticipant.user_id;
 
     // 2. Update series away user if it's the first game and not set yet
-    if (!series.series_away_user_id) {
-        await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [gameAwayUser.user_id, series_id]);
-        series.series_away_user_id = gameAwayUser.user_id; // Update local copy
+    if (!series_away_user_id) {
+        await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [gameAwayUserId, series_id]);
+        series_away_user_id = gameAwayUserId; // Update local copy
     }
 
-    // 3. Update series score
-    const winnerId = finalState.winningTeam === 'home' ? home_team_user_id : gameAwayUser.user_id;
-    if (winnerId === series.series_home_user_id) {
+    // 3. Robustly determine winner and update series score
+    const gameWinnerId = finalState.winningTeam === 'home' ? game_home_user_id : gameAwayUserId;
+
+    if (gameWinnerId === series_home_user_id) {
         await client.query('UPDATE series SET home_wins = home_wins + 1 WHERE id = $1', [series_id]);
-        series.home_wins++;
-    } else {
+        home_wins++;
+    } else if (gameWinnerId === series_away_user_id) {
         await client.query('UPDATE series SET away_wins = away_wins + 1 WHERE id = $1', [series_id]);
-        series.away_wins++;
+        away_wins++;
     }
 
     // 4. Check if the series is over
     let isSeriesOver = false;
-    if (series.series_type === 'playoff' && (series.home_wins >= 4 || series.away_wins >= 4)) {
+    if (series_type === 'playoff' && (home_wins >= 4 || away_wins >= 4)) {
         isSeriesOver = true;
     }
-    if (series.series_type === 'regular_season' && game_in_series >= 7) {
+    if (series_type === 'regular_season' && game_in_series >= 7) {
         isSeriesOver = true;
     }
 
@@ -557,10 +573,9 @@ async function handleSeriesProgression(gameId, client) {
 
     // 5. If not over, create the next game in the series
     const nextGameNumber = game_in_series + 1;
-    const nextHomeUserId = [3, 4, 5].includes(nextGameNumber) ? series.series_away_user_id : series.series_home_user_id;
-    const nextAwayUserId = nextHomeUserId === series.series_home_user_id ? series.series_away_user_id : series.series_home_user_id;
+    const nextHomeUserId = [3, 4, 5].includes(nextGameNumber) ? series_away_user_id : series_home_user_id;
+    const nextAwayUserId = nextHomeUserId === series_home_user_id ? series_away_user_id : series_home_user_id;
 
-    // Use the DH rule from the completed game for the next one. This is a simplification.
     const lastGameSettings = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
     const useDhForNextGame = lastGameSettings.rows[0].use_dh;
 
@@ -584,11 +599,10 @@ async function handleSeriesProgression(gameId, client) {
 
     io.emit('games-updated'); // Notify all clients to refresh their dashboards
 
-    // Also emit a specific event to the two players in the game room with the next game details
     io.to(gameId.toString()).emit('series-next-game-ready', {
         nextGameId: newGameId,
-        home_wins: series.home_wins,
-        away_wins: series.away_wins
+        home_wins: home_wins,
+        away_wins: away_wins
     });
 }
 
