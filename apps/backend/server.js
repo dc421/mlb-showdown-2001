@@ -422,37 +422,41 @@ async function initializePitcherFatigue(gameId, client) {
             }
         }
 
-        const prevGameStatesResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1', [prevGameId]);
-        const prevGameStates = prevGameStatesResult.rows.map(r => r.state_data);
+        // Fetch only the last state of the previous game to check final stats
+        const prevGameStatesResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [prevGameId]);
+        const lastPrevGameState = prevGameStatesResult.rows.length > 0 ? prevGameStatesResult.rows[0].state_data : null;
 
-        let prevTwoGameStates = [];
+        let lastPrevTwoGameState = null;
         if (prevTwoGameId) {
-             const prevTwoGameStatesResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1', [prevTwoGameId]);
-             prevTwoGameStates = prevTwoGameStatesResult.rows.map(r => r.state_data);
+             const prevTwoGameStatesResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [prevTwoGameId]);
+             lastPrevTwoGameState = prevTwoGameStatesResult.rows.length > 0 ? prevTwoGameStatesResult.rows[0].state_data : null;
         }
 
         for (const reliever of relievers) {
             let isTired = false;
 
-            if (prevTwoGameId) {
-                const pitchedInPrevGame = prevGameStates.some(state => state.pitcherStats && state.pitcherStats[reliever.card_id]);
-                const pitchedInPrevTwoGame = prevTwoGameStates.some(state => state.pitcherStats && state.pitcherStats[reliever.card_id]);
+            if (lastPrevTwoGameState && lastPrevGameState) {
+                // Check if they pitched in both of the last two games
+                // We check the pitcherStats object in the final state of each game.
+                const pitchedInPrevGame = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
+                const pitchedInPrevTwoGame = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
+
                 if (pitchedInPrevGame && pitchedInPrevTwoGame) {
                     isTired = true;
                 }
             }
 
-            if (!isTired) {
-                for (const state of prevGameStates) {
-                    const pitcherInState = state.currentAtBat?.pitcher || state.lastCompletedAtBat?.pitcher;
-                    if (pitcherInState?.card_id === reliever.card_id) {
-                        const stats = state.pitcherStats[reliever.card_id] || { ip: 0, runs: 0 };
-                        const fatigueThreshold = reliever.ip - Math.floor(stats.runs / 3);
-                        if (stats.ip > fatigueThreshold) {
-                            isTired = true;
-                            break;
-                        }
-                    }
+            if (!isTired && lastPrevGameState) {
+                // Check if they exceeded their fatigue threshold in the previous game alone.
+                // We use the final stats from the last game.
+                const stats = (lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id]) || { runs: 0, innings_pitched: [] };
+
+                // FIX: Use innings_pitched.length instead of undefined .ip property
+                const ipRecorded = stats.innings_pitched ? stats.innings_pitched.length : 0;
+                const fatigueThreshold = reliever.ip - Math.floor(stats.runs / 3);
+
+                if (ipRecorded > fatigueThreshold) {
+                    isTired = true;
                 }
             }
 
