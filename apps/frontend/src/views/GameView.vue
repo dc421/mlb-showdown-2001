@@ -1915,6 +1915,8 @@ function handleVisibilityChange() {
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired'}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span v-if="p.fatigueStatus === 'tired'" class="status-icon tired" title="Tired"></span>
+                      <span v-else-if="p.pitchedYesterday" class="status-icon used" title="Pitched in previous game"></span>
                   </li>
               </ul>
           </div>
@@ -1996,6 +1998,8 @@ function handleVisibilityChange() {
               <ul>
                   <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
                           <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired'}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                          <span v-if="p.fatigueStatus === 'tired'" class="status-icon tired" title="Tired"></span>
+                          <span v-else-if="p.pitchedYesterday" class="status-icon used" title="Pitched in previous game"></span>
                   </li>
               </ul>
           </div>
@@ -2284,6 +2288,21 @@ function handleVisibilityChange() {
 }
 .is-sub-target .tired-indicator {
     color: white; /* Make tired indicator visible on dark backgrounds */
+}
+.status-icon {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: auto;
+}
+.status-icon.tired {
+    background-color: #dc3545;
+    border: 1px solid #dc3545;
+}
+.status-icon.used {
+    background-color: transparent;
+    border: 1px solid #000;
 }
 .is-sub-in-candidate:hover {
     background-color: #e9ecef;
