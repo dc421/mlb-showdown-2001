@@ -605,7 +605,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       const isWalkoffEventPresent = events.some(e => e.includes('WALK-OFF!'));
       if (!isWalkoffEventPresent) {
           const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
-          events.push(` WALK-OFF!`);
+          // FIX: Append to the last event if possible, otherwise push a new one.
+          if (events.length > 0) {
+              events[events.length - 1] += ` WALK-OFF!`;
+          } else {
+              events.push(`WALK-OFF!`);
+          }
       }
   }
 

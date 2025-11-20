@@ -1033,6 +1033,8 @@ watch(bothPlayersSetAction, (isRevealing) => {
   if (!initialLoadComplete.value || !gameStore.gameState) return;
 
   if (isRevealing) {
+    // Defensive check: If I am the offensive player, I should NOT see the result until I click.
+    // This logic is primarily for the defensive player to see the result automatically.
     if (amIDisplayDefensivePlayer.value) {
       if (hasSeenResult.value) {
         gameStore.setIsSwingResultVisible(true);

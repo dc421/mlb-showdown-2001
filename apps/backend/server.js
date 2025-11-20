@@ -2062,7 +2062,16 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
           const finalLog = appendScoreToLog(logMessage, finalState, currentState.awayScore, currentState.homeScore);
           await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'walk', finalLog]);
         }
-        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+
+        if (finalState.gameOver) {
+            await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+                [gameId]
+            );
+            await handleSeriesProgression(gameId, client);
+        } else {
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+        }
     } else {
         const pitchRoll = Math.floor(Math.random() * 20) + 1;
 
