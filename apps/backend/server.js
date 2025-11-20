@@ -456,8 +456,18 @@ async function initializePitcherFatigue(gameId, client) {
                 }
             }
 
+            let statsEntry = finalPitcherStats[reliever.card_id] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+
             if (isTired) {
-                finalPitcherStats[reliever.card_id] = { runs: 0, innings_pitched: [], fatigue_modifier: -reliever.ip };
+                statsEntry.fatigue_modifier = -reliever.ip;
+            }
+
+            if (pitchedInPrevGame) {
+                statsEntry.pitchedYesterday = true;
+            }
+
+            if (isTired || pitchedInPrevGame) {
+                finalPitcherStats[reliever.card_id] = statsEntry;
             }
         }
     }
@@ -1834,6 +1844,11 @@ async function getAndProcessGameData(gameId, dbClient) {
             // who were tired from a previous game but hadn't pitched in this one.
             if (player.ip <= 3) { // It's a reliever
                 const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+
+                if (stats?.pitchedYesterday) {
+                    player.pitchedYesterday = true;
+                }
+
                 if (stats?.fatigue_modifier && stats.fatigue_modifier < 0) {
                     player.fatigueStatus = 'tired';
                 } else {
