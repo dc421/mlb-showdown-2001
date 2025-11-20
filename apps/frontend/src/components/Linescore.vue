@@ -48,15 +48,17 @@ const linescore = computed(() => {
 
   // After processing all visible events, we handle the state of the score.
 
+  const isBetweenHalfInnings = state.isBetweenHalfInningsAway || state.isBetweenHalfInningsHome;
+
   // Case 1: We are between half-innings. The final "inning change" event is hidden,
   // so we need to manually add the score for the inning that just concluded.
-  if (gameStore.isBetweenHalfInnings) {
+  if (isBetweenHalfInnings) {
     // The `isBetweenHalfInningsAway` flag means the away team just finished batting.
-    if (gameStore.gameState?.isBetweenHalfInningsAway) {
+    if (state.isBetweenHalfInningsAway) {
       scores.away.push(awayRunsInInning);
     }
     // The `isBetweenHalfInningsHome` flag means the home team just finished batting.
-    else if (gameStore.gameState?.isBetweenHalfInningsHome) {
+    else if (state.isBetweenHalfInningsHome) {
       // Before adding the home score, ensure the away team has a score for this inning.
       // This is crucial for innings where the away team didn't score.
       if (scores.away.length === scores.home.length) {
@@ -182,4 +184,3 @@ const homeTotalRuns = computed(() => {
   }
 }
 </style>
-
