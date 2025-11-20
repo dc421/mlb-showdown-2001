@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { calculateDisplayGameState } from '@/utils/gameState';
 
 const props = defineProps({
   game: {
@@ -10,7 +11,28 @@ const props = defineProps({
 });
 
 const authStore = useAuthStore();
-const gameState = computed(() => props.game.gameState);
+
+// Determine the displayGameState, potentially rolling back to hide spoilers
+const gameState = computed(() => {
+    const rawState = props.game.gameState;
+    if (!rawState) return null;
+
+    const userId = authStore.user?.userId;
+    const gameId = props.game.game_id;
+
+    // Retrieve the "seen" flag from localStorage
+    const storageKey = `showdown-game-${gameId}-swing-result-seen`;
+    let isSwingResultVisible = false;
+    try {
+        const storedValue = localStorage.getItem(storageKey);
+        isSwingResultVisible = storedValue ? JSON.parse(storedValue) : false;
+    } catch (e) {
+        console.error('Error reading from localStorage', e);
+    }
+
+    return calculateDisplayGameState(rawState, userId, isSwingResultVisible);
+});
+
 const isUsersTurn = computed(() => Number(props.game.current_turn_user_id) === authStore.user?.userId);
 
 const awayTeamAbbr = computed(() => {

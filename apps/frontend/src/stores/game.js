@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from './auth';
+import { calculateDisplayGameState } from '../utils/gameState';
 
 const teams = ref({ home: null, away: null });
 
@@ -647,34 +648,12 @@ async function resetRolls(gameId) {
 
   const displayOuts = computed(() => {
     if (!gameState.value) return 0;
-
-    if (isOutcomeHidden.value) {
-      // NEW LOGIC: When the outcome is hidden, we need to decide which "before" state to show.
-      // If the opponent has already seen the result and clicked "Next Hitter",
-      // we should show the state *before their action*, which is stored in lastCompletedAtBat.
-      if (opponentReadyForNext.value) {
-        if (gameState.value.lastCompletedAtBat) {
-          return gameState.value.lastCompletedAtBat.outsBeforePlay;
-        }
-      } else {
-        // Otherwise, we show the state before the current at-bat began.
-        if (gameState.value.currentAtBat) {
-          return gameState.value.currentAtBat.outsBeforePlay;
-        }
-      }
-      return 0; // Fallback if neither at-bat object is available
-    }
-
-    // When the inning is over but the user hasn't clicked "Next Hitter" yet,
-    // the server reports 0 outs for the *next* inning. We want to show 3
-    // to represent the end of the *previous* inning.
-    if ((isBetweenHalfInnings.value && isSwingResultVisible.value || isEffectivelyBetweenHalfInnings.value && opponentReadyForNext.value) && gameState.value.outs === 0) {
-      return 3;
-    }
-    return gameState.value.outs;
+    return displayGameState.value.outs;
   });
 
   const displayGameState = computed(() => {
+    const auth = useAuthStore();
+
     if (game.value?.status === 'completed') {
       return gameState.value;
     }
@@ -726,21 +705,156 @@ async function resetRolls(gameId) {
       };
     }
 
-    // `isOutcomeHidden` is the single source of truth. If it's true, we MUST show the "before" state.
-    // The rollback is skipped if `isStealResultVisible` is true, which is handled by the block above.
+    // Use the shared helper function
+    // `isOutcomeHidden` is the single source of truth for this specific component store
+    // Note: We use `isSwingResultVisible.value` for the "has seen" flag, because it's the persistent state.
+    // The store's `isOutcomeHidden` is derived in GameView and set back to the store.
+    // But `calculateDisplayGameState` uses `isSwingResultVisible` to determine if we should override raw state.
+    // Wait, `calculateDisplayGameState` uses `isSwingResultVisible` passed as argument.
+    // BUT, `game.js` relies on `isOutcomeHidden` which is set by GameView based on complex logic.
+    // If I switch to using `calculateDisplayGameState`, I must ensure it replicates the complexity or I pass `isOutcomeHidden` context.
+
+    // Actually, `displayGameState` in `game.js` previously used `isOutcomeHidden`.
+    // `calculateDisplayGameState` implements similar logic but based on raw data.
+    // In `game.js` store, we have `isOutcomeHidden` which is "authoritative" from GameView.
+
+    // If `isOutcomeHidden` is true, we MUST roll back.
+    // `calculateDisplayGameState` has logic: `if (isSwingResultVisible) return gameState`.
+    // `isOutcomeHidden` (from GameView) is basically `!isSwingResultVisible && resolved && ...`
+
+    // So if I use `calculateDisplayGameState` in `game.js` store, I should pass `!isOutcomeHidden` as the `isSwingResultVisible` argument?
+    // Not exactly. `isOutcomeHidden` is "should hide".
+    // If "should hide", we want `calculateDisplayGameState` to hide.
+    // `calculateDisplayGameState` hides if `!isSwingResultVisible`.
+    // So passing `isSwingResultVisible` from store is correct IF `isOutcomeHidden` is consistent with it.
+
+    // However, `GameView` sets `isOutcomeHidden`.
+    // If `isOutcomeHidden` is set, we should respect it.
+
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
-      const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
-      if (rollbackSource && rollbackSource.basesBeforePlay) {
-        return {
-          ...gameState.value,
-          bases: rollbackSource.basesBeforePlay,
-          outs: displayOuts.value, // This correctly shows the "before" outs
-          homeScore: rollbackSource.homeScoreBeforePlay,
-          awayScore: rollbackSource.awayScoreBeforePlay,
-          isBetweenHalfInningsAway: false,
-          isBetweenHalfInningsHome: false,
-        };
-      }
+        // We can use the helper, but forced to "unseen".
+        // But wait, the helper calculates "should I hide?" internally.
+        // If I want to force it, I can't easily use the helper unless I mock arguments.
+
+        // The helper's logic for hiding is:
+        // if (!atBatIsResolved && !opponentReadyForNext) return gameState;
+        // if (isSwingResultVisible) return gameState;
+        // ... roll back ...
+
+        // The store's `displayGameState` logic was:
+        // if (isOutcomeHidden.value ...) { roll back }
+
+        // I can refactor `calculateDisplayGameState` to take an optional `forceHide` parameter?
+        // Or just use it.
+
+        // Let's use the helper but pass `false` for `isSwingResultVisible` if `isOutcomeHidden` is true.
+        // This forces the helper to consider hiding.
+        // `calculateDisplayGameState(gameState.value, auth.user.userId, !isOutcomeHidden.value)`?
+
+        // But wait, `calculateDisplayGameState` ALSO checks `atBatIsResolved`.
+        // `isOutcomeHidden` handles scenarios where `atBatIsResolved` is true.
+
+        // So:
+        const calculatedState = calculateDisplayGameState(gameState.value, auth.user?.userId, !isOutcomeHidden.value);
+
+        // We also need to apply the "Effective Between Innings" manual override if applicable.
+        // (The one at the end of previous displayGameState).
+        // The helper handles the "Inning Rollback" (3rd out -> previous inning).
+        // Does it handle the "Awaiting Pitcher" rollback?
+        // `calculateDisplayGameState` doesn't know about "EffectivelyBetweenHalfInnings" computed property.
+
+        // The "Awaiting Pitcher" logic:
+        // if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) { ... }
+
+        // `isEffectivelyBetweenHalfInnings` relies on `opponentReadyForNext` and `outs` comparison.
+
+        // If I strictly use the helper in `GameScorecard`, it won't have this "Awaiting Pitcher" fix.
+        // But `GameScorecard` is static.
+
+        // For the store's `displayGameState`, I should probably stick to the helper to unify logic,
+        // but if the helper misses edge cases, I might break GameView.
+
+        // Let's trust the helper for the MAIN rollback.
+        // And apply any specific overrides on top if needed.
+
+        // Actually, the "Awaiting Pitcher" fix in `displayGameState` was:
+        /*
+        let inning = gameState.value.inning;
+        let isTopInning = gameState.value.isTopInning;
+
+        if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
+           // ...
+        }
+        */
+        // If the helper returns a state with `inning` rolled back (because outs were rolled back),
+        // then we don't need this extra block?
+        // The helper rolls back if `rawOuts == 0` and `displayOuts != 0`.
+        // The "Awaiting Pitcher" case: Inning ended. Raw outs 0.
+        // If we are showing "Effectively Between", it means we are showing the state *after* the 3rd out?
+        // No, "Effectively Between" means we are showing the "Inning Over" screen (3 outs).
+
+        // If we show 3 outs (via `displayOuts` logic below), we need the inning to match.
+        // The helper DOES NOT return 3 outs. It returns `lastCompletedAtBat.outsBeforePlay` (e.g. 2).
+
+        // Wait! `displayGameState` in `game.js` returns a state that is used by `GameView`.
+        // `GameView` uses `displayOuts` (computed separately) to show 3 dots.
+        // `displayGameState` provides `bases` etc.
+
+        // If `displayOuts` returns 3, `displayGameState` logic overrides bases:
+        /*
+        const bases = displayOuts.value === 3
+          ? (opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay)
+          : gameState.value.bases;
+        */
+
+        // The helper `calculateDisplayGameState` is designed for `GameScorecard` (Snapshot View).
+        // `GameScorecard` doesn't have separate `displayOuts` logic that returns 3.
+        // It just shows what's in `gameState`.
+
+        // If `GameScorecard` uses the helper, it will see "2 outs" (rolled back).
+        // This is correct for a "Hidden Outcome" (Before the play).
+
+        // But `GameView` needs to show "3 outs" (After the play, but before next inning).
+        // This is "Revealed Outcome".
+
+        // `GameScorecard` request: "reflect displayGameState".
+        // If the user has SEEN the result (Revealed), `displayGameState` should show the result.
+        // If Revealed + End of Inning:
+        // Raw State: Next Inning, 0 outs.
+        // Display State (GameView): "Top 1, 3 outs".
+
+        // Does the helper handle this?
+        // `if (isSwingResultVisible) return gameState;`
+        // So helper returns "Next Inning, 0 outs".
+        // This means `GameScorecard` on Dashboard will show "Bottom 1, 0 outs".
+        // This implies the inning is over.
+        // This is technically correct (no spoiler).
+
+        // The spoiler happens when:
+        // Outcome Hidden (User hasn't seen it).
+        // Raw State: Next Inning.
+        // Helper: Rolls back to "Top 1, 2 outs".
+        // `GameScorecard`: Shows "Top 1, 2 outs".
+        // This is CORRECT.
+
+        // So the helper is good for `GameScorecard`.
+
+        // Is it good for `game.js` `displayGameState`?
+        // `game.js` `displayGameState` is used by `Linescore.vue`.
+        // `Linescore.vue` needs to know if we are "Between Innings" to push the score.
+        // If helper returns "Top 1, 2 outs" (Hidden), `Linescore` sees "Top 1". Checks score. "Top 1" not over.
+        // This is correct.
+
+        // So using the helper in `game.js` seems safe for `isOutcomeHidden` case.
+        // But what about the "3 outs" case (Revealed)?
+        // In `game.js`, if `!isOutcomeHidden`, we fall through.
+        // We manually override `bases` if `displayOuts` is 3.
+        // And we manually override `inning` if `isEffectivelyBetween`.
+
+        // So `game.js` `displayGameState` should use the helper ONLY for the `isOutcomeHidden` branch.
+        // And keep the rest of the logic for the "Revealed but waiting for next" state.
+
+        return calculateDisplayGameState(gameState.value, auth.user?.userId, !isOutcomeHidden.value);
     }
 
     // When the outcome is revealed but we are still showing 3 outs, we need to
