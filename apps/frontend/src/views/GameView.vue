@@ -1042,6 +1042,19 @@ watch(bothPlayersSetAction, (isRevealing) => {
   if (isRevealing) {
     // Defensive check: If I am the offensive player, I should NOT see the result until I click.
     // This logic is primarily for the defensive player to see the result automatically.
+
+    // Extra safeguard: If the game is over, explicitly check the raw game state to determine
+    // if I am the offensive player (the winner, in a walk-off). This prevents auto-reveal
+    // if amIDisplayDefensivePlayer is momentarily incorrect due to inning flip logic.
+    if (isGameOver.value) {
+        const isTop = gameStore.gameState.isTopInning;
+        const offensiveUserId = isTop ? gameStore.gameState.awayTeam.userId : gameStore.gameState.homeTeam.userId;
+        const amIOffenseRaw = Number(authStore.user.userId) === Number(offensiveUserId);
+        if (amIOffenseRaw) {
+            return;
+        }
+    }
+
     if (amIDisplayDefensivePlayer.value) {
       if (hasSeenResult.value) {
         gameStore.setIsSwingResultVisible(true);
