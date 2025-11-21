@@ -3140,10 +3140,10 @@ async function getPitcherAvailability(gameId, userId, dbClient) {
                     `SELECT (gp.lineup ->> 'startingPitcher')::int as pitcher_id
                      FROM game_participants gp
                      JOIN games g ON g.game_id = gp.game_id
-                     WHERE g.series_id = $1 AND gp.user_id = $2 AND g.game_in_series = ANY($3::int[]) AND gp.lineup IS NOT NULL`,
+                     WHERE g.series_id = $1 AND gp.user_id = $2::int AND g.game_in_series = ANY($3::int[]) AND gp.lineup IS NOT NULL`,
                     [series_id, userId, recentGames]
                 );
-                unavailablePitcherIds = recentStartersResult.rows.map(r => r.pitcher_id);
+                unavailablePitcherIds = recentStartersResult.rows.map(r => r.pitcher_id).filter(id => id);
             }
 
             // Determine mandatory pitcher for games 4+
