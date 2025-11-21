@@ -169,9 +169,14 @@ test.describe('Linescore component', () => {
     await page.evaluate(() => {
       const gameStore = window.pinia.state.value.game;
       if (gameStore) {
-        gameStore.isOutcomeHidden = true;
-        gameStore.isSwingResultVisible = true;
+        // We must set isSwingResultVisible to false so that the GameView component's
+        // watcher calculates isOutcomeHidden as true. If we set isSwingResultVisible
+        // to true, the component will overwrite isOutcomeHidden to false.
+        gameStore.isSwingResultVisible = false;
         gameStore.opponentReadyForNext = true;
+        // We don't strictly need to set isOutcomeHidden here because the component
+        // will set it based on the values above, but it doesn't hurt.
+        gameStore.isOutcomeHidden = true;
       }
     });
 

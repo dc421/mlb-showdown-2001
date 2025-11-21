@@ -576,6 +576,7 @@ const amIDisplayOffensivePlayer = computed(() => {
 });
 
 const amIDisplayDefensivePlayer = computed(() => {
+  if (!authStore.user || !gameStore.gameState) return false;
   return !amIDisplayOffensivePlayer.value;
 });
 
@@ -1586,11 +1587,14 @@ onMounted(async () => {
   // NEW: Check if we are returning to a completed at-bat
   const atBat = atBatToDisplay.value;
   if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
-    const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !isSwingResultVisible.value;
-    if (!isOffensiveAndHasNotRolled) {
-      gameStore.setIsSwingResultVisible(true);
-      hasSeenResult.value = true;
-      localStorage.setItem(seenResultStorageKey, 'true');
+    // Ensure we have user data before making this decision
+    if (authStore.user) {
+      const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !isSwingResultVisible.value;
+      if (!isOffensiveAndHasNotRolled) {
+        gameStore.setIsSwingResultVisible(true);
+        hasSeenResult.value = true;
+        localStorage.setItem(seenResultStorageKey, 'true');
+      }
     }
   }
   
