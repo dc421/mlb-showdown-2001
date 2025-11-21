@@ -314,11 +314,44 @@ function processPlayers(playersToProcess) {
     return playersToProcess;
 };
 
-function validateLineup(participant, newState) {
+async function validateLineup(participant, newState, gameId, client) {
     const lineup = participant.lineup.battingOrder;
 
     const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
     const teamState = newState[teamKey];
+
+    // --- ROSTER RECOVERY LOGIC ---
+    if (!teamState.roster) {
+        console.warn(`[validateLineup] Roster missing for ${teamKey}. Attempting to fetch...`);
+
+        // Try 1: Fetch from game_rosters (the snapshot)
+        try {
+            const rosterResult = await client.query(
+                'SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2',
+                [gameId, participant.user_id]
+            );
+            if (rosterResult.rows.length > 0) {
+                teamState.roster = rosterResult.rows[0].roster_data;
+                console.log(`[validateLineup] Roster recovered from game_rosters for ${teamKey}.`);
+            } else {
+                // Try 2: Fetch from current roster_cards (fallback for very old games)
+                console.warn(`[validateLineup] Snapshot not found. Fetching from current roster for ${teamKey}...`);
+                if (participant.roster_id) {
+                     const rosterCardsResult = await client.query(`
+                        SELECT cp.*, rc.assignment
+                        FROM cards_player cp
+                        JOIN roster_cards rc ON cp.card_id = rc.card_id
+                        WHERE rc.roster_id = $1
+                    `, [participant.roster_id]);
+                    teamState.roster = rosterCardsResult.rows;
+                    console.log(`[validateLineup] Roster recovered from roster_cards for ${teamKey}.`);
+                }
+            }
+        } catch (err) {
+            console.error(`[validateLineup] Error fetching roster:`, err);
+        }
+    }
+
     if (!teamState || !teamState.roster) {
         // Defensive: If roster isn't in the state for some reason (e.g., older game),
         // we'll skip the more advanced validation for now.
@@ -1242,7 +1275,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
-    newState = validateLineup(participant, newState);
+    newState = await validateLineup(participant, newState, gameId, client);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)', [gameId, userId, currentTurn + 1, 'substitution', logMessage]);
@@ -1279,7 +1312,7 @@ app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res
 
     // Get the participant making the request
     const participantResult = await client.query(
-      'SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2',
+      'SELECT * FROM game_participants WHERE game_id = $1 AND user_id = $2',
       [gameId, userId]
     );
 
@@ -1324,7 +1357,7 @@ app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
-    newState = validateLineup(participant, newState);
+    newState = await validateLineup(participant, newState, gameId, client);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('COMMIT');
@@ -2352,7 +2385,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Validate the new defensive lineup. This will correctly set awaiting_lineup_change.
       if (defensiveTeam && defensiveTeam.lineup) {
-          newState = validateLineup(defensiveTeam, newState);
+          newState = await validateLineup(defensiveTeam, newState, gameId, client);
       } else {
           console.warn(`[next-hitter] Defensive team lineup missing or invalid for game ${gameId}. Skipping validation.`);
       }
