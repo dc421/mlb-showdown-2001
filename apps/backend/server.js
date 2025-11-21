@@ -322,6 +322,7 @@ function validateLineup(participant, newState) {
     if (!teamState || !teamState.roster) {
         // Defensive: If roster isn't in the state for some reason (e.g., older game),
         // we'll skip the more advanced validation for now.
+        console.warn(`[validateLineup] Roster missing for ${teamKey}. Skipping validation.`);
         newState.awaiting_lineup_change = false;
         return newState;
     }
@@ -332,12 +333,15 @@ function validateLineup(participant, newState) {
     }, {});
 
     let isLineupValid = true;
+    let validationError = null;
+
     for (const playerInLineup of lineup) {
         if (playerInLineup.card_id < 0) continue; // Skip replacement players
 
         const card = cardsById[playerInLineup.card_id];
         if (!card) {
             isLineupValid = false;
+            validationError = `Card ${playerInLineup.card_id} not found in roster.`;
             break;
         }
 
@@ -357,6 +361,7 @@ function validateLineup(participant, newState) {
 
         if (!isPlayerEligible) {
             isLineupValid = false;
+            validationError = `Player ${card.name} (${card.card_id}) is ineligible for position ${position}. Ratings: ${JSON.stringify(card.fielding_ratings)}`;
             break;
         }
     }
@@ -370,6 +375,7 @@ function validateLineup(participant, newState) {
 
     if (isLineupValid && (!pitcher || pitcher.control === null)) {
         isLineupValid = false;
+        validationError = `Invalid pitcher for ${teamKey}. Pitcher: ${pitcher ? pitcher.name : 'None'}`;
     }
 
     if (isLineupValid && newState.inning < 7) {
@@ -378,9 +384,14 @@ function validateLineup(participant, newState) {
             // The new rule: A player with 'BENCH' assignment cannot be in a defensive position.
             if (card && card.assignment === 'BENCH' && playerInLineup.position !== 'DH') {
                 isLineupValid = false;
+                validationError = `Player ${card.name} is assigned to BENCH but playing ${playerInLineup.position} before 7th inning.`;
                 break;
             }
         }
+    }
+
+    if (!isLineupValid) {
+        console.log(`[validateLineup] Lineup INVALID for ${teamKey}: ${validationError}`);
     }
 
     newState.awaiting_lineup_change = !isLineupValid;
@@ -2340,12 +2351,18 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // --- THIS IS THE FIX ---
       // Validate the new defensive lineup. This will correctly set awaiting_lineup_change.
-      newState = validateLineup(defensiveTeam, newState);
+      if (defensiveTeam && defensiveTeam.lineup) {
+          newState = validateLineup(defensiveTeam, newState);
+      } else {
+          console.warn(`[next-hitter] Defensive team lineup missing or invalid for game ${gameId}. Skipping validation.`);
+      }
 
       // If the inning ended AND we DON'T need a new pitcher, create the change event.
       // This is the core of the fix: the event is suppressed if `awaiting_lineup_change` is true.
       if (wasBetweenHalfInnings && !newState.awaiting_lineup_change) {
         await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+      } else if (wasBetweenHalfInnings && newState.awaiting_lineup_change) {
+          console.log(`[next-hitter] Suppressing inning change event for game ${gameId} due to invalid lineup.`);
       }
 
       // If there is no runner on third base OR there are 2 outs, the infield must be brought back to normal.
