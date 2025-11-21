@@ -1931,9 +1931,9 @@ function handleVisibilityChange() {
                             :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
                           ⇄
                       </span>
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired'}">{{ p.displayName }} ({{p.ip}} IP)</span>
-                      <span v-if="p.fatigueStatus === 'tired'" class="status-icon tired" title="Tired"></span>
-                      <span v-else-if="p.pitchedYesterday" class="status-icon used" title="Pitched in previous game"></span>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-icon tired" title="Tired"></span>
+                      <span v-else-if="p.pitchedYesterday && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Pitched in previous game"></span>
                   </li>
               </ul>
           </div>
@@ -2014,9 +2014,9 @@ function handleVisibilityChange() {
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
               <ul>
                   <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
-                          <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired'}">{{ p.displayName }} ({{p.ip}} IP)</span>
-                          <span v-if="p.fatigueStatus === 'tired'" class="status-icon tired" title="Tired"></span>
-                          <span v-else-if="p.pitchedYesterday" class="status-icon used" title="Pitched in previous game"></span>
+                          <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                          <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-icon tired" title="Tired"></span>
+                          <span v-else-if="p.pitchedYesterday && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Pitched in previous game"></span>
                   </li>
               </ul>
           </div>
