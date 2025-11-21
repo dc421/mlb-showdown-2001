@@ -395,8 +395,8 @@ const myBenchAndBullpen = computed(() => {
 const myBench = computed(() => myBenchAndBullpen.value.filter(p => p.control === null));
 const myBullpen = computed(() => myBenchAndBullpen.value.filter(p => p.control !== null));
 
-const homePitcher = computed(() => gameStore.gameState?.isTopInning ? gameStore.pitcher : gameStore.lineups.home?.startingPitcher);
-const awayPitcher = computed(() => !gameStore.gameState?.isTopInning ? gameStore.pitcher : gameStore.lineups.away?.startingPitcher);
+const homePitcher = computed(() => gameStore.gameState?.currentHomePitcher || gameStore.lineups.home?.startingPitcher);
+const awayPitcher = computed(() => gameStore.gameState?.currentAwayPitcher || gameStore.lineups.away?.startingPitcher);
 
 const homeBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.home?.battingOrder || !gameStore.rosters.home) return [];

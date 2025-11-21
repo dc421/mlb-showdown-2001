@@ -1193,9 +1193,13 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
 
     // 3. Update the persistent lineup in game_participants
+    // FIX: We do NOT update the startingPitcher in the persistent record.
+    // It must remain the original starter for series fatigue rules.
+    /*
     if (participant.lineup.startingPitcher === playerOutId) {
         participant.lineup.startingPitcher = playerInCard.card_id;
     }
+    */
     const lineup = participant.lineup.battingOrder;
     const spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
     if (spotIndex > -1) {
