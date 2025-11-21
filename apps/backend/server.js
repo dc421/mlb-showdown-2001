@@ -91,8 +91,9 @@ async function getActivePlayers(gameId, currentState) {
         `, [gameId]);
         const game = await pool.query('SELECT home_team_user_id FROM games WHERE game_id = $1', [gameId]);
 
-        const homeParticipant = participantsResult.rows.find(p => p.user_id === game.rows[0].home_team_user_id);
-        const awayParticipant = participantsResult.rows.find(p => p.user_id !== game.rows[0].home_team_user_id);
+        // Use Number() comparison to avoid type mismatch (string vs int) bugs
+        const homeParticipant = participantsResult.rows.find(p => Number(p.user_id) === Number(game.rows[0].home_team_user_id));
+        const awayParticipant = participantsResult.rows.find(p => Number(p.user_id) !== Number(game.rows[0].home_team_user_id));
 
         const offensiveParticipant = currentState.isTopInning ? awayParticipant : homeParticipant;
         const defensiveParticipant = currentState.isTopInning ? homeParticipant : awayParticipant;
@@ -374,7 +375,8 @@ async function validateLineup(participant, newState, gameId, client) {
         const card = cardsById[playerInLineup.card_id];
         if (!card) {
             isLineupValid = false;
-            validationError = `Card ${playerInLineup.card_id} not found in roster.`;
+            const rosterIds = Object.keys(cardsById).join(', ');
+            validationError = `Card ${playerInLineup.card_id} not found in roster [${rosterIds}].`;
             break;
         }
 
@@ -538,7 +540,7 @@ async function createInningChangeEvent(gameId, finalState, userId, turnNumber, c
 
     const pitcher = finalState.isTopInning ? finalState.currentHomePitcher : finalState.currentAwayPitcher;
 
-    if (pitcher && pitcher.card_id > 0) { // Only create the event if there is a pitcher
+    if (pitcher && pitcher.card_id !== 0) { // Allow replacement pitchers (ID -2) but require a pitcher
         processPlayers([pitcher]);
 
         const offensiveTeamResult = await client.query('SELECT logo_url FROM teams WHERE user_id = $1', [offensiveParticipant.user_id]);
