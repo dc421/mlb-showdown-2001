@@ -434,11 +434,12 @@ async function initializePitcherFatigue(gameId, client) {
 
         for (const reliever of relievers) {
             let isTired = false;
+            let pitchedInPrevGame = false;
 
             if (lastPrevTwoGameState && lastPrevGameState) {
                 // Check if they pitched in both of the last two games
                 // We check the pitcherStats object in the final state of each game.
-                const pitchedInPrevGame = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
+                pitchedInPrevGame = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
                 const pitchedInPrevTwoGame = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
 
                 if (pitchedInPrevGame && pitchedInPrevTwoGame) {
