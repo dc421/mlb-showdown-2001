@@ -2269,15 +2269,13 @@ function handleVisibilityChange() {
 }
 .lineup-item > span:not(.sub-icon), .pitcher-info > span:not(.sub-icon) {
   cursor: pointer;
-  flex-grow: 1;
 }
 .lineup-item > span:not(.sub-icon):hover, .pitcher-info > span:not(.sub-icon):hover {
   text-decoration: underline;
 }
 .pitcher-info { font-weight: bold; margin-top: 0.5rem; margin-left: -1.2rem}
 .is-tired {
-    color: #dc3545; /* Red color for tired pitchers */
-    font-weight: bold;
+    /* Styles removed */
 }
 .is-sub-target {
   /* Now handled by inline :style binding for dynamic team colors */
@@ -2294,7 +2292,7 @@ function handleVisibilityChange() {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    margin-left: auto;
+    flex-shrink: 0;
 }
 .status-icon.tired {
     background-color: #dc3545;
