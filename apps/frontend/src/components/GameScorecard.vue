@@ -162,7 +162,7 @@ const pitcherDisplay = computed(() => {
     const parts = pitcher.name.split(' ');
     const firstInitial = parts[0][0];
     const lastName = parts.slice(1).join(' ');
-    return `P: ${firstInitial}. ${lastName}`;
+    return `P: ${firstInitial}.${lastName}`;
 });
 
 const batterDisplay = computed(() => {
@@ -172,7 +172,7 @@ const batterDisplay = computed(() => {
     const parts = batter.name.split(' ');
     const firstInitial = parts[0][0];
     const lastName = parts.slice(1).join(' ');
-    return `AB: ${firstInitial}. ${lastName}`;
+    return `AB: ${firstInitial}.${lastName}`;
 });
 
 </script>
