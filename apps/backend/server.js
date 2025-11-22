@@ -220,6 +220,35 @@ async function getInfieldDefense(defensiveParticipant) {
 
 // --- HELPER FUNCTIONS ---
 
+async function hydrateRosterAssignments(dbClient, roster, rosterId) {
+    if (!roster || roster.length === 0 || !roster.some(c => c.assignment === undefined)) {
+        return roster;
+    }
+    console.warn(`[hydrateRosterAssignments] Hydrating assignments for roster ${rosterId}...`);
+    try {
+        const rosterCardsResult = await dbClient.query(`
+            SELECT card_id, assignment
+            FROM roster_cards
+            WHERE roster_id = $1
+        `, [rosterId]);
+
+        const assignmentMap = {};
+        rosterCardsResult.rows.forEach(r => {
+            assignmentMap[r.card_id] = r.assignment;
+        });
+
+        return roster.map(c => {
+            if (c.assignment === undefined) {
+                return { ...c, assignment: assignmentMap[c.card_id] };
+            }
+            return c;
+        });
+    } catch (err) {
+        console.error(`[hydrateRosterAssignments] Error recovering assignments:`, err);
+        return roster;
+    }
+}
+
 function finalizeEvent(state, initialEvent, scorers, scoreKey) {
     let message = initialEvent;
     if (scorers && scorers.length > 0) {
@@ -351,6 +380,11 @@ async function validateLineup(participant, newState, gameId, client) {
         } catch (err) {
             console.error(`[validateLineup] Error fetching roster:`, err);
         }
+    }
+
+    // --- ASSIGNMENT RECOVERY LOGIC (For old snapshots) ---
+    if (participant.roster_id) {
+        teamState.roster = await hydrateRosterAssignments(client, teamState.roster, participant.roster_id);
     }
 
     if (!teamState || !teamState.roster) {
@@ -1846,7 +1880,12 @@ async function getAndProcessGameData(gameId, dbClient) {
 
     for (const p of participantsResult.rows) {
       const rosterResult = await dbClient.query('SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2', [gameId, p.user_id]);
-      const fullRosterCards = rosterResult.rows[0]?.roster_data || [];
+      let fullRosterCards = rosterResult.rows[0]?.roster_data || [];
+
+      // --- RECOVERY: Check for missing assignments (Legacy Data Fix) ---
+      fullRosterCards = await hydrateRosterAssignments(dbClient, fullRosterCards, p.roster_id);
+      // --- END RECOVERY ---
+
       if (p.lineup?.battingOrder) {
         const lineupWithDetails = p.lineup.battingOrder.map(spot => {
             let playerCard;
