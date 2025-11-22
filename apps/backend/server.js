@@ -2820,7 +2820,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
             if (events.length > 0) {
                 let consolidatedLogMessage = events[0];
-                if (newState.outs > originalOuts) {
+                if (newState.outs > originalOuts || type === 'TAG_UP') {
                     consolidatedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
                 if (consolidatedLogMessage) {
@@ -2998,7 +2998,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         // Sort events to be more logical: lead runner first.
         allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
         let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
-        if (newState.outs > originalOuts) {
+        if (newState.outs > originalOuts || type === 'TAG_UP') {
             combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
         }
 

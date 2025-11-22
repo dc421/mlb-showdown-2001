@@ -19,7 +19,6 @@ async function runTest() {
         console.log("Starting reproduction test...");
 
         // 1. Create a dummy game
-        // We'll insert directly for speed, mimicking what creates a game
         const userResult = await client.query("SELECT user_id, team_id FROM users LIMIT 1");
         if (userResult.rows.length === 0) {
             console.log("No users found. Cannot run test.");
@@ -37,75 +36,128 @@ async function runTest() {
             return;
         }
 
-        // Create game
-        const gameRes = await client.query("INSERT INTO games (status, home_team_user_id) VALUES ('lineups', $1) RETURNING game_id", [userId]);
+        const gameRes = await client.query("INSERT INTO games (status, home_team_user_id) VALUES ('in_progress', $1) RETURNING game_id", [userId]);
         const gameId = gameRes.rows[0].game_id;
         console.log(`Created game ${gameId}`);
 
-        // Create game_participants entry
-        // We need a dummy lineup. Let's get some players.
-        const playersRes = await client.query("SELECT card_id, name, control FROM cards_player LIMIT 15");
+        // Create dummy participant and team
+        const playersRes = await client.query("SELECT card_id, name, speed FROM cards_player LIMIT 10");
         const players = playersRes.rows;
-        const pitcher = players.find(p => p.control !== null);
-        const reliever = players.find(p => p.control !== null && p.card_id !== pitcher.card_id);
-        const batters = players.filter(p => p.control === null).slice(0, 9);
-
-        if (!pitcher || !reliever || batters.length < 9) {
-             console.log("Not enough players to form a lineup.");
-             return;
-        }
-
-        const lineup = {
-            battingOrder: batters.map((p, i) => ({ card_id: p.card_id, position: 'DH' })), // Simplified positions
-            startingPitcher: pitcher.card_id
-        };
+        const batter = players[0];
+        const runner1 = players[1];
+        const runner2 = players[2];
 
         await client.query(
-            "INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation, lineup) VALUES ($1, $2, $3, 'home', 'AL', $4)",
-            [gameId, userId, rosterId, JSON.stringify(lineup)]
+            "INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, 'home', 'AL')",
+            [gameId, userId, rosterId]
         );
+        await client.query(
+             "INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, 'away', 'AL')",
+             [gameId, userId + 1, rosterId] // Dummy away user
+         );
 
-        console.log(`Initial Starting Pitcher: ${pitcher.card_id} (${pitcher.name})`);
+        // Setup initial game state with runners on 2nd and 3rd, 1 out.
+        const initialState = {
+            inning: 1,
+            isTopInning: true,
+            outs: 1, // One out already recorded (simulating the fly out happened)
+            awayScore: 0,
+            homeScore: 0,
+            bases: {
+                first: null,
+                second: runner1,
+                third: runner2
+            },
+            currentAtBat: {
+                batter: batter,
+                basesBeforePlay: { first: null, second: runner1, third: runner2 },
+                awayScoreBeforePlay: 0,
+                homeScoreBeforePlay: 0,
+                 swingRollResult: { outcome: 'FB', batter: batter }
+            },
+            currentPlay: {
+                type: 'TAG_UP',
+                payload: {
+                    decisions: [], // To be filled
+                    initialEvent: `${batter.name} flies out.`
+                }
+            },
+            homeTeam: { userId: userId }, // Dummy
+            awayTeam: { userId: userId + 1 } // Dummy
+        };
 
-        // Check DB before sub
-        let res = await client.query("SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2", [gameId, userId]);
-        let dbSP = res.rows[0].lineup.startingPitcher;
-        console.log(`DB value before sub: ${dbSP}`);
+        await client.query("INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, 1, $2)", [gameId, initialState]);
 
-        // 2. Perform Substitution Logic (Simulating what happens in /substitute)
-        // Code from server.js:
-        // if (participant.lineup.startingPitcher === playerOutId) {
-        //    participant.lineup.startingPitcher = playerInCard.card_id;
-        // }
+        // Simulate Submit Decisions logic from server.js
+        // We are simulating: Runner on 2nd advances to 3rd. Runner on 3rd holds (or scores, but let's say holds for now to test tag up logic).
+        // Wait, the example was: "Roger Cedeno flies out. Matt Lawton advances to 3rd. Edgar Renteria is SAFE at 2nd!"
+        // This implies Lawton was on 2nd -> 3rd. Renteria was on 1st -> 2nd?
+        // Or Lawton on 2nd, Renteria on 1st.
+        // Fly out. Lawton tags 2nd->3rd. Renteria tags 1st->2nd.
+        // Let's simulate Lawton on 2nd, Renteria on 1st.
 
-        // Simulate:
-        const participant = res.rows[0];
-        const playerOutId = pitcher.card_id;
-        const playerInCard = reliever;
+        initialState.bases = { first: runner2, second: runner1, third: null };
+        initialState.currentAtBat.basesBeforePlay = { first: runner2, second: runner1, third: null };
 
-        console.log(`Subulating ${playerOutId} with ${playerInCard.card_id} (${playerInCard.name})`);
+        const decisions = {
+            [1]: true, // Runner on 1st (Renteria) goes
+            [2]: true  // Runner on 2nd (Lawton) goes
+        };
 
-        if (participant.lineup.startingPitcher === playerOutId) {
-            participant.lineup.startingPitcher = playerInCard.card_id;
-            console.log("Logic executed: startingPitcher updated.");
+        // Logic from submit-decisions:
+        const sentRunners = Object.keys(decisions).filter(key => decisions[key]);
+        // sentRunners.length is 2.
+
+        // If sentRunners > 1, it goes to resolve-throw eventually.
+        // So let's simulate resolve-throw.
+
+        const throwTo = 2; // Throw to 2nd to get Renteria
+
+        // Logic from resolve-throw endpoint
+        const newState = JSON.parse(JSON.stringify(initialState));
+        const choices = decisions;
+        const initialEvent = initialState.currentPlay.payload.initialEvent;
+
+        // ... skipping DB reads for getActivePlayers ...
+
+        const allEvents = [];
+        const baseMap = { 1: 'first', 2: 'second', 3: 'third', 4: 'home' };
+        const originalOuts = newState.outs; // 1
+
+        // 1. Batter is out (already in initialEvent)
+
+        // 2. Runners sent
+        // Lawton (from 2) -> 3. Uncontested.
+        // Renteria (from 1) -> 2. Contested.
+
+        // Lawton advances
+        const runnerLawton = runner1; // on 2nd
+        const targetBaseLawton = 2 + 1; // 3
+        allEvents.push(`${runnerLawton.name} advances to 3rd.`); // using literal for simplicity
+
+        // Renteria contested at 2nd
+        const runnerRenteria = runner2; // on 1st
+        const isSafe = true; // Assume safe
+        allEvents.push(`${runnerRenteria.name} is SAFE at 2nd!`);
+
+        let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
+
+        console.log(`Original Outs: ${originalOuts}`);
+        console.log(`New State Outs: ${newState.outs}`);
+
+        if (newState.outs > originalOuts) {
+            combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
         }
 
-        // Write back to DB (Simulating the update)
-        await client.query("UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3", [JSON.stringify(participant.lineup), gameId, userId]);
+        console.log("Log Message:", combinedLogMessage);
 
-        // 3. Verify the issue
-        res = await client.query("SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2", [gameId, userId]);
-        dbSP = res.rows[0].lineup.startingPitcher;
-        console.log(`DB value after sub: ${dbSP}`);
-
-        if (dbSP === reliever.card_id) {
-            console.log("ISSUE REPRODUCED: startingPitcher was updated to the reliever.");
-        } else {
-            console.log("Issue NOT reproduced.");
+        if (!combinedLogMessage.includes(`Outs: ${originalOuts}`) && newState.outs === originalOuts) {
+             console.log("ISSUE REPRODUCED: Outs count missing when outs didn't increase.");
         }
 
         // Cleanup
         await client.query("DELETE FROM game_participants WHERE game_id = $1", [gameId]);
+        await client.query("DELETE FROM game_states WHERE game_id = $1", [gameId]);
         await client.query("DELETE FROM games WHERE game_id = $1", [gameId]);
 
     } catch (e) {
