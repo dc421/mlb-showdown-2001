@@ -3045,7 +3045,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         // Sort events to be more logical: lead runner first.
         allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
         let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
-        if (newState.outs > originalOuts || type === 'TAG_UP') {
+        if (newState.outs > originalOuts || isTagUp) {
             combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;
         }
 
