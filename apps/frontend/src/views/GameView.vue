@@ -1842,8 +1842,8 @@ function handleVisibilityChange() {
               :primary-color="controlledPlayerTeamColors.primary"
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
-                <div v-if="gameStore.gameState.awaiting_lineup_change || !!pitcherToDisplay" class="selecting-pitcher-text">
-                    <h3><em>Selecting Pitcher...</em></h3>
+                <div v-if="(gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay)" class="selecting-pitcher-text">
+                    <h3><em></em></h3>
                 </div>
                 <template v-else>
                     <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ controlledPlayerRole }}</span>
@@ -1863,12 +1863,12 @@ function handleVisibilityChange() {
               :primary-color="opponentPlayerTeamColors.primary"
             />
              <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
-                <div v-if="gameStore.gameState.awaiting_lineup_change" class="selecting-pitcher-text">
+                <div v-if="gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay" class="selecting-pitcher-text">
                      <h3><em>Selecting Pitcher...</em></h3>
                 </div>
                 <template v-else>
                     <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ opponentPlayerRole }}</span>
-                    <span class="tbd-name">TBD</span>
+                    <span class="tbd-name"></span>
                 </template>
             </div>
           </div>

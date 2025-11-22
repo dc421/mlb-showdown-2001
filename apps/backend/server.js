@@ -16,7 +16,7 @@ const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, reco
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 const REPLACEMENT_HITTER_CARD = {
-    card_id: -1, name: 'Replacement Hitter', display_name: 'Replacement Hitter', on_base: -10, speed: 'B',
+    card_id: -1, name: 'Replacement Hitter', display_name: 'Replacement Hitter', on_base: -10, speed: 15,
     points: 0,
     fielding_ratings: { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0 },
     chart_data: { '1-2': 'SO', '3-20': 'GB' },
@@ -24,7 +24,7 @@ const REPLACEMENT_HITTER_CARD = {
     image_url: `${BACKEND_URL}/images/replacement.jpg`
 };
 const REPLACEMENT_PITCHER_CARD = {
-    card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1, speed: 'C',
+    card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1, speed: 10,
     points: 0,
     chart_data: { '1-3': 'PU', '4-8': 'SO', '9-12': 'GB', '13-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
     fielding_ratings: {},
