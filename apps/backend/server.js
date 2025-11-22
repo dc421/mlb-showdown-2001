@@ -2062,11 +2062,13 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
       // --- NEW: Check for Game Over ---
       if (finalState.gameOver) {
-        await client.query(
-          `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+        const updateResult = await client.query(
+          `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
           [gameId]
         );
-        await handleSeriesProgression(gameId, client, finalState);
+        if (updateResult.rowCount > 0) {
+            await handleSeriesProgression(gameId, client, finalState);
+        }
       }
     }
     
@@ -2139,11 +2141,13 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         }
 
         if (finalState.gameOver) {
-            await client.query(
-                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+            const updateResult = await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
                 [gameId]
             );
-            await handleSeriesProgression(gameId, client);
+            if (updateResult.rowCount > 0) {
+                await handleSeriesProgression(gameId, client, finalState);
+            }
         } else {
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
         }
@@ -2275,11 +2279,13 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
 
             // --- NEW: Check for Game Over ---
             if (finalState.gameOver) {
-              await client.query(
-                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+              const updateResult = await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
                 [gameId]
               );
-              await handleSeriesProgression(gameId, client, finalState);
+              if (updateResult.rowCount > 0) {
+                  await handleSeriesProgression(gameId, client, finalState);
+              }
             }
         }
     }
@@ -2830,11 +2836,13 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             if (newState.gameOver) {
-              await client.query(
-                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+              const updateResult = await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
                 [gameId]
               );
-              await handleSeriesProgression(gameId, client, newState);
+              if (updateResult.rowCount > 0) {
+                  await handleSeriesProgression(gameId, client, newState);
+              }
             } else if (newState.outs >= 3) {
                  if (newState.isTopInning) {
                     newState.isBetweenHalfInningsAway = true;
@@ -3125,11 +3133,13 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
         if (newState.gameOver) {
             events.push(`WALK-OFF!`);
-            await client.query(
-              `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1`,
+            const updateResult = await client.query(
+              `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
               [gameId]
             );
-            await handleSeriesProgression(gameId, client, newState);
+            if (updateResult.rowCount > 0) {
+                await handleSeriesProgression(gameId, client, newState);
+            }
         } else if (newState.outs >= 3) {
              if (newState.isTopInning) {
                 newState.isBetweenHalfInningsAway = true;
