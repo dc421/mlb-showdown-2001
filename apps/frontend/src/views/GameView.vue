@@ -90,10 +90,23 @@ function toggleSubMode() {
   gameStore.playerSelectedForSwap = null;
 }
 
-function selectPlayerToSubOut(player, position) {
+function selectPlayerToSubOut(player, position, index = null, source = 'lineup') {
   if (gameStore.playerSelectedForSwap) {
     // A player is already selected, so this click completes the action.
     const isPlayerOnField = myLineup.value.battingOrder.some(p => p.player.card_id === player.card_id);
+
+    // Handle substitution with duplicate replacement players
+    const isSamePlayer = playerToSubOut.value?.player.card_id === player.card_id &&
+                         playerToSubOut.value?.index === index &&
+                         playerToSubOut.value?.source === source;
+
+    if (isSamePlayer) {
+        // Clicking the same exact instance (important for duplicates) cancels the selection
+        isSubModeActive.value = false;
+        playerToSubOut.value = null;
+        gameStore.playerSelectedForSwap = null;
+        return;
+    }
 
     if (isPlayerOnField) {
       // It's a position swap
@@ -109,16 +122,9 @@ function selectPlayerToSubOut(player, position) {
 
   } else {
     // This is the first player selected in a potential swap/sub.
-    if (playerToSubOut.value?.player.card_id === player.card_id) {
-      // Clicking the same player again cancels.
-      isSubModeActive.value = false;
-      playerToSubOut.value = null;
-      gameStore.playerSelectedForSwap = null;
-    } else {
-      // Select the player.
-      playerToSubOut.value = { player, position };
-      gameStore.playerSelectedForSwap = player;
-    }
+    // Select the player with explicit index tracking for uniqueness.
+    playerToSubOut.value = { player, position, index, source };
+    gameStore.playerSelectedForSwap = player;
   }
 }
 
@@ -1886,39 +1892,39 @@ function handleVisibilityChange() {
               <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaiting_lineup_change && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
-              <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
+              <li v-for="(spot, index) in leftPanelData.lineup" :key="index"
                   :class="{
                       'now-batting': amIDisplayOffensivePlayer && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
                       'next-up': amIDisplayDefensivePlayer && index === defensiveNextBatterIndex,
-                      'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id,
+                      'is-sub-target': playerToSubOut?.source === 'lineup' && playerToSubOut?.index === index,
                       'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player.card_id)
                   }"
-                  :style="playerToSubOut && spot.player && playerToSubOut.player.card_id === spot.player.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
+                  :style="playerToSubOut && playerToSubOut.source === 'lineup' && playerToSubOut.index === index ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
                   class="lineup-item">
-                  <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
+                  <span @click.stop="selectPlayerToSubOut(spot.player, spot.position, index, 'lineup')"
                         class="sub-icon"
                         :class="{
                             'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
-                            'active': playerToSubOut?.player.card_id === spot.player.card_id
+                            'active': playerToSubOut?.source === 'lineup' && playerToSubOut?.index === index
                         }">
                       ⇄
                   </span>
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}" :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
+          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
             <hr />
-            <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
+            <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P', -1, 'pitcher')"
                   class="sub-icon"
                   :class="{
                       'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && isPlayerSubEligible(leftPanelData.pitcher),
-                      'active': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id
+                      'active': playerToSubOut?.source === 'pitcher'
                   }">
                 ⇄
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
-                <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: black }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher && leftPanelData.pitcher.card_id !== 'replacement_pitcher'">{{ leftPanelData.pitcher.name }}</template>
+                <strong :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { color: 'inherit' } : { color: black }">Pitching: </strong>
+                <template v-if="leftPanelData.pitcher && leftPanelData.pitcher.card_id !== -2">{{ leftPanelData.pitcher.name }}</template>
                 <template v-else>TBD</template>
             </span>
           </div>
@@ -1940,7 +1946,7 @@ function handleVisibilityChange() {
           <div v-if="leftPanelData.bench.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
-                  <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
+                  <li v-for="(p, index) in leftPanelData.bench" :key="index" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
                             :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7) }">
@@ -1993,7 +1999,7 @@ function handleVisibilityChange() {
               <img :src="rightPanelData.team.logo_url" class="lineup-logo" /> {{ rightPanelData.team.city }} Lineup
           </h3>
           <ol>
-              <li v-for="(spot, index) in rightPanelData.lineup" :key="spot.player.card_id"
+              <li v-for="(spot, index) in rightPanelData.lineup" :key="index"
                   :class="{
                       'now-batting': amIDisplayDefensivePlayer && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
                       'next-up': amIDisplayOffensivePlayer && index === defensiveNextBatterIndex
