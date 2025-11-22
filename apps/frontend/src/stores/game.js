@@ -494,7 +494,7 @@ async function resetRolls(gameId) {
   function setIsSwingResultVisible(value) {
     isSwingResultVisible.value = value;
     // Also persist this to localStorage to survive reloads
-    const gameId = game.value?.id;
+    const gameId = game.value?.game_id;
     if (gameId) {
         const rollStorageKey = `showdown-game-${gameId}-swing-result-seen`;
         if (value) {
