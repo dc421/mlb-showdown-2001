@@ -554,10 +554,17 @@ const isDisplayTopInning = computed(() => {
       return gameStore.gameState.isTopInning;
   }
 
+  // Use the authoritative `displayGameState` if available, as it handles rollbacks for hidden outcomes.
+  if (shouldHideCurrentAtBatOutcome.value && gameStore.displayGameState) {
+      return gameStore.displayGameState.isTopInning;
+  }
+
   // If we are between innings, the "isTopInning" flag has already flipped to the *next*
   // inning. For display purposes, we want to show the state of the inning that just
   // concluded, so we flip it back.
-  if (gameStore.isEffectivelyBetweenHalfInnings && (gameStore.amIReadyForNext || gameStore.opponentReadyForNext)) {
+  // FIX: Removed the condition that required players to be "ready" before flipping.
+  // If we are effectively between innings (outs reset), we should always show the previous inning's result.
+  if (gameStore.isEffectivelyBetweenHalfInnings) {
     return !gameStore.gameState.isTopInning;
   }
   return gameStore.gameState.isTopInning;
@@ -868,7 +875,7 @@ const showThrowRollResult = computed(() => {
   }
 
   // Offensive player sees it after their timer.
-  if (amIDisplayOffensivePlayer.value && !gameStore.amIReadyForNext.value) {
+  if (amIDisplayOffensivePlayer.value && !gameStore.amIReadyForNext) {
     return (offensiveDPResultVisible.value || gameStore.opponentReadyForNext) && isSwingResultVisible.value;
   }
 
