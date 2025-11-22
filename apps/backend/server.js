@@ -3062,6 +3062,13 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         newState.bases = finalBases;
         newState.currentPlay = null;
 
+        const batterOnFirst = newState.bases.first;
+        if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+' && throwTo !== 2) {
+            newState.bases.second = batterOnFirst;
+            newState.bases.first = null;
+            allEvents.push(`${batterOnFirst.displayName} steals second without a throw!`);
+        }
+
         // Sort events to be more logical: lead runner first.
         allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
         let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
