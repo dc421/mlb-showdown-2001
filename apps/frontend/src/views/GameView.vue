@@ -565,6 +565,15 @@ const isDisplayTopInning = computed(() => {
   // FIX: Removed the condition that required players to be "ready" before flipping.
   // If we are effectively between innings (outs reset), we should always show the previous inning's result.
   if (gameStore.isEffectivelyBetweenHalfInnings) {
+    // If the server flags are present, it means we haven't advanced yet.
+    // So the server's `isTopInning` is still the OLD inning.
+    // We should RETURN it, NOT flip it.
+    if (gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome) {
+      return gameStore.gameState.isTopInning;
+    }
+    // If flags are NOT present, but `isEffectivelyBetweenHalfInnings` is true,
+    // it means the server HAS advanced (outs reset), so `isTopInning` is NEW.
+    // We want to show the OLD inning, so we FLIP it.
     return !gameStore.gameState.isTopInning;
   }
   return gameStore.gameState.isTopInning;
