@@ -1147,7 +1147,7 @@ const batterToDisplay = computed(() => {
 const pitcherToDisplay = computed(() => {
     // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
     // change just happened), we should not show any pitcher, forcing the "TBD" state.
-    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value) {
+    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && gameStore.displayGameState.outsToDisplay===0) {
         return null;
     }
     if (isGameOver.value) {
@@ -1418,7 +1418,13 @@ const isStealAttemptInProgress = computed(() => {
                                   ;
     // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
     const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isSingleStealInProgress;
-    return (isSingleStealInProgress || isDoubleStealInProgress) && !showStealResult.value;
+    // NEW: Only show the in-progress steal UI if we are actually in the current turn.
+    // If the opponent has advanced (initiated steal) but we haven't clicked "Next Hitter" yet,
+    // we are still viewing the previous play's result and should NOT see the steal UI yet.
+    // Logic: If opponent IS ready (advanced) and I am NOT ready, hide the steal.
+    const isViewingPastTurn = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
+
+    return (isSingleStealInProgress || isDoubleStealInProgress) && !showStealResult.value && !isViewingPastTurn;
 });
 
 const isSingleSteal = computed(() => {

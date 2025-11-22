@@ -557,6 +557,16 @@ async function resetRolls(gameId) {
         }
     }
 
+    // Condition 3: Consecutive "Automatic" events (like Intentional Walks) where the user hasn't acknowledged the first.
+    // If the opponent walked twice in a row, we want to show the result of the FIRST walk, hiding the second one.
+    if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2) {
+        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
+        const prevEvent = gameEvents.value[gameEvents.value.length - 2];
+        if (lastEvent.log_message?.includes('intentionally walked') && prevEvent.log_message?.includes('intentionally walked')) {
+            return gameEvents.value.slice(0, gameEvents.value.length - 1);
+        }
+    }
+
     // In all other cases (e.g., mid-inning play revealed, or after "Next Hitter" is clicked), show the full log.
     return gameEvents.value;
   });
@@ -736,6 +746,26 @@ async function resetRolls(gameId) {
         bases: newBases,
         outs: newOuts,
       };
+    }
+
+    // Condition: Consecutive "Automatic" events (Double IBB fix).
+    // If we detected this pattern in gameEventsToDisplay, we must also roll back the board state.
+    if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2 && gameState.value.lastCompletedAtBat) {
+        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
+        const prevEvent = gameEvents.value[gameEvents.value.length - 2];
+        if (lastEvent.log_message?.includes('intentionally walked') && prevEvent.log_message?.includes('intentionally walked')) {
+            // Roll back to the state BEFORE the second walk (which is the state AFTER the first walk).
+            // The last completed at-bat is the 2nd walk (Event N). Its 'basesBeforePlay'
+            // represents the state of the bases when that batter stepped up (i.e., after the 1st walk).
+            const rollbackSource = gameState.value.lastCompletedAtBat;
+            return {
+                ...gameState.value,
+                bases: rollbackSource.basesBeforePlay,
+                outs: rollbackSource.outsBeforePlay,
+                homeScore: rollbackSource.homeScoreBeforePlay,
+                awayScore: rollbackSource.awayScoreBeforePlay,
+            };
+        }
     }
 
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
