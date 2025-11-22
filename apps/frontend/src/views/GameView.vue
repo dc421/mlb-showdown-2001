@@ -897,6 +897,8 @@ const isRunnerOnOffensiveTeam = computed(() => {
     return true
   }
 
+  if (isDoubleStealResultAvailable.value) return true;
+
   if (!gameStore.gameState?.lastStealResult?.runnerTeamId) {
     return false;
   }
