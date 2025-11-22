@@ -224,7 +224,6 @@ async function hydrateRosterAssignments(dbClient, roster, rosterId) {
     if (!roster || roster.length === 0 || !roster.some(c => c.assignment === undefined)) {
         return roster;
     }
-    console.warn(`[hydrateRosterAssignments] Hydrating assignments for roster ${rosterId}...`);
     try {
         const rosterCardsResult = await dbClient.query(`
             SELECT card_id, assignment
