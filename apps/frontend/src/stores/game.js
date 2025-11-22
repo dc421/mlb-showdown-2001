@@ -810,9 +810,27 @@ async function resetRolls(gameId) {
     // Use isEffectivelyBetweenHalfInnings.value directly instead of displayOuts.value
     const shouldShowThreeOuts = isEffectivelyBetweenHalfInnings.value;
 
-    const bases = shouldShowThreeOuts
-      ? (opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay)
-      : gameState.value.bases;
+    let bases = gameState.value.bases;
+    let outs = gameState.value.outs;
+    let homeScore = gameState.value.homeScore;
+    let awayScore = gameState.value.awayScore;
+
+    if (shouldShowThreeOuts) {
+        bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
+        outs = 3;
+    } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
+        // Case: The opponent has advanced to the next at-bat (or triggered an IBB), but I am still viewing the previous result.
+        // The 'currentAtBat' on the server represents the *next* play (or the one in progress).
+        // Its 'basesBeforePlay' represents the state *after* the play I am supposed to be viewing (which is the state *before* the new play starts).
+        const src = gameState.value.currentAtBat;
+        if (src) {
+            bases = src.basesBeforePlay || bases;
+            // Only override outs and score if they are available on the source object.
+            if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
+            if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
+            if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
+        }
+    }
 
     // If the game is between innings and we're awaiting a pitcher selection,
     // the server state has already advanced to the *next* inning. We need to
@@ -832,8 +850,10 @@ async function resetRolls(gameId) {
     // In all other cases, return the current, authoritative state from the server, but with our overrides.
     return {
       ...gameState.value,
-      outs: shouldShowThreeOuts ? 3 : gameState.value.outs, // Use direct logic, not displayOuts
-      bases: bases,
+      outs,
+      bases,
+      homeScore,
+      awayScore,
       inning,
       isTopInning,
     };
