@@ -898,13 +898,29 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
       const homeStartingPitcherId = homeParticipant.lineup.startingPitcher;
       const awayStartingPitcherId = awayParticipant.lineup.startingPitcher;
 
-      const batterResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [firstBatterCardId]);
-      const homePitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [homeStartingPitcherId]);
-      const awayPitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [awayStartingPitcherId]);
-      
-      const batter = batterResult.rows[0];
-      const homePitcher = homePitcherResult.rows[0];
-      const awayPitcher = awayPitcherResult.rows[0];
+      let batter;
+      if (firstBatterCardId === -1) batter = REPLACEMENT_HITTER_CARD;
+      else if (firstBatterCardId === -2) batter = REPLACEMENT_PITCHER_CARD;
+      else {
+          const batterResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [firstBatterCardId]);
+          batter = batterResult.rows[0];
+      }
+
+      let homePitcher;
+      if (homeStartingPitcherId === -1) homePitcher = REPLACEMENT_HITTER_CARD;
+      else if (homeStartingPitcherId === -2) homePitcher = REPLACEMENT_PITCHER_CARD;
+      else {
+          const homePitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [homeStartingPitcherId]);
+          homePitcher = homePitcherResult.rows[0];
+      }
+
+      let awayPitcher;
+      if (awayStartingPitcherId === -1) awayPitcher = REPLACEMENT_HITTER_CARD;
+      else if (awayStartingPitcherId === -2) awayPitcher = REPLACEMENT_PITCHER_CARD;
+      else {
+          const awayPitcherResult = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [awayStartingPitcherId]);
+          awayPitcher = awayPitcherResult.rows[0];
+      }
 
       const initialGameState = {
         inning: 1, isTopInning: true, awayScore: 0, homeScore: 0, outs: 0,
@@ -1107,7 +1123,11 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         playerOutCard = playerOutResult.rows[0];
     }
 
-    const originalStartingPitcher = teamKey === 'homeTeam' ? initialState.currentHomePitcher : initialState.currentAwayPitcher;
+    let originalStartingPitcher = teamKey === 'homeTeam' ? initialState.currentHomePitcher : initialState.currentAwayPitcher;
+    // Fallback for corrupted game states where the original starter wasn't saved (likely a replacement pitcher bug)
+    if (!originalStartingPitcher) {
+        originalStartingPitcher = REPLACEMENT_PITCHER_CARD;
+    }
 
     const pitcherValidationResult = validatePitcherSubstitution(newState, playerOutCard, playerOutId, originalStartingPitcher.card_id, isOffensiveSub);
     if (!pitcherValidationResult.isValid) {
