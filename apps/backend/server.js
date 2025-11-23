@@ -2785,7 +2785,9 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
                     const { outcome: newOutcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
                     const newRunnerName = runner.name;
 
-                    if (!isSafe) { newState.outs++; }
+                    if (!isSafe) {
+                        recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
+                    }
 
                     const logMessage = newOutcome === 'SAFE'
                         ? `${newRunnerName} takes off for ${getOrdinal(toBase)}... SAFE!`
@@ -3144,7 +3146,15 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
                     allEvents.push(`${contestedRunner.name} is SAFE at ${getOrdinal(throwTo)}!`);
                 }
             } else {
-                newState.outs++;
+                // Resolve who to charge the out to.
+                let pitcherOfRecord = null;
+                if (contestedRunner.pitcherOfRecordId) {
+                    pitcherOfRecord = { card_id: contestedRunner.pitcherOfRecordId };
+                } else {
+                    // Fallback to current pitcher if no record exists
+                    pitcherOfRecord = newState.currentAtBat.pitcher;
+                }
+                recordOutsForPitcher(newState, pitcherOfRecord, 1);
                 allEvents.push(`${contestedRunner.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
             }
         }
@@ -3256,7 +3266,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
                     newState.winningTeam = 'home';
                 }
             } else {
-                newState.outs++;
+                recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                 events.push(`${runnerOnThird.name} is THROWN OUT at the plate! ${batter.displayName} reaches on a fielder's choice.`);
             }
             newState.bases.third = null; // Runner from third is no longer there.
@@ -3271,7 +3281,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
         } else { // Hold runner
             events.push(`${batter.displayName} grounds out, the runner on third holds.`);
-            newState.outs++;
+            recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
 
             if (newState.outs < 3) {
                  if (runnerOnFirst && runnerOnSecond) { // 1st and 2nd
