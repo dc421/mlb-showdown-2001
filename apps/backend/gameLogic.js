@@ -4,20 +4,6 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-
-function recordOutsForPitcher(state, pitcher, count) {
-    if (!pitcher) return;
-    const pitcherId = pitcher.card_id;
-    if (!state.pitcherStats[pitcherId]) {
-        state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
-    }
-    if (!state.pitcherStats[pitcherId].outs_recorded) {
-        state.pitcherStats[pitcherId].outs_recorded = 0;
-    }
-    state.pitcherStats[pitcherId].outs_recorded += count;
-    state.outs += count;
-}
-
 function recordBatterFaced(state, pitcher) {
     if (!pitcher) return;
     const pitcherId = pitcher.card_id;
@@ -665,13 +651,16 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 }
 
 function recordOutsForPitcher(state, pitcher, count) {
+  state.outs += count;
   if (!pitcher) return;
   const pitcherId = pitcher.card_id;
   if (!state.pitcherStats[pitcherId]) {
     state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
   }
+  if (!state.pitcherStats[pitcherId].outs_recorded) {
+    state.pitcherStats[pitcherId].outs_recorded = 0;
+  }
   state.pitcherStats[pitcherId].outs_recorded += count;
-  state.outs += count;
 }
 
 

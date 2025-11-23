@@ -1200,23 +1200,36 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     let wasReliefPitcher = false;
 
     // 1. Update bases (for pinch runners)
+    // Helper to transfer pitcherOfRecordId
+    const transferProps = (oldRunner, newRunner) => {
+        if (oldRunner && oldRunner.pitcherOfRecordId) {
+            newRunner.pitcherOfRecordId = oldRunner.pitcherOfRecordId;
+        }
+    };
+
     if (newState.bases.first && newState.bases.first.card_id === playerOutId) {
+        transferProps(newState.bases.first, playerInCard);
         newState.bases.first = playerInCard;
         if (newState.currentAtBat.basesBeforePlay.first?.card_id === playerOutId) {
+            transferProps(newState.currentAtBat.basesBeforePlay.first, playerInCard);
             newState.currentAtBat.basesBeforePlay.first = playerInCard;
         }
         wasPinchRunner = true;
     }
     if (newState.bases.second && newState.bases.second.card_id === playerOutId) {
+        transferProps(newState.bases.second, playerInCard);
         newState.bases.second = playerInCard;
         if (newState.currentAtBat.basesBeforePlay.second?.card_id === playerOutId) {
+            transferProps(newState.currentAtBat.basesBeforePlay.second, playerInCard);
             newState.currentAtBat.basesBeforePlay.second = playerInCard;
         }
         wasPinchRunner = true;
     }
     if (newState.bases.third && newState.bases.third.card_id === playerOutId) {
+        transferProps(newState.bases.third, playerInCard);
         newState.bases.third = playerInCard;
         if (newState.currentAtBat.basesBeforePlay.third?.card_id === playerOutId) {
+            transferProps(newState.currentAtBat.basesBeforePlay.third, playerInCard);
             newState.currentAtBat.basesBeforePlay.third = playerInCard;
         }
         wasPinchRunner = true;
