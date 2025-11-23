@@ -893,7 +893,8 @@ const showThrowRollResult = computed(() => {
 });
 
 const showAutoThrowResult = computed(() => {
-    if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult || (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext) || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
+    if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult ||
+     (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext) || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
         return false;
     }
     // This is the key change: if there are multiple runners, show the result immediately
@@ -940,7 +941,7 @@ const showStealResult = computed(() => {
                                  !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
                                  (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
-  const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
+  const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
                                  amIDisplayDefensivePlayer.value &&
                                  (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext));
 
@@ -1727,7 +1728,8 @@ function handleVisibilityChange() {
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) &&
             !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction) &&
-            !isStealAttemptInProgress && !gameStore.gameState?.throwRollResult?.consolidatedOutcome && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
+            !(isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)) &&
+            !isStealAttemptInProgress && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
           <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">

@@ -2775,7 +2775,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
         let logMessage = allEvents.join(' ');
         if (newState.outs > originalOuts) {
-            logMessage += ` Outs: ${newState.outs}`;
+            logMessage += ` <strong>Outs: ${newState.outs}</strong>`;
         }
         newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage, runnerTeamId: offensiveTeam.team_id };
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
