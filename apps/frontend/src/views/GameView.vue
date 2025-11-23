@@ -55,7 +55,7 @@ function isPlayerSubEligible(player) {
     const pitcherStats = gameStore.gameState?.pitcherStats;
     const stats = pitcherStats ? pitcherStats[player.card_id] : null;
     if (!stats) {
-        return true; // Not enough data, assume eligible.
+        return false; // Not enough data, assume ineligible.
     }
 
     // Condition 1: Recorded 12 or more outs (min 4 IP).
@@ -937,8 +937,14 @@ const isRunnerOnOffensiveTeam = computed(() => {
 });
 
 const isDoubleStealResultAvailable = computed(() => {
+    // Prevent stale throwRollResult from masking as a double steal result during a new steal attempt
+    // Only apply this filter if *I* am ready for the next play (caught up), ensuring lagging players still see the old result.
+    if (gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && gameStore.amIReadyForNext) {
+        return false;
+    }
     return !!gameStore.gameState?.throwRollResult?.consolidatedOutcome;
 });
+
 
 const showStealResult = computed(() => {
   const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
