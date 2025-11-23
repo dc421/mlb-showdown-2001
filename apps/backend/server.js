@@ -2499,12 +2499,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // Clear details from the previous play.
       delete newState.stealAttemptDetails;
-      // Explicitly clear outcomes from the previous play to prevent them from persisting into the next at-bat.
-      newState.throwRollResult = null;
-      newState.lastStealResult = null;
-      newState.pendingStealAttempt = null;
-      newState.doublePlayDetails = null;
-
+      
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
       // Logic to advance the batting order.
