@@ -218,6 +218,88 @@ async function getInfieldDefense(defensiveParticipant) {
     return totalDefense;
 }
 
+async function getSuggestedLineup(gameId, userId, dbClient) {
+    try {
+        // 1. Get current game details
+        const gameResult = await dbClient.query('SELECT series_id, game_in_series, use_dh FROM games WHERE game_id = $1', [gameId]);
+        if (gameResult.rows.length === 0) return null;
+        const { series_id, game_in_series, use_dh } = gameResult.rows[0];
+
+        // 2. If not a series or first game, return null
+        if (!series_id || game_in_series <= 1) return null;
+
+        // 3. Find previous game in series with SAME DH rule
+        const sameRuleQuery = `
+            SELECT gp.lineup
+            FROM game_participants gp
+            JOIN games g ON gp.game_id = g.game_id
+            WHERE g.series_id = $1
+              AND gp.user_id = $2
+              AND g.game_in_series < $3
+              AND g.use_dh = $4
+              AND gp.lineup IS NOT NULL
+            ORDER BY g.game_in_series DESC
+            LIMIT 1
+        `;
+        const sameRuleResult = await dbClient.query(sameRuleQuery, [series_id, userId, game_in_series, use_dh]);
+
+        if (sameRuleResult.rows.length > 0) {
+            const battingOrder = sameRuleResult.rows[0].lineup.battingOrder;
+            // Ensure the pitcher spot is a placeholder, so we don't default to the previous game's pitcher
+            return battingOrder.map(spot => {
+                if (spot.position === 'P') {
+                    return { ...spot, card_id: 'PITCHER_PLACEHOLDER' };
+                }
+                return spot;
+            });
+        }
+
+        // 4. If no same-rule game, find the most recent game regardless of rule
+        const anyGameQuery = `
+            SELECT gp.lineup, g.use_dh as prev_use_dh
+            FROM game_participants gp
+            JOIN games g ON gp.game_id = g.game_id
+            WHERE g.series_id = $1
+              AND gp.user_id = $2
+              AND g.game_in_series < $3
+              AND gp.lineup IS NOT NULL
+            ORDER BY g.game_in_series DESC
+            LIMIT 1
+        `;
+        const anyGameResult = await dbClient.query(anyGameQuery, [series_id, userId, game_in_series]);
+
+        if (anyGameResult.rows.length > 0) {
+            const { lineup, prev_use_dh } = anyGameResult.rows[0];
+            let battingOrder = lineup.battingOrder;
+
+            // 5. Adapt the lineup
+            if (prev_use_dh && !use_dh) {
+                // Previous: DH (YES) -> Current: DH (NO)
+                // Need to replace 'DH' with 'P' (placeholder for pitcher)
+                return battingOrder.map(spot => {
+                    if (spot.position === 'DH') {
+                        return { ...spot, position: 'P', card_id: 'PITCHER_PLACEHOLDER' };
+                    }
+                    return spot;
+                });
+            } else if (!prev_use_dh && use_dh) {
+                // Previous: DH (NO) -> Current: DH (YES)
+                // Need to replace 'P' with 'DH' (placeholder for DH)
+                return battingOrder.map(spot => {
+                    if (spot.position === 'P') {
+                         return { ...spot, position: 'DH', card_id: 'DH_PLACEHOLDER' };
+                    }
+                    return spot;
+                });
+            }
+            return battingOrder;
+        }
+    } catch (error) {
+        console.error('Error fetching suggested lineup:', error);
+    }
+    return null;
+}
+
 // --- HELPER FUNCTIONS ---
 
 async function hydrateRosterAssignments(dbClient, roster, rosterId) {
@@ -518,13 +600,16 @@ async function initializePitcherFatigue(gameId, client) {
             let isTired = false;
             let pitchedInPrevGame = false;
 
+            // Check if they pitched in the previous game (Yesterday)
+            if (lastPrevGameState) {
+                const prevGameStats = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
+                pitchedInPrevGame = prevGameStats && (prevGameStats.batters_faced > 0 || (prevGameStats.innings_pitched && prevGameStats.innings_pitched.length > 0));
+            }
+
             if (lastPrevTwoGameState && lastPrevGameState) {
                 // Check if they pitched in both of the last two games
                 // We check the pitcherStats object in the final state of each game.
-                const prevGameStats = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
                 const prevTwoGameStats = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
-
-                pitchedInPrevGame = prevGameStats && (prevGameStats.batters_faced > 0 || (prevGameStats.innings_pitched && prevGameStats.innings_pitched.length > 0));
                 const pitchedInPrevTwoGame = prevTwoGameStats && (prevTwoGameStats.batters_faced > 0 || (prevTwoGameStats.innings_pitched && prevTwoGameStats.innings_pitched.length > 0));
 
                 if (pitchedInPrevGame && pitchedInPrevTwoGame) {
@@ -541,7 +626,10 @@ async function initializePitcherFatigue(gameId, client) {
                 const ipRecorded = stats.innings_pitched ? stats.innings_pitched.length : 0;
                 const fatigueThreshold = reliever.ip - Math.floor(stats.runs / 3);
 
-                if (ipRecorded > fatigueThreshold) {
+                // FIX: A reliever is only considered tired for the NEXT game if they pitched MORE than 1 inning
+                // AND exceeded their threshold. This prevents a reliever who pitched 1 inning but allowed runs (threshold < 1)
+                // from being marked as tired, honoring the rule that you aren't tired if you didn't pitch *while* tired.
+                if (ipRecorded > fatigueThreshold && ipRecorded > 1) {
                     isTired = true;
                 }
             }
@@ -680,11 +768,24 @@ async function handleSeriesProgression(gameId, client, finalState) {
     const nextAwayUserId = nextHomeUserId === series_home_user_id ? series_away_user_id : series_home_user_id;
 
     const lastGameSettings = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
-    const useDhForNextGame = lastGameSettings.rows[0].use_dh;
+    let useDhForNextGame = lastGameSettings.rows[0].use_dh;
+
+    // Series logic:
+    // Game 3: Series Away team becomes Home. Allow them to choose DH rule.
+    // Game 6: Series Home team becomes Home again. Revert to their original DH rule (from Game 1).
+    let nextStatus = 'lineups';
+    if (nextGameNumber === 3) {
+        nextStatus = 'pending';
+    } else if (nextGameNumber === 6) {
+        const game1Settings = await client.query('SELECT use_dh FROM games WHERE series_id = $1 AND game_in_series = 1', [series_id]);
+        if (game1Settings.rows.length > 0) {
+            useDhForNextGame = game1Settings.rows[0].use_dh;
+        }
+    }
 
     const newGameResult = await client.query(
-        `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh) VALUES ('lineups', $1, $2, $3, $4) RETURNING game_id`,
-        [series_id, nextGameNumber, nextHomeUserId, useDhForNextGame]
+        `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh) VALUES ($1, $2, $3, $4, $5) RETURNING game_id`,
+        [nextStatus, series_id, nextGameNumber, nextHomeUserId, useDhForNextGame]
     );
     const newGameId = newGameResult.rows[0].game_id;
 
@@ -1364,16 +1465,20 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     // If we have a valid lineup index, we use that to identify the spot.
     // Otherwise, we fall back to searching by playerOutId (which fails if duplicates exist).
     let spotIndex = -1;
+    // Ensure playerOutId is a number for comparison
+    const playerOutIdNum = Number(playerOutId);
+
     if (typeof lineupIndex === 'number' && lineupIndex >= 0 && lineupIndex < lineup.length) {
         // Safety check: Ensure the player at this index is actually the one we expect to remove.
-        if (lineup[lineupIndex].card_id === playerOutId) {
+        if (Number(lineup[lineupIndex].card_id) === playerOutIdNum) {
             spotIndex = lineupIndex;
         } else {
             console.warn(`[substitute] Lineup index mismatch. Expected card_id ${playerOutId} at index ${lineupIndex}, found ${lineup[lineupIndex].card_id}. Falling back to findIndex.`);
-            spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+            spotIndex = lineup.findIndex(spot => Number(spot.card_id) === playerOutIdNum);
         }
     } else {
-        spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+        // This is the path taken when substituting via the Pitching line (lineupIndex is -1)
+        spotIndex = lineup.findIndex(spot => Number(spot.card_id) === playerOutIdNum);
     }
 
     if (spotIndex > -1) {
@@ -3436,7 +3541,9 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
 
     const { mandatoryPitcherId, unavailablePitcherIds } = await getPitcherAvailability(gameId, userId, pool);
 
-    res.json({ roster_id: rosterId, mandatoryPitcherId, unavailablePitcherIds });
+    const suggestedLineup = await getSuggestedLineup(gameId, userId, pool);
+
+    res.json({ roster_id: rosterId, mandatoryPitcherId, unavailablePitcherIds, suggestedLineup });
 
   } catch (error) {
     console.error(`Error fetching participant info for game ${gameId}:`, error);
