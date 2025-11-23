@@ -68,8 +68,48 @@ const isLineupValid = computed(() => {
 // in src/views/SetLineupView.vue
 
 // in SetLineupView.vue
-function autoPopulateLineup() {
+function autoPopulateLineup(suggestedLineup = null) {
   const savedCards = authStore.activeRosterCards;
+
+  if (suggestedLineup && suggestedLineup.length === 9) {
+      const mappedLineup = suggestedLineup.map(spot => {
+          let player;
+          if (spot.card_id === 'PITCHER_PLACEHOLDER') {
+              player = {
+                  card_id: 'PITCHER_PLACEHOLDER',
+                  displayName: 'Pitcher (Select above)',
+                  displayPosition: 'SP',
+                  control: 5
+              };
+          } else if (spot.card_id === 'DH_PLACEHOLDER') {
+              player = {
+                  card_id: 'DH_PLACEHOLDER',
+                  displayName: 'Select DH',
+                  displayPosition: 'DH',
+                  control: null
+              };
+          } else {
+              player = savedCards.find(c => c.card_id === spot.card_id);
+          }
+
+          if (!player) {
+             player = {
+                  card_id: `missing_${spot.card_id}`,
+                  displayName: 'Player Not In Roster',
+                  displayPosition: '?',
+                  control: null
+             };
+          }
+
+          return {
+              player: player,
+              position: spot.position
+          };
+      });
+
+      battingOrder.value = mappedLineup;
+      return;
+  }
   
   // Filter to get only the players who were assigned to a lineup spot in the Roster Builder.
   let lineupPlayers = savedCards.filter(card => 
@@ -94,9 +134,15 @@ function autoPopulateLineup() {
 
 watch(startingPitcher, (newPitcher) => {
     if (!useDh.value && newPitcher) {
-        battingOrder.value = battingOrder.value.filter(p => p.player.displayPosition !== 'SP' && p.player.displayPosition !== 'RP');
-        if (battingOrder.value.length === 8) {
-            battingOrder.value.push({ player: newPitcher, position: 'P' });
+        const pitcherIndex = battingOrder.value.findIndex(spot => spot.position === 'P' || spot.player.card_id === 'PITCHER_PLACEHOLDER');
+
+        if (pitcherIndex !== -1) {
+             battingOrder.value[pitcherIndex] = { player: newPitcher, position: 'P' };
+        } else {
+            battingOrder.value = battingOrder.value.filter(p => p.player.displayPosition !== 'SP' && p.player.displayPosition !== 'RP');
+            if (battingOrder.value.length === 8) {
+                battingOrder.value.push({ player: newPitcher, position: 'P' });
+            }
         }
     }
 });
@@ -164,10 +210,11 @@ onMounted(async () => {
         // Pass the selectedPointSetId to the action.
         await authStore.fetchRosterDetails(participantInfo.roster_id, authStore.selectedPointSetId);
 
-        autoPopulateLineup();
+        autoPopulateLineup(participantInfo.suggestedLineup);
 
         if (mandatoryPitcherId.value) {
-            const pitcher = startingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
+            // FIX: startingPitchers was undefined. Use allStartingPitchers.
+            const pitcher = allStartingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
             if (pitcher) {
                 startingPitcher.value = pitcher;
             }
