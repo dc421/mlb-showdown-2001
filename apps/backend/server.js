@@ -2495,6 +2495,10 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       newState.doublePlayDetails = null;
+      newState.throwRollResult = null;
+      newState.lastStealResult = null;
+      newState.pendingStealAttempt = null;
+
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
       }
@@ -2638,6 +2642,10 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     // Common state updates for any steal
     newState.currentAtBat.pitcherAction = null;
     newState.currentAtBat.pitchRollResult = null;
+    // Clear any previous results to ensure the UI updates correctly
+    newState.lastStealResult = null;
+    newState.throwRollResult = null;
+    newState.doublePlayDetails = null;
 
     if (newState.outs >= 3 && isSingleSteal && !isSafe && !newState.currentPlay?.payload?.queuedDecisions) {
         if (newState.isTopInning) {
