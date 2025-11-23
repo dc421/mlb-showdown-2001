@@ -2466,11 +2466,10 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       }
 
       // If the inning ended AND we DON'T need a new pitcher, create the change event.
-      // This is the core of the fix: the event is suppressed if `awaiting_lineup_change` is true.
-      if (wasBetweenHalfInnings && !newState.awaiting_lineup_change) {
+      // We always attempt to create the event. createInningChangeEvent validates if we have a pitcher to announce.
+      // This ensures that if we have a valid pitcher but an invalid fielder (e.g. PH at SS), we still announce the inning.
+      if (wasBetweenHalfInnings) {
         await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
-      } else if (wasBetweenHalfInnings && newState.awaiting_lineup_change) {
-          console.log(`[next-hitter] Suppressing inning change event for game ${gameId} due to invalid lineup.`);
       }
 
       // If there is no runner on third base OR there are 2 outs, the infield must be brought back to normal.
