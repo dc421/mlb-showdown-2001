@@ -1481,12 +1481,14 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         spotIndex = lineup.findIndex(spot => Number(spot.card_id) === playerOutIdNum);
     }
 
+    // Fetch DH rule to handle position overrides
+    const gameConfigResult = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
+    const useDh = gameConfigResult.rows[0]?.use_dh;
+
     if (spotIndex === -1) {
         // Fallback: In No-DH games, if the pitcher was previously PH/PR'd for,
         // their ID is gone from the lineup, but we need to put the new pitcher
         // into the "Pitcher's Spot".
-        const gameConfigResult = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
-        const useDh = gameConfigResult.rows[0]?.use_dh;
 
         if (useDh === false) { // Explicit check for false (No-DH)
             // 1. Try to find a spot strictly labeled 'P' (maybe a double switch moved it?)
@@ -1520,7 +1522,15 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         // Only update the defensive position for other substitutions,
         // not for a pinch-runner who hasn't taken the field yet.
         else if (!wasPinchRunner || wasPinchHitter) {
-            lineup[spotIndex].position = position;
+            let newPosition = position;
+            // In No-DH games, if a pitcher is brought in defensively (not as a pinch hitter),
+            // and they are replacing a PH/PR/P, force their position to 'P'.
+            // This handles cases where the previous P was pinch-hit for (slot became PH),
+            // and now a new P is entering.
+            if (!isOffensiveSub && useDh === false && playerInCard.control !== null && ['PH', 'PR', 'P'].includes(position)) {
+                newPosition = 'P';
+            }
+            lineup[spotIndex].position = newPosition;
         }
     }
 
