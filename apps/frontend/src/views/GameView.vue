@@ -909,6 +909,10 @@ const showAutoThrowResult = computed(() => {
 
 // NEW: This computed specifically controls the visibility of the steal result box.
 const isRunnerOnOffensiveTeam = computed(() => {
+  if (isDoubleStealResultAvailable.value) {
+    return true;
+  }
+
   if(!gameStore.gameState?.lastStealResult && gameStore.gameState?.pendingStealAttempt && !gameStore.inningEndedOnCaughtStealing){
     return true
   }
