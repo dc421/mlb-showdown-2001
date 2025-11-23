@@ -34,6 +34,9 @@ const choices = ref({});
 const selectedCard = ref(null);
 const black = ref('#000000');
 
+// NEW: Computed property for DH rule
+const useDh = computed(() => gameStore.game?.use_dh !== false);
+
 // New state for the substitution flow
 const isSubModeActive = ref(false);
 const playerToSubOut = ref(null);
@@ -1966,7 +1969,7 @@ function handleVisibilityChange() {
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
+          <div v-if="useDh" class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
             <hr />
             <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P', -1, 'pitcher')"
                   class="sub-icon"
@@ -2062,7 +2065,7 @@ function handleVisibilityChange() {
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info">
+          <div v-if="useDh" class="pitcher-info">
               <hr />
               <span @click="selectedCard = rightPanelData.pitcher">
                 <strong :style="{ color: black }">Pitching: </strong>

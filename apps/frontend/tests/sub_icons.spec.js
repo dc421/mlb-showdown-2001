@@ -131,7 +131,10 @@ test.describe('Substitution Icon Visibility', () => {
     await expect(page.locator('.sub-icon.visible').first()).toBeVisible();
 
     // CHECK 1: SP Sub Icon should NOT be visible because SP is locked (only 1 IP, need 4 IP or fatigue)
+    // The pitcher-info container might be hidden if use_dh logic defaults incorrectly, ensuring it's visible first.
+    // Wait, if use_dh is default true (undefined != false), it should be visible.
     const spSubIcon = page.locator('.pitcher-info .sub-icon');
+    await expect(spSubIcon).toBeVisible();
     await expect(spSubIcon).not.toHaveClass(/visible/);
 
     // CHECK 2: Bullpen icons should be HIDDEN if SP is locked
