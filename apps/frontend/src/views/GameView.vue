@@ -55,7 +55,7 @@ function isPlayerSubEligible(player) {
     const pitcherStats = gameStore.gameState?.pitcherStats;
     const stats = pitcherStats ? pitcherStats[player.card_id] : null;
     if (!stats) {
-        return true; // Not enough data, assume eligible.
+        return false; // Not enough data, assume ineligible (hasn't pitched yet).
     }
 
     // Condition 1: Recorded 12 or more outs (min 4 IP).
