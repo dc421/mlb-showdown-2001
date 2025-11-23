@@ -1459,16 +1459,20 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     // If we have a valid lineup index, we use that to identify the spot.
     // Otherwise, we fall back to searching by playerOutId (which fails if duplicates exist).
     let spotIndex = -1;
+    // Ensure playerOutId is a number for comparison
+    const playerOutIdNum = Number(playerOutId);
+
     if (typeof lineupIndex === 'number' && lineupIndex >= 0 && lineupIndex < lineup.length) {
         // Safety check: Ensure the player at this index is actually the one we expect to remove.
-        if (lineup[lineupIndex].card_id === playerOutId) {
+        if (Number(lineup[lineupIndex].card_id) === playerOutIdNum) {
             spotIndex = lineupIndex;
         } else {
             console.warn(`[substitute] Lineup index mismatch. Expected card_id ${playerOutId} at index ${lineupIndex}, found ${lineup[lineupIndex].card_id}. Falling back to findIndex.`);
-            spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+            spotIndex = lineup.findIndex(spot => Number(spot.card_id) === playerOutIdNum);
         }
     } else {
-        spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+        // This is the path taken when substituting via the Pitching line (lineupIndex is -1)
+        spotIndex = lineup.findIndex(spot => Number(spot.card_id) === playerOutIdNum);
     }
 
     if (spotIndex > -1) {
