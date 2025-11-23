@@ -2173,12 +2173,6 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     const events = [];
 
     if (action === 'intentional_walk') {
-        // --- THIS IS THE FIX ---
-        // Clear previous play results to prevent them from sticking
-        currentState.lastStealResult = null;
-        currentState.pendingStealAttempt = null;
-        currentState.throwRollResult = null;
-
         // Add the scores before the outcome is applied.
         currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
         currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
@@ -2419,6 +2413,11 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // Clear details from the previous play.
       delete newState.stealAttemptDetails;
+      // Explicitly clear outcomes from the previous play to prevent them from persisting into the next at-bat.
+      newState.throwRollResult = null;
+      newState.lastStealResult = null;
+      newState.pendingStealAttempt = null;
+      newState.doublePlayDetails = null;
 
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
