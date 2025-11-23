@@ -9,7 +9,7 @@ function recordOutsForPitcher(state, pitcher, count) {
     if (!pitcher) return;
     const pitcherId = pitcher.card_id;
     if (!state.pitcherStats[pitcherId]) {
-        state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0 };
+        state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
     }
     if (!state.pitcherStats[pitcherId].outs_recorded) {
         state.pitcherStats[pitcherId].outs_recorded = 0;
@@ -18,9 +18,24 @@ function recordOutsForPitcher(state, pitcher, count) {
     state.outs += count;
 }
 
+function recordBatterFaced(state, pitcher) {
+    if (!pitcher) return;
+    const pitcherId = pitcher.card_id;
+    if (!state.pitcherStats[pitcherId]) {
+        state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
+    }
+    if (state.pitcherStats[pitcherId].batters_faced === undefined) {
+        state.pitcherStats[pitcherId].batters_faced = 0;
+    }
+    state.pitcherStats[pitcherId].batters_faced += 1;
+}
+
 function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null, teamInfo = {}) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+
+  // Record that the pitcher faced a batter
+  recordBatterFaced(newState, pitcher);
 
   const recordOuts = (count) => {
     recordOutsForPitcher(newState, pitcher, count);
@@ -48,7 +63,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     if (newState.pitcherStats[pitcherId]) {
       newState.pitcherStats[pitcherId].runs++;
     } else {
-      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0 };
+      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0, batters_faced: 0 };
     }
 
     if (generateLog) {
@@ -653,7 +668,7 @@ function recordOutsForPitcher(state, pitcher, count) {
   if (!pitcher) return;
   const pitcherId = pitcher.card_id;
   if (!state.pitcherStats[pitcherId]) {
-    state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0 };
+    state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
   }
   state.pitcherStats[pitcherId].outs_recorded += count;
   state.outs += count;
@@ -784,4 +799,4 @@ function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHom
     return logMessage;
 }
 
-module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher: recordOutsForPitcher };
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher: recordOutsForPitcher, recordBatterFaced };
