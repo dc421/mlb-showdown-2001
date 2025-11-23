@@ -1397,6 +1397,10 @@ function handleOffensiveAction(action) {
   console.log('1. GameView: handleOffensiveAction was called with action:', action);
   if (action === 'bunt') {
     gameStore.setIsSwingResultVisible(true);
+  } else {
+    // Reset visibility for swing to ensure the user must "Roll" to see the result,
+    // even if a previous play (like a steal) left the visibility flag true.
+    gameStore.setIsSwingResultVisible(false);
   }
   gameStore.submitAction(gameId, action);
 }
