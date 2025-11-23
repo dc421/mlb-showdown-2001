@@ -1475,6 +1475,35 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         spotIndex = lineup.findIndex(spot => Number(spot.card_id) === playerOutIdNum);
     }
 
+    if (spotIndex === -1) {
+        // Fallback: In No-DH games, if the pitcher was previously PH/PR'd for,
+        // their ID is gone from the lineup, but we need to put the new pitcher
+        // into the "Pitcher's Spot".
+        const gameConfigResult = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
+        const useDh = gameConfigResult.rows[0]?.use_dh;
+
+        if (useDh === false) { // Explicit check for false (No-DH)
+            // 1. Try to find a spot strictly labeled 'P' (maybe a double switch moved it?)
+            spotIndex = lineup.findIndex(spot => spot.position === 'P');
+
+            if (spotIndex === -1) {
+                 // 2. Look for 'PH' or 'PR' spots. These are the likely candidates for the pitcher's spot.
+                 const candidateIndices = lineup
+                    .map((spot, index) => ({ ...spot, index }))
+                    .filter(spot => ['PH', 'PR'].includes(spot.position))
+                    .map(s => s.index);
+
+                 if (candidateIndices.length === 1) {
+                     spotIndex = candidateIndices[0];
+                 } else if (candidateIndices.includes(8)) {
+                     spotIndex = 8;
+                 } else if (candidateIndices.length > 0) {
+                     spotIndex = candidateIndices[0];
+                 }
+            }
+        }
+    }
+
     if (spotIndex > -1) {
         lineup[spotIndex].card_id = playerInCard.card_id;
         // If a pinch hitter just came in for the pitcher, mark their position as 'PH'.
