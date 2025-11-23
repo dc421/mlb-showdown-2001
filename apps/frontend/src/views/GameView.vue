@@ -1016,7 +1016,14 @@ const awayTeamColors = computed(() => {
 
 const eventsForLog = computed(() => {
     // This logic is now centralized in the store's `gameEventsToDisplay` computed property.
-    return gameStore.gameEventsToDisplay;
+    let events = gameStore.gameEventsToDisplay;
+
+    // Mask the last event if the defensive player is waiting to roll for a throw.
+    // This prevents the result (Safe/Out) from being seen in the log before the roll is "performed".
+    if (showDefensiveRollForThrowButton.value && events.length > 0) {
+        return events.slice(0, -1);
+    }
+    return events;
 });
 
 
