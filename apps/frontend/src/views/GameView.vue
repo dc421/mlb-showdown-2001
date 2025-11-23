@@ -954,8 +954,9 @@ const showStealResult = computed(() => {
                                  (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
   const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
-                                 amIDisplayDefensivePlayer.value &&
-                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext));
+                                 amIDisplayDefensivePlayer.value
+                                 // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
+                                 ;
 
   return offensivePlayerCondition || defensivePlayerCondition;
 });
@@ -1188,7 +1189,7 @@ const batterToDisplay = computed(() => {
 const pitcherToDisplay = computed(() => {
     // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
     // change just happened), we should not show any pitcher, forcing the "TBD" state.
-    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && gameStore.displayGameState.outsToDisplay===0) {
+    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && outsToDisplay.value===0) {
         return null;
     }
     if (isGameOver.value) {

@@ -626,11 +626,11 @@ async function initializePitcherFatigue(gameId, client) {
                 const ipRecorded = stats.innings_pitched ? stats.innings_pitched.length : 0;
                 const fatigueThreshold = reliever.ip - Math.floor(stats.runs / 3);
 
-                // FIX: A reliever is only considered tired for the NEXT game if they pitched MORE than 1 inning
-                // AND exceeded their threshold. This prevents a reliever who pitched 1 inning but allowed runs (threshold < 1)
-                // from being marked as tired, honoring the rule that you aren't tired if you didn't pitch *while* tired.
-                if (ipRecorded > fatigueThreshold && ipRecorded > 1) {
-                    isTired = true;
+                // FIX: A reliever is considered tired if they pitched while tired (flagged during game)
+                if (ipRecorded > fatigueThreshold) {
+                    if (stats.pitchedWhileTired) {
+                        isTired = true;
+                    }
                 }
             }
 
@@ -2417,6 +2417,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
             const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
             if (inningsPitchedCount > fatigueThreshold) {
                 controlPenalty = inningsPitchedCount - fatigueThreshold;
+                // If they are pitching with a penalty, mark them as having pitched while tired.
+                // This is used for series fatigue calculations.
+                if (finalState.pitcherStats && finalState.pitcherStats[pitcherId]) {
+                    finalState.pitcherStats[pitcherId].pitchedWhileTired = true;
+                }
             }
         }
         // --- END FIX ---
