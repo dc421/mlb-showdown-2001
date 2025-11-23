@@ -1539,7 +1539,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
     const gamesResult = await pool.query(
-      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id, g.game_in_series
+      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id, g.game_in_series, g.created_at, g.completed_at
        FROM games g JOIN game_participants gp ON g.game_id = gp.game_id 
        WHERE gp.user_id = $1 ORDER BY g.created_at DESC`,
       [userId]
