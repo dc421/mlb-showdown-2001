@@ -518,13 +518,16 @@ async function initializePitcherFatigue(gameId, client) {
             let isTired = false;
             let pitchedInPrevGame = false;
 
+            // Check if they pitched in the previous game (Yesterday)
+            if (lastPrevGameState) {
+                const prevGameStats = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
+                pitchedInPrevGame = prevGameStats && (prevGameStats.batters_faced > 0 || (prevGameStats.innings_pitched && prevGameStats.innings_pitched.length > 0));
+            }
+
             if (lastPrevTwoGameState && lastPrevGameState) {
                 // Check if they pitched in both of the last two games
                 // We check the pitcherStats object in the final state of each game.
-                const prevGameStats = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
                 const prevTwoGameStats = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
-
-                pitchedInPrevGame = prevGameStats && (prevGameStats.batters_faced > 0 || (prevGameStats.innings_pitched && prevGameStats.innings_pitched.length > 0));
                 const pitchedInPrevTwoGame = prevTwoGameStats && (prevTwoGameStats.batters_faced > 0 || (prevTwoGameStats.innings_pitched && prevTwoGameStats.innings_pitched.length > 0));
 
                 if (pitchedInPrevGame && pitchedInPrevTwoGame) {
@@ -541,7 +544,10 @@ async function initializePitcherFatigue(gameId, client) {
                 const ipRecorded = stats.innings_pitched ? stats.innings_pitched.length : 0;
                 const fatigueThreshold = reliever.ip - Math.floor(stats.runs / 3);
 
-                if (ipRecorded > fatigueThreshold) {
+                // FIX: A reliever is only considered tired for the NEXT game if they pitched MORE than 1 inning
+                // AND exceeded their threshold. This prevents a reliever who pitched 1 inning but allowed runs (threshold < 1)
+                // from being marked as tired, honoring the rule that you aren't tired if you didn't pitch *while* tired.
+                if (ipRecorded > fatigueThreshold && ipRecorded > 1) {
                     isTired = true;
                 }
             }
