@@ -186,9 +186,36 @@ async function handleSubmission() {
     hasSubmitted.value = true; // Show the waiting message
 }
 
+async function checkLineupStatus() {
+    try {
+        const response = await fetch(`${authStore.API_URL}/api/games/${gameId}/my-lineup`, {
+            headers: { 'Authorization': `Bearer ${authStore.token}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.hasLineup) {
+                hasSubmitted.value = true;
+            }
+        }
+    } catch (error) {
+        console.error("Error checking lineup status:", error);
+    }
+}
+
 // in SetLineupView.vue
 onMounted(async () => {
+    // 1. Immediately join the room and set up the listener.
+    // This ensures we don't miss the event if the data fetching takes time.
     socket.emit('join-game-room', gameId);
+    socket.on('game-starting', () => {
+        console.log('Received game-starting event. Redirecting...');
+        router.push(`/game/${gameId}`);
+    });
+
+    // 2. Check if we already submitted (handles page refresh)
+    await checkLineupStatus();
+
+    // 3. Fetch game data
     await gameStore.fetchGame(gameId);
 
     // This is the fix: Ensure point sets are loaded before proceeding.
@@ -210,11 +237,12 @@ onMounted(async () => {
         // Pass the selectedPointSetId to the action.
         await authStore.fetchRosterDetails(participantInfo.roster_id, authStore.selectedPointSetId);
 
-        autoPopulateLineup(participantInfo.suggestedLineup);
+        if (!hasSubmitted.value) {
+             autoPopulateLineup();
+        }
 
         if (mandatoryPitcherId.value) {
-            // FIX: startingPitchers was undefined. Use allStartingPitchers.
-            const pitcher = allStartingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
+            const pitcher = starters.value.find(p => p.card_id === mandatoryPitcherId.value);
             if (pitcher) {
                 startingPitcher.value = pitcher;
             }
@@ -222,10 +250,6 @@ onMounted(async () => {
     } else {
         console.error('CRITICAL ERROR: Missing participant info, roster_id, or selectedPointSetId.');
     }
-
-    socket.on('game-starting', () => {
-        router.push(`/game/${gameId}`);
-    });
 });
 
 onUnmounted(() => {
