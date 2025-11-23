@@ -218,6 +218,88 @@ async function getInfieldDefense(defensiveParticipant) {
     return totalDefense;
 }
 
+async function getSuggestedLineup(gameId, userId, dbClient) {
+    try {
+        // 1. Get current game details
+        const gameResult = await dbClient.query('SELECT series_id, game_in_series, use_dh FROM games WHERE game_id = $1', [gameId]);
+        if (gameResult.rows.length === 0) return null;
+        const { series_id, game_in_series, use_dh } = gameResult.rows[0];
+
+        // 2. If not a series or first game, return null
+        if (!series_id || game_in_series <= 1) return null;
+
+        // 3. Find previous game in series with SAME DH rule
+        const sameRuleQuery = `
+            SELECT gp.lineup
+            FROM game_participants gp
+            JOIN games g ON gp.game_id = g.game_id
+            WHERE g.series_id = $1
+              AND gp.user_id = $2
+              AND g.game_in_series < $3
+              AND g.use_dh = $4
+              AND gp.lineup IS NOT NULL
+            ORDER BY g.game_in_series DESC
+            LIMIT 1
+        `;
+        const sameRuleResult = await dbClient.query(sameRuleQuery, [series_id, userId, game_in_series, use_dh]);
+
+        if (sameRuleResult.rows.length > 0) {
+            const battingOrder = sameRuleResult.rows[0].lineup.battingOrder;
+            // Ensure the pitcher spot is a placeholder, so we don't default to the previous game's pitcher
+            return battingOrder.map(spot => {
+                if (spot.position === 'P') {
+                    return { ...spot, card_id: 'PITCHER_PLACEHOLDER' };
+                }
+                return spot;
+            });
+        }
+
+        // 4. If no same-rule game, find the most recent game regardless of rule
+        const anyGameQuery = `
+            SELECT gp.lineup, g.use_dh as prev_use_dh
+            FROM game_participants gp
+            JOIN games g ON gp.game_id = g.game_id
+            WHERE g.series_id = $1
+              AND gp.user_id = $2
+              AND g.game_in_series < $3
+              AND gp.lineup IS NOT NULL
+            ORDER BY g.game_in_series DESC
+            LIMIT 1
+        `;
+        const anyGameResult = await dbClient.query(anyGameQuery, [series_id, userId, game_in_series]);
+
+        if (anyGameResult.rows.length > 0) {
+            const { lineup, prev_use_dh } = anyGameResult.rows[0];
+            let battingOrder = lineup.battingOrder;
+
+            // 5. Adapt the lineup
+            if (prev_use_dh && !use_dh) {
+                // Previous: DH (YES) -> Current: DH (NO)
+                // Need to replace 'DH' with 'P' (placeholder for pitcher)
+                return battingOrder.map(spot => {
+                    if (spot.position === 'DH') {
+                        return { ...spot, position: 'P', card_id: 'PITCHER_PLACEHOLDER' };
+                    }
+                    return spot;
+                });
+            } else if (!prev_use_dh && use_dh) {
+                // Previous: DH (NO) -> Current: DH (YES)
+                // Need to replace 'P' with 'DH' (placeholder for DH)
+                return battingOrder.map(spot => {
+                    if (spot.position === 'P') {
+                         return { ...spot, position: 'DH', card_id: 'DH_PLACEHOLDER' };
+                    }
+                    return spot;
+                });
+            }
+            return battingOrder;
+        }
+    } catch (error) {
+        console.error('Error fetching suggested lineup:', error);
+    }
+    return null;
+}
+
 // --- HELPER FUNCTIONS ---
 
 async function hydrateRosterAssignments(dbClient, roster, rosterId) {
@@ -3449,7 +3531,9 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
 
     const { mandatoryPitcherId, unavailablePitcherIds } = await getPitcherAvailability(gameId, userId, pool);
 
-    res.json({ roster_id: rosterId, mandatoryPitcherId, unavailablePitcherIds });
+    const suggestedLineup = await getSuggestedLineup(gameId, userId, pool);
+
+    res.json({ roster_id: rosterId, mandatoryPitcherId, unavailablePitcherIds, suggestedLineup });
 
   } catch (error) {
     console.error(`Error fetching participant info for game ${gameId}:`, error);
