@@ -2490,7 +2490,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       newState.doublePlayDetails = null;
-      newState.currentPlay = null;
+      if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
+        newState.currentPlay = null;
+      }
     }
     
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
