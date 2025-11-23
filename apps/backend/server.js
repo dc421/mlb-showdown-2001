@@ -680,11 +680,24 @@ async function handleSeriesProgression(gameId, client, finalState) {
     const nextAwayUserId = nextHomeUserId === series_home_user_id ? series_away_user_id : series_home_user_id;
 
     const lastGameSettings = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
-    const useDhForNextGame = lastGameSettings.rows[0].use_dh;
+    let useDhForNextGame = lastGameSettings.rows[0].use_dh;
+
+    // Series logic:
+    // Game 3: Series Away team becomes Home. Allow them to choose DH rule.
+    // Game 6: Series Home team becomes Home again. Revert to their original DH rule (from Game 1).
+    let nextStatus = 'lineups';
+    if (nextGameNumber === 3) {
+        nextStatus = 'pending';
+    } else if (nextGameNumber === 6) {
+        const game1Settings = await client.query('SELECT use_dh FROM games WHERE series_id = $1 AND game_in_series = 1', [series_id]);
+        if (game1Settings.rows.length > 0) {
+            useDhForNextGame = game1Settings.rows[0].use_dh;
+        }
+    }
 
     const newGameResult = await client.query(
-        `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh) VALUES ('lineups', $1, $2, $3, $4) RETURNING game_id`,
-        [series_id, nextGameNumber, nextHomeUserId, useDhForNextGame]
+        `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh) VALUES ($1, $2, $3, $4, $5) RETURNING game_id`,
+        [nextStatus, series_id, nextGameNumber, nextHomeUserId, useDhForNextGame]
     );
     const newGameId = newGameResult.rows[0].game_id;
 
