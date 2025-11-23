@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher } = require('./gameLogic');
+const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher, recordBatterFaced } = require('./gameLogic');
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
@@ -315,9 +315,12 @@ function updatePitcherFatigueForNewInning(state, pitcher) {
     }
     const pitcherId = pitcher.card_id;
 
-    let stats = state.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    let stats = state.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0, batters_faced: 0 };
     if (!stats.innings_pitched) {
         stats.innings_pitched = [];
+    }
+    if (stats.batters_faced === undefined) {
+        stats.batters_faced = 0;
     }
 
     // Track unique innings pitched by directly modifying the state
@@ -518,8 +521,11 @@ async function initializePitcherFatigue(gameId, client) {
             if (lastPrevTwoGameState && lastPrevGameState) {
                 // Check if they pitched in both of the last two games
                 // We check the pitcherStats object in the final state of each game.
-                pitchedInPrevGame = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
-                const pitchedInPrevTwoGame = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
+                const prevGameStats = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
+                const prevTwoGameStats = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
+
+                pitchedInPrevGame = prevGameStats && (prevGameStats.batters_faced > 0 || (prevGameStats.innings_pitched && prevGameStats.innings_pitched.length > 0));
+                const pitchedInPrevTwoGame = prevTwoGameStats && (prevTwoGameStats.batters_faced > 0 || (prevTwoGameStats.innings_pitched && prevTwoGameStats.innings_pitched.length > 0));
 
                 if (pitchedInPrevGame && pitchedInPrevTwoGame) {
                     isTired = true;
@@ -1088,7 +1094,7 @@ function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, star
 
 app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
-  const { playerInId, playerOutId, position } = req.body;
+  const { playerInId, playerOutId, position, lineupIndex } = req.body;
   const userId = req.user.userId;
   const client = await pool.connect();
 
@@ -1233,6 +1239,57 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const isSubForBatter = newState.currentAtBat.batter.card_id === playerOutId;
     const isSubForPitcherOnMound = newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId;
 
+    // --- RELIEVER FATIGUE FIX ---
+    // If a pitcher is being removed (whether offensive or defensive sub), check if they faced any batters in the current inning.
+    if (playerOutCard.control !== null) {
+        try {
+            const startOfInningStateResult = await client.query(
+                `SELECT state_data FROM game_states
+                 WHERE game_id = $1
+                 AND state_data->>'inning' = $2
+                 AND state_data->>'isTopInning' = $3
+                 ORDER BY turn_number ASC LIMIT 1`,
+                [gameId, newState.inning.toString(), newState.isTopInning.toString()]
+            );
+
+            if (startOfInningStateResult.rows.length > 0) {
+                const startState = startOfInningStateResult.rows[0].state_data;
+                const pitcherId = playerOutCard.card_id;
+
+                const startBattersFaced = (startState.pitcherStats && startState.pitcherStats[pitcherId])
+                    ? (startState.pitcherStats[pitcherId].batters_faced || 0)
+                    : 0;
+
+                const currentBattersFaced = (newState.pitcherStats && newState.pitcherStats[pitcherId])
+                    ? (newState.pitcherStats[pitcherId].batters_faced || 0)
+                    : 0;
+
+                // If batters faced count hasn't changed since the start of the inning,
+                // remove the current inning from their innings_pitched stats.
+                if (currentBattersFaced === startBattersFaced) {
+                    if (newState.pitcherStats && newState.pitcherStats[pitcherId] && newState.pitcherStats[pitcherId].innings_pitched) {
+                        newState.pitcherStats[pitcherId].innings_pitched = newState.pitcherStats[pitcherId].innings_pitched.filter(i => i !== newState.inning);
+                    }
+                }
+            } else {
+                // If we can't find the start of the inning (e.g. game just started),
+                // and batters_faced is 0, we can safely remove the inning.
+                 const pitcherId = playerOutCard.card_id;
+                 const currentBattersFaced = (newState.pitcherStats && newState.pitcherStats[pitcherId])
+                    ? (newState.pitcherStats[pitcherId].batters_faced || 0)
+                    : 0;
+                 if (currentBattersFaced === 0) {
+                     if (newState.pitcherStats && newState.pitcherStats[pitcherId] && newState.pitcherStats[pitcherId].innings_pitched) {
+                        newState.pitcherStats[pitcherId].innings_pitched = newState.pitcherStats[pitcherId].innings_pitched.filter(i => i !== newState.inning);
+                    }
+                 }
+            }
+        } catch (err) {
+            console.error('Error checking pitcher fatigue removal:', err);
+        }
+    }
+    // --- END FIX ---
+
     // --- REVISED SUBSTITUTION LOGIC ---
     // This logic differentiates between offensive and defensive substitutions to prevent
     // corrupting the `currentAtBat` object.
@@ -1302,7 +1359,23 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
     */
     const lineup = participant.lineup.battingOrder;
-    const spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+
+    // REVISED SUBSTITUTION LOGIC (Fix for Replacement Hitter Bug)
+    // If we have a valid lineup index, we use that to identify the spot.
+    // Otherwise, we fall back to searching by playerOutId (which fails if duplicates exist).
+    let spotIndex = -1;
+    if (typeof lineupIndex === 'number' && lineupIndex >= 0 && lineupIndex < lineup.length) {
+        // Safety check: Ensure the player at this index is actually the one we expect to remove.
+        if (lineup[lineupIndex].card_id === playerOutId) {
+            spotIndex = lineupIndex;
+        } else {
+            console.warn(`[substitute] Lineup index mismatch. Expected card_id ${playerOutId} at index ${lineupIndex}, found ${lineup[lineupIndex].card_id}. Falling back to findIndex.`);
+            spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+        }
+    } else {
+        spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+    }
+
     if (spotIndex > -1) {
         lineup[spotIndex].card_id = playerInCard.card_id;
         // If a pinch hitter just came in for the pitcher, mark their position as 'PH'.
@@ -2506,9 +2579,6 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Now that both players have acknowledged the result, clear the details.
       newState.doublePlayDetails = null;
-      newState.throwRollResult = null;
-      newState.lastStealResult = null;
-      newState.pendingStealAttempt = null;
 
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
@@ -2653,10 +2723,6 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     // Common state updates for any steal
     newState.currentAtBat.pitcherAction = null;
     newState.currentAtBat.pitchRollResult = null;
-    // Clear any previous results to ensure the UI updates correctly
-    newState.lastStealResult = null;
-    newState.throwRollResult = null;
-    newState.doublePlayDetails = null;
 
     if (newState.outs >= 3 && isSingleSteal && !isSafe && !newState.currentPlay?.payload?.queuedDecisions) {
         if (newState.isTopInning) {

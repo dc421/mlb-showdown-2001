@@ -134,7 +134,8 @@ async function handleSubstitution(playerIn) {
     await gameStore.submitSubstitution(gameId, {
         playerInId: playerIn.card_id,
         playerOutId: gameStore.playerSelectedForSwap.card_id,
-        position: playerToSubOut.value.position // Position comes from the player being subbed out
+        position: playerToSubOut.value.position, // Position comes from the player being subbed out
+        lineupIndex: playerToSubOut.value.source === 'lineup' ? playerToSubOut.value.index : -1
     });
 
     // Reset the substitution state completely
