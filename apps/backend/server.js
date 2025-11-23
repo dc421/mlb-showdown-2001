@@ -1094,7 +1094,7 @@ function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, star
 
 app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
-  const { playerInId, playerOutId, position } = req.body;
+  const { playerInId, playerOutId, position, lineupIndex } = req.body;
   const userId = req.user.userId;
   const client = await pool.connect();
 
@@ -1346,7 +1346,23 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     }
     */
     const lineup = participant.lineup.battingOrder;
-    const spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+
+    // REVISED SUBSTITUTION LOGIC (Fix for Replacement Hitter Bug)
+    // If we have a valid lineup index, we use that to identify the spot.
+    // Otherwise, we fall back to searching by playerOutId (which fails if duplicates exist).
+    let spotIndex = -1;
+    if (typeof lineupIndex === 'number' && lineupIndex >= 0 && lineupIndex < lineup.length) {
+        // Safety check: Ensure the player at this index is actually the one we expect to remove.
+        if (lineup[lineupIndex].card_id === playerOutId) {
+            spotIndex = lineupIndex;
+        } else {
+            console.warn(`[substitute] Lineup index mismatch. Expected card_id ${playerOutId} at index ${lineupIndex}, found ${lineup[lineupIndex].card_id}. Falling back to findIndex.`);
+            spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+        }
+    } else {
+        spotIndex = lineup.findIndex(spot => spot.card_id === playerOutId);
+    }
+
     if (spotIndex > -1) {
         lineup[spotIndex].card_id = playerInCard.card_id;
         // If a pinch hitter just came in for the pitcher, mark their position as 'PH'.
