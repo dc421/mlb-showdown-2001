@@ -2174,6 +2174,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
 
     if (action === 'intentional_walk') {
         // --- THIS IS THE FIX ---
+        // Clear previous play results to prevent them from sticking
+        currentState.lastStealResult = null;
+        currentState.pendingStealAttempt = null;
+        currentState.throwRollResult = null;
+
         // Add the scores before the outcome is applied.
         currentState.currentAtBat.homeScoreBeforePlay = currentState.homeScore;
         currentState.currentAtBat.awayScoreBeforePlay = currentState.awayScore;
