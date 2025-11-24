@@ -956,7 +956,7 @@ const showStealResult = computed(() => {
                                  !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
                                  (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
-  const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
+  const defensivePlayerCondition = ((!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
                                  amIDisplayDefensivePlayer.value
                                  // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
                                  ;
@@ -1419,7 +1419,6 @@ function handleInitiateSteal(decisions) {
 
 function handlePitch(action = null) {
   console.log('1. GameView: handlePitch function was called.');
-  defensiveThrowRollClicked.value = false;
   gameStore.submitPitch(gameId, action);
 }
 function handleOffensiveAction(action) {
