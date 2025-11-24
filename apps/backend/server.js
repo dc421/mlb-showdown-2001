@@ -1121,13 +1121,17 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         [gameId, 1, 'system', inningChangeEvent]
       );
 
+    }
+
+    await client.query('COMMIT');
+
+    if (allParticipants.rows.length === 2 && allParticipants.rows.every(p => p.lineup !== null)) {
       console.log(`--- BACKEND: Emitting 'game-starting' to room ${gameId} ---`);
       io.to(gameId).emit('game-starting');
     } else {
       io.to(gameId).emit('lineup-submitted');
     }
 
-    await client.query('COMMIT');
     res.status(200).json({ message: 'Lineup saved successfully.' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -3110,7 +3114,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             newState = resolvedState;
 
             const batterOnFirst = newState.bases.first;
-            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
+            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult?.outcome === '1B+') {
                 newState.bases.second = batterOnFirst;
                 newState.bases.first = null;
                 const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
@@ -3166,6 +3170,20 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                     return `${d.runner.name} holds at ${getOrdinal(holdBase)}.`;
                 });
                 initialEvent += ` ${heldMessages.join(' ')}`;
+            }
+
+            const batterOnFirst = newState.bases.first;
+            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
+                newState.bases.second = batterOnFirst;
+                newState.bases.first = null;
+                const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
+
+                // Append this event to the initial event if possible, or create a new one.
+                // Here we just append it to initialEvent for the log.
+                initialEvent = initialEvent ? `${initialEvent} ${stealEvent}` : stealEvent;
+
+                // We also need to explicitly log it if we aren't creating a consolidated event below?
+                // The block below logs `initialEvent`. So modifying `initialEvent` is sufficient.
             }
 
             if (initialEvent) {
