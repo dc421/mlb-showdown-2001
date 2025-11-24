@@ -1384,7 +1384,12 @@ const seriesStatusText = computed(() => {
 
 function proceedToNextGame() {
     if (nextGameId.value) {
-        router.push(`/game/${nextGameId.value}/lineup`);
+        // If the current game is Game 2 of a series, the next game (Game 3) requires setup (DH rule selection).
+        if (gameStore.game?.game_in_series === 2) {
+            router.push(`/game/${nextGameId.value}/setup`);
+        } else {
+            router.push(`/game/${nextGameId.value}/lineup`);
+        }
     }
 }
 
@@ -1480,7 +1485,12 @@ const isStealAttemptInProgress = computed(() => {
     // Logic: If opponent IS ready (advanced) and I am NOT ready, hide the steal.
     const isViewingPastTurn = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
 
-    return (isSingleStealInProgress || isDoubleStealInProgress) && !showStealResult.value && !isViewingPastTurn;
+    // FIX: Allow the steal attempt to be "in progress" even if we are showing a result (showStealResult=true),
+    // provided that we have BOTH a past result (lastStealResult) AND a pending one (pendingStealAttempt).
+    // This allows the "ROLL FOR THROW" button to appear below the result of the previous steal.
+    const isConsecutiveSteal = !!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt;
+
+    return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn;
 });
 
 const isSingleSteal = computed(() => {
@@ -1707,7 +1717,7 @@ onUnmounted(() => {
   gameStore.resetGameState();
   socket.off('game-updated');
   socket.off('series-next-game-ready');
-  socket.disconnect();
+  // Do not disconnect socket here, as it's needed for other views
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 
@@ -1832,7 +1842,7 @@ function handleVisibilityChange() {
                     </button>
                 </div>
             </div>
-            <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && !showStealResult">
+            <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && (!showStealResult || (!!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt))">
                 <div v-if="isSingleSteal">
                     <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
                     <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>

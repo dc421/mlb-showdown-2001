@@ -65,9 +65,6 @@ const isLineupValid = computed(() => {
   return true;
 });
 
-// in src/views/SetLineupView.vue
-
-// in SetLineupView.vue
 function autoPopulateLineup(suggestedLineup = null) {
   const savedCards = authStore.activeRosterCards;
 
@@ -89,7 +86,8 @@ function autoPopulateLineup(suggestedLineup = null) {
                   control: null
               };
           } else {
-              player = savedCards.find(c => c.card_id === spot.card_id);
+              // Ensure we match robustly (String vs Number)
+              player = savedCards.find(c => Number(c.card_id) === Number(spot.card_id));
           }
 
           if (!player) {
@@ -116,7 +114,6 @@ function autoPopulateLineup(suggestedLineup = null) {
     card.assignment && card.assignment !== 'BENCH' && card.assignment !== 'PITCHING_STAFF'
   );
 
-  // --- THIS IS THE FIX ---
   // If the "No DH" rule is in effect, find and remove the player assigned to the DH spot.
   if (!useDh.value) {
     lineupPlayers = lineupPlayers.filter(player => player.assignment !== 'DH');
@@ -182,8 +179,7 @@ async function handleSubmission() {
         startingPitcher: startingPitcher.value.card_id
     };
     await authStore.submitLineup(gameId, lineupData);
-    console.log('Lineup submitted. Now in waiting state.'); // <-- ADD THIS
-    hasSubmitted.value = true; // Show the waiting message
+    hasSubmitted.value = true;
 }
 
 async function checkLineupStatus() {
@@ -202,9 +198,13 @@ async function checkLineupStatus() {
     }
 }
 
-// in SetLineupView.vue
 onMounted(async () => {
-    // 1. Immediately join the room and set up the listener.
+    // 1. Ensure socket is connected and join room
+    if (!socket.connected) {
+        socket.connect();
+    }
+
+    // Immediately join the room and set up the listener.
     // This ensures we don't miss the event if the data fetching takes time.
     socket.emit('join-game-room', gameId);
     socket.on('game-starting', () => {
@@ -238,14 +238,19 @@ onMounted(async () => {
         await authStore.fetchRosterDetails(participantInfo.roster_id, authStore.selectedPointSetId);
 
         if (!hasSubmitted.value) {
-             autoPopulateLineup();
+             autoPopulateLineup(participantInfo.suggestedLineup);
         }
 
         if (mandatoryPitcherId.value) {
-            const pitcher = starters.value.find(p => p.card_id === mandatoryPitcherId.value);
+            // Ensure type safety when finding the pitcher
+            const pitcher = starters.value.find(p => Number(p.card_id) === Number(mandatoryPitcherId.value));
             if (pitcher) {
                 startingPitcher.value = pitcher;
             }
+        } else if (!startingPitcher.value && availableStartingPitchers.value.length > 0) {
+            // Default to highest points available SP if none selected
+            const bestSP = [...availableStartingPitchers.value].sort((a, b) => (b.points || 0) - (a.points || 0))[0];
+            startingPitcher.value = bestSP;
         }
     } else {
         console.error('CRITICAL ERROR: Missing participant info, roster_id, or selectedPointSetId.');
@@ -253,7 +258,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  console.log('SetLineupView is UNMOUNTING.'); // <-- ADD THIS
   socket.off('game-starting');
 });
 </script>

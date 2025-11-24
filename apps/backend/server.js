@@ -1121,13 +1121,17 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         [gameId, 1, 'system', inningChangeEvent]
       );
 
+    }
+
+    await client.query('COMMIT');
+
+    if (allParticipants.rows.length === 2 && allParticipants.rows.every(p => p.lineup !== null)) {
       console.log(`--- BACKEND: Emitting 'game-starting' to room ${gameId} ---`);
       io.to(gameId).emit('game-starting');
     } else {
       io.to(gameId).emit('lineup-submitted');
     }
 
-    await client.query('COMMIT');
     res.status(200).json({ message: 'Lineup saved successfully.' });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -3169,7 +3173,10 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             const batterOnFirst = newState.bases.first;
-            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
+            const rawOutcome = newState.currentAtBat.swingRollResult?.outcome;
+            const outcome = typeof rawOutcome === 'string' ? rawOutcome.trim() : rawOutcome;
+
+            if (batterOnFirst && !newState.bases.second && outcome === '1B+') {
                 newState.bases.second = batterOnFirst;
                 newState.bases.first = null;
                 const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
