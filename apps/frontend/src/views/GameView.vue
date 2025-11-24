@@ -1707,7 +1707,7 @@ onUnmounted(() => {
   gameStore.resetGameState();
   socket.off('game-updated');
   socket.off('series-next-game-ready');
-  socket.disconnect();
+  // Do not disconnect socket here, as it's needed for other views
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 
