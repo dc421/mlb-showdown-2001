@@ -1419,6 +1419,7 @@ function handleInitiateSteal(decisions) {
 
 function handlePitch(action = null) {
   console.log('1. GameView: handlePitch function was called.');
+  defensiveThrowRollClicked.value = false;
   gameStore.submitPitch(gameId, action);
 }
 function handleOffensiveAction(action) {
