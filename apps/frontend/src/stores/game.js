@@ -748,6 +748,45 @@ async function resetRolls(gameId) {
       };
     }
 
+    // Condition: Consecutive Steals (Defense View)
+    // If there is a pending steal attempt AND a last steal result, and we are the defense,
+    // we are viewing the result of the *last* steal (2nd), but the bases have already updated
+    // for the *pending* steal (3rd). We must visually roll back the runner.
+    const isConsecutiveSteal = gameState.value.lastStealResult && gameState.value.pendingStealAttempt;
+
+    if (isConsecutiveSteal && amIDefensivePlayer.value) {
+         // Get the runner from the pending attempt (which is the one causing the future state)
+         const pending = gameState.value.pendingStealAttempt;
+         const toBase = pending.throwToBase;
+         const fromBase = toBase - 1;
+         const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+         const newBases = { ...gameState.value.bases };
+
+         // Remove from toBase (if there, meaning they were SAFE in the pending steal)
+         if (toBase <= 3) {
+            newBases[baseMap[toBase]] = null;
+         }
+
+         // Add to fromBase (restoring their position before the pending steal)
+         if (fromBase >= 1 && pending.runner) {
+            newBases[baseMap[fromBase]] = pending.runner;
+         }
+
+         let outs = gameState.value.outs;
+         // If the pending steal resulted in an out, the global out count is already incremented.
+         // We need to roll it back to show the state before that attempt.
+         if (pending.outcome === 'OUT') {
+             outs = outs - 1;
+         }
+
+         return {
+             ...gameState.value,
+             bases: newBases,
+             outs: outs
+         };
+    }
+
     // Condition: Consecutive "Automatic" events (Double IBB fix).
     // If we detected this pattern in gameEventsToDisplay, we must also roll back the board state.
     if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2 && gameState.value.lastCompletedAtBat) {
