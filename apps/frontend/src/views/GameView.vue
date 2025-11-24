@@ -961,7 +961,6 @@ const showStealResult = computed(() => {
                                  amIDisplayDefensivePlayer.value
                                  // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
                                  ;
-
   return offensivePlayerCondition || defensivePlayerCondition;
 });
 
