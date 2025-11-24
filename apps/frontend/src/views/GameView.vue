@@ -1558,7 +1558,7 @@ watch(isStealAttemptInProgress, (newValue) => {
 
 
 
-const defensiveTeamKey = computed(() => gameStore.gameState?.isDisplayTopInning ? 'homeTeam' : 'awayTeam');
+const defensiveTeamKey = computed(() => isDisplayTopInning.value ? 'homeTeam' : 'awayTeam');
 const defensiveNextBatterIndex = computed(() => {
     if (!gameStore.gameState) return -1;
     return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
@@ -2376,11 +2376,11 @@ function handleVisibilityChange() {
 }
 .status-icon.tired {
     background-color: #dc3545;
-    border: 1px solid #dc3545;
+    border: 2px solid #dc3545;
 }
 .status-icon.used {
     background-color: transparent;
-    border: 1px solid #000;
+    border: 2px solid #000;
 }
 .is-sub-in-candidate:hover {
     background-color: #e9ecef;
