@@ -204,7 +204,12 @@ async function checkLineupStatus() {
 
 // in SetLineupView.vue
 onMounted(async () => {
-    // 1. Immediately join the room and set up the listener.
+    // 1. Ensure socket is connected and join room
+    if (!socket.connected) {
+        socket.connect();
+    }
+
+    // Immediately join the room and set up the listener.
     // This ensures we don't miss the event if the data fetching takes time.
     socket.emit('join-game-room', gameId);
     socket.on('game-starting', () => {
