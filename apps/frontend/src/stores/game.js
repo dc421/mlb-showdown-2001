@@ -528,6 +528,15 @@ async function resetRolls(gameId) {
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
+
+      // Exception: If the play is waiting for a baserunning decision, the log message
+      // for the hit has not been generated yet. The "last event" currently in the log
+      // is actually the PREVIOUS play's outcome, so we must NOT hide it.
+      const currentPlayType = gameState.value?.currentPlay?.type;
+      if (['ADVANCE', 'TAG_UP', 'INFIELD_IN_CHOICE'].includes(currentPlayType)) {
+        return gameEvents.value;
+      }
+
       // If it's a third-out play, hide both the play result and the inning change message.
       if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
