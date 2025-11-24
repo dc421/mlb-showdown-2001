@@ -609,6 +609,11 @@ async function resetRolls(gameId) {
     return Number(auth.user.userId) === Number(game.value.home_team_user_id) ? 'home' : 'away';
   });
 
+  const pitcherTeam = computed(() => {
+    if (!gameState.value) return null;
+    return gameState.value.isTopInning ? 'home' : 'away';
+  });
+
   const amIDefensivePlayer = computed(() => {
     if (!myTeam.value || !gameState.value) return false;
     const isTop = gameState.value.isTopInning;
@@ -907,6 +912,7 @@ async function resetRolls(gameId) {
     updateGameData,
     resetGameState,
     myTeam,
+    pitcherTeam,
     opponentReadyForNext,
     amIReadyForNext,
     isEffectivelyBetweenHalfInnings,
