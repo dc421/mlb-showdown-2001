@@ -911,7 +911,7 @@ const showAutoThrowResult = computed(() => {
     if (wasMultiThrowSituation.value) {
         return true;
     }
-    if (amIDefensivePlayer.value) {
+    if (amIDisplayDefensivePlayer.value) {
         return defensiveThrowRollClicked.value;
     }
     return true;
@@ -1991,8 +1991,7 @@ function handleVisibilityChange() {
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
                 <strong :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { color: 'inherit' } : { color: black }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher && leftPanelData.pitcher.card_id !== -2">{{ leftPanelData.pitcher.name }}</template>
-                <template v-else>TBD</template>
+                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }}</template>
             </span>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
