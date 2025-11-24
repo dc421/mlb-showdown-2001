@@ -1403,7 +1403,24 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
         if (isSubForBatter) {
             wasPinchHitter = true;
             newState.currentAtBat.batter = playerInCard;
+
+
+            // --- FIX: Recalculate advantage if pitcher has already rolled ---
+            if (newState.currentAtBat.pitcherAction === 'pitch' && newState.currentAtBat.pitchRollResult) {
+                 const { roll } = newState.currentAtBat.pitchRollResult;
+                 const pitcher = newState.currentAtBat.pitcher;
+                 // Get effective control for the CURRENT inning/at-bat state
+                 const effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
+                 
+                 // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
+                 const newAdvantage = playerInCard.control !== null
+                    ? 'pitcher'
+                    : (roll + effectiveControl) > playerInCard.on_base ? 'pitcher' : 'batter';
+
+                 newState.currentAtBat.pitchRollResult.advantage = newAdvantage;
+            }
         }
+        
         // Pinch runner logic is handled by updating the `bases` object, which was done above.
 
         // The critical check: If the player being replaced was a pitcher (either as batter or runner),

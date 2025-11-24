@@ -957,7 +957,7 @@ const showStealResult = computed(() => {
                                  !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
                                  (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
-  const defensivePlayerCondition = (!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
+  const defensivePlayerCondition = ((!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
                                  amIDisplayDefensivePlayer.value
                                  // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
                                  ;
@@ -1020,14 +1020,8 @@ const awayTeamColors = computed(() => {
 
 const eventsForLog = computed(() => {
     // This logic is now centralized in the store's `gameEventsToDisplay` computed property.
-    let events = gameStore.gameEventsToDisplay;
-
-    // Mask the last event if the defensive player is waiting to roll for a throw.
-    // This prevents the result (Safe/Out) from being seen in the log before the roll is "performed".
-    if (showDefensiveRollForThrowButton.value && events.length > 0) {
-        return events.slice(0, -1);
-    }
-    return events;
+    // We rely on the store to handle the hiding of events to prevent double-slicing scenarios.
+    return gameStore.gameEventsToDisplay;
 });
 
 

@@ -130,18 +130,7 @@ const gameSubtitle = computed(() => {
     let seriesInfo = 'Exhibition';
 
     if (props.game.series_type !== 'exhibition' && props.game.series) {
-        const myUserId = authStore.user?.userId;
-        const isSeriesHome = props.game.series.series_home_user_id === myUserId;
-        const myWins = isSeriesHome ? props.game.series.home_wins : props.game.series.away_wins;
-        const oppWins = isSeriesHome ? props.game.series.away_wins : props.game.series.home_wins;
-
-        if (myWins === oppWins) {
-            seriesInfo = `Series Tied ${myWins}-${oppWins}`;
-        } else if (myWins > oppWins) {
-            seriesInfo = `You Lead Series ${myWins}-${oppWins}`;
-        } else {
-            seriesInfo = `You Trail Series ${oppWins}-${myWins}`;
-        }
+        seriesInfo = `Game ${props.game.game_in_series}`;
     }
     return `${seriesInfo} · ${date}`;
 });
