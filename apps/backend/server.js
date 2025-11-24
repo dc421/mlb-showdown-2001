@@ -1773,7 +1773,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
     const gamesResult = await pool.query(
-      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id, g.game_in_series, g.created_at, g.completed_at
+      `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id, g.game_in_series, g.created_at, g.completed_at, g.series_id
        FROM games g JOIN game_participants gp ON g.game_id = gp.game_id 
        WHERE gp.user_id = $1 ORDER BY g.created_at DESC`,
       [userId]
@@ -1821,10 +1821,12 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
         let series = null;
+        let series_type = 'exhibition';
         if (game.series_id) {
             const seriesResult = await pool.query('SELECT * FROM series WHERE id = $1', [game.series_id]);
             if (seriesResult.rows.length > 0) {
                 series = seriesResult.rows[0];
+                series_type = series.series_type;
             }
         }
 
@@ -1839,7 +1841,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         }
 
 
-        processedGames.push({ ...game, opponent, gameState, series, home_team_abbr, away_team_abbr, status_text });
+        processedGames.push({ ...game, opponent, gameState, series, series_type, home_team_abbr, away_team_abbr, status_text });
     }
 
     res.json(processedGames);
