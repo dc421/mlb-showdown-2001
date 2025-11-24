@@ -743,6 +743,18 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
         }
     }
 
+    const batterOnFirst = newState.bases.first;
+    const rawOutcome = newState.currentAtBat.swingRollResult?.outcome;
+    const outcome = typeof rawOutcome === 'string' ? rawOutcome.trim() : rawOutcome;
+
+    if (batterOnFirst && !newState.bases.second && outcome === '1B+' && throwTo !== 2) {
+        newState.bases.second = batterOnFirst;
+        newState.bases.first = null;
+        const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
+        if (outcomeMessage) outcomeMessage += ` ${stealEvent}`;
+        else outcomeMessage = stealEvent;
+    }
+
     // This is the fix. The initialEvent already contains the scoring messages.
     // We just need to append the outcome of this specific throw.
     const finalMessage = `${initialEvent} ${outcomeMessage}`;
