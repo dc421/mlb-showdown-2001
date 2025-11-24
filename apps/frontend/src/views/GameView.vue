@@ -923,7 +923,8 @@ const isRunnerOnOffensiveTeam = computed(() => {
     return true;
   }
 
-  if(!gameStore.gameState?.lastStealResult && gameStore.gameState?.pendingStealAttempt && !gameStore.inningEndedOnCaughtStealing){
+  // Allow pending steal attempts (including consecutive ones where lastStealResult exists)
+  if(gameStore.gameState?.pendingStealAttempt && !gameStore.inningEndedOnCaughtStealing){
     return true
   }
 
