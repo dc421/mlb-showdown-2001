@@ -1384,7 +1384,12 @@ const seriesStatusText = computed(() => {
 
 function proceedToNextGame() {
     if (nextGameId.value) {
-        router.push(`/game/${nextGameId.value}/lineup`);
+        // If the current game is Game 2 of a series, the next game (Game 3) requires setup (DH rule selection).
+        if (gameStore.game?.game_in_series === 2) {
+            router.push(`/game/${nextGameId.value}/setup`);
+        } else {
+            router.push(`/game/${nextGameId.value}/lineup`);
+        }
     }
 }
 
