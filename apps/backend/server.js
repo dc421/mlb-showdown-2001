@@ -3169,7 +3169,10 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             const batterOnFirst = newState.bases.first;
-            if (batterOnFirst && !newState.bases.second && newState.currentAtBat.swingRollResult.outcome === '1B+') {
+            const rawOutcome = newState.currentAtBat.swingRollResult?.outcome;
+            const outcome = typeof rawOutcome === 'string' ? rawOutcome.trim() : rawOutcome;
+
+            if (batterOnFirst && !newState.bases.second && outcome === '1B+') {
                 newState.bases.second = batterOnFirst;
                 newState.bases.first = null;
                 const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
