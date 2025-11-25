@@ -951,17 +951,49 @@ const isDoubleStealResultAvailable = computed(() => {
 
 
 const showStealResult = computed(() => {
-  const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
-                                 amIDisplayOffensivePlayer.value &&
-                                 (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && 
-                                 !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
-                                 (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
 
-  const defensivePlayerCondition = ((!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
-                                 amIDisplayDefensivePlayer.value
-                                 // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
-                                 ;
-  return offensivePlayerCondition || defensivePlayerCondition;
+  //const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
+  //                               amIDisplayOffensivePlayer.value &&
+  //                               (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && 
+  //                               !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
+  //                               (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
+  //const defensivePlayerCondition = ((!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
+  //                               amIDisplayDefensivePlayer.value
+  //                               // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
+  //                               ;
+  //return offensivePlayerCondition || defensivePlayerCondition;
+
+  const hasStealData = !!gameStore.gameState?.pendingStealAttempt || 
+                       !!gameStore.gameState?.lastStealResult || 
+                       isDoubleStealResultAvailable.value;
+
+  if (!hasStealData) return false;
+  
+  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+      return !gameStore.amIReadyForNext;
+  }
+  
+  if (gameStore.amIReadyForNext) return false;
+
+  if (amIDisplayOffensivePlayer.value) {
+      if (!isRunnerOnOffensiveTeam.value) return false;
+      
+      return !gameStore.gameState.currentAtBat.batterAction || gameStore.opponentReadyForNext;
+  }
+
+  if (amIDisplayDefensivePlayer.value) {
+      // Defense should only see the box if there is a completed result to show.
+      // pendingStealAttempt alone is an ACTION trigger, not a result view for defense.
+      const hasDefensiveResult = !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value;
+      if (!hasDefensiveResult) return false;
+
+      const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
+      const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
+      
+      return (!pitcherHasActed && !isIBB) || gameStore.opponentReadyForNext;
+  }
+
+  return false;
 });
 
 const stealDisplayDetails = computed (() => {
@@ -1193,7 +1225,7 @@ const batterToDisplay = computed(() => {
 const pitcherToDisplay = computed(() => {
     // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
     // change just happened), we should not show any pitcher, forcing the "TBD" state.
-    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && outsToDisplay.value===0) {
+    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0) {
         return null;
     }
     if (isGameOver.value) {
