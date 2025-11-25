@@ -2662,6 +2662,17 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     // --- THIS IS THE NEW LOGIC ---
     // If you are the FIRST player to click, advance the game state.
     if (!originalState.homePlayerReadyForNext && !originalState.awayPlayerReadyForNext) {
+      // --- THIS IS THE FIX ---
+      // If the inning ended on a steal, we need to preserve the result so the
+      // defensive player can see it, even after we advance the game state.
+      let preservedLastStealResult = null;
+      let preservedThrowRollResult = null;
+      if (originalState.inningEndedOnCaughtStealing) {
+          preservedLastStealResult = originalState.lastStealResult;
+          preservedThrowRollResult = originalState.throwRollResult;
+      }
+      // --- END FIX ---
+
       // 1. Save the completed/interrupted at-bat for the other player to see.
       newState.lastCompletedAtBat = { ...newState.currentAtBat,
         bases: newState.currentAtBat.basesBeforePlay,
@@ -2730,6 +2741,16 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       }
     }
 
+    // --- THIS IS THE FIX (Part 2) ---
+    // Restore the preserved results so the defensive player's client receives them.
+    if (preservedLastStealResult) {
+        newState.lastStealResult = preservedLastStealResult;
+    }
+    if (preservedThrowRollResult) {
+        newState.throwRollResult = preservedThrowRollResult;
+    }
+    // --- END FIX ---
+
     // Mark the current player as ready.
     if (isHomePlayer) {
       newState.homePlayerReadyForNext = true;
@@ -2746,16 +2767,11 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // If the inning ended on a steal, we must preserve the throwRollResult
       // so the defensive player can see it. It will be cleared on the *next*
-      // "Next Hitter" click.
-      if (!newState.inningEndedOnCaughtStealing) {
-        newState.doublePlayDetails = null;
-        newState.throwRollResult = null;
-        newState.lastStealResult = null;
-      } else {
-        // If we are preserving the steal result, we must ALSO clear the flag now,
-        // so that on the *next* at-bat, the old result is properly cleared.
-        newState.inningEndedOnCaughtStealing = false;
-      }
+      // Now that both players have acknowledged the result, clear all transient details from the previous play.
+      newState.doublePlayDetails = null;
+      newState.throwRollResult = null;
+      newState.lastStealResult = null;
+      newState.inningEndedOnCaughtStealing = false; // Always reset the flag
 
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
