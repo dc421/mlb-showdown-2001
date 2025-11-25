@@ -2742,12 +2742,17 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.homePlayerReadyForNext = false;
       newState.awayPlayerReadyForNext = false;
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
-      newState.inningEndedOnCaughtStealing = false,
+
       // --- THIS IS THE FIX ---
-      // Now that both players have acknowledged the result, clear the details.
-      newState.doublePlayDetails = null;
-      newState.throwRollResult = null;
-      newState.lastStealResult = null;
+      // If the inning ended on a steal, we must preserve the throwRollResult
+      // so the defensive player can see it. It will be cleared on the *next*
+      // "Next Hitter" click.
+      if (!newState.inningEndedOnCaughtStealing) {
+        newState.doublePlayDetails = null;
+        newState.throwRollResult = null;
+        newState.lastStealResult = null;
+      }
+      newState.inningEndedOnCaughtStealing = false; // Always reset the flag itself
 
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
