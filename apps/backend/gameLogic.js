@@ -16,6 +16,39 @@ function recordBatterFaced(state, pitcher) {
     state.pitcherStats[pitcherId].batters_faced += 1;
 }
 
+function checkGameOverOrInningChange(newState, events, teamInfo) {
+  if (newState.outs >= 3 && !newState.gameOver) {
+    const isGameOver = (
+      // Case 1: End of the 9th or later (bottom half), and it's not a tie.
+      newState.inning >= 9 && !newState.isTopInning && newState.homeScore !== newState.awayScore
+    ) || (
+      // Case 2: End of the top of the 9th or later, and home team is already ahead.
+      newState.inning >= 9 && newState.isTopInning && newState.homeScore > newState.awayScore
+    );
+
+    if (isGameOver) {
+      newState.gameOver = true;
+      const homeTeamWon = newState.homeScore > newState.awayScore;
+      newState.winningTeam = homeTeamWon ? 'home' : 'away';
+
+      const winningAbbr = homeTeamWon ? (teamInfo.home_team_abbr || 'HOME') : (teamInfo.away_team_abbr || 'AWAY');
+      const winningScore = homeTeamWon ? newState.homeScore : newState.awayScore;
+      const losingAbbr = homeTeamWon ? (teamInfo.away_team_abbr || 'AWAY') : (teamInfo.home_team_abbr || 'HOME');
+      const losingScore = homeTeamWon ? newState.awayScore : newState.homeScore;
+
+      events.push(`That's the ballgame! Final Score: ${winningAbbr} ${winningScore}, ${losingAbbr} ${losingScore}.`);
+    } else {
+      // It's just an inning change, not the end of the game.
+      // SET THE FLAGS, but do not advance the inning state here.
+      if (newState.isTopInning) {
+        newState.isBetweenHalfInningsAway = true;
+      } else {
+        newState.isBetweenHalfInningsHome = true;
+      }
+    }
+  }
+}
+
 function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null, teamInfo = {}) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
@@ -616,36 +649,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   }
 
   // --- Handle Inning Change & Game Over Check ---
-  if (newState.outs >= 3 && !newState.gameOver) {
-    const isGameOver = (
-      // Case 1: End of the 9th or later (bottom half), and it's not a tie.
-      newState.inning >= 9 && !newState.isTopInning && newState.homeScore !== newState.awayScore
-    ) || (
-      // Case 2: End of the top of the 9th or later, and home team is already ahead.
-      newState.inning >= 9 && newState.isTopInning && newState.homeScore > newState.awayScore
-    );
-
-    if (isGameOver) {
-      newState.gameOver = true;
-      const homeTeamWon = newState.homeScore > newState.awayScore;
-      newState.winningTeam = homeTeamWon ? 'home' : 'away';
-
-      const winningAbbr = homeTeamWon ? teamInfo.home_team_abbr : teamInfo.away_team_abbr;
-      const winningScore = homeTeamWon ? newState.homeScore : newState.awayScore;
-      const losingAbbr = homeTeamWon ? teamInfo.away_team_abbr : teamInfo.home_team_abbr;
-      const losingScore = homeTeamWon ? newState.awayScore : newState.homeScore;
-
-      events.push(`That's the ballgame! Final Score: ${winningAbbr} ${winningScore}, ${losingAbbr} ${losingScore}.`);
-    } else {
-      // It's just an inning change, not the end of the game.
-      // SET THE FLAGS, but do not advance the inning state here.
-      if (newState.isTopInning) {
-        newState.isBetweenHalfInningsAway = true;
-      } else {
-        newState.isBetweenHalfInningsHome = true;
-      }
-    }
-  }
+  // Replaced inline logic with reusable function call
+  checkGameOverOrInningChange(newState, events, teamInfo);
 
   return { newState, events, scorers, outcome };
 }
@@ -759,6 +764,9 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     // We just need to append the outcome of this specific throw.
     const finalMessage = `${initialEvent} ${outcomeMessage}`;
     events.push(finalMessage);
+
+    // --- Check Game Over ---
+    checkGameOverOrInningChange(newState, events, teamInfo);
   }
 
   return { newState, events };
@@ -800,4 +808,4 @@ function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHom
     return logMessage;
 }
 
-module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher: recordOutsForPitcher, recordBatterFaced };
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher: recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange };
