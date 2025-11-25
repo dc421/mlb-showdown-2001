@@ -934,9 +934,16 @@ const isRunnerOnOffensiveTeam = computed(() => {
     return false;
   }
 
-  const offensiveTeam = isDisplayTopInning.value
-    ? gameStore.gameState.awayTeam
-    : gameStore.gameState.homeTeam;
+
+  // THIS IS THE FIX: Use the full team objects from `gameStore.teams` which contain the `team_id`.
+  // The objects in `gameState` are lightweight and do not have this property.
+  const offensiveTeamKey = isDisplayTopInning.value ? 'away' : 'home';
+  const offensiveTeam = gameStore.teams ? gameStore.teams[offensiveTeamKey] : null;
+
+  if (!offensiveTeam) {
+      return false; // Or a sensible default
+  }
+  
   return gameStore.gameState.lastStealResult.runnerTeamId === offensiveTeam.team_id;
 });
 
@@ -1512,12 +1519,14 @@ const isStealAttemptInProgress = computed(() => {
     // Logic: If opponent IS ready (advanced) and I am NOT ready, hide the steal.
     const isViewingPastTurn = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
 
+    const isPastStealDef = !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction
+
     // FIX: Allow the steal attempt to be "in progress" even if we are showing a result (showStealResult=true),
     // provided that we have BOTH a past result (lastStealResult) AND a pending one (pendingStealAttempt).
     // This allows the "ROLL FOR THROW" button to appear below the result of the previous steal.
     const isConsecutiveSteal = !!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt;
 
-    return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn;
+    return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isPastStealDef;
 });
 
 const isSingleSteal = computed(() => {
