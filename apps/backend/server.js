@@ -26,9 +26,9 @@ const REPLACEMENT_HITTER_CARD = {
 const REPLACEMENT_PITCHER_CARD = {
     card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1, speed: 10,
     points: 0,
-    chart_data: { '1-3': 'PU', '4-8': 'SO', '9-12': 'GB', '13-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
+    chart_data: { '1-3': 'PU', '4-9': 'SO', '10-13': 'GB', '14-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
     fielding_ratings: {},
-    image_url: `${BACKEND_URL}/images/replacement.jpg`
+    image_url: `${BACKEND_URL}/images/replacement_pitcher.jpg`
 };
 
 const app = express();
