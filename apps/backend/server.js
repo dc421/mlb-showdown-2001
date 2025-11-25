@@ -77,6 +77,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
 app.use('/images', express.static(path.join(__dirname, 'card_images')));
+app.use('/team_logos', express.static(path.join(__dirname, 'team_logos')));
 
 
 // in server.js
