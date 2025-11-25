@@ -11,7 +11,7 @@ const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher, recordBatterFaced } = require('./gameLogic');
+const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange } = require('./gameLogic');
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
@@ -2893,13 +2893,45 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     newState.currentAtBat.pitcherAction = null;
     newState.currentAtBat.pitchRollResult = null;
 
-    if (newState.outs >= 3 && isSingleSteal && !isSafe && !newState.currentPlay?.payload?.queuedDecisions) {
-        if (newState.isTopInning) {
-            newState.isBetweenHalfInningsAway = true;
-        } else {
-            newState.isBetweenHalfInningsHome = true;
+    // --- NEW: Check for Game Over on caught stealing ---
+    if (!isSafe && isSingleSteal && !newState.currentPlay?.payload?.queuedDecisions) {
+        const teams = await client.query(
+            `SELECT t.abbreviation, p.home_or_away
+             FROM teams t JOIN users u ON t.user_id = u.user_id
+             JOIN game_participants p ON u.user_id = p.user_id
+             WHERE p.game_id = $1`, [gameId]
+        );
+        const teamInfo = {
+            home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+            away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+        };
+        // We can't easily append to the existing event since it was already inserted above.
+        // But checkGameOverOrInningChange will return true if game over, and we can log a separate message if needed,
+        // OR we rely on it pushing a new event.
+        // checkGameOverOrInningChange pushes to 'events' array passed to it.
+        const gameOverEvents = [];
+        checkGameOverOrInningChange(newState, gameOverEvents, teamInfo);
+
+        if (gameOverEvents.length > 0) {
+             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', gameOverEvents[0]]);
         }
-        newState.inningEndedOnCaughtStealing = true;
+
+        if (newState.gameOver) {
+              const updateResult = await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
+                [gameId]
+              );
+              if (updateResult.rowCount > 0) {
+                  await handleSeriesProgression(gameId, client, newState);
+              }
+        } else if (newState.outs >= 3) {
+            if (newState.isTopInning) {
+                newState.isBetweenHalfInningsAway = true;
+            } else {
+                newState.isBetweenHalfInningsHome = true;
+            }
+            newState.inningEndedOnCaughtStealing = true;
+        }
     }
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
@@ -3042,7 +3074,33 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
         newState.currentPlay = null;
 
-        if (newState.outs >= 3) {
+        // --- NEW: Check for Game Over on caught stealing ---
+        const teams = await client.query(
+            `SELECT t.abbreviation, p.home_or_away
+             FROM teams t JOIN users u ON t.user_id = u.user_id
+             JOIN game_participants p ON u.user_id = p.user_id
+             WHERE p.game_id = $1`, [gameId]
+        );
+        const teamInfo = {
+            home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+            away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+        };
+        const gameOverEvents = [];
+        checkGameOverOrInningChange(newState, gameOverEvents, teamInfo);
+
+        if (gameOverEvents.length > 0) {
+             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'system', gameOverEvents[0]]);
+        }
+
+        if (newState.gameOver) {
+              const updateResult = await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
+                [gameId]
+              );
+              if (updateResult.rowCount > 0) {
+                  await handleSeriesProgression(gameId, client, newState);
+              }
+        } else if (newState.outs >= 3) {
             if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
             else { newState.isBetweenHalfInningsHome = true; }
             newState.inningEndedOnCaughtStealing = true;
@@ -3356,6 +3414,22 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             allEvents.push(`${batterOnFirst.displayName} steals second without a throw!`);
         }
 
+        // --- NEW: Check for Game Over using the shared logic ---
+        // We need team info for the potential game over message
+        const teams = await client.query(
+            `SELECT t.abbreviation, p.home_or_away
+             FROM teams t JOIN users u ON t.user_id = u.user_id
+             JOIN game_participants p ON u.user_id = p.user_id
+             WHERE p.game_id = $1`, [gameId]
+        );
+        const teamInfo = {
+            home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+            away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+        };
+
+        // Pass the allEvents array. checkGameOverOrInningChange will append to it if needed.
+        checkGameOverOrInningChange(newState, allEvents, teamInfo);
+
         // Sort events to be more logical: lead runner first.
         allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
         let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
@@ -3372,7 +3446,15 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage]);
         }
 
-        if (newState.outs >= 3) {
+        if (newState.gameOver) {
+              const updateResult = await client.query(
+                `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
+                [gameId]
+              );
+              if (updateResult.rowCount > 0) {
+                  await handleSeriesProgression(gameId, client, newState);
+              }
+        } else if (newState.outs >= 3) {
             if (newState.isTopInning) {
                 newState.isBetweenHalfInningsAway = true;
             } else {
@@ -3484,8 +3566,24 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
         newState.currentPlay = null;
 
+        // --- NEW: Check for Game Over on defensive choice ---
+        const teams = await client.query(
+            `SELECT t.abbreviation, p.home_or_away
+             FROM teams t JOIN users u ON t.user_id = u.user_id
+             JOIN game_participants p ON u.user_id = p.user_id
+             WHERE p.game_id = $1`, [gameId]
+        );
+        const teamInfo = {
+            home_team_abbr: teams.rows.find(t => t.home_or_away === 'home').abbreviation,
+            away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
+        };
+
+        checkGameOverOrInningChange(newState, events, teamInfo);
+
         if (newState.gameOver) {
-            events.push(`WALK-OFF!`);
+            if (newState.winningTeam === 'home' && !newState.isTopInning && newState.homeScore > newState.awayScore && !events.some(e => e.includes('WALK-OFF'))) {
+                 events.push(`WALK-OFF!`);
+            }
             const updateResult = await client.query(
               `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
               [gameId]
