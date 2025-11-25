@@ -33,6 +33,25 @@ function handleImageError(event) {
   event.target.src = '/images/replacement.jpg';
 }
 
+const isReplacementPitcher = computed(() => {
+  return props.player && (props.player.card_id === 'replacement_pitcher' || props.player.card_id === -2);
+});
+
+const isTired = computed(() => {
+  return props.player && typeof props.player.effectiveControl === 'number' && props.player.effectiveControl < props.player.control;
+});
+
+const showFatigueIndicator = computed(() => {
+  if (isReplacementPitcher.value) {
+    return typeof props.player.effectiveControl === 'number';
+  }
+  return isTired.value;
+});
+
+const fatigueIndicatorText = computed(() => {
+  return props.player.effectiveControl;
+});
+
 const fieldingDisplay = computed(() => {
     if (!props.player?.fielding_ratings) return '';
     return Object.entries(props.player.fielding_ratings)
@@ -66,10 +85,10 @@ function formatRange(range) {
     />
     <!-- Fatigue Indicator -->
     <div
-      v-if="player && typeof player.effectiveControl === 'number' && player.effectiveControl < player.control"
+      v-if="showFatigueIndicator"
       class="fatigue-indicator"
     >
-      {{ player.effectiveControl }}
+      {{ fatigueIndicatorText }}
     </div>
   </div>
   <div v-else class="player-card-container placeholder">
