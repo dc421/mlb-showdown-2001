@@ -772,7 +772,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
   return { newState, events };
 }
 
-function calculateStealResult(runner, toBase, catcherArm, getSpeedValue) {
+function calculateStealResult(runner, toBase, catcherArm, getSpeedValue, offensiveTeam) {
     const d20Roll = Math.floor(Math.random() * 20) + 1;
     const defenseTotal = catcherArm + d20Roll;
     const originalRunnerSpeed = getSpeedValue(runner);
@@ -794,6 +794,7 @@ function calculateStealResult(runner, toBase, catcherArm, getSpeedValue) {
         target: originalRunnerSpeed,
         penalty,
         isSafe,
+        runnerTeamId: offensiveTeam.team_id,
     };
 }
 

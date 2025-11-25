@@ -2819,7 +2819,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    const { defensiveTeam } = await getActivePlayers(gameId, newState);
+    const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
     // This is the core of the fix. If a steal is ALREADY in progress,
@@ -2843,7 +2843,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             const runner = newState.bases[baseMap[fromBase]];
             if (runner) {
                 const catcherArm = await getCatcherArm(defensiveTeam);
-                const stealResult = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                const stealResult = calculateStealResult(runner, toBase, catcherArm, getSpeedValue, offensiveTeam);
                 isSafe = stealResult.isSafe;
                 const { outcome, ...resultDetails } = stealResult;
                 const runnerName = runner.name;
@@ -2983,7 +2983,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
 
                 if (runner) {
                     const catcherArm = await getCatcherArm(defensiveTeam);
-                    const { outcome: newOutcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue);
+                    const { outcome: newOutcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue, offensiveTeam);
                     const newRunnerName = runner.name;
 
                     if (!isSafe) {
