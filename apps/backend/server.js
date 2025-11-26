@@ -77,6 +77,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
 app.use('/images', express.static(path.join(__dirname, 'card_images')));
+app.use('/team_logos', express.static(path.join(__dirname, 'team_logos')));
 
 
 // in server.js
@@ -1256,6 +1257,13 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
     const awayUsed = newState.awayTeam.used_player_ids || [];
     const allUsedPlayerIds = [...homeUsed, ...awayUsed];
     const playerInIdInt = parseInt(playerInId, 10);
+
+    const teamRoster = newState[teamKey].roster || [];
+    const isPlayerInRoster = teamRoster.some(card => Number(card.card_id) === playerInIdInt);
+
+    if (playerInIdInt > 0 && !isPlayerInRoster) {
+      return res.status(400).json({ message: 'This player is not on the roster for this game.' });
+    }
 
     let playerOutCard;
     if (parseInt(playerOutId, 10) === -1) {
