@@ -1230,9 +1230,18 @@ const batterToDisplay = computed(() => {
 });
 
 const pitcherToDisplay = computed(() => {
+    // --- START PRODUCTION DEBUGGING ---
+    console.log('--- pitcherToDisplay ---');
+    console.log(`isMyTeamAwaitingLineupChange: ${isMyTeamAwaitingLineupChange.value}`);
+    console.log(`gameStore.gameState.awaiting_lineup_change: ${gameStore.gameState?.awaiting_lineup_change}`);
+    console.log(`amIDisplayOffensivePlayer: ${amIDisplayOffensivePlayer.value}`);
+    console.log(`playersInInvalidPositions.value.size: ${playersInInvalidPositions.value.size}`);
+    // --- END PRODUCTION DEBUGGING ---
+
     // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
     // change just happened), we should not show any pitcher, forcing the "TBD" state.
     if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0) {
+        console.log('pitcherToDisplay is returning NULL');
         return null;
     }
     if (isGameOver.value) {

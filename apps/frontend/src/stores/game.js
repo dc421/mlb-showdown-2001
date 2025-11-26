@@ -58,6 +58,11 @@ async function fetchGame(gameId) {
       
       // The data from the server is now pre-processed and ready to use.
       const data = await response.json();
+
+      // --- START PRODUCTION DEBUGGING ---
+      console.log('--- Raw data from fetchGame ---');
+      console.log(JSON.stringify(data, null, 2));
+      // --- END PRODUCTION DEBUGGING ---
       
       game.value = data.game;
       if (data.nextGameId) {
