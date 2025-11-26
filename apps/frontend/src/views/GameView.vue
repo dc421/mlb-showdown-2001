@@ -1252,7 +1252,7 @@ const pitcherToDisplay = computed(() => {
     // NEW LOGIC: If the outcome is hidden, we must show the pitcher and their stats
     // from the beginning of the at-bat to avoid revealing information.
     // ADDITION: Do not use the rolled-back pitcher during a steal, as we need live fatigue data.
-    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value) {
+    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value && !showRollForSwingButton.value) {
         // atBatToDisplay correctly selects whether to show the current or last completed at-bat
         // based on who is waiting. The pitcher object on that at-bat will have the
         // effectiveControl as it was at the start of that specific at-bat.
