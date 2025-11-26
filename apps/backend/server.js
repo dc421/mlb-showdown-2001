@@ -543,6 +543,15 @@ async function validateLineup(participant, newState, gameId, client) {
         }
     }
 
+    // --- START PRODUCTION DEBUGGING ---
+    console.log(`[validateLineup] Running validation for ${teamKey}...`);
+    console.log(`[validateLineup] Result: ${isLineupValid ? 'VALID' : 'INVALID'}`);
+    if (!isLineupValid) {
+        console.log(`[validateLineup] Reason for invalidation: ${validationError}`);
+    }
+    console.log(`[validateLineup] Setting awaiting_lineup_change to: ${!isLineupValid}`);
+    // --- END PRODUCTION DEBUGGING ---
+
     if (!isLineupValid) {
         console.log(`[validateLineup] Lineup INVALID for ${teamKey}: ${validationError}`);
     }
@@ -1585,6 +1594,9 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
       outfieldDefense: await getOutfieldDefense(participant),
     };
 
+    // --- START PRODUCTION DEBUGGING ---
+    console.log('[substitute] Calling validateLineup...');
+    // --- END PRODUCTION DEBUGGING ---
     newState = await validateLineup(participant, newState, gameId, client);
 
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
@@ -2712,6 +2724,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // --- THIS IS THE FIX ---
       // Validate the new defensive lineup. This will correctly set awaiting_lineup_change.
       if (defensiveTeam && defensiveTeam.lineup) {
+          // --- START PRODUCTION DEBUGGING ---
+          console.log('[next-hitter] Calling validateLineup...');
+          // --- END PRODUCTION DEBUGGING ---
           newState = await validateLineup(defensiveTeam, newState, gameId, client);
       } else {
           console.warn(`[next-hitter] Defensive team lineup missing or invalid for game ${gameId}. Skipping validation.`);
