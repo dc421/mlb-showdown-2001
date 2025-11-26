@@ -2751,9 +2751,11 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         newState.doublePlayDetails = null;
         newState.throwRollResult = null;
         newState.lastStealResult = null;
+        } else {
+        // If we are preserving the steal result, we must ALSO clear the flag now,
+        // so that on the *next* at-bat, the old result is properly cleared.
+        newState.inningEndedOnCaughtStealing = false;
       }
-      newState.inningEndedOnCaughtStealing = false; // Always reset the flag itself
-
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
       }
