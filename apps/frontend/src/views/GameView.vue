@@ -1316,6 +1316,13 @@ const pitcherToDisplay = computed(() => {
         controlPenalty = inningsPitchedCount - fatigueThreshold;
     }
 
+    // If the pitcher is already tired from previous games, they should
+    // get a minimum penalty of 1, even if they haven't pitched enough
+    // in *this* game to trigger the fatigue calculation.
+    if (pitcherToProcess.fatigueStatus === 'tired') {
+        controlPenalty = Math.max(controlPenalty, 1);
+    }
+
     const effectiveControl = pitcherToProcess.control - controlPenalty;
 
     // Return a new object with the calculated effectiveControl
