@@ -2679,7 +2679,12 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         outs: newState.outsBeforePlay
        };
 
-      // Clear details from the previous play.
+      // Clear all transient details from the previous play *before* creating the new `currentAtBat`.
+      // This prevents stale data from causing UI glitches for the first player to click.
+      newState.throwRollResult = null;
+      newState.lastStealResult = null;
+      newState.pendingStealAttempt = null;
+      newState.doublePlayDetails = null;
       delete newState.stealAttemptDetails;
       
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
@@ -2756,19 +2761,14 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.awayPlayerReadyForNext = false;
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
 
-      // --- THIS IS THE FIX ---
-      // If the inning ended on a steal, we must preserve the throwRollResult
-      // so the defensive player can see it. It will be cleared on the *next*
-      // "Next Hitter" click.
-      if (!newState.inningEndedOnCaughtStealing) {
-        newState.doublePlayDetails = null;
-        newState.throwRollResult = null;
-        newState.lastStealResult = null;
-        } else {
-        // If we are preserving the steal result, we must ALSO clear the flag now,
-        // so that on the *next* at-bat, the old result is properly cleared.
-        newState.inningEndedOnCaughtStealing = false;
-      }
+      // These properties are now cleared when the *first* player clicks next,
+      // but we still need to clear them here for the *second* player, otherwise
+      // they will persist in the state until the *next* at-bat.
+      newState.doublePlayDetails = null;
+      newState.throwRollResult = null;
+      newState.lastStealResult = null;
+      newState.pendingStealAttempt = null;
+
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
       }
