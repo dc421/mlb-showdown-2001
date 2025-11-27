@@ -431,56 +431,53 @@ function processPlayers(playersToProcess) {
 
 async function validateLineup(participant, newState, gameId, client) {
     const lineup = participant.lineup.battingOrder;
-
     const teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
-    const teamState = newState[teamKey];
 
-    // --- ROSTER RECOVERY LOGIC ---
-    if (!teamState.roster) {
-        console.warn(`[validateLineup] Roster missing for ${teamKey}. Attempting to fetch...`);
-
-        // Try 1: Fetch from game_rosters (the snapshot)
-        try {
-            const rosterResult = await client.query(
-                'SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2',
-                [gameId, participant.user_id]
-            );
-            if (rosterResult.rows.length > 0) {
-                teamState.roster = rosterResult.rows[0].roster_data;
-                console.log(`[validateLineup] Roster recovered from game_rosters for ${teamKey}.`);
-            } else {
-                // Try 2: Fetch from current roster_cards (fallback for very old games)
-                console.warn(`[validateLineup] Snapshot not found. Fetching from current roster for ${teamKey}...`);
-                if (participant.roster_id) {
-                     const rosterCardsResult = await client.query(`
-                        SELECT cp.*, rc.assignment
-                        FROM cards_player cp
-                        JOIN roster_cards rc ON cp.card_id = rc.card_id
-                        WHERE rc.roster_id = $1
-                    `, [participant.roster_id]);
-                    teamState.roster = rosterCardsResult.rows;
-                    console.log(`[validateLineup] Roster recovered from roster_cards for ${teamKey}.`);
-                }
+    // --- THIS IS THE FIX ---
+    // Always fetch the authoritative roster for the participant being validated,
+    // ignoring any roster data that might be in the newState blob. This prevents
+    // cross-validation errors where one team's lineup is checked against the other's roster.
+    let roster = [];
+    try {
+        const rosterResult = await client.query(
+            'SELECT roster_data FROM game_rosters WHERE game_id = $1 AND user_id = $2',
+            [gameId, participant.user_id]
+        );
+        if (rosterResult.rows.length > 0) {
+            roster = rosterResult.rows[0].roster_data;
+        } else {
+            // Fallback for older games or edge cases where snapshot might be missing
+            console.warn(`[validateLineup] Roster snapshot not found in game_rosters for user ${participant.user_id}. Falling back to roster_cards.`);
+            if (participant.roster_id) {
+                 const rosterCardsResult = await client.query(`
+                    SELECT cp.*, rc.assignment
+                    FROM cards_player cp
+                    JOIN roster_cards rc ON cp.card_id = rc.card_id
+                    WHERE rc.roster_id = $1
+                `, [participant.roster_id]);
+                roster = rosterCardsResult.rows;
             }
-        } catch (err) {
-            console.error(`[validateLineup] Error fetching roster:`, err);
         }
+    } catch (err) {
+        console.error(`[validateLineup] Critical error fetching roster for user ${participant.user_id}:`, err);
+        // If we can't get a roster, we can't validate. We'll proceed with an empty roster,
+        // which will correctly cause validation to fail below.
     }
+    // --- END FIX ---
+
 
     // --- ASSIGNMENT RECOVERY LOGIC (For old snapshots) ---
     if (participant.roster_id) {
-        teamState.roster = await hydrateRosterAssignments(client, teamState.roster, participant.roster_id);
+        roster = await hydrateRosterAssignments(client, roster, participant.roster_id);
     }
 
-    if (!teamState || !teamState.roster) {
-        // Defensive: If roster isn't in the state for some reason (e.g., older game),
-        // we'll skip the more advanced validation for now.
-        console.warn(`[validateLineup] Roster missing for ${teamKey}. Skipping validation.`);
-        newState.awaiting_lineup_change = false;
+    if (!roster || roster.length === 0) {
+        console.warn(`[validateLineup] Roster could not be found for ${teamKey}. Validation will fail.`);
+        newState.awaiting_lineup_change = true; // Set to invalid state
         return newState;
     }
 
-    const cardsById = teamState.roster.reduce((acc, card) => {
+    const cardsById = roster.reduce((acc, card) => {
         acc[card.card_id] = card;
         return acc;
     }, {});
