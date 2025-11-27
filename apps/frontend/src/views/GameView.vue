@@ -559,7 +559,8 @@ const isDisplayTopInning = computed(() => {
 
   // If the game is blocked awaiting a lineup change, we must show the state of the NEW inning
   // so the defensive player can make the necessary changes.
-  if (gameStore.gameState.awaiting_lineup_change) {
+  if (gameStore.gameState.awaiting_lineup_change &&
+           playersInInvalidPositions.value.size > 0) {
       return gameStore.gameState.isTopInning;
   }
 
@@ -977,7 +978,7 @@ const showStealResult = computed(() => {
   if (!hasStealData) return false;
   
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-      return !gameStore.amIReadyForNext;
+    return !gameStore.amIReadyForNext && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
   }
   
   if (gameStore.amIReadyForNext) return false;
@@ -997,7 +998,7 @@ const showStealResult = computed(() => {
       const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
       const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
       
-      return (!pitcherHasActed && !isIBB) || gameStore.opponentReadyForNext;
+      return (!pitcherHasActed && !isIBB && !(amIDisplayDefensivePlayer.value && !isRunnerOnOffensiveTeam.value)) || gameStore.opponentReadyForNext;
   }
 
   return false;
@@ -1222,7 +1223,9 @@ const batterToDisplay = computed(() => {
         return null;
     }
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !(!!gameStore.gameState.lastStealResult & !gameStore.gameState.pendingStealAttempt)) {
+    if (!gameStore.amIReadyForNext &&
+     (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) &&
+      !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing)) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
     // The single source of truth for the current batter is the store's `batter` ref.
@@ -1254,7 +1257,9 @@ const pitcherToDisplay = computed(() => {
     if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value && !showRollForSwingButton.value) {
         // Use pitcher from the start of the at-bat being displayed
         basePitcher = atBatToDisplay.value?.pitcher ?? null;
-    } else if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
+    } else if (!gameStore.amIReadyForNext && 
+          (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext)))
+          && !(isStealAttemptInProgress.value && !gameStore.gameState.inningEndedOnCaughtStealing)) {
         // Opponent is ahead, use their last completed action's pitcher
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
@@ -1520,9 +1525,9 @@ const isStealAttemptInProgress = computed(() => {
     // If the opponent has advanced (initiated steal) but we haven't clicked "Next Hitter" yet,
     // we are still viewing the previous play's result and should NOT see the steal UI yet.
     // Logic: If opponent IS ready (advanced) and I am NOT ready, hide the steal.
-    const isViewingPastTurn = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
+    const isViewingPastTurn = !gameStore.opponentReadyForNext && gameStore.amIReadyForNext;
 
-    const isPastStealDef = !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction
+    const isPastStealDef = !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.inningEndedOnCaughtStealing
 
     // FIX: Allow the steal attempt to be "in progress" even if we are showing a result (showStealResult=true),
     // provided that we have BOTH a past result (lastStealResult) AND a pending one (pendingStealAttempt).
@@ -1791,7 +1796,7 @@ function handleVisibilityChange() {
             :teamColors="pitcherTeamColors"
           />
           <ThrowRollResult
-            v-if="showStealResult"
+            v-if="showStealResult && stealDisplayDetails"
             :details="stealDisplayDetails"
             :teamColors="pitcherTeamColors"
           />
