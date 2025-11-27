@@ -1241,10 +1241,21 @@ const pitcherToDisplay = computed(() => {
     console.log(`playersInInvalidPositions.value.size: ${playersInInvalidPositions.value.size}`);
     // --- END PRODUCTION DEBUGGING ---
 
-    // If we are awaiting a lineup change, force the "TBD" state.
-    if (isMyTeamAwaitingLineupChange.value || (gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0)) {
-        console.log('pitcherToDisplay is returning NULL');
-        return null;
+    // If we are awaiting a lineup change, only force the "TBD" state if the pitcher is the invalid player.
+    if (gameStore.gameState?.awaiting_lineup_change) {
+        if (amIDisplayDefensivePlayer.value) {
+            // Defensive player: Check if my pitcher is in an invalid spot.
+            const pitcherOnMound = gameStore.pitcher;
+            if (pitcherOnMound && playersInInvalidPositions.value.has(pitcherOnMound.card_id)) {
+                 return null; // My pitcher is the invalid one.
+            }
+        } else { // Offensive player: Check if the opponent's pitcher is invalid.
+            const opponentPitcher = gameStore.pitcher;
+            // An invalid pitcher might be missing or be a position player (control is null).
+            if (!opponentPitcher || opponentPitcher.control === null) {
+                return null;
+            }
+        }
     }
     if (isGameOver.value) {
         return gameStore.gameState?.lastCompletedAtBat?.pitcher ?? null;
