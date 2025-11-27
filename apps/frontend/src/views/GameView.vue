@@ -1271,30 +1271,45 @@ const pitcherToDisplay = computed(() => {
         return basePitcher;
     }
 
+    // Conditionally enrich the pitcher data. We show the "live" fatigue status from the
+    // roster if the outcome is visible, OR if the pitcher is a new substitute. In all
+    // other cases (like a hidden outcome for an existing pitcher), we use the historical
+    // data from the start of the at-bat to avoid spoiling the outcome.
+    let pitcherToProcess = { ...basePitcher };
+    const hasBeenSubstituted = basePitcher.card_id !== gameStore.gameState.lastCompletedAtBat?.pitcher?.card_id;
+
+    if (!shouldHideCurrentAtBatOutcome.value || hasBeenSubstituted) {
+        const pitcherTeamKey = gameStore.pitcherTeam;
+        const fullPitcherFromRoster = pitcherTeamKey ? gameStore.rosters[pitcherTeamKey]?.find(p => p.card_id === basePitcher.card_id) : null;
+        if (fullPitcherFromRoster) {
+            pitcherToProcess = { ...pitcherToProcess, ...fullPitcherFromRoster };
+        }
+    }
+
     // ALWAYS replicate the backend getEffectiveControl logic for the LIVE view
     const pitcherStats = gameStore.gameState.pitcherStats;
     if (!pitcherStats) {
-        return { ...basePitcher, effectiveControl: basePitcher.control };
+        return { ...pitcherToProcess, effectiveControl: pitcherToProcess.control };
     }
 
-    const pitcherId = basePitcher.card_id;
+    const pitcherId = pitcherToProcess.card_id;
     const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
     const inningsPitched = stats.innings_pitched || [];
     const inningsPitchedCount = inningsPitched.length;
 
     let controlPenalty = 0;
-    const modifiedIp = basePitcher.ip + (stats.fatigue_modifier || 0);
+    const modifiedIp = pitcherToProcess.ip + (stats.fatigue_modifier || 0);
     const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
 
     if (inningsPitchedCount > fatigueThreshold) {
         controlPenalty = inningsPitchedCount - fatigueThreshold;
     }
 
-    const effectiveControl = basePitcher.control - controlPenalty;
+    const effectiveControl = pitcherToProcess.control - controlPenalty;
 
     // Return a new object with the calculated effectiveControl
     return {
-        ...basePitcher,
+        ...pitcherToProcess,
         effectiveControl,
     };
 });
