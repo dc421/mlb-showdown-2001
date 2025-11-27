@@ -20,12 +20,15 @@ const linescore = computed(() => {
 
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
-      if (event.log_message.includes('scores!')) {
-        const runsScored = (event.log_message.match(/scores!/g) || []).length;
+      if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN') || event.log_message.includes('SAFE at home')) {
+        const runsFromScores = (event.log_message.match(/scores/g) || []).length;
+        const runsFromHomeRun = event.log_message.includes('HOME RUN') ? 1 : 0;
+        const runsFromSAFEathome = event.log_message.includes('SAFE at home') ? 1 : 0;
+        const totalRunsInEvent = runsFromScores + runsFromHomeRun + runsFromSAFEathome;
         if (isTop) {
-          awayRunsInInning += runsScored;
+          awayRunsInInning += totalRunsInEvent;
         } else {
-          homeRunsInInning += runsScored;
+          homeRunsInInning += totalRunsInEvent;
         }
       } else if (event.log_message.includes('inning-change-message')) {
         if (inningMarkersFound > 0) {
@@ -45,15 +48,17 @@ const linescore = computed(() => {
 
   // After processing all visible events, we handle the state of the score.
 
+  const isBetweenHalfInnings = state.isBetweenHalfInningsAway || state.isBetweenHalfInningsHome;
+
   // Case 1: We are between half-innings. The final "inning change" event is hidden,
   // so we need to manually add the score for the inning that just concluded.
-  if (gameStore.isBetweenHalfInnings) {
+  if (isBetweenHalfInnings) {
     // The `isBetweenHalfInningsAway` flag means the away team just finished batting.
-    if (gameStore.gameState?.isBetweenHalfInningsAway) {
+    if (state.isBetweenHalfInningsAway) {
       scores.away.push(awayRunsInInning);
     }
     // The `isBetweenHalfInningsHome` flag means the home team just finished batting.
-    else if (gameStore.gameState?.isBetweenHalfInningsHome) {
+    else if (state.isBetweenHalfInningsHome) {
       // Before adding the home score, ensure the away team has a score for this inning.
       // This is crucial for innings where the away team didn't score.
       if (scores.away.length === scores.home.length) {
@@ -113,7 +118,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.away" 
             :key="`away-${index}`"
-            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.away.length" :key="`away-empty-${i}`"></td>
           <td>{{ awayTotalRuns }}</td>
@@ -123,7 +128,7 @@ const homeTotalRuns = computed(() => {
           <td 
             v-for="(run, index) in linescore.scores.home" 
             :key="`home-${index}`"
-            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !gameStore.isEffectivelyBetweenHalfInnings  && !gameStore.isBetweenHalfInnings }"
+            :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
           <td v-for="i in linescore.innings.length - linescore.scores.home.length" :key="`home-empty-${i}`"></td>
           <td>{{ homeTotalRuns }}</td>
@@ -179,4 +184,3 @@ const homeTotalRuns = computed(() => {
   }
 }
 </style>
-

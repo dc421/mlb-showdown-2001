@@ -10,10 +10,11 @@ const authStore = useAuthStore();
 const gameStore = useGameStore();
 const route = useRoute();
 const isGamePage = computed(() => route.name === 'game');
+const isDashboardPage = computed(() => route.name === 'dashboard');
 </script>
 
 <template>
-  <nav class="global-nav" :class="{ 'game-page-active': isGamePage }">
+  <nav class="global-nav" :class="{ 'game-page-active': isGamePage, 'dashboard-page': isDashboardPage }">
     <div class="nav-left">
       <RouterLink to="/dashboard">
         <img v-if="authStore.user?.team" :src="authStore.user.team.logo_url" alt="Team Logo" class="nav-team-logo" />
@@ -39,12 +40,13 @@ const isGamePage = computed(() => route.name === 'game');
 <style scoped>
 .global-nav {
   background-color: #343a40;
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 1rem;
   display: flex;
   align-items: center;
   position: sticky;
   top: 0;
   z-index: 1000;
+  margin-bottom: 1rem;
 }
 .global-nav a {
   color: white;

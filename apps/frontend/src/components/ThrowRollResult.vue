@@ -15,49 +15,86 @@ const props = defineProps({
 
 const textColor = computed(() => getContrastingTextColor(props.teamColors.primary));
 
-const outcomeText = computed(() => {
-  if (props.details.outcome === 'DOUBLE_PLAY') {
-    return 'DOUBLE PLAY';
-  }
-  if (props.details.outcome === 'FIELDERS_CHOICE') {
-    return 'BATTER SAFE';
-  }
-    if (props.details.outcome === 'SAFE') {
-    return 'SAFE';
-  }
-    if (props.details.outcome === 'OUT') {
-    return 'OUT';
-  }
-  return props.details.outcome;
+const isSingleRunner = computed(() => {
+  return !props.details.attempts || props.details.attempts.length <= 1;
 });
 
-const runnerInfo = computed(() => {
-    if (props.details.runner) {
-        return `${props.details.runner}`;
+const outcomeText = computed(() => {
+  // Handle steals (single and double) first, as they have throwToBase.
+  if (props.details.throwToBase) {
+    if (isSingleRunner.value && props.details.outcome === 'SAFE') {
+      return 'SAFE!';
     }
-    return '';
+    const base = props.details.throwToBase;
+    const ordinal = base === 2 ? '2nd' : base === 3 ? '3rd' : base === 4 ? 'HOME' : `${base}th`;
+    return `${props.details.outcome} AT ${ordinal}!`;
+  }
+
+  // Simplified logic for other plays
+  switch (props.details.outcome) {
+    case 'DOUBLE_PLAY':
+      return 'DOUBLE PLAY';
+    case 'FIELDERS_CHOICE':
+      return 'BATTER SAFE';
+    case 'SAFE':
+      return 'SAFE';
+    case 'OUT':
+      return 'OUT';
+    default:
+      return props.details.outcome;
+  }
+});
+
+const rollDetails = computed(() => {
+  if (props.details.attempts?.length > 0) {
+    return props.details.attempts[0];
+  }
+  return props.details;
 });
 
 const rollInfo = computed(() => {
-    let base = `Throw: ${props.details.roll} +${props.details.defense}`;
-    if (props.details.throwToBase) {
-        base = `Throw to ${props.details.throwToBase}B: ${props.details.roll} +${props.details.defense}`;
+    if (rollDetails.value.summary) {
+        return rollDetails.value.summary;
     }
-    if (props.details.penalty) {
-        return `${base} ${props.details.penalty}`;
+    let base;
+    if (rollDetails.value.throwToBase && !isSingleRunner.value) {
+        const baseDisplay = rollDetails.value.throwToBase === 4 ? 'Home' : `${rollDetails.value.throwToBase}B`;
+        base = `Throw to ${baseDisplay}: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
+    } else {
+        base = `Throw: ${rollDetails.value.roll} +${rollDetails.value.defense}`;
     }
     return base;
 });
 
 const targetInfo = computed(() => {
-    return `${props.details.target}`;
+    // This part handles advances/tag-ups from 'throwRollResult'
+    if (rollDetails.value.baseSpeed !== undefined) {
+        let result = `${rollDetails.value.baseSpeed}`;
+        if (rollDetails.value.adjustments && Array.isArray(rollDetails.value.adjustments)) {
+            rollDetails.value.adjustments.forEach(adj => {
+                if (adj.value > 0) {
+                    result += ` +${adj.value}`;
+                } else if (adj.value < 0) {
+                    result += ` ${adj.value}`;
+                }
+            });
+        }
+        return result;
+    }
+
+    // This is the fallback, which handles 'lastStealResult' (single steals)
+    // and also the contested runner in 'throwRollResult' for double steals.
+    let result = `${rollDetails.value.target}`;
+    if (rollDetails.value.penalty && rollDetails.value.penalty > 0) {
+        result += ` -${rollDetails.value.penalty}`;
+    }
+    return result;
 });
 
 </script>
 
 <template>
   <div class="throw-roll-result" :style="{ backgroundColor: teamColors.primary, borderColor: teamColors.secondary, color: textColor }">
-    <div v-if="runnerInfo">{{ runnerInfo }}</div>
     <div>{{ rollInfo }} vs. {{ targetInfo }}</div>
     <div class="outcome">{{ outcomeText }}</div>
   </div>

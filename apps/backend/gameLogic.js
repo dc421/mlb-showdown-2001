@@ -1,378 +1,22 @@
-const getSpeedValue = (runner) => {
-  // Pitchers always have C/10 speed
-  if (runner.control !== null && typeof runner.control !== 'undefined') {
-    return 10;
-  }
-  const speed = runner.speed;
-  if (speed === 'A') return 20;
-  if (speed === 'B') return 15;
-  if (speed === 'C') return 10;
-  return speed; // Assume it's already a number if not A/B/C
-};
-
 function getOrdinal(n) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0) {
-  const newState = JSON.parse(JSON.stringify(state));
-  const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
-  const events = [];
-
-  const runnerData = {
-    ...batter,
-    pitcherOfRecordId: pitcher.card_id
-  };
-
-  const scoreRun = (runnerOnBase, generateLog = true) => {
-    if (!runnerOnBase) return;
-    newState[scoreKey]++;
-    if (generateLog) {
-      events.push(`${runnerOnBase.name} scores!`);
+function recordBatterFaced(state, pitcher) {
+    if (!pitcher) return;
+    const pitcherId = pitcher.card_id;
+    if (!state.pitcherStats[pitcherId]) {
+        state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
     }
-    const pitcherId = runnerOnBase.pitcherOfRecordId;
-    if (newState.pitcherStats[pitcherId]) {
-      newState.pitcherStats[pitcherId].runs++;
-    } else {
-      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1 };
+    if (state.pitcherStats[pitcherId].batters_faced === undefined) {
+        state.pitcherStats[pitcherId].batters_faced = 0;
     }
-  };
-  
-  // --- HANDLE OUTCOMES ---
-  if (outcome === 'BUNT') {
-    const { first, second, third } = state.bases;
-    // Bases Loaded: Fielder's choice, out at home.
-    if (first && second && third) {
-      events.push(`${batter.displayName} bunts into a fielder's choice, the runner from third is out at home.`);
-      newState.outs++;
-      if (newState.outs < 3) {
-        newState.bases.third = second;
-        newState.bases.second = first;
-        newState.bases.first = runnerData;
-      }
-    }
-    // Runner on 3rd (and maybe 2nd): Runners hold.
-    else if (third && second && !first) {
-      events.push(`${batter.displayName} lays down a bunt, but the runners hold.`);
-      newState.outs++;
-      newState.bases.first = null; // Batter is out
-    }
-    // Runner on 3rd (and maybe 1st): Runner on 3rd holds.
-    else if (third && first && !second) {
-      events.push(`${batter.displayName} lays down a sacrifice bunt. The runner on first advances.`);
-      newState.outs++;
-      if (newState.outs < 3) {
-        newState.bases.second = first;
-        newState.bases.first = null; // Batter is out
-      }
-    }
-    // Runner on 3rd only: Runner holds.
-    else if (third && !first && !second) {
-      events.push(`${batter.displayName} lays down a bunt, but the runner on third holds.`);
-      newState.outs++;
-      newState.bases.first = null; // Batter is out
-    }
-    // Standard sacrifice bunt cases
-    else {
-      events.push(`${batter.displayName} lays down a sacrifice bunt.`);
-      newState.outs++;
-      if (newState.outs < 3) {
-        // Note: scoreRun is not possible here based on preceding logic
-        if (second) { newState.bases.third = second; }
-        if (first) { newState.bases.second = first; }
-        newState.bases.first = null; // Batter is out
-      }
-    }
-  }
-  else if (outcome.includes('GB')) {
-    if (state.infieldIn && newState.outs < 2 && newState.bases.third) {
-        events.push(`${batter.displayName} hits a ground ball with the infield in...`);
-        newState.currentPlay = { type: 'INFIELD_IN_PLAY', payload: { runner: newState.bases.third, batter: runnerData } };
-    }
-    else if (newState.outs <= 1 && newState.bases.first) {
-        newState.awaitingDoublePlayRoll = true;
-    } else {
-        events.push(`${batter.displayName} grounds out.`);
-        newState.outs++;
-        if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third); }
-            if (newState.bases.second) { newState.bases.third = newState.bases.second; }
-            newState.bases.second = null;
-        }
-    }
-  }
-  else if (outcome.includes('FB')) {
-    newState.outs++;
-    const initialEvent = `${batter.displayName} flies out.`;
-    if (newState.outs < 3 && (state.bases.first || state.bases.second || state.bases.third)) {
-        const decisions = [
-            { runner: state.bases.third, from: 3 },
-            { runner: state.bases.second, from: 2 },
-            { runner: state.bases.first, from: 1 },
-        ].filter(d => d.runner);
-
-        let allDecisionsAutomatic = decisions.length > 0;
-        const automaticOutcomes = [];
-
-        if (allDecisionsAutomatic) {
-            for (const decision of decisions) {
-                const { runner, from } = decision;
-                const toBase = from + 1;
-                const runnerSpeed = getSpeedValue(runner);
-
-                let effectiveSpeed = runnerSpeed;
-                if (toBase === 4) effectiveSpeed += 5; // going home
-                if (toBase === 2) effectiveSpeed -= 5; // going to 2nd on tag
-
-                // Per user, use >= for auto-advance.
-                const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
-                const isAutoHold = (runnerSpeed === 10 && (toBase === 2 || toBase === 3)) || (runnerSpeed === 15 && toBase === 2);
-
-                if (isAutoAdvance) {
-                    automaticOutcomes.push({ ...decision, advance: true });
-                } else if (isAutoHold) {
-                    automaticOutcomes.push({ ...decision, advance: false });
-                } else {
-                    allDecisionsAutomatic = false;
-                    break;
-                }
-            }
-        }
-
-        if (allDecisionsAutomatic) {
-            for (const outcome of automaticOutcomes) {
-                if (outcome.advance) {
-                    const toBase = outcome.from + 1;
-                    const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-                    if (toBase === 4) {
-                        scoreRun(outcome.runner);
-                        events.push(`${outcome.runner.name} tags up and scores without a throw.`);
-                    } else {
-                        newState.bases[baseMap[toBase]] = outcome.runner;
-                        events.push(`${outcome.runner.name} tags up and advances without a throw.`);
-                    }
-                    newState.bases[baseMap[outcome.from]] = null;
-                } else {
-                    events.push(`${outcome.runner.name} holds.`);
-                }
-            }
-        } else {
-            newState.currentPlay = { type: 'TAG_UP', payload: { decisions, initialEvent } };
-        }
-    } else {
-        events.push(initialEvent);
-    }
-  }
-  else if (outcome === 'SINGLE' || outcome === '1B' || outcome === '1B+') {
-      const initialEvent = `${batter.displayName} hits a SINGLE!`;
-
-      const runnerFrom3 = state.bases.third;
-      const runnerFrom2 = state.bases.second;
-      const runnerFrom1 = state.bases.first;
-
-      if (runnerFrom3) {
-          scoreRun(runnerFrom3);
-      }
-
-      const potentialDecisions = [
-        { runner: runnerFrom2, from: 2 }, // try for home
-        { runner: runnerFrom1, from: 1 },  // try for third
-      ].filter(d => d.runner);
-
-      let allDecisionsAutomatic = potentialDecisions.length > 0;
-      const automaticOutcomes = [];
-
-      if (allDecisionsAutomatic) {
-          for (const decision of potentialDecisions) {
-              const { runner, from } = decision;
-              const toBase = from + 2; // trying for the extra base
-              const runnerSpeed = getSpeedValue(runner);
-
-              let effectiveSpeed = runnerSpeed;
-              if (toBase === 4) effectiveSpeed += 5; // going home
-              if (newState.outs === 2) effectiveSpeed += 5;
-
-              const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
-              // With less than 2 outs, a runner with 10 speed will always be held.
-              // A runner with 15 speed will be held if they are trying for 3rd.
-              // A runner with 15 speed will also be held at third if they are trying for home (scoring from 2nd)
-              const isAutoHold = (runnerSpeed === 10 && toBase === 3) || (runnerSpeed === 15 && toBase === 4);
-
-              if (isAutoAdvance) {
-                  automaticOutcomes.push({ ...decision, advance: true });
-              } else if (isAutoHold) {
-                  automaticOutcomes.push({ ...decision, advance: false });
-              } else {
-                  allDecisionsAutomatic = false;
-                  break;
-              }
-          }
-      }
-
-      // Clear all bases, then rebuild based on decisions
-      newState.bases = { first: null, second: null, third: null };
-
-      if (allDecisionsAutomatic) {
-          events.push(initialEvent);
-          let baseAheadIsOccupied = false;
-
-          // Process lead runner (from 2nd) first
-          const decisionR2 = automaticOutcomes.find(d => d.from === 2);
-          if (decisionR2) {
-              if (decisionR2.advance) {
-                  scoreRun(runnerFrom2);
-                  events.push(`${runnerFrom2.name} scores from second without a throw!`);
-                  baseAheadIsOccupied = false;
-              } else {
-                  newState.bases.third = runnerFrom2;
-                  events.push(`${runnerFrom2.name} holds at third.`);
-                  baseAheadIsOccupied = true;
-              }
-          } else if (runnerFrom2) {
-              newState.bases.third = runnerFrom2; // Default move
-              baseAheadIsOccupied = true;
-          }
-
-          // Process trail runner (from 1st)
-          const decisionR1 = automaticOutcomes.find(d => d.from === 1);
-          if (decisionR1) {
-              if (decisionR1.advance && !baseAheadIsOccupied) {
-                  newState.bases.third = runnerFrom1;
-                  events.push(`${runnerFrom1.name} takes third without a throw!`);
-              } else {
-                  if(decisionR1.advance && baseAheadIsOccupied) {
-                      events.push(`${runnerFrom1.name} holds at second.`);
-                  } else {
-                      events.push(`${runnerFrom1.name} holds at second.`);
-                  }
-                  newState.bases.second = runnerFrom1;
-              }
-          } else if (runnerFrom1) {
-              newState.bases.second = runnerFrom1; // Default move
-          }
-
-          newState.bases.first = runnerData;
-      } else {
-          // Not automatic, so do standard advancement and ask user
-          if (runnerFrom2) { newState.bases.third = runnerFrom2; }
-          if (runnerFrom1) { newState.bases.second = runnerFrom1; }
-          newState.bases.first = runnerData;
-          if (potentialDecisions.length > 0) {
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '1B', initialEvent } };
-          } else {
-              events.push(initialEvent);
-          }
-      }
-
-      // Handle 1B+ for the batter
-      if (outcome === '1B+' && !newState.bases.second) {
-          newState.bases.second = newState.bases.first;
-          newState.bases.first = null;
-          events.push(`${batter.displayName} takes second on the throw!`);
-      }
-  }
-  else if (outcome === '2B') {
-      const initialEvent = `${batter.displayName} hits a DOUBLE!`;
-
-      if (state.bases.third) { scoreRun(state.bases.third); }
-      if (state.bases.second) { scoreRun(state.bases.second); }
-      newState.bases.third = null;
-      newState.bases.second = null;
-
-      const runnerFrom1 = state.bases.first;
-      const potentialDecisions = runnerFrom1 ? [{ runner: runnerFrom1, from: 1 }] : [];
-
-      let isAutomatic = false;
-      let autoAdvance = false;
-
-      if (potentialDecisions.length > 0) {
-          const decision = potentialDecisions[0];
-          const toBase = 4; // trying for home
-          const runnerSpeed = getSpeedValue(decision.runner);
-
-          let effectiveSpeed = runnerSpeed;
-          effectiveSpeed += 5; // going home
-          if (newState.outs === 2) effectiveSpeed += 5;
-
-          if (effectiveSpeed >= (outfieldDefense + 20)) {
-              isAutomatic = true;
-              autoAdvance = true;
-          }
-      }
-
-      if (isAutomatic) {
-          events.push(initialEvent);
-          if (autoAdvance) {
-              scoreRun(runnerFrom1);
-              events.push(`${runnerFrom1.name} scores from first without a throw!`);
-          }
-          newState.bases.first = null;
-      } else {
-          if (runnerFrom1) {
-              newState.bases.third = runnerFrom1;
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent } };
-          } else {
-              events.push(initialEvent);
-          }
-          newState.bases.first = null;
-      }
-
-      newState.bases.second = runnerData;
-  }
-  else if (outcome === 'IBB') {
-    events.push(`${batter.displayName} is intentionally walked.`);
-    if (newState.bases.first && newState.bases.second && newState.bases.third) { scoreRun(newState.bases.third); }
-    if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
-    if (newState.bases.first) { newState.bases.second = newState.bases.first; }
-    newState.bases.first = runnerData;
-  }
-  else if (outcome === 'BB') {
-    events.push(`${batter.displayName} walks.`);
-    if (newState.bases.first && newState.bases.second && newState.bases.third) { scoreRun(newState.bases.third); }
-    if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
-    if (newState.bases.first) { newState.bases.second = newState.bases.first; }
-    newState.bases.first = runnerData;
-  }
-  else if (outcome === '3B') {
-    events.push(`${batter.displayName} hits a TRIPLE!`);
-    if (newState.bases.third) { scoreRun(newState.bases.third); }
-    if (newState.bases.second) { scoreRun(newState.bases.second); }
-    if (newState.bases.first) { scoreRun(newState.bases.first); }
-    newState.bases.third = runnerData;
-    newState.bases.second = null;
-    newState.bases.first = null;
-  }
-  else if (outcome === 'HR') {
-    events.push(`${batter.displayName} hits a HOME RUN!`);
-    if (newState.bases.third) { scoreRun(newState.bases.third); }
-    if (newState.bases.second) { scoreRun(newState.bases.second); }
-    if (newState.bases.first) { scoreRun(newState.bases.first); }
-    scoreRun(runnerData, false); // Batter scores, but don't log it.
-    newState.bases = { first: null, second: null, third: null };
-  }
-  else if (outcome === 'SO') {
-    events.push(`${batter.displayName} strikes out.`);
-    newState.outs++;
-  }
-  else if (outcome === 'PU') {
-    events.push(`${batter.displayName} pops out.`);
-    newState.outs++;
+    state.pitcherStats[pitcherId].batters_faced += 1;
 }
-  else { 
-    events.push(`${batter.displayName} is out.`);
-    newState.outs++;
-  }
 
-  // --- Walk-off Win Check ---
-  if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
-    newState.gameOver = true;
-    newState.winningTeam = 'home';
-    events.push(`HOME TEAM WINS! WALK-OFF!`);
-  }
-
-  // --- Handle Inning Change & Game Over Check ---
+function checkGameOverOrInningChange(newState, events, teamInfo) {
   if (newState.outs >= 3 && !newState.gameOver) {
     const isGameOver = (
       // Case 1: End of the 9th or later (bottom half), and it's not a tie.
@@ -384,30 +28,648 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
     if (isGameOver) {
       newState.gameOver = true;
-      newState.winningTeam = newState.homeScore > newState.awayScore ? 'home' : 'away';
-      events.push(`That's the ballgame! Final Score: Away ${newState.awayScore}, Home ${newState.homeScore}.`);
+      const homeTeamWon = newState.homeScore > newState.awayScore;
+      newState.winningTeam = homeTeamWon ? 'home' : 'away';
+
+      const winningAbbr = homeTeamWon ? (teamInfo.home_team_abbr || 'HOME') : (teamInfo.away_team_abbr || 'AWAY');
+      const winningScore = homeTeamWon ? newState.homeScore : newState.awayScore;
+      const losingAbbr = homeTeamWon ? (teamInfo.away_team_abbr || 'AWAY') : (teamInfo.home_team_abbr || 'HOME');
+      const losingScore = homeTeamWon ? newState.awayScore : newState.homeScore;
+
+      events.push(`That's the ballgame! Final Score: ${winningAbbr} ${winningScore}, ${losingAbbr} ${losingScore}.`);
     } else {
-      // It's just an inning change, not the end of the game
-      newState.inningChanged = true; // Signal to the server
-      const wasTop = newState.isTopInning;
-      
-      if (newState.isTopInning) { // Away team finished batting
-      newState.isBetweenHalfInningsAway = true;
-    } else { // Home team finished batting
-      newState.isBetweenHalfInningsHome = true;
-    }
-    newState.isTopInning = !newState.isTopInning;
-    if (newState.isTopInning) newState.inning++;
-    newState.outs = 0;
-    newState.bases = { first: null, second: null, third: null };
-    // The inning change event itself is now created in server.js
+      // It's just an inning change, not the end of the game.
+      // SET THE FLAGS, but do not advance the inning state here.
+      if (newState.isTopInning) {
+        newState.isBetweenHalfInningsAway = true;
+      } else {
+        newState.isBetweenHalfInningsHome = true;
+      }
     }
   }
-  
-  return { newState, events };
 }
 
-function resolveThrow(state, throwTo, outfieldDefense) {
+function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null, teamInfo = {}) {
+  const newState = JSON.parse(JSON.stringify(state));
+  const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
+
+  // Record that the pitcher faced a batter
+  recordBatterFaced(newState, pitcher);
+
+  const recordOuts = (count) => {
+    recordOutsForPitcher(newState, pitcher, count);
+  };
+  const events = [];
+  const scorers = [];
+  const originalAwayScore = state.awayScore;
+  const originalHomeScore = state.homeScore;
+  let hitMessage = '';
+
+  const scoreRun = (runnerOnBase, generateLog = true) => {
+    if (!runnerOnBase) return null;
+    newState[scoreKey]++;
+    scorers.push(runnerOnBase.name);
+
+    // --- Walk-off Win Check ---
+    if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
+        if (!newState.gameOver) {
+            newState.gameOver = true;
+            newState.winningTeam = 'home';
+        }
+    }
+
+    const pitcherId = runnerOnBase.pitcherOfRecordId;
+    if (newState.pitcherStats[pitcherId]) {
+      newState.pitcherStats[pitcherId].runs++;
+    } else {
+      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0, batters_faced: 0 };
+    }
+
+    if (generateLog) {
+        return `${runnerOnBase.name} scores!`;
+    }
+    return null;
+  };
+
+  const isWalkOffSituation = !newState.isTopInning && newState.inning >= 9 && newState.homeScore <= newState.awayScore;
+
+  if (isWalkOffSituation && ['SINGLE', '1B', '1B+', '2B', '3B'].includes(outcome)) {
+    let basesToAdvanceOnHit = 0;
+    if (outcome === '1B' || outcome === 'SINGLE' || outcome === '1B+') basesToAdvanceOnHit = 1;
+    if (outcome === '2B') basesToAdvanceOnHit = 2;
+    if (outcome === '3B') basesToAdvanceOnHit = 3;
+
+    const runnersOnBaseForCheck = [
+        { runner: state.bases.third, from: 3 },
+        { runner: state.bases.second, from: 2 },
+        { runner: state.bases.first, from: 1 },
+    ].filter(r => r.runner);
+
+    let autoScoredCount = 0;
+    for (const { from } of runnersOnBaseForCheck) {
+        if (from + basesToAdvanceOnHit >= 4) {
+            autoScoredCount++;
+        }
+    }
+    const runsNeededToWin = newState.awayScore - newState.homeScore + 1;
+
+    if (autoScoredCount >= runsNeededToWin) {
+        const runnersOnBase = [
+            { runner: state.bases.third, from: 3 },
+            { runner: state.bases.second, from: 2 },
+            { runner: state.bases.first, from: 1 },
+        ].filter(r => r.runner);
+
+        let basesToAdvance = 0;
+        for (let b = 1; b <= 3; b++) {
+            const scored = runnersOnBase.filter(r => r.from + b >= 4).length;
+            if (scored >= runsNeededToWin) {
+                basesToAdvance = b;
+                break;
+            }
+        }
+
+        if (basesToAdvance === 0) basesToAdvance = basesToAdvanceOnHit;
+
+
+        let finalOutcome = '1B';
+        if (basesToAdvance === 2) finalOutcome = '2B';
+        if (basesToAdvance === 3) finalOutcome = '3B';
+
+        const allRunners = [
+            ...runnersOnBase,
+            { runner: batter, from: 0 }
+        ];
+
+        const newBases = { first: null, second: null, third: null };
+        const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+        let runnersScoredCount = 0;
+
+        for (const { runner, from } of allRunners) {
+            const toBase = from + basesToAdvance;
+            if (toBase >= 4) {
+                if (runnersScoredCount < runsNeededToWin) {
+                    scoreRun(runner, false);
+                    runnersScoredCount++;
+                }
+            } else {
+                if (from === 0) { // Batter
+                    newBases[baseMap[toBase]] = runner;
+                } else { // Runner on base
+                    newBases[baseMap[toBase]] = runner;
+                }
+            }
+        }
+
+        newState.bases = newBases;
+        let hitType = 'SINGLE';
+        if (finalOutcome === '2B') hitType = 'DOUBLE';
+        if (finalOutcome === '3B') hitType = 'TRIPLE';
+
+        let eventMessage = `${batter.displayName} hits a walk-off ${hitType}!`;
+        const winningScorerName = scorers[scorers.length - 1];
+        if (winningScorerName) {
+            eventMessage += ` ${winningScorerName} scores.`;
+        }
+
+        events.push(eventMessage);
+
+        newState.gameOver = true;
+        newState.winningTeam = 'home';
+        newState.walkoffAdjustedOutcome = finalOutcome;
+        outcome = 'WALKOFF_HANDLED';
+    }
+  }
+
+
+  // --- Handle Highest GB Rule ---
+  if (outcome.includes('GB') && state.currentAtBat.infieldIn && chartHolder && swingRoll > 0) {
+      let highestGB = -1;
+      for (const range in chartHolder.chart_data) {
+          const chartOutcome = chartHolder.chart_data[range];
+          if (chartOutcome === 'GB' || chartOutcome === 'GB?') { // Include GB? just in case
+              const [min, max] = range.split('-').map(Number);
+              if (max > highestGB) {
+                  highestGB = max;
+              }
+          }
+      }
+      if (swingRoll === highestGB) {
+          outcome = '1B'; // Convert the outcome to a single
+          hitMessage = `${batter.displayName} finds a hole through the drawn-in infield for a SINGLE!`;
+      }
+  }
+
+
+  const runnerData = {
+    ...batter,
+    pitcherOfRecordId: pitcher.card_id
+  };
+
+  // --- HANDLE OUTCOMES ---
+  if (outcome === 'BUNT') {
+    const { first, second, third } = state.bases;
+    // Bases Loaded: Fielder's choice, out at home.
+    if (first && second && third) {
+      events.push(`${batter.displayName} bunts into a fielder's choice, the runner from third is out at home.`);
+      recordOuts(1);
+      if (newState.outs < 3) {
+        newState.bases.third = second;
+        newState.bases.second = first;
+        newState.bases.first = runnerData;
+      }
+    }
+    // Runner on 3rd (and maybe 2nd): Runners hold.
+    else if (third && second && !first) {
+      events.push(`${batter.displayName} lays down a bunt, but the runners hold.`);
+      recordOuts(1);
+      newState.bases.first = null; // Batter is out
+    }
+    // Runner on 3rd (and maybe 1st): Runner on 3rd holds.
+    else if (third && first && !second) {
+      events.push(`${batter.displayName} lays down a sacrifice bunt. The runner on first advances.`);
+      recordOuts(1);
+      if (newState.outs < 3) {
+        newState.bases.second = first;
+        newState.bases.first = null; // Batter is out
+      }
+    }
+    // Runner on 3rd only: Runner holds.
+    else if (third && !first && !second) {
+      events.push(`${batter.displayName} lays down a bunt, but the runner on third holds.`);
+      recordOuts(1);
+      newState.bases.first = null; // Batter is out
+    }
+    // Standard sacrifice bunt cases
+    else {
+      events.push(`${batter.displayName} lays down a sacrifice bunt.`);
+      recordOuts(1);
+      if (newState.outs < 3) {
+        if (second) { newState.bases.third = second; newState.bases.second = null; }
+        if (first) { newState.bases.second = first; newState.bases.first = null; }
+        else { newState.bases.first = null; }
+      }
+    }
+  }
+  else if (outcome.includes('GB')) {
+    const { first, second, third } = newState.bases;
+
+    // --- NEW: Infield In Logic ---
+    if (newState.currentAtBat.infieldIn && third) {
+        // Case 1: Bases Loaded
+        if (first && second && third) {
+            events.push(`${batter.displayName} hits a grounder to the drawn-in infield. The throw comes home...`);
+            events.push(`The runner from third is out at the plate!`);
+            recordOuts(1);
+            if (newState.outs < 3) {
+                newState.bases.third = second;
+                newState.bases.second = first;
+                newState.bases.first = runnerData;
+            } else {
+                newState.bases = { first: null, second: null, third: null };
+            }
+        }
+        // Case 2: Any other situation with a runner on third.
+        else {
+            newState.currentPlay = {
+                type: 'INFIELD_IN_CHOICE',
+                payload: {
+                    batter: runnerData,
+                    runnerOnThird: third,
+                    runnerOnSecond: second,
+                    runnerOnFirst: first
+                }
+            };
+        }
+    }
+    // --- End Infield In Logic ---
+    else if (newState.outs <= 1 && newState.bases.first) {
+        const dpRoll = Math.floor(Math.random() * 20) + 1;
+        const batterSpeed = parseInt(getSpeedValue(batter), 10);
+        const isDoublePlay = (infieldDefense + dpRoll) > batterSpeed;
+        const dpOutcome = isDoublePlay ? 'DOUBLE_PLAY' : 'FIELDERS_CHOICE';
+
+        let playResultDescription = '';
+        if (isDoublePlay) {
+          playResultDescription = `It's a DOUBLE PLAY!`;
+          recordOuts(2);
+          if (newState.outs < 3 && !state.infieldIn) {
+            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; } // Score doesn't need to be logged here, server handles it
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
+          }
+          newState.bases.first = null; // Runner from first is out
+        } else {
+          playResultDescription = `Batter is SAFE, out at second. Fielder's choice.`;
+          recordOuts(1);
+          if (newState.outs < 3 && !state.infieldIn) {
+            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; } // Score doesn't need to be logged here, server handles it
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
+          }
+          newState.bases.first = runnerData; // Batter is safe at first
+        }
+        // Suppress the initial event for DPs, as the server will create a consolidated one.
+        // events.push(`${batter.displayName} hits a ground ball... ${playResultDescription}`);
+
+        newState.doublePlayDetails = {
+          roll: dpRoll,
+          defense: infieldDefense,
+          target: batterSpeed,
+          outcome: dpOutcome
+        };
+
+    } else {
+        let groundOutEvent = `${batter.displayName} grounds out.`;
+        recordOuts(1);
+        if (newState.outs < 3 && !state.infieldIn) {
+            if (newState.bases.third) {
+                const scoreMsg = scoreRun(newState.bases.third);
+                if (scoreMsg) groundOutEvent += ` ${scoreMsg}`;
+                newState.bases.third = null;
+            }
+            if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
+        }
+        events.push(groundOutEvent);
+    }
+  }
+  else if (outcome.includes('FB')) {
+    recordOuts(1);
+    const initialEvent = `${batter.displayName} flies out.`;
+    if (newState.outs < 3 && (state.bases.first || state.bases.second || state.bases.third)) {
+        const potentialDecisions = [
+            { runner: state.bases.third, from: 3 },
+            { runner: state.bases.second, from: 2 },
+            { runner: state.bases.first, from: 1 },
+        ].filter(d => d.runner);
+
+        let processedDecisions = potentialDecisions.map(decision => {
+            const { runner, from } = decision;
+            const toBase = from + 1;
+            const runnerSpeed = parseInt(getSpeedValue(runner), 10);
+
+            let effectiveSpeed = runnerSpeed;
+            if (toBase === 4) effectiveSpeed += 5; // going home
+            if (toBase === 2) effectiveSpeed -= 5; // going to 2nd on tag
+
+            const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
+            const isAutoHold = (runnerSpeed === 10 && (toBase === 2 || toBase === 3)) || (runnerSpeed === 15 && toBase === 2);
+
+            if (isAutoAdvance) return { ...decision, type: 'auto_advance' };
+            if (isAutoHold) return { ...decision, type: 'auto_hold' };
+            return { ...decision, type: 'manual' };
+        });
+
+        const hasManualDecision = processedDecisions.some(d => d.type === 'manual');
+
+        if (hasManualDecision) {
+            processedDecisions = processedDecisions.map(d =>
+                d.type === 'auto_hold' ? { ...d, type: 'manual' } : d
+            );
+        }
+
+        const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
+        const autoAdvanceDecisions = processedDecisions.filter(d => d.type === 'auto_advance');
+        const autoHoldDecisions = processedDecisions.filter(d => d.type === 'auto_hold');
+
+        let combinedEvent = initialEvent;
+        const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+
+        // Process automatic advances first
+        for (const decision of autoAdvanceDecisions) {
+            const toBase = decision.from + 1;
+            if (toBase === 4) {
+                scoreRun(decision.runner, false);
+                combinedEvent += ` ${decision.runner.name} tags up and scores without a throw.`;
+            } else {
+                newState.bases[baseMap[toBase]] = decision.runner;
+                combinedEvent += ` ${decision.runner.name} tags up and advances without a throw.`;
+            }
+            newState.bases[baseMap[decision.from]] = null;
+        }
+
+        // If there are manual decisions, create a play
+        if (manualDecisions.length > 0) {
+            newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, autoHoldDecisions, initialEvent: combinedEvent } };
+        } else {
+            // Otherwise, process auto-holds and finalize the event
+            events.push(combinedEvent);
+        }
+    } else {
+        events.push(initialEvent);
+    }
+  }
+  else if (outcome === 'SINGLE' || outcome === '1B' || outcome === '1B+') {
+      let combinedEvent = hitMessage || `${batter.displayName} hits a SINGLE!`;
+
+      const runnerFrom3 = state.bases.third;
+      const runnerFrom2 = state.bases.second;
+      const runnerFrom1 = state.bases.first;
+
+      if (runnerFrom3) {
+          const scoreMsg = scoreRun(runnerFrom3);
+          if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
+      }
+
+      const potentialDecisions = [
+        { runner: runnerFrom2, from: 2 }, // try for home
+        { runner: runnerFrom1, from: 1 },  // try for third
+      ].filter(d => d.runner);
+
+      const processedDecisions = potentialDecisions.map(decision => {
+          const { runner, from } = decision;
+          const toBase = from + 2;
+          const runnerSpeed = parseInt(getSpeedValue(runner), 10);
+
+          let effectiveSpeed = runnerSpeed;
+          if (toBase === 4) effectiveSpeed += 5; // going home
+          if (newState.outs === 2) effectiveSpeed += 5;
+
+          const isAutoAdvance = effectiveSpeed >= (outfieldDefense + 20);
+          const isAutoHold = runnerSpeed === 10 && toBase === 3 && outcome !== '1B+';
+
+          if (isAutoAdvance) return { ...decision, type: 'auto_advance' };
+          if (isAutoHold) return { ...decision, type: 'auto_hold' };
+          return { ...decision, type: 'manual' };
+      });
+
+      const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
+      const autoHoldDecisions = processedDecisions.filter(d => d.type === 'auto_hold');
+
+      // --- State Update ---
+      newState.bases = { first: null, second: null, third: null };
+
+      if (manualDecisions.length > 0 && !newState.gameOver) {
+          // --- SCENARIO 1: User decision is required ---
+          const allUserDecisions = manualDecisions.concat(autoHoldDecisions.map(d => ({ ...d, type: 'manual' })));
+
+          // Optimistic state update: runners advance one base
+          if (runnerFrom2) newState.bases.third = runnerFrom2;
+          if (runnerFrom1) newState.bases.second = runnerFrom1;
+
+          // Handle auto-advances that happen before the manual decision
+          const runnerFrom2Decision = processedDecisions.find(d => d.from === 2 && d.type === 'auto_advance');
+          if (runnerFrom2Decision) {
+              scoreRun(runnerFrom2, false);
+              combinedEvent += ` ${runnerFrom2.name} scores from second without a throw.`;
+              newState.bases.third = null; // He's not on third anymore
+          }
+
+          newState.bases.first = runnerData;
+          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: allUserDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
+
+      } else {
+          // --- SCENARIO 2: All runner movement is automatic ---
+          let baseAheadIsOccupied = false;
+
+          // Process lead runner (from 2nd)
+          const decisionR2 = processedDecisions.find(d => d.from === 2);
+          if (decisionR2 && decisionR2.type === 'auto_advance') {
+              scoreRun(runnerFrom2, false);
+              combinedEvent += ` ${runnerFrom2.name} scores from second without a throw.`;
+          } else if (runnerFrom2) { // Auto-advance one base
+              newState.bases.third = runnerFrom2;
+              baseAheadIsOccupied = true;
+          }
+
+          // Process trail runner (from 1st)
+          const decisionR1 = processedDecisions.find(d => d.from === 1);
+          if (decisionR1) {
+              if (decisionR1.type === 'auto_advance' && !baseAheadIsOccupied) {
+                  newState.bases.third = runnerFrom1;
+                  combinedEvent += ` ${runnerFrom1.name} takes third without a throw.`;
+              } else { // This covers auto_hold
+                  newState.bases.second = runnerFrom1;
+                  if (decisionR1.type === 'auto_hold') {
+                    combinedEvent += ` ${runnerFrom1.name} holds at second.`;
+                  }
+              }
+          } else if (runnerFrom1) { // Auto-advance one base
+              newState.bases.second = runnerFrom1;
+          }
+
+          newState.bases.first = runnerData;
+
+          if (outcome === '1B+' && !newState.bases.second) {
+              newState.bases.second = newState.bases.first;
+              newState.bases.first = null;
+              combinedEvent += ` ${batter.displayName} steals second without a throw.`;
+          }
+
+          events.push(combinedEvent);
+      }
+  }
+  else if (outcome === '2B') {
+      let combinedEvent = `${batter.displayName} hits a DOUBLE!`;
+
+      if (state.bases.third) {
+        const runner = state.bases.third;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
+      }
+      if (state.bases.second) {
+        const runner = state.bases.second;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
+      }
+      newState.bases.third = null;
+      newState.bases.second = null;
+
+      const runnerFrom1 = state.bases.first;
+      newState.bases.first = null; // Clear first base now
+
+      const potentialDecisions = runnerFrom1 ? [{ runner: runnerFrom1, from: 1 }] : [];
+
+      let isAutomatic = false;
+      let autoAdvance = false;
+      let autoHold = false;
+
+      if (potentialDecisions.length > 0) {
+          const decision = potentialDecisions[0];
+          const runnerSpeed = parseInt(getSpeedValue(decision.runner), 10);
+          let effectiveSpeed = runnerSpeed;
+          effectiveSpeed += 5; // bonus for going home on a double
+          if (newState.outs === 2) effectiveSpeed += 5;
+
+          if (effectiveSpeed >= (outfieldDefense + 20)) {
+              isAutomatic = true;
+              autoAdvance = true;
+          }
+      }
+
+      if (isAutomatic) {
+          if (autoAdvance) {
+              scoreRun(runnerFrom1, false);
+              combinedEvent += ` ${runnerFrom1.name} scores from first without a throw!`;
+          }
+          events.push(combinedEvent);
+          newState.bases.second = runnerData; // Batter placed on second since play is resolved
+      } else {
+          // THIS IS THE FIX. Place the batter on second base *before* creating the
+          // ADVANCE play. This ensures the frontend has the correct state.
+          newState.bases.second = runnerData;
+          if (runnerFrom1 && !newState.gameOver) {
+              newState.bases.third = runnerFrom1;
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers } };
+          } else {
+              events.push(combinedEvent);
+          }
+      }
+  }
+  else if (outcome === 'IBB') {
+    let walkEvent = `${batter.displayName} is intentionally walked.`;
+    if (newState.bases.first && newState.bases.second && newState.bases.third) {
+        const scoreMsg = scoreRun(newState.bases.third);
+        if (scoreMsg) walkEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
+    if (newState.bases.first) { newState.bases.second = newState.bases.first; }
+    newState.bases.first = runnerData;
+    events.push(walkEvent);
+  }
+  else if (outcome === 'BB') {
+    let walkEvent = `${batter.displayName} walks.`;
+    if (newState.bases.first && newState.bases.second && newState.bases.third) {
+        const scoreMsg = scoreRun(newState.bases.third);
+        if (scoreMsg) walkEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.first && newState.bases.second) { newState.bases.third = newState.bases.second; }
+    if (newState.bases.first) { newState.bases.second = newState.bases.first; }
+    newState.bases.first = runnerData;
+    events.push(walkEvent);
+  }
+  else if (outcome === '3B') {
+    let combinedEvent = `${batter.displayName} hits a TRIPLE!`;
+    if (newState.bases.third) {
+        const runner = newState.bases.third;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.second) {
+        const runner = newState.bases.second;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.first) {
+        const runner = newState.bases.first;
+        const scoreMsg = scoreRun(runner);
+        if (scoreMsg) combinedEvent += ` ${scoreMsg}`;
+    }
+    // No runner advancement decisions on a triple, so we push the event.
+    events.push(combinedEvent);
+    // And place the batter directly on third.
+    newState.bases.third = runnerData;
+    newState.bases.second = null;
+    newState.bases.first = null;
+  }
+  else if (outcome === 'HR') {
+    let hrEvent = `${batter.displayName} hits a HOME RUN!`;
+    if (newState.bases.third) {
+        const scoreMsg = scoreRun(newState.bases.third);
+        if (scoreMsg) hrEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.second) {
+        const scoreMsg = scoreRun(newState.bases.second);
+        if (scoreMsg) hrEvent += ` ${scoreMsg}`;
+    }
+    if (newState.bases.first) {
+        const scoreMsg = scoreRun(newState.bases.first);
+        if (scoreMsg) hrEvent += ` ${scoreMsg}`;
+    }
+    scoreRun(runnerData, false); // Batter scores, but don't log it.
+    newState.bases = { first: null, second: null, third: null };
+    events.push(hrEvent);
+  }
+  else if (outcome === 'SO') {
+    events.push(`${batter.displayName} strikes out.`);
+    recordOuts(1);
+  }
+  else if (outcome === 'PU') {
+    events.push(`${batter.displayName} pops out.`);
+    recordOuts(1);
+}
+  else if (outcome === 'WALKOFF_HANDLED') {
+      // Do nothing, events are already handled
+  }
+  else { 
+    events.push(`${batter.displayName} is out.`);
+    recordOuts(1);
+  }
+
+  // --- Walk-off Win Check ---
+  if (newState.gameOver && newState.winningTeam === 'home' && !newState.isTopInning) {
+      const isWalkoffEventPresent = events.some(e => e.includes('WALK-OFF!'));
+      if (!isWalkoffEventPresent) {
+          const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
+          // FIX: Append to the last event if possible, otherwise push a new one.
+          if (events.length > 0) {
+              events[events.length - 1] += ` WALK-OFF!`;
+          } else {
+              events.push(`WALK-OFF!`);
+          }
+      }
+  }
+
+  // --- Handle Inning Change & Game Over Check ---
+  // Replaced inline logic with reusable function call
+  checkGameOverOrInningChange(newState, events, teamInfo);
+
+  return { newState, events, scorers, outcome };
+}
+
+function recordOutsForPitcher(state, pitcher, count) {
+  state.outs += count;
+  if (!pitcher) return;
+  const pitcherId = pitcher.card_id;
+  if (!state.pitcherStats[pitcherId]) {
+    state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
+  }
+  if (!state.pitcherStats[pitcherId].outs_recorded) {
+    state.pitcherStats[pitcherId].outs_recorded = 0;
+  }
+  state.pitcherStats[pitcherId].outs_recorded += count;
+}
+
+
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', teamInfo = {}, pitcherOfRecord = null) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
@@ -419,46 +681,132 @@ function resolveThrow(state, throwTo, outfieldDefense) {
 
   if (runnerToChallenge) {
     const d20Roll = Math.floor(Math.random() * 20) + 1;
-    let speed = getSpeedValue(runnerToChallenge);
+    const baseSpeed = parseInt(getSpeedValue(runnerToChallenge), 10);
+    let speed = baseSpeed;
+    const adjustments = [];
     let defenseRoll = outfieldDefense + d20Roll;
 
     if (type === 'ADVANCE') {
-      if (throwTo === 4) speed += 5;
-      if (newState.outs === 2) speed += 5;
+      if (throwTo === 4) {
+        speed += 5;
+        adjustments.push({ value: 5, reason: 'Going Home' });
+      }
+      if (newState.outs === 2) {
+        speed += 5;
+        adjustments.push({ value: 5, reason: '2 Outs' });
+      }
     } else if (type === 'TAG_UP') {
-      if (throwTo === 4) speed += 5;
-      if (throwTo === 2) speed -= 5;
+      if (throwTo === 4) {
+        speed += 5;
+        adjustments.push({ value: 5, reason: 'Going Home' });
+      }
+      if (throwTo === 2) {
+        speed -= 5;
+        adjustments.push({ value: -5, reason: 'Tagging to 2nd' });
+      }
     }
 
-    const isSafe = type === 'ADVANCE' ? speed >= defenseRoll : speed > defenseRoll;
+    const isSafe = speed >= defenseRoll;
 
     newState.throwRollResult = {
         roll: d20Roll,
         defense: outfieldDefense,
         target: speed,
+        baseSpeed,
+        adjustments,
         outcome: isSafe ? 'SAFE' : 'OUT',
         runner: runnerToChallenge.name,
         throwToBase: throwTo
     };
 
+    let outcomeMessage = '';
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
-        events.push(`${runnerToChallenge.name} is SAFE at home!`);
+        outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
+        // --- Walk-off Win Check ---
+        if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
+            if (!newState.gameOver) {
+                newState.gameOver = true;
+                newState.winningTeam = 'home';
+                const winningTeamName = teamInfo.home_team_abbr || 'HOME TEAM';
+                outcomeMessage += ` WALK-OFF!`;
+            }
+        }
       } else {
         newState.bases[baseMap[throwTo]] = runnerToChallenge;
-        events.push(`${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`);
+        outcomeMessage = `${runnerToChallenge.name} is SAFE at ${getOrdinal(throwTo)}!`;
       }
       newState.bases[baseMap[fromBaseOfThrow]] = null;
     } else {
-      newState.outs++;
-      newState.bases[baseMap[fromBaseOfThrow]] = null;
-      // Return a fragment now, not a full event
-      events.push(`${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
+        recordOutsForPitcher(newState, pitcherOfRecord, 1);
+        newState.bases[baseMap[fromBaseOfThrow]] = null;
+        if (throwTo === 4) {
+          outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at home!`;
+        } else {
+          outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at ${getOrdinal(throwTo)}!`;
+        }
     }
+
+    const batterOnFirst = newState.bases.first;
+    const rawOutcome = newState.currentAtBat.swingRollResult?.outcome;
+    const outcome = typeof rawOutcome === 'string' ? rawOutcome.trim() : rawOutcome;
+
+    if (batterOnFirst && !newState.bases.second && outcome === '1B+' && throwTo !== 2) {
+        newState.bases.second = batterOnFirst;
+        newState.bases.first = null;
+        const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
+        if (outcomeMessage) outcomeMessage += ` ${stealEvent}`;
+        else outcomeMessage = stealEvent;
+    }
+
+    // This is the fix. The initialEvent already contains the scoring messages.
+    // We just need to append the outcome of this specific throw.
+    const finalMessage = `${initialEvent} ${outcomeMessage}`;
+    events.push(finalMessage);
+
+    // --- Check Game Over ---
+    checkGameOverOrInningChange(newState, events, teamInfo);
   }
 
   return { newState, events };
 }
 
-module.exports = { applyOutcome, resolveThrow };
+function calculateStealResult(runner, toBase, catcherArm, getSpeedValue, offensiveTeam) {
+    const d20Roll = Math.floor(Math.random() * 20) + 1;
+    const defenseTotal = catcherArm + d20Roll;
+    const originalRunnerSpeed = getSpeedValue(runner);
+    let runnerSpeed = originalRunnerSpeed;
+    let penalty = 0;
+
+    if (toBase === 3) {
+        runnerSpeed -= 5;
+        penalty = 5;
+    }
+
+    const isSafe = runnerSpeed > defenseTotal;
+    const outcome = isSafe ? 'SAFE' : 'OUT';
+
+    return {
+        outcome,
+        roll: d20Roll,
+        defense: catcherArm,
+        target: originalRunnerSpeed,
+        penalty,
+        isSafe,
+        runnerTeamId: offensiveTeam.team_id,
+    };
+}
+
+function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHomeScore) {
+    const scoreChanged = finalState.awayScore > originalAwayScore || finalState.homeScore > originalHomeScore;
+    if (scoreChanged && logMessage) {
+        const scoreString = finalState.isTopInning
+            ? `${finalState.awayScore}-${finalState.homeScore}`
+            : `${finalState.homeScore}-${finalState.awayScore}`;
+        return `${logMessage} <strong>(Score: ${scoreString})</strong>`;
+    }
+    return logMessage;
+}
+
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher: recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange };

@@ -14,7 +14,8 @@ const gameId = route.params.id;
 const startingPitcher = ref(null);
 const battingOrder = ref([]);
 const hasSubmitted = ref(false); // New state for the waiting screen
-const mandatoryPitcherId = ref(null); // To store the required pitcher ID
+const mandatoryPitcherId = ref(null);
+const unavailablePitcherIds = ref([]);
 const useDh = computed(() => gameStore.game?.use_dh !== false);
 
 const defensivePositions = computed(() => {
@@ -26,7 +27,9 @@ const defensivePositions = computed(() => {
 });
 
 const starters = computed(() => authStore.activeRosterCards.filter(p => p.is_starter));
-const startingPitchers = computed(() => starters.value.filter(p => p.displayPosition === 'SP'));
+const allStartingPitchers = computed(() => starters.value.filter(p => p.displayPosition === 'SP'));
+const availableStartingPitchers = computed(() => allStartingPitchers.value.filter(p => !unavailablePitcherIds.value.includes(p.card_id)));
+const unavailableStartingPitchers = computed(() => allStartingPitchers.value.filter(p => unavailablePitcherIds.value.includes(p.card_id)));
 const positionPlayers = computed(() => starters.value.filter(p => p.displayPosition !== 'SP' && p.displayPosition !== 'RP'));
 
 const availableBatters = computed(() => {
@@ -62,18 +65,55 @@ const isLineupValid = computed(() => {
   return true;
 });
 
-// in src/views/SetLineupView.vue
-
-// in SetLineupView.vue
-function autoPopulateLineup() {
+function autoPopulateLineup(suggestedLineup = null) {
   const savedCards = authStore.activeRosterCards;
+
+  if (suggestedLineup && suggestedLineup.length === 9) {
+      const mappedLineup = suggestedLineup.map(spot => {
+          let player;
+          if (spot.card_id === 'PITCHER_PLACEHOLDER') {
+              player = {
+                  card_id: 'PITCHER_PLACEHOLDER',
+                  displayName: 'Pitcher (Select above)',
+                  displayPosition: 'SP',
+                  control: 5
+              };
+          } else if (spot.card_id === 'DH_PLACEHOLDER') {
+              player = {
+                  card_id: 'DH_PLACEHOLDER',
+                  displayName: 'Select DH',
+                  displayPosition: 'DH',
+                  control: null
+              };
+          } else {
+              // Ensure we match robustly (String vs Number)
+              player = savedCards.find(c => Number(c.card_id) === Number(spot.card_id));
+          }
+
+          if (!player) {
+             player = {
+                  card_id: `missing_${spot.card_id}`,
+                  displayName: 'Player Not In Roster',
+                  displayPosition: '?',
+                  control: null
+             };
+          }
+
+          return {
+              player: player,
+              position: spot.position
+          };
+      });
+
+      battingOrder.value = mappedLineup;
+      return;
+  }
   
   // Filter to get only the players who were assigned to a lineup spot in the Roster Builder.
   let lineupPlayers = savedCards.filter(card => 
     card.assignment && card.assignment !== 'BENCH' && card.assignment !== 'PITCHING_STAFF'
   );
 
-  // --- THIS IS THE FIX ---
   // If the "No DH" rule is in effect, find and remove the player assigned to the DH spot.
   if (!useDh.value) {
     lineupPlayers = lineupPlayers.filter(player => player.assignment !== 'DH');
@@ -91,9 +131,15 @@ function autoPopulateLineup() {
 
 watch(startingPitcher, (newPitcher) => {
     if (!useDh.value && newPitcher) {
-        battingOrder.value = battingOrder.value.filter(p => p.player.displayPosition !== 'SP' && p.player.displayPosition !== 'RP');
-        if (battingOrder.value.length === 8) {
-            battingOrder.value.push({ player: newPitcher, position: 'P' });
+        const pitcherIndex = battingOrder.value.findIndex(spot => spot.position === 'P' || spot.player.card_id === 'PITCHER_PLACEHOLDER');
+
+        if (pitcherIndex !== -1) {
+             battingOrder.value[pitcherIndex] = { player: newPitcher, position: 'P' };
+        } else {
+            battingOrder.value = battingOrder.value.filter(p => p.player.displayPosition !== 'SP' && p.player.displayPosition !== 'RP');
+            if (battingOrder.value.length === 8) {
+                battingOrder.value.push({ player: newPitcher, position: 'P' });
+            }
         }
     }
 });
@@ -133,13 +179,43 @@ async function handleSubmission() {
         startingPitcher: startingPitcher.value.card_id
     };
     await authStore.submitLineup(gameId, lineupData);
-    console.log('Lineup submitted. Now in waiting state.'); // <-- ADD THIS
-    hasSubmitted.value = true; // Show the waiting message
+    hasSubmitted.value = true;
 }
 
-// in SetLineupView.vue
+async function checkLineupStatus() {
+    try {
+        const response = await fetch(`${authStore.API_URL}/api/games/${gameId}/my-lineup`, {
+            headers: { 'Authorization': `Bearer ${authStore.token}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.hasLineup) {
+                hasSubmitted.value = true;
+            }
+        }
+    } catch (error) {
+        console.error("Error checking lineup status:", error);
+    }
+}
+
 onMounted(async () => {
+    // 1. Ensure socket is connected and join room
+    if (!socket.connected) {
+        socket.connect();
+    }
+
+    // Immediately join the room and set up the listener.
+    // This ensures we don't miss the event if the data fetching takes time.
     socket.emit('join-game-room', gameId);
+    socket.on('game-starting', () => {
+        console.log('Received game-starting event. Redirecting...');
+        router.push(`/game/${gameId}`);
+    });
+
+    // 2. Check if we already submitted (handles page refresh)
+    await checkLineupStatus();
+
+    // 3. Fetch game data
     await gameStore.fetchGame(gameId);
 
     // This is the fix: Ensure point sets are loaded before proceeding.
@@ -154,29 +230,34 @@ onMounted(async () => {
         if (participantInfo.mandatoryPitcherId) {
             mandatoryPitcherId.value = participantInfo.mandatoryPitcherId;
         }
+        if (participantInfo.unavailablePitcherIds) {
+            unavailablePitcherIds.value = participantInfo.unavailablePitcherIds;
+        }
 
         // Pass the selectedPointSetId to the action.
         await authStore.fetchRosterDetails(participantInfo.roster_id, authStore.selectedPointSetId);
 
-        autoPopulateLineup();
+        if (!hasSubmitted.value) {
+             autoPopulateLineup(participantInfo.suggestedLineup);
+        }
 
         if (mandatoryPitcherId.value) {
-            const pitcher = startingPitchers.value.find(p => p.card_id === mandatoryPitcherId.value);
+            // Ensure type safety when finding the pitcher
+            const pitcher = starters.value.find(p => Number(p.card_id) === Number(mandatoryPitcherId.value));
             if (pitcher) {
                 startingPitcher.value = pitcher;
             }
+        } else if (!startingPitcher.value && availableStartingPitchers.value.length > 0) {
+            // Default to highest points available SP if none selected
+            const bestSP = [...availableStartingPitchers.value].sort((a, b) => (b.points || 0) - (a.points || 0))[0];
+            startingPitcher.value = bestSP;
         }
     } else {
         console.error('CRITICAL ERROR: Missing participant info, roster_id, or selectedPointSetId.');
     }
-
-    socket.on('game-starting', () => {
-        router.push(`/game/${gameId}`);
-    });
 });
 
 onUnmounted(() => {
-  console.log('SetLineupView is UNMOUNTING.'); // <-- ADD THIS
   socket.off('game-starting');
 });
 </script>
@@ -194,9 +275,15 @@ onUnmounted(() => {
             <div v-for="p in availableBatters" :key="p.card_id" class="player-item" @click="addToLineup(p)">
               {{ p.displayName }} ({{ p.displayPosition }})
             </div>
-            <h3>Starting Pitchers ({{ startingPitchers.length }})</h3>
-            <div v-for="p in startingPitchers" :key="p.card_id" class="player-item">
+            <h3>Starting Pitchers ({{ availableStartingPitchers.length }})</h3>
+            <div v-for="p in availableStartingPitchers" :key="p.card_id" class="player-item">
               {{ p.displayName }} (SP)
+            </div>
+             <div v-if="unavailableStartingPitchers.length > 0">
+                <h3 class="unavailable-header">Unavailable SPs</h3>
+                <div v-for="p in unavailableStartingPitchers" :key="p.card_id" class="player-item unavailable" title="Pitched recently in this series">
+                {{ p.displayName }} (SP)
+                </div>
             </div>
           </div>
         </div>
@@ -204,9 +291,16 @@ onUnmounted(() => {
           <h2>Starting Pitcher</h2>
           <select v-model="startingPitcher" class="pitcher-select" :disabled="mandatoryPitcherId">
             <option :value="null" disabled>Select an SP...</option>
-            <option v-for="p in startingPitchers" :key="p.card_id" :value="p">
-              {{ p.displayName }}
-            </option>
+            <optgroup label="Available">
+                <option v-for="p in availableStartingPitchers" :key="p.card_id" :value="p">
+                {{ p.displayName }}
+                </option>
+            </optgroup>
+            <optgroup label="Unavailable" v-if="unavailableStartingPitchers.length > 0">
+                <option v-for="p in unavailableStartingPitchers" :key="p.card_id" :value="p" disabled>
+                {{ p.displayName }}
+                </option>
+            </optgroup>
           </select>
           <p v-if="mandatoryPitcherId" class="rotation-notice">
             Pitching rotation is set for this game.
@@ -264,4 +358,7 @@ onUnmounted(() => {
   .subtitle { text-align: center; color: #dc3545; font-weight: bold; margin-top: -1rem; margin-bottom: 1rem; }
   .waiting-message { text-align: center; }
   .rotation-notice { font-style: italic; color: #555; font-size: 0.9rem; text-align: center; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .unavailable-header { color: #999; }
+  .player-item.unavailable { color: #999; cursor: not-allowed; font-style: italic; }
+  .player-item.unavailable:hover { background-color: inherit; }
 </style>

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { useAuthStore } from '@/stores/auth';
@@ -13,13 +14,19 @@ const showSubModal = ref(false);
 const route = useRoute();
 const router = useRouter();
 const gameStore = useGameStore();
+const { isSwingResultVisible, isStealResultVisible, nextGameId } = storeToRefs(gameStore);
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
 const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
 const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
 const seriesUpdateMessage = ref('');
-const nextGameId = ref(null);
+const offensiveDPResultVisible = ref(false);
+const defensiveDPRollClicked = ref(false);
+const defensiveThrowRollClicked = ref(false);
+const hasRolledForSteal = ref(false);
+const isTransitioningToNextHitter = ref(false);
+const wasMultiThrowSituation = ref(false);
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -27,40 +34,154 @@ const choices = ref({});
 const selectedCard = ref(null);
 const black = ref('#000000');
 
+// NEW: Computed property for DH rule
+const useDh = computed(() => gameStore.game?.use_dh !== false);
+
 // New state for the substitution flow
 const isSubModeActive = ref(false);
 const playerToSubOut = ref(null);
 
-function toggleSubMode() {
-  isSubModeActive.value = !isSubModeActive.value;
-  // Always reset the player to sub out when toggling the main mode
-  playerToSubOut.value = null;
+const isStartingPitcherEligible = computed(() => {
+    if (!myLineup.value?.startingPitcher) return true;
+    return isPlayerSubEligible(myLineup.value.startingPitcher);
+});
+
+function isPlayerSubEligible(player) {
+    if (!player) return true;
+    if (!myLineup.value) return true;
+
+    const startingPitcher = myLineup.value.startingPitcher;
+    if (!startingPitcher || player.card_id !== startingPitcher.card_id) {
+        return true;
+    }
+
+    const pitcherStats = gameStore.gameState?.pitcherStats;
+    const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+    if (!stats) {
+        return false; // Not enough data, assume ineligible.
+    }
+
+    // Condition 1: Recorded 12 or more outs (min 4 IP).
+    if (stats.outs_recorded >= 12) {
+        return true;
+    }
+
+    // Condition 2: Is at or over their fatigue limit.
+    // We use the unique innings pitched array for accuracy.
+    const inningsPitchedCount = stats.innings_pitched?.length || 0;
+
+    // If the pitcher is on offense, we project their fatigue for the *next* inning
+    // to see if they will be tired when they next take the mound.
+    let projectedInnings = inningsPitchedCount;
+    if (amIDisplayOffensivePlayer.value) {
+        projectedInnings += 1;
+    }
+
+    // Only check fatigue if they've actually pitched or are projected to pitch.
+    if (projectedInnings > 0) {
+        const fatigueModifier = stats.fatigue_modifier || 0;
+        const modifiedIp = player.ip + fatigueModifier;
+        const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+
+        // They are eligible if their projected innings meets or exceeds the threshold.
+        if (projectedInnings >= fatigueThreshold) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
-function selectPlayerToSubOut(player, position) {
-  // If the player is already selected, clicking again cancels the entire substitution mode.
-  if (playerToSubOut.value?.player.card_id === player.card_id) {
+function toggleSubMode() {
+  isSubModeActive.value = !isSubModeActive.value;
+  playerToSubOut.value = null;
+  gameStore.playerSelectedForSwap = null;
+}
+
+function selectPlayerToSubOut(player, position, index = null, source = 'lineup') {
+  if (gameStore.playerSelectedForSwap) {
+    // A player is already selected, so this click completes the action.
+    const isPlayerOnField = myLineup.value.battingOrder.some(p => p.player.card_id === player.card_id);
+
+    // Handle substitution with duplicate replacement players
+    const isSamePlayer = playerToSubOut.value?.player.card_id === player.card_id &&
+                         playerToSubOut.value?.index === index &&
+                         playerToSubOut.value?.source === source;
+
+    if (isSamePlayer) {
+        // Clicking the same exact instance (important for duplicates) cancels the selection
+        isSubModeActive.value = false;
+        playerToSubOut.value = null;
+        gameStore.playerSelectedForSwap = null;
+        return;
+    }
+
+    if (isPlayerOnField) {
+      // It's a position swap
+      gameStore.swapPlayerPositions(gameId, gameStore.playerSelectedForSwap.card_id, player.card_id);
+    } else {
+      // It's a substitution from the bench/bullpen
+      handleSubstitution(player);
+    }
+    // Reset for the next action
     isSubModeActive.value = false;
+    gameStore.playerSelectedForSwap = null;
     playerToSubOut.value = null;
+
   } else {
-    // Otherwise, select the player to be subbed out.
-    playerToSubOut.value = { player, position };
+    // This is the first player selected in a potential swap/sub.
+    // Select the player with explicit index tracking for uniqueness.
+    playerToSubOut.value = { player, position, index, source };
+    gameStore.playerSelectedForSwap = player;
   }
 }
 
 async function handleSubstitution(playerIn) {
-    if (!playerToSubOut.value) return;
+    if (!gameStore.playerSelectedForSwap) return;
 
     await gameStore.submitSubstitution(gameId, {
         playerInId: playerIn.card_id,
-        playerOutId: playerToSubOut.value.player.card_id,
-        position: playerToSubOut.value.position
+        playerOutId: gameStore.playerSelectedForSwap.card_id,
+        position: playerToSubOut.value.position, // Position comes from the player being subbed out
+        lineupIndex: playerToSubOut.value.source === 'lineup' ? playerToSubOut.value.index : -1
     });
 
     // Reset the substitution state completely
     isSubModeActive.value = false;
     playerToSubOut.value = null;
+    gameStore.playerSelectedForSwap = null;
 }
+
+const isMyTurn = computed(() => {
+  if (!authStore.user || !gameStore.game) return false;
+  if (Number(gameStore.game.current_turn_user_id) === 0) return true;
+  return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
+});
+
+const isGameOver = computed(() => gameStore.game?.status === 'completed');
+
+// in GameView.vue
+
+const amIOffensivePlayer = computed(() => {
+    if (!authStore.user || !gameStore.gameState) return false;
+    const offensiveTeam = gameStore.gameState.isTopInning ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+    // This is the most reliable way to check, using the game state
+    return Number(authStore.user.userId) === Number(offensiveTeam.userId);
+});
+
+const amIDefensivePlayer = computed(() => {
+    if (!authStore.user || !gameStore.gameState) return false;
+    // By definition, if you are not on offense, you are on defense.
+    return !amIOffensivePlayer.value;
+});
+
+const isDefensiveThrowDecision = computed(() => {
+    if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
+        return false;
+    }
+    const { type, payload } = gameStore.gameState.currentPlay;
+    return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
+});
 
 const runnerDecisionsWithLabels = computed(() => {
     if (!gameStore.gameState?.currentPlay?.payload?.decisions) {
@@ -71,16 +192,19 @@ const runnerDecisionsWithLabels = computed(() => {
         const fromBase = parseInt(decision.from, 10);
         let toBase;
         const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
+        const hitType = gameStore.gameState.currentPlay.payload.hitType;
 
         // The `decision.to` indicates the base they are *attempting* to reach.
         // For tag ups, this has been buggy, so we override it.
         if (isTagUp) {
             toBase = fromBase + 1;
+        } else if (hitType === '2B' && fromBase === 1) {
+            toBase = 4; // On a 2B, the decision for a runner on 1st is always to go home.
         } else if (decision.to) {
             toBase = parseInt(decision.to, 10);
         } else {
-            // If `to` is not specified, it's a standard advancement of one base.
-            toBase = fromBase + 1;
+            // If `to` is not specified, it's a standard advancement of two bases (e.g., 1st to 3rd on a single).
+            toBase = fromBase + 2;
         }
 
         let toBaseLabel = '';
@@ -92,9 +216,26 @@ const runnerDecisionsWithLabels = computed(() => {
         }
         return {
             ...decision,
+            toBase,
             toBaseLabel
         };
     });
+});
+
+const defensiveThrowOptions = computed(() => {
+    if (!isDefensiveThrowDecision.value) {
+        return [];
+    }
+    const choices = gameStore.gameState.currentPlay.payload.choices;
+    const allDecisions = runnerDecisionsWithLabels.value;
+
+    return allDecisions.filter(decision => choices[decision.from]);
+});
+
+watch(defensiveThrowOptions, (newOptions) => {
+    if (newOptions.length > 1) {
+        wasMultiThrowSituation.value = true;
+    }
 });
 
 const baserunningOptionGroups = computed(() => {
@@ -104,84 +245,145 @@ const baserunningOptionGroups = computed(() => {
     const decisions = runnerDecisionsWithLabels.value;
     // Sort decisions by the runner's starting base, from lead runner to trail runner.
     const sortedDecisions = [...decisions].sort((a, b) => parseInt(b.from, 10) - parseInt(a.from, 10));
+    const runnersOn = decisions.map(d => parseInt(d.from, 10));
 
-    const groups = [];
+    // SPECIAL SCENARIO: Single with runners on 1st & 2nd (user request)
+    const isAdvanceWithRunnersOnFirstAndSecond = gameStore.gameState.currentPlay.type === 'ADVANCE' &&
+                                                runnersOn.length === 2 &&
+                                                runnersOn.includes(1) &&
+                                                runnersOn.includes(2);
 
-    // Create cumulative options. Sending a trailing runner implies all lead runners are also sent.
-    for (let i = 0; i < sortedDecisions.length; i++) {
-        const includedDecisions = sortedDecisions.slice(0, i + 1);
-        const choices = {};
-        includedDecisions.forEach(d => {
-            choices[d.from] = true;
-        });
-
-        // Create a descriptive text for the button, ordered by base.
-        const text = "Send " + includedDecisions
-            .map(d => `${d.runner.name} ${d.toBaseLabel}`)
-            .reverse() // Display in a more natural order (e.g., runner from 1st and runner from 2nd)
-            .join(' and ');
-
-        groups.push({ text, choices });
+    if (isAdvanceWithRunnersOnFirstAndSecond) {
+        const leadRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 2);
+        return [
+            { text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel}`, choices: { '2': true } },
+            { text: "Send Both Runners", choices: { '1': true, '2': true } }
+        ];
     }
 
-    // Show the simplest option (only the lead runner) first.
-    return groups;
+    // NEW LOGIC for Multi-Runner TAG UP
+    const isTagUp = gameStore.gameState.currentPlay.type === 'TAG_UP';
+    const runnerCount = sortedDecisions.length;
+
+    if (isTagUp && runnerCount > 1) {
+        const cumulativeOptions = [];
+        let cumulativeChoices = {};
+        const runnerDestinations = [];
+
+        for (let i = 0; i < runnerCount; i++) {
+            const decision = sortedDecisions[i];
+            cumulativeChoices[decision.from] = true;
+            runnerDestinations.push(decision.toBaseLabel.replace('to ', ''));
+
+            let text = '';
+            if (i === 0) {
+                text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
+            } else if (i === runnerCount - 1) {
+                text = "Send All Runners";
+            } else {
+                const destinations = [...runnerDestinations].reverse();
+                text = `Send Runners to ${destinations.join(' & ')}`;
+            }
+
+            cumulativeOptions.push({
+                text,
+                choices: { ...cumulativeChoices }
+            });
+        }
+        return cumulativeOptions;
+    }
+
+    // --- Default Logic for all other cases (non-tag-ups, single runner tag-ups) ---
+    const defaultOptions = [];
+    for (const decision of sortedDecisions) {
+        const choices = { [decision.from]: true };
+        const text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
+        defaultOptions.push({ text, choices });
+    }
+    return defaultOptions;
 });
 
 const isAdvancementOrTagUpDecision = computed(() => {
-    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !isSwingResultVisible.value) {
+    if (isGameOver.value || !amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay || !isSwingResultVisible.value) {
         return false;
     }
     const type = gameStore.gameState.currentPlay.type;
     return type === 'ADVANCE' || type === 'TAG_UP';
 });
 
-const isDefensiveThrowDecision = computed(() => {
-    if (!amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
-        return false;
-    }
-    const { type, payload } = gameStore.gameState.currentPlay;
-    return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
-});
-
 const isAwaitingBaserunningDecision = computed(() => {
     if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
         const type = gameStore.gameState.currentPlay.type;
-        return (type === 'ADVANCE' || type === 'TAG_UP');
+        return (type === 'ADVANCE' || type === 'TAG_UP' || type === 'INFIELD_IN_CHOICE');
     }
     return false;
 });
-// NEW: Local state for the checkbox
-
-const infieldIn = ref(gameStore.gameState?.infieldIn || false);
 const anticipatedBatter = ref(null);
+const infieldIn = ref(false);
 
 
 const REPLACEMENT_HITTER = { card_id: 'replacement_hitter', displayName: 'Replacement Hitter', control: null };
 const REPLACEMENT_PITCHER = { card_id: 'replacement_pitcher', displayName: 'Replacement Pitcher', control: 0, ip: 1 };
 
-const isMyTurn = computed(() => {
-  if (!authStore.user || !gameStore.game) return false;
-  if (Number(gameStore.game.current_turn_user_id) === 0) return true;
-  return Number(authStore.user.userId) === Number(gameStore.game.current_turn_user_id);
-});
-
-const isMyTeamAwaitingPitcher = computed(() => {
+const isMyTeamAwaitingLineupChange = computed(() => {
     if (!gameStore.gameState || !gameStore.myTeam) return false;
-    // This is true if the awaiting flag is set AND my team's pitcher is the one who is null.
-    return gameStore.gameState.awaitingPitcherSelection &&
-           ((gameStore.myTeam === 'home' && gameStore.gameState.currentHomePitcher === null) ||
-            (gameStore.myTeam === 'away' && gameStore.gameState.currentAwayPitcher === null));
+    // NEW: Also check that the invalid lineup *is mine* before showing the message.
+    return gameStore.gameState.awaiting_lineup_change &&
+           amIDisplayDefensivePlayer.value &&
+           playersInInvalidPositions.value.size > 0;
 });
 
+const playersInInvalidPositions = computed(() => {
+    if (!myLineup.value) return new Set();
+    const invalidPlayerIds = new Set();
 
-const batterLineupInfo = computed(() => {
-    if (!gameStore.gameState || !gameStore.lineups.away?.battingOrder) return null;
-    const lineup = gameStore.gameState.isTopInning ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
-    if (!lineup || lineup.length === 0) return null;
-    const pos = gameStore.gameState.isTopInning ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
-    return lineup[pos];
+    myLineup.value.battingOrder.forEach(spot => {
+        const player = spot.player;
+        const position = spot.position;
+
+        if (!player || position === 'DH') {
+            return; // Skip empty spots and Designated Hitters
+        }
+
+        // New Bench Player Rule
+        if (gameStore.gameState?.inning < 7 && player.assignment === 'BENCH') {
+            invalidPlayerIds.add(player.card_id);
+            return; // No need to check other rules if this one fails
+        }
+
+        const isAPitcher = player.control !== null;
+        const ratings = player.fielding_ratings || {};
+
+        let isInvalid = false;
+
+        switch (position) {
+            case 'P':
+                if (!isAPitcher) isInvalid = true;
+                break;
+            case '1B':
+                if (isAPitcher) isInvalid = true;
+                break;
+            case 'LF':
+            case 'RF':
+                if (ratings[position] === undefined && ratings['LFRF'] === undefined) {
+                    isInvalid = true;
+                }
+                break;
+            default:
+                if (ratings[position] === undefined) {
+                    isInvalid = true;
+                }
+                break;
+        }
+
+        if (isInvalid) {
+            invalidPlayerIds.add(player.card_id);
+        }
+    });
+
+    return invalidPlayerIds;
 });
+
 
 const myLineup = computed(() => gameStore.myTeam ? gameStore.lineups[gameStore.myTeam] : null);
 const myRoster = computed(() => gameStore.myTeam ? gameStore.rosters[gameStore.myTeam] : []);
@@ -189,28 +391,57 @@ const myRoster = computed(() => gameStore.myTeam ? gameStore.rosters[gameStore.m
 const myBenchAndBullpen = computed(() => {
     if (!myLineup.value?.battingOrder || !myRoster.value) return [];
     const onFieldIds = new Set(myLineup.value.battingOrder.map(s => s.player.card_id));
-    if (myLineup.value.startingPitcher) {
-        onFieldIds.add(myLineup.value.startingPitcher.card_id);
+
+    // --- NEW: Also consider the current pitcher on the mound as "on field" ---
+    if (gameStore.pitcher && gameStore.myTeam === gameStore.pitcherTeam) {
+        onFieldIds.add(gameStore.pitcher.card_id);
     }
-    return myRoster.value.filter(p => !onFieldIds.has(p.card_id));
+
+    const benchAndBullpen = myRoster.value.filter(p => !onFieldIds.has(p.card_id));
+
+    // Ensure the original starting pitcher is in the bullpen if they've been subbed out
+    const originalSP = gameStore.rosters[gameStore.myTeam]?.find(p => p.card_id === myLineup.value.startingPitcher?.card_id);
+    if (originalSP && !onFieldIds.has(originalSP.card_id) && !benchAndBullpen.some(p => p.card_id === originalSP.card_id)) {
+        benchAndBullpen.push(originalSP);
+    }
+
+    return benchAndBullpen;
 });
 const myBench = computed(() => myBenchAndBullpen.value.filter(p => p.control === null));
 const myBullpen = computed(() => myBenchAndBullpen.value.filter(p => p.control !== null));
 
-const homePitcher = computed(() => gameStore.gameState?.isTopInning ? gameStore.pitcher : gameStore.lineups.home?.startingPitcher);
-const awayPitcher = computed(() => !gameStore.gameState?.isTopInning ? gameStore.pitcher : gameStore.lineups.away?.startingPitcher);
+const homePitcher = computed(() => gameStore.gameState?.currentHomePitcher || gameStore.lineups.home?.startingPitcher);
+const awayPitcher = computed(() => gameStore.gameState?.currentAwayPitcher || gameStore.lineups.away?.startingPitcher);
 
 const homeBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.home?.battingOrder || !gameStore.rosters.home) return [];
     const lineupIds = new Set(gameStore.lineups.home.battingOrder.map(s => s.player.card_id));
-    if (gameStore.lineups.home.startingPitcher) { lineupIds.add(gameStore.lineups.home.startingPitcher.card_id); }
-    return gameStore.rosters.home.filter(p => !lineupIds.has(p.card_id));
+    if (gameStore.pitcherTeam === 'home' && gameStore.pitcher) {
+        lineupIds.add(gameStore.pitcher.card_id);
+    }
+    const benchAndBullpen = gameStore.rosters.home.filter(p => !lineupIds.has(p.card_id));
+
+    const originalSP = gameStore.rosters.home?.find(p => p.card_id === gameStore.lineups.home.startingPitcher?.card_id);
+    if (originalSP && !lineupIds.has(originalSP.card_id) && !benchAndBullpen.some(p => p.card_id === originalSP.card_id)) {
+        benchAndBullpen.push(originalSP);
+    }
+
+    return benchAndBullpen;
 });
 const awayBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.away?.battingOrder || !gameStore.rosters.away) return [];
     const lineupIds = new Set(gameStore.lineups.away.battingOrder.map(s => s.player.card_id));
-    if (gameStore.lineups.away.startingPitcher) { lineupIds.add(gameStore.lineups.away.startingPitcher.card_id); }
-    return gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
+    if (gameStore.pitcherTeam === 'away' && gameStore.pitcher) {
+        lineupIds.add(gameStore.pitcher.card_id);
+    }
+    const benchAndBullpen = gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
+
+    const originalSP = gameStore.rosters.away?.find(p => p.card_id === gameStore.lineups.away.startingPitcher?.card_id);
+    if (originalSP && !lineupIds.has(originalSP.card_id) && !benchAndBullpen.some(p => p.card_id === originalSP.card_id)) {
+        benchAndBullpen.push(originalSP);
+    }
+
+    return benchAndBullpen;
 });
 
 const leftPanelData = computed(() => {
@@ -268,32 +499,42 @@ const scoreChangeMessage = computed(() => {
     const newHomeScore = gameStore.displayGameState?.homeScore;
 
     // The "before" scores come from the last *completed* at-bat.
-    // This is the key change: this data persists on refresh.
-    const oldAwayScore = gameStore.gameState?.lastCompletedAtBat?.awayScoreBeforePlay;
-    const oldHomeScore = gameStore.gameState?.lastCompletedAtBat?.homeScoreBeforePlay;
+    const oldAwayScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.lastCompletedAtBat?.awayScoreBeforePlay : gameStore.displayGameState?.currentAtBat?.awayScoreBeforePlay;
+    const oldHomeScore = gameStore.opponentReadyForNext ? gameStore.displayGameState?.lastCompletedAtBat?.homeScoreBeforePlay : gameStore.displayGameState?.currentAtBat?.homeScoreBeforePlay;
 
     // Fallback if scores are not available yet.
     if (newAwayScore === undefined || newHomeScore === undefined) {
-        return '';
+        return null;
     }
 
-    const awayTeamName = gameStore.teams?.away?.city.toUpperCase() || 'AWAY';
-    const homeTeamName = gameStore.teams?.home?.city.toUpperCase() || 'HOME';
+    const awayTeamName = gameStore.teams?.away?.abbreviation.toUpperCase() || 'AWAY';
+    const homeTeamName = gameStore.teams?.home?.abbreviation.toUpperCase() || 'HOME';
 
-    let awayScoreDisplay = `${awayTeamName} ${newAwayScore}`;
-    let homeScoreDisplay = `${homeTeamName} ${newHomeScore}`;
+    let awayScored = oldAwayScore !== undefined && newAwayScore > oldAwayScore;
+    let homeScored = oldHomeScore !== undefined && newHomeScore > oldHomeScore;
 
-    const awayScored = oldAwayScore !== undefined && newAwayScore > oldAwayScore;
-    const homeScored = oldHomeScore !== undefined && newHomeScore > oldHomeScore;
-
-    if (awayScored) {
-        awayScoreDisplay = `<strong>${awayTeamName} ${newAwayScore}</strong>`;
+    // --- THIS IS THE FIX ---
+    // Override highlighting logic during a baserunning decision, because the
+    // `...ScoreBeforePlay` might have been updated prematurely on the backend.
+    const isDuringBaserunningDecision = isAdvancementOrTagUpDecision.value || isAwaitingBaserunningDecision.value;
+    if (isDuringBaserunningDecision && runScoredOnPlay.value) {
+        if (isDisplayTopInning.value) { // Away team is batting
+            awayScored = true;
+        } else { // Home team is batting
+            homeScored = true;
+        }
     }
-    if (homeScored) {
-        homeScoreDisplay = `<strong>${homeTeamName} ${newHomeScore}</strong>`;
-    }
-    
-    return `${awayScoreDisplay}, ${homeScoreDisplay}`;
+
+    return {
+        away: {
+            text: `${awayTeamName} ${newAwayScore}`,
+            scored: awayScored
+        },
+        home: {
+            text: `${homeTeamName} ${newHomeScore}`,
+            scored: homeScored
+        }
+    };
 });
 
 const runScoredOnPlay = computed(() => {
@@ -302,42 +543,60 @@ const runScoredOnPlay = computed(() => {
   }
   // Get the most recent event from the log
   const lastEvent = gameStore.gameEvents[gameStore.gameEvents.length - 1];
-  // Check if its message contains the word "scores!"
-  return lastEvent.log_message?.includes('scores!');
+  // Check if its message contains the word "scores!" or "HOME RUN"
+  return lastEvent.log_message?.includes('scores') || lastEvent.log_message?.includes('HOME RUN') || lastEvent.log_message?.includes('SAFE at home');
 });
 
 const scoreUpdateVisible = computed(() => {
   const swingIsVisible = isSwingResultVisible.value || (amIDisplayOffensivePlayer.value && isSwingResultVisible.value);
-  return runScoredOnPlay.value && swingIsVisible;
-});
-
-// in GameView.vue
-
-const amIOffensivePlayer = computed(() => {
-    if (!authStore.user || !gameStore.gameState) return false;
-    const offensiveTeam = gameStore.gameState.isTopInning ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
-    // This is the most reliable way to check, using the game state
-    return Number(authStore.user.userId) === Number(offensiveTeam.userId);
-});
-
-const amIDefensivePlayer = computed(() => {
-    if (!authStore.user || !gameStore.gameState) return false;
-    // By definition, if you are not on offense, you are on defense.
-    return !amIOffensivePlayer.value;
+  return runScoredOnPlay.value && swingIsVisible && !shouldHideCurrentAtBatOutcome.value;
 });
 
 
 // NEW: A display-only computed to handle inning-change visuals
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
+
+  // If the game is blocked awaiting a lineup change, we must show the state of the NEW inning
+  // so the defensive player can make the necessary changes.
+  if (gameStore.gameState.awaiting_lineup_change) {
+      return gameStore.gameState.isTopInning;
+  }
+
+  // Use the authoritative `displayGameState` if available, as it handles rollbacks for hidden outcomes.
+  if (shouldHideCurrentAtBatOutcome.value && gameStore.displayGameState) {
+      return gameStore.displayGameState.isTopInning;
+  }
+
   // If we are between innings, the "isTopInning" flag has already flipped to the *next*
   // inning. For display purposes, we want to show the state of the inning that just
   // concluded, so we flip it back.
+  // FIX: Removed the condition that required players to be "ready" before flipping.
+  // If we are effectively between innings (outs reset), we should always show the previous inning's result.
   if (gameStore.isEffectivelyBetweenHalfInnings) {
+    // If the server flags are present, it means we haven't advanced yet.
+    // So the server's `isTopInning` is still the OLD inning.
+    // We should RETURN it, NOT flip it.
+    if (gameStore.gameState.isBetweenHalfInningsAway || gameStore.gameState.isBetweenHalfInningsHome) {
+      return gameStore.gameState.isTopInning;
+    }
+    // If flags are NOT present, but `isEffectivelyBetweenHalfInnings` is true,
+    // it means the server HAS advanced (outs reset), so `isTopInning` is NEW.
+    // We want to show the OLD inning, so we FLIP it.
     return !gameStore.gameState.isTopInning;
   }
   return gameStore.gameState.isTopInning;
 });
+
+const batterLineupInfo = computed(() => {
+    if (!gameStore.gameState || !gameStore.lineups?.away?.battingOrder) return null;
+    const lineup = isDisplayTopInning.value ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+    if (!lineup || lineup.length === 0) return null;
+    const pos = isDisplayTopInning.value ? gameStore.gameState.awayTeam.battingOrderPosition : gameStore.gameState.homeTeam.battingOrderPosition;
+    return lineup[pos];
+});
+
+
 
 // NEW: Display-only computeds for the inning changeover
 const amIDisplayOffensivePlayer = computed(() => {
@@ -348,6 +607,7 @@ const amIDisplayOffensivePlayer = computed(() => {
 });
 
 const amIDisplayDefensivePlayer = computed(() => {
+  if (!authStore.user || !gameStore.gameState) return false;
   return !amIDisplayOffensivePlayer.value;
 });
 
@@ -360,11 +620,20 @@ const pitcherOnlySetActions = computed(() => {
 // NEW: Centralized logic to determine if the current play's outcome should be hidden from the user.
 // This refactored computed property avoids the reactive loop by not depending on `displayGameState`.
 const shouldHideCurrentAtBatOutcome = computed(() => {
+  // THIS IS THE FIX. When we are transitioning, we are DONE with the previous
+  // at-bat, and there is no longer an outcome to hide. This prevents the
+  // flicker that happens when `isSwingResultVisible` is reset to false.
+  if (isTransitioningToNextHitter.value) return false;
   if (!gameStore.gameState) return false;
 
-  // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll result.
-  if (gameStore.gameState.awaitingDoublePlayRoll) {
+  // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll or throw roll result.
+  if (showRollForDoublePlayButton.value || showDefensiveRollForThrowButton.value && !showThrowRollResult.value) {
     return true;
+  }
+
+  //if(isStealAttemptInProgress.value && !showThrowRollResult.value && !gameStore.gameState.currentPlay.payload.decisions){
+  if(!!gameStore.gameState.pendingStealAttempt && (!showThrowRollResult.value && amIDisplayDefensivePlayer.value)){
+    return true
   }
 
   // If the game state or current at-bat isn't available, there's nothing to hide.
@@ -376,7 +645,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!atBatIsResolved && !gameStore.opponentReadyForNext) return false;
 
   // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
-  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !isSwingResultVisible.value;
+  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !isSwingResultVisible.value && !(gameStore.gameState.inningEndedOnCaughtStealing);
   if (isOffensivePlayerWaitingToRoll) {
     return true;
   }
@@ -405,89 +674,347 @@ watch(shouldHideCurrentAtBatOutcome, (newValue) => {
 
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
 
+const isOffensiveStealInProgress = computed(() => {
+    return amIOffensivePlayer.value && gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT';
+});
+
 const canAttemptSteal = computed(() => {
-    // Stealing is an offensive action, must be their turn, and no other play can be in progress.
-    if (!amIOffensivePlayer.value || !isMyTurn.value || !gameStore.gameState || gameStore.gameState.currentPlay) {
+    if (isGameOver.value || !amIOffensivePlayer.value || !gameStore.gameState) {
+        return false;
+    }
+    const isStealPhase = isMyTurn.value && (
+        !gameStore.gameState.currentPlay ||
+        (gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT' && !gameStore.gameState.currentPlay.payload.queuedDecisions)
+    );
+    if (!isStealPhase) {
         return false;
     }
     const { bases } = gameStore.gameState;
     const canStealSecond = bases.first && !bases.second;
     const canStealThird = bases.second && !bases.third;
-    // It's possible to steal if at least one of these conditions is met.
     return canStealSecond || canStealThird;
 });
 
-const canStealSecond = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && !gameStore.gameState.bases.second);
-const canStealThird = computed(() => canAttemptSteal.value && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
-const canDoubleSteal = computed(() => canAttemptSteal.value && gameStore.gameState.bases.first && gameStore.gameState.bases.second && !gameStore.gameState.bases.third);
-
-const showNextHitterButton = computed(() => {
-  if (gameStore.gameState?.awaitingDoublePlayRoll) return false;
-  if (isAwaitingBaserunningDecision.value) return false;
-  if (gameStore.amIReadyForNext) return false;
-
-  const atBatIsResolved = bothPlayersSetAction.value;
-
-  // Rule: If the at-bat is resolved, but the result isn't visible, NEVER show the button.
-  // This covers the offensive player waiting to roll AND the defensive player waiting for the timer.
-  if ((atBatIsResolved || amIDisplayOffensivePlayer.value) && !isSwingResultVisible.value) {
-    return false;
-  }
-
-  // Case 1: Inning is over.
-  // If we reach here, the result MUST be visible (due to the check above).
-  // So we can just show the button.
-  if (gameStore.isBetweenHalfInnings) {
-    return true;
-  }
-
-  const opponentIsReady = gameStore.opponentReadyForNext;
-
-  // If we reach here, the at-bat is either resolved (and result is visible) or not.
-  // Or the opponent is ready.
-  return atBatIsResolved || opponentIsReady;
+const canStealSecond = computed(() => {
+    if (!canAttemptSteal.value) return false;
+    return gameStore.gameState.bases.first && !gameStore.gameState.bases.second;
 });
 
-const showRollForSwingButton = computed(() => {
-    if (!amIDisplayOffensivePlayer.value || isSwingResultVisible.value) {
-        return false;
+const canStealThird = computed(() => {
+    if (!canAttemptSteal.value) return false;
+    // During an in-progress steal, check the decision payload, not the final base state.
+    if (isOffensiveStealInProgress.value) {
+        const decisions = gameStore.gameState.currentPlay.payload.decisions;
+        // True if a runner is going TO second and third is open.
+        return decisions['1'] && !gameStore.gameState.bases.third;
     }
-    // Show the button only when the at-bat is freshly resolved,
-    // and the opponent has not already clicked "Next Hitter".
-    return bothPlayersSetAction.value || gameStore.opponentReadyForNext;
+    // Standard check for a runner on second with third base open.
+    return gameStore.gameState.bases.second && !gameStore.gameState.bases.third;
+});
+
+const canDoubleSteal = computed(() => {
+    // Disable double steals if a steal is already in progress to avoid complex states.
+    if (!canAttemptSteal.value || isOffensiveStealInProgress.value) return false;
+    const { bases } = gameStore.gameState;
+    return bases.first && bases.second && !bases.third;
+});
+
+const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
+
+const showRollForPitchButton = computed(() => {
+  if (isGameOver.value && isSwingResultVisible.value) return false;
+  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
+  console.log(`showRollForPitchButton: ${result}`);
+  return result;
+});
+
+const showSwingAwayButton = computed(() => {
+  if (isGameOver.value && isSwingResultVisible.value) return false;
+  const result = amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
+  console.log(`showSwingAwayButton: ${result}`);
+  return result;
+});
+
+const showNextHitterButton = computed(() => {
+  if (isGameOver.value) return false;
+  let reason = '';
+  let result = false;
+
+  if (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) {
+    reason = 'Inning ended on caught stealing';
+    result = true;
+  } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
+    reason = 'Waiting for double play resolution';
+    result = false;
+  } else if (showDefensiveRollForThrowButton.value && (amIDefensivePlayer.value || !gameStore.gameState.currentPlay)) {
+    reason = 'Waiting for advance resolution';
+    result = false;
+  }else if (isAwaitingBaserunningDecision.value) {
+    reason = 'Awaiting baserunning decision';
+    result = false;
+  } else if (amIDisplayDefensivePlayer && gameStore.gameState.currentPlay?.type === 'INFIELD_IN_CHOICE' && isSwingResultVisible) {
+    reason = 'Awaiting infield in decision';
+    result = false;
+  } else if ((amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))) {
+    reason = 'Awaiting advance throw decision';
+    result = false;
+  } else if (gameStore.amIReadyForNext) {
+    reason = 'I am ready for the next hitter';
+    result = false;
+  } else {
+    const atBatIsResolved = bothPlayersSetAction.value;
+    if ((atBatIsResolved || amIDisplayOffensivePlayer.value) && !isSwingResultVisible.value) {
+      reason = 'At-bat is resolved but result not visible';
+      result = false;
+    } else if (amIOffensivePlayer.value && offensiveDPResultVisible.value) {
+      reason = 'Offensive player DP timer is up';
+      result = true;
+    } else if (gameStore.isBetweenHalfInnings) {
+      reason = 'Between half innings';
+      result = true;
+    } else {
+      const opponentIsReady = gameStore.opponentReadyForNext;
+      result = atBatIsResolved || opponentIsReady;
+      reason = `Standard condition: atBatIsResolved=${atBatIsResolved}, opponentIsReady=${opponentIsReady}`;
+    }
+  }
+
+  console.log(`showNextHitterButton: ${result} (Reason: ${reason})`);
+  return result;
+});
+
+
+const showRollForSwingButton = computed(() => {
+  let reason = '';
+  let result = false;
+
+  if (isTransitioningToNextHitter.value) {
+    reason = 'Transitioning to next hitter';
+    result = false;
+  } else if (!amIDisplayOffensivePlayer.value) {
+    reason = 'Not the offensive player';
+    result = false;
+  } else if (isSwingResultVisible.value) {
+    reason = 'Swing result is already visible';
+    result = false;
+  } else if (gameStore.gameState.inningEndedOnCaughtStealing) {
+    reason = 'inningEndedOnCaughtStealing true';
+    result = false;
+  } else {
+    result = bothPlayersSetAction.value || gameStore.opponentReadyForNext;
+    reason = `Ready for swing roll: bothPlayersSetAction=${bothPlayersSetAction.value}, opponentReadyForNext=${gameStore.opponentReadyForNext}`;
+  }
+
+  console.log(`showRollForSwingButton: ${result} (Reason: ${reason})`);
+  return result;
 });
 
 const showRollForDoublePlayButton = computed(() => {
-  return gameStore.gameState?.awaitingDoublePlayRoll && amIDefensivePlayer.value;
+  if (isGameOver.value) return false;
+  const isDPBall = !!gameStore.gameState?.doublePlayDetails;
+  return isDPBall && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value && !gameStore.amIReadyForNext;
 });
 
 const isWaitingForDoublePlayResolution = computed(() => {
-  return gameStore.gameState?.awaitingDoublePlayRoll && amIOffensivePlayer.value;
+  const isDPBall = !!gameStore.gameState?.doublePlayDetails;
+  return isDPBall && amIOffensivePlayer.value && !offensiveDPResultVisible.value;
 });
 
-function handleResolveDoublePlay() {
-  gameStore.resolveDoublePlay(gameId);
+const isWaitingForQueuedStealResolution = computed(() => {
+    return amIOffensivePlayer.value &&
+           gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' &&
+           !!gameStore.gameState.currentPlay.payload.queuedDecisions;
+});
+
+function handleRollForDoublePlay() {
+  defensiveDPRollClicked.value = true;
 }
 
-watch(() => gameStore.gameState?.awaitingDoublePlayRoll, (isAwaiting) => {
-  if (isAwaiting && amIOffensivePlayer.value) {
-    setTimeout(() => {
-      handleResolveDoublePlay();
-    }, 900);
+watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => {
+  const isNewDPPlay = newDetails && !oldDetails;
+  const isDPPlayOver = !newDetails && oldDetails;
+
+  // Only reset the local state at the very beginning or very end of the DP sequence.
+  // This prevents the flag from flipping mid-sequence when the object is updated.
+  if (isNewDPPlay || isDPPlayOver) {
+    defensiveDPRollClicked.value = false;
+    offensiveDPResultVisible.value = false;
   }
+
+  // If it's a new double play, start the timer for the offensive player.
+  if (isNewDPPlay) {
+    if (amIOffensivePlayer.value) {
+      setTimeout(() => {
+        offensiveDPResultVisible.value = true;
+      }, 900);
+    }
+  }
+}, { immediate: true });
+
+const showDefensiveRollForThrowButton = computed(() => {
+    // This is the key change: if there are multiple throw options, we skip this button.
+    if (wasMultiThrowSituation.value || !!gameStore.gameState?.throwRollResult?.consolidatedOutcome) {
+        return false;
+    }
+    return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value && !(gameStore.gameState?.currentAtBat.pitcherAction === 'intentional_walk');
 });
 
+const defensiveThrowMessage = computed(() => {
+  if (!showDefensiveRollForThrowButton.value) {
+    return null;
+  }
+  const throwDetails = gameStore.gameState.throwRollResult;
+  if (!throwDetails || !throwDetails.runner || !throwDetails.throwToBase) {
+    return null;
+  }
+
+  const getOrdinal = (n) => {
+    if (n === 4) return 'Home!';
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]) + '!';
+  }
+
+  return `${throwDetails.runner} is trying for ${getOrdinal(throwDetails.throwToBase)}`;
+});
+
+function handleRollForThrow() {
+    defensiveThrowRollClicked.value = true;
+}
+
 const showThrowRollResult = computed(() => {
-  return gameStore.gameState?.doublePlayDetails && !gameStore.gameState.awaitingDoublePlayRoll && !(amIDisplayOffensivePlayer.value && !isSwingResultVisible.value);
+  const hasDetails = !!gameStore.gameState?.doublePlayDetails;
+  if (!hasDetails) return false;
+  if(gameStore.amIReadyForNext) return false;
+
+  // Defensive player sees it only after clicking.
+  if (amIDisplayDefensivePlayer.value) {
+    return defensiveDPRollClicked.value;
+  }
+
+  // Offensive player sees it after their timer.
+  if (amIDisplayOffensivePlayer.value && !gameStore.amIReadyForNext) {
+    return (offensiveDPResultVisible.value || gameStore.opponentReadyForNext) && isSwingResultVisible.value;
+  }
+
+  // Spectators see it immediately.
+  return true;
 });
 
 const showAutoThrowResult = computed(() => {
-  return gameStore.gameState?.throwRollResult && isSwingResultVisible.value;
+    if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult ||
+    (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext && gameStore.gameState?.currentAtBat.pitcherAction !== 'intentional_walk') || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
+        return false;
+    }
+    // This is the key change: if there are multiple runners, show the result immediately
+    // after the defensive player makes their choice.
+    if (wasMultiThrowSituation.value) {
+        return true;
+    }
+    if (amIDisplayDefensivePlayer.value) {
+        return defensiveThrowRollClicked.value;
+    }
+    return true;
 });
 
-const showStealResult = computed(() => {
-  return !!gameStore.gameState?.stealAttemptDetails;
+// NEW: This computed specifically controls the visibility of the steal result box.
+const isRunnerOnOffensiveTeam = computed(() => {
+  if (isDoubleStealResultAvailable.value) {
+    return true;
+  }
+
+  // Allow pending steal attempts (including consecutive ones where lastStealResult exists)
+  if(gameStore.gameState?.pendingStealAttempt && !gameStore.inningEndedOnCaughtStealing){
+    return true
+  }
+
+  if (isDoubleStealResultAvailable.value) return true;
+
+  if (!gameStore.gameState?.lastStealResult?.runnerTeamId) {
+    return false;
+  }
+
+
+  // THIS IS THE FIX: Use the full team objects from `gameStore.teams` which contain the `team_id`.
+  // The objects in `gameState` are lightweight and do not have this property.
+  const offensiveTeamKey = isDisplayTopInning.value ? 'away' : 'home';
+  const offensiveTeam = gameStore.teams ? gameStore.teams[offensiveTeamKey] : null;
+
+  if (!offensiveTeam) {
+      return false; // Or a sensible default
+  }
+
+  return gameStore.gameState.lastStealResult.runnerTeamId === offensiveTeam.team_id;
 });
+
+const isDoubleStealResultAvailable = computed(() => {
+    // Prevent stale throwRollResult from masking as a double steal result during a new steal attempt
+    // Only apply this filter if *I* am ready for the next play (caught up), ensuring lagging players still see the old result.
+    if (gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && gameStore.amIReadyForNext) {
+        return false;
+    }
+    return !!gameStore.gameState?.throwRollResult?.consolidatedOutcome;
+});
+
+
+const showStealResult = computed(() => {
+  // Common condition: there must be some steal-related data in the game state.
+  const hasStealData = !!gameStore.gameState?.pendingStealAttempt ||
+                       !!gameStore.gameState?.lastStealResult ||
+                       isDoubleStealResultAvailable.value;
+
+  if (!hasStealData) {
+    return false;
+  }
+
+  // Common condition: If I've already clicked "Next Hitter", hide the old result.
+  if (gameStore.amIReadyForNext) {
+    return false;
+  }
+
+  // Special case: Inning ended on the play. Show until I click "Next Hitter".
+  // The amIReadyForNext check above handles the dismissal.
+  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+      return true;
+  }
+
+  // --- Player-specific logic ---
+
+  if (amIDisplayOffensivePlayer.value) {
+    // The runner must belong to the offensive team to show the box.
+    if (!isRunnerOnOffensiveTeam.value) {
+      return false;
+    }
+    // Show the result as long as the batter has NOT yet taken their action.
+    const batterHasActed = !!gameStore.gameState.currentAtBat.batterAction;
+    return !batterHasActed;
+  }
+
+  if (amIDisplayDefensivePlayer.value) {
+    // Defense should only see a *completed* result, not just a pending attempt.
+    const hasDefensiveResultToShow = !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value;
+    if (!hasDefensiveResultToShow) {
+      return false;
+    }
+    // Show the result as long as the pitcher has NOT yet taken their action.
+    const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
+    return !pitcherHasActed;
+  }
+
+  // Default for spectators or if something goes wrong.
+  return false;
+});
+
+const stealDisplayDetails = computed (() => {
+  if (isDoubleStealResultAvailable.value) {
+    return gameStore.gameState.throwRollResult;
+  }
+  return !!gameStore.gameState?.pendingStealAttempt && amIDisplayOffensivePlayer.value
+   ? gameStore.gameState.pendingStealAttempt
+   : gameStore.gameState.lastStealResult
+})
+
+
 
 const defensiveRatingsToDisplay = computed(() => {
   if (!gameStore.gameState) return { catcherArm: 0, infieldDefense: 0, outfieldDefense: 0 };
@@ -534,6 +1061,7 @@ const awayTeamColors = computed(() => {
 
 const eventsForLog = computed(() => {
     // This logic is now centralized in the store's `gameEventsToDisplay` computed property.
+    // We rely on the store to handle the hiding of events to prevent double-slicing scenarios.
     return gameStore.gameEventsToDisplay;
 });
 
@@ -574,8 +1102,6 @@ const batterTeamColors = computed(() => isDisplayTopInning.value ? awayTeamColor
 const pitcherResultTextColor = computed(() => getContrastingTextColor(pitcherTeamColors.value.primary));
 const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamColors.value.primary));
 
-const isSwingResultVisible = computed(() => gameStore.isSwingResultVisible);
-
 const atBatToDisplay = computed(() => {
     if (!gameStore.gameState) {
       // During component teardown or initial load, gameState can be null.
@@ -601,6 +1127,21 @@ watch(bothPlayersSetAction, (isRevealing) => {
   if (!initialLoadComplete.value || !gameStore.gameState) return;
 
   if (isRevealing) {
+    // Defensive check: If I am the offensive player, I should NOT see the result until I click.
+    // This logic is primarily for the defensive player to see the result automatically.
+
+    // Extra safeguard: If the game is over, explicitly check the raw game state to determine
+    // if I am the offensive player (the winner, in a walk-off). This prevents auto-reveal
+    // if amIDisplayDefensivePlayer is momentarily incorrect due to inning flip logic.
+    if (isGameOver.value) {
+        const isTop = gameStore.gameState.isTopInning;
+        const offensiveUserId = isTop ? gameStore.gameState.awayTeam.userId : gameStore.gameState.homeTeam.userId;
+        const amIOffenseRaw = Number(authStore.user.userId) === Number(offensiveUserId);
+        if (amIOffenseRaw) {
+            return;
+        }
+    }
+
     if (amIDisplayDefensivePlayer.value) {
       if (hasSeenResult.value) {
         gameStore.setIsSwingResultVisible(true);
@@ -635,8 +1176,8 @@ const nextBatterInLineup = computed(() => {
   if (gameStore.isEffectivelyBetweenHalfInnings) {
     const isCurrentlyTop = gameStore.gameState.isTopInning;
     // The NEW offensive team is the opposite of the current inning.
-    const offensiveTeamState = !isCurrentlyTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
-    const offensiveLineup = !isCurrentlyTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
+    const offensiveTeamState = isCurrentlyTop ? gameStore.gameState.awayTeam : gameStore.gameState.homeTeam;
+    const offensiveLineup = isCurrentlyTop ? gameStore.lineups.away.battingOrder : gameStore.lineups.home.battingOrder;
 
     if (!offensiveLineup) return null;
 
@@ -666,7 +1207,16 @@ watch(nextBatterInLineup, (newNextBatter) => {
   }
 }, { immediate: true });
 
+watch(nextGameId, (newId) => {
+  if (newId) {
+    gameStore.checkLineupForNextGame(newId);
+  }
+}, { immediate: true });
+
 const batterToDisplay = computed(() => {
+    if (isGameOver.value && isSwingResultVisible.value) {
+        return gameStore.gameState?.currentAtBat?.batter ?? null;
+    }
     if (anticipatedBatter.value) {
         return anticipatedBatter.value;
     }
@@ -674,20 +1224,83 @@ const batterToDisplay = computed(() => {
         return null;
     }
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !(!!gameStore.gameState.lastStealResult & !gameStore.gameState.pendingStealAttempt)) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
-    return gameStore.gameState.currentAtBat.batter;
+    // The single source of truth for the current batter is the store's `batter` ref.
+    return gameStore.batter;
 });
 
 const pitcherToDisplay = computed(() => {
-    if (!gameStore.gameState) return null;
-    // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
-    if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
-        return gameStore.gameState.lastCompletedAtBat.pitcher;
+    // --- START PRODUCTION DEBUGGING ---
+    console.log('--- pitcherToDisplay ---');
+    console.log(`isMyTeamAwaitingLineupChange: ${isMyTeamAwaitingLineupChange.value}`);
+    console.log(`gameStore.gameState.awaiting_lineup_change: ${gameStore.gameState?.awaiting_lineup_change}`);
+    console.log(`amIDisplayOffensivePlayer: ${amIDisplayOffensivePlayer.value}`);
+    console.log(`playersInInvalidPositions.value.size: ${playersInInvalidPositions.value.size}`);
+    // --- END PRODUCTION DEBUGGING ---
+
+    // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
+    // change just happened), we should not show any pitcher, forcing the "TBD" state.
+    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0) {
+        console.log('pitcherToDisplay is returning NULL');
+        return null;
     }
-    // In all other cases, show the data for the current at-bat.
-    return gameStore.gameState.currentAtBat.pitcher;
+    if (isGameOver.value) {
+        return gameStore.gameState?.lastCompletedAtBat?.pitcher ?? null;
+    }
+    if (!gameStore.gameState) return null;
+
+    // NEW LOGIC: If the outcome is hidden, we must show the pitcher and their stats
+    // from the beginning of the at-bat to avoid revealing information.
+    // ADDITION: Do not use the rolled-back pitcher during a steal, as we need live fatigue data.
+    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value) {
+        // atBatToDisplay correctly selects whether to show the current or last completed at-bat
+        // based on who is waiting. The pitcher object on that at-bat will have the
+        // effectiveControl as it was at the start of that specific at-bat.
+        return atBatToDisplay.value?.pitcher ?? null;
+    }
+
+
+    let basePitcher = null;
+
+    // Determine the correct base pitcher object to use (for LIVE state)
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
+        basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
+    } else {
+        basePitcher = gameStore.pitcher;
+    }
+
+    if (!basePitcher || typeof basePitcher.control !== 'number') {
+        return basePitcher;
+    }
+
+    // Replicate the backend getEffectiveControl logic for the LIVE view
+    const pitcherStats = gameStore.gameState.pitcherStats;
+    if (!pitcherStats) {
+        return { ...basePitcher, effectiveControl: basePitcher.control };
+    }
+
+    const pitcherId = basePitcher.card_id;
+    const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    const inningsPitched = stats.innings_pitched || [];
+    const inningsPitchedCount = inningsPitched.length;
+
+    let controlPenalty = 0;
+    const modifiedIp = basePitcher.ip + (stats.fatigue_modifier || 0);
+    const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+
+    if (inningsPitchedCount > fatigueThreshold) {
+        controlPenalty = inningsPitchedCount - fatigueThreshold;
+    }
+
+    const effectiveControl = basePitcher.control - controlPenalty;
+
+    // Return a new object with the calculated effectiveControl
+    return {
+        ...basePitcher,
+        effectiveControl,
+    };
 });
 
 
@@ -711,7 +1324,82 @@ const outsToDisplay = computed(() => {
   return gameStore.displayGameState?.outs ?? 0;
 });
 
-const isGameOver = computed(() => gameStore.game?.status === 'completed');
+const finalScoreMessage = computed(() => {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult)) {
+    return null;
+  }
+  const homeTeam = gameStore.teams.home;
+  const awayTeam = gameStore.teams.away;
+  const homeScore = gameStore.gameState.homeScore;
+  const awayScore = gameStore.gameState.awayScore;
+
+  let winningTeam;
+  let losingTeam;
+  let isWalkOff = false;
+
+  if (homeScore > awayScore) {
+    winningTeam = homeTeam;
+    losingTeam = awayTeam;
+    // Walk-off condition: home team wins and it's the bottom of the 9th or later.
+    if (!gameStore.gameState.isTopInning && gameStore.gameState.inning >= 9) {
+      isWalkOff = true;
+    }
+  } else {
+    winningTeam = awayTeam;
+    losingTeam = homeTeam;
+  }
+
+  const winningTeamName = isWalkOff ? winningTeam.abbreviation.toUpperCase() : winningTeam.abbreviation.toUpperCase();
+
+  return {
+    message: `<strong>FINAL</strong>: ${winningTeam.abbreviation.toUpperCase()} ${homeScore > awayScore ? homeScore : awayScore}, ${losingTeam.abbreviation.toUpperCase()} ${homeScore < awayScore ? homeScore : awayScore}`,
+    colors: {
+      primary: winningTeam.primary_color,
+      secondary: winningTeam.secondary_color,
+    }
+  };
+});
+
+const seriesScoreMessage = computed(() => {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult)) {
+    return null;
+  }
+
+  const series = gameStore.series;
+  if (!series) {
+    return null;
+  }
+  const homeTeam = gameStore.teams.home;
+  const awayTeam = gameStore.teams.away;
+  const homeWins = series.home_wins;
+  const awayWins = series.away_wins;
+
+  // Assuming series object has number_of_games property
+  const gamesToWin = series.number_of_games ? Math.ceil(series.number_of_games / 2) : 999; // Use a large number if not present
+
+  if (homeWins === awayWins) {
+    return {
+      message: `<strong>SERIES</strong>: TIED ${homeWins}-${awayWins}`,
+      colors: { primary: '#acadb0', secondary: '#000000', forTie: true }
+    };
+  }
+
+  if (homeWins > awayWins) {
+    return {
+      message: `<strong>SERIES</strong>: ${homeTeam.abbreviation.toUpperCase()} ${homeWins}-${awayWins}`,
+      colors: { primary: homeTeam.primary_color, secondary: homeTeam.secondary_color }
+    };
+  }
+
+  if (awayWins > homeWins) {
+     return {
+      message: `<strong>SERIES</strong>: ${awayTeam.abbreviation.toUpperCase()} ${awayWins}-${homeWins}`,
+      colors: { primary: awayTeam.primary_color, secondary: awayTeam.secondary_color }
+    };
+  }
+
+  return null;
+});
 
 const seriesStatusText = computed(() => {
   const game = gameStore.game;
@@ -741,9 +1429,20 @@ const seriesStatusText = computed(() => {
 
 function proceedToNextGame() {
     if (nextGameId.value) {
-        router.push(`/game/${nextGameId.value}/lineup`);
+        // If the current game is Game 2 of a series, the next game (Game 3) requires setup (DH rule selection).
+        if (gameStore.game?.game_in_series === 2) {
+            router.push(`/game/${nextGameId.value}/setup`);
+        } else {
+            router.push(`/game/${nextGameId.value}/lineup`);
+        }
     }
 }
+
+const showSetLineupForNextGameButton = computed(() => {
+  return isGameOver.value && nextGameId.value && !gameStore.nextLineupIsSet
+   && isSwingResultVisible.value && !(!showAutoThrowResult.value && gameStore.gameState?.throwRollResult)
+   ;
+});
 
  
 function hexToRgba(hex, alpha = 0.95) {
@@ -759,31 +1458,23 @@ function hexToRgba(hex, alpha = 0.95) {
 }
 
 function handleInitiateSteal(decisions) {
+    gameStore.setIsStealResultVisible(true);
     gameStore.initiateSteal(gameId, decisions);
-}
-
-function handleResolveSteal(throwTo) {
-    let finalThrowTo = throwTo;
-    if (throwTo === null && isSingleSteal.value) {
-        const decisions = gameStore.gameState.currentPlay.payload.decisions;
-        const fromBaseKey = Object.keys(decisions)[0];
-        if (fromBaseKey === '1') {
-            finalThrowTo = 2;
-        } else if (fromBaseKey === '2') {
-            finalThrowTo = 3;
-        }
-    }
-    gameStore.resolveSteal(gameId, finalThrowTo);
 }
 
 function handlePitch(action = null) {
   console.log('1. GameView: handlePitch function was called.');
+  defensiveThrowRollClicked.value = false;
   gameStore.submitPitch(gameId, action);
 }
 function handleOffensiveAction(action) {
   console.log('1. GameView: handleOffensiveAction was called with action:', action);
   if (action === 'bunt') {
     gameStore.setIsSwingResultVisible(true);
+  } else {
+    // Reset visibility for swing to ensure the user must "Roll" to see the result,
+    // even if a previous play (like a steal) left the visibility flag true.
+    gameStore.setIsSwingResultVisible(false);
   }
   gameStore.submitAction(gameId, action);
 }
@@ -793,12 +1484,18 @@ function handleSwing(action = null) {
   gameStore.submitSwing(gameId, action);
 }
 function handleNextHitter() {
+  console.log('--- 1. handleNextHitter called ---');
+  isTransitioningToNextHitter.value = true;
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
+  gameStore.setIsStealResultVisible(false);
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
+  defensiveThrowRollClicked.value = false;
+  wasMultiThrowSituation.value = false;
 
-  if (!gameStore.opponentReadyForNext) {
+  if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings) {
+    console.log('--- 1a. Setting anticipated batter ---');
     anticipatedBatter.value = nextBatterInLineup.value;
   }
   gameStore.setIsSwingResultVisible(false);
@@ -813,43 +1510,64 @@ function handleDefensiveThrow(base) {
     gameStore.resolveDefensiveThrow(gameId, base);
 }
 
+function handleResolveSteal(throwToBase = null) {
+  hasRolledForSteal.value = true;
+  gameStore.resolveSteal(gameId, throwToBase);
+}
 
-const isStealAttemptInProgress = computed(() => gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT');
+
+const isStealAttemptInProgress = computed(() => {
+    if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
+    // A steal is in progress if there is a pending steal attempt from the backend.
+    const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
+                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.opponentReadyForNext))
+                                  //&& !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)
+                                  ;
+    // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
+    const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isSingleStealInProgress;
+    // NEW: Only show the in-progress steal UI if we are actually in the current turn.
+    // If the opponent has advanced (initiated steal) but we haven't clicked "Next Hitter" yet,
+    // we are still viewing the previous play's result and should NOT see the steal UI yet.
+    // Logic: If opponent IS ready (advanced) and I am NOT ready, hide the steal.
+    const isViewingPastTurn = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
+
+    const isPastStealDef = !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction
+
+    // FIX: Allow the steal attempt to be "in progress" even if we are showing a result (showStealResult=true),
+    // provided that we have BOTH a past result (lastStealResult) AND a pending one (pendingStealAttempt).
+    // This allows the "ROLL FOR THROW" button to appear below the result of the previous steal.
+    const isConsecutiveSteal = !!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt;
+
+    return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isPastStealDef;
+});
 
 const isSingleSteal = computed(() => {
-    if (!isStealAttemptInProgress.value) return false;
-    const decisions = gameStore.gameState.currentPlay.payload.decisions;
-    return decisions && Object.keys(decisions).length === 1;
+    return (isStealAttemptInProgress.value && (!!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult)) &&
+    // this part to deal with a later double steal (next inning or after IBB)
+    !gameStore.gameState?.throwRollResult?.consolidatedOutcome;
 });
 
 const stealingRunner = computed(() => {
     if (!isSingleSteal.value) return null;
-    const decisions = gameStore.gameState.currentPlay.payload.decisions;
-    const fromBaseKey = Object.keys(decisions)[0];
+    return  !!gameStore.gameState.pendingStealAttempt ? gameStore.gameState.pendingStealAttempt.runnerName : gameStore.gameState.lastStealResult.runnerName;
+});
 
-    if (fromBaseKey === '1') {
-        return gameStore.gameState.bases.first;
-    } else if (fromBaseKey === '2') {
-        return gameStore.gameState.bases.second;
+const targetBase = computed(() => {
+    if (!isSingleSteal.value) return null;
+    const baseNumber = !!gameStore.gameState.pendingStealAttempt ? gameStore.gameState.pendingStealAttempt.throwToBase : gameStore.gameState.lastStealResult.throwToBase;
+    const getOrdinal = (n) => {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
     }
-    return null;
+    return getOrdinal(baseNumber);
 });
 
 const isInfieldInDecision = computed(() => {
-    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_PLAY';
+    if (isGameOver.value) return false;
+    return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE' && !showRollForSwingButton.value;
 });
 
-const isPitcherTired = (pitcher) => {
-    if (!pitcher || !gameStore.gameState?.pitcherStats) {
-        return false;
-    }
-    const stats = gameStore.gameState.pitcherStats[pitcher.card_id];
-    if (!stats) {
-        return false;
-    }
-    const fatigueThreshold = pitcher.ip - Math.floor(stats.runs / 3);
-    return stats.ip > fatigueThreshold;
-};
 
 // in GameView.vue <script setup>
 
@@ -859,17 +1577,18 @@ function handleInfieldInDecision(sendRunner) {
 
 
 
-// NEW: Watch for changes to the checkbox and send to server
-
-watch(infieldIn, (newValue) => {
-
-    if (amIDefensivePlayer.value) {
-
-        gameStore.setDefense(gameId, newValue);
-
-    }
-
+watch(infieldIn, (newValue, oldValue) => {
+    // Only send an update if the value was changed by the user,
+    // not when it's being sync'd from the server.
+    if (newValue !== oldValue && amIDefensivePlayer.value) {
+        gameStore.setDefense(gameId, newValue);
+    }
 });
+
+// This watcher keeps the checkbox sync'd with the actual state of the at-bat being viewed.
+watch(() => atBatToDisplay.value?.infieldIn, (newValue) => {
+    infieldIn.value = !!newValue;
+}, { immediate: true });
 
 const bothPlayersCaughtUp = computed(() => {
 if (!gameStore.gameState) return false;
@@ -885,21 +1604,19 @@ watch(batterToDisplay, (newBatter, oldBatter) => {
 watch(bothPlayersCaughtUp, (areThey) => {
     if (areThey) {
         anticipatedBatter.value = null;
+        isTransitioningToNextHitter.value = false;
     }
 });
 
-
-
-// NEW: Watch for updates from the server
-
-watch(() => gameStore.gameState?.infieldIn, (newValue) => {
-
-    infieldIn.value = newValue;
-
+watch(isStealAttemptInProgress, (newValue) => {
+  if (newValue) {
+    hasRolledForSteal.value = false;
+  }
 });
 
-// --- NEW: On-Deck Logic ---
-const defensiveTeamKey = computed(() => gameStore.gameState?.isTopInning ? 'homeTeam' : 'awayTeam');
+
+
+const defensiveTeamKey = computed(() => isDisplayTopInning.value ? 'homeTeam' : 'awayTeam');
 const defensiveNextBatterIndex = computed(() => {
     if (!gameStore.gameState) return -1;
     return gameStore.gameState[defensiveTeamKey.value].battingOrderPosition;
@@ -942,7 +1659,7 @@ const opponentPlayerTeamColors = computed(() => {
 const showAdvantage = computed(() => {
   return atBatToDisplay.value.pitchRollResult &&
          (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && !bothPlayersCaughtUp.value) &&
-         !(!bothPlayersSetAction.value && amIOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction);
+         !(!bothPlayersSetAction.value && amIOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && !gameStore.opponentReadyForNext);
 });
 
 const controlledPlayerHasAdvantage = computed(() => {
@@ -1003,23 +1720,30 @@ onMounted(async () => {
   // NEW: Check if we are returning to a completed at-bat
   const atBat = atBatToDisplay.value;
   if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
-    const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !isSwingResultVisible.value;
-    if (!isOffensiveAndHasNotRolled) {
-      gameStore.setIsSwingResultVisible(true);
-      hasSeenResult.value = true;
-      localStorage.setItem(seenResultStorageKey, 'true');
+    // Ensure we have user data before making this decision
+    if (authStore.user) {
+      const isOffensiveAndHasNotRolled = amIOffensivePlayer.value && !isSwingResultVisible.value;
+      if (!isOffensiveAndHasNotRolled) {
+        gameStore.setIsSwingResultVisible(true);
+        hasSeenResult.value = true;
+        localStorage.setItem(seenResultStorageKey, 'true');
+      }
     }
   }
   
   // --- THIS IS THE DEBUG LOG ---
   console.log('--- GameView Mounted: Checking Store Data ---');
-  console.log('gameState:', gameStore.gameState);
-  console.log('gameEvents:', gameStore.gameEvents);
+  console.log('gameState:', JSON.stringify(gameStore.gameState, null, 2));
+  console.log('gameEvents:', JSON.stringify(gameStore.gameEvents, null, 2));
+
+  if (import.meta.env.DEV) {
+    window.socket = socket;
+  }
 
   socket.connect();
   socket.emit('join-game-room', gameId);
   socket.on('game-updated', (data) => {
-    console.log('--- 3. GameView: game-updated event received from socket. ---');
+    console.log('--- 3. GameView: game-updated event received from socket. ---', data);
     gameStore.updateGameData(data);
   });
 
@@ -1030,34 +1754,34 @@ onMounted(async () => {
     const opponentWins = myTeamIsSeriesHome ? data.away_wins : data.home_wins;
 
     seriesUpdateMessage.value = `Series score is now ${myWins}-${opponentWins}.`;
-    nextGameId.value = data.nextGameId;
+    gameStore.nextGameId = data.nextGameId;
+    gameStore.checkLineupForNextGame(data.nextGameId);
   });
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 });
 
 onUnmounted(() => {
   gameStore.resetGameState();
   socket.off('game-updated');
   socket.off('series-next-game-ready');
-  socket.disconnect();
+  // Do not disconnect socket here, as it's needed for other views
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    gameStore.fetchGame(gameId);
+  }
+}
 </script>
 
 <template>
-  <div v-if="isGameOver" class="game-over-modal">
-    <div class="game-over-content">
-        <h2>Game Over</h2>
-        <p v-if="seriesUpdateMessage">{{ seriesUpdateMessage }}</p>
-        <p v-else>This game is complete.</p>
-        <button v-if="nextGameId" @click="proceedToNextGame">Proceed to Next Game's Lineup</button>
-        <RouterLink v-else to="/dashboard" class="button-link">Return to Dashboard</RouterLink>
-    </div>
-  </div>
-
   <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
     <div @click.stop><PlayerCard :player="selectedCard" /></div>
   </div>
 
-  <div class="game-view-container" v-if="gameStore.gameState && gameStore.lineups?.home && gameStore.lineups?.away">
+  <div class="game-view-container" v-if="gameStore.gameState && (isGameOver || (gameStore.lineups?.home && gameStore.lineups?.away))">
     
     <!-- TOP SECTION: AT-BAT DISPLAY -->
     <div class="at-bat-container">
@@ -1076,35 +1800,68 @@ onUnmounted(() => {
             :teamColors="pitcherTeamColors"
           />
           <ThrowRollResult
-            v-if="showStealResult"
-            :details="gameStore.gameState.stealAttemptDetails"
+            v-if="showStealResult && stealDisplayDetails"
+            :details="stealDisplayDetails"
             :teamColors="pitcherTeamColors"
           />
           <div class="defensive-ratings">
             <div>{{ catcherArmDisplay }}</div>
             <div>{{ infieldDefenseDisplay }}</div>
             <div>{{ outfieldDefenseDisplay }}</div>
+            <div v-if="atBatToDisplay.infieldIn" style="color: red;">IF IN</div>
           </div>
           <div v-if="atBatToDisplay.pitchRollResult &&
            (gameStore.gameState.currentAtBat.pitchRollResult || !gameStore.amIReadyForNext && gameStore.opponentReadyForNext) &&
-            !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
+            !(!bothPlayersSetAction.value && amIDisplayOffensivePlayer && !atBatToDisplay.batterAction) &&
+            !(isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)) &&
+            !isStealAttemptInProgress && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && (isSwingResultVisible || (amIDisplayOffensivePlayer && isSwingResultVisible))" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
+          <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
-          <div v-if="scoreUpdateVisible" class="score-update-flash" v-html="scoreChangeMessage"></div>
+          <div v-if="scoreUpdateVisible && scoreChangeMessage" class="score-update-flash">
+            <span
+              :class="{ 'score-box-highlight': scoreChangeMessage.away.scored }"
+              :style="scoreChangeMessage.away.scored
+                ? {
+                    backgroundColor: hexToRgba(awayTeamColors.primary),
+                    borderColor: hexToRgba(awayTeamColors.secondary),
+                    color: getContrastingTextColor(awayTeamColors.primary)
+                  }
+                : {}"
+            >
+              {{ scoreChangeMessage.away.text }}
+            </span>
+            <span>, </span>
+            <span
+              :class="{ 'score-box-highlight': scoreChangeMessage.home.scored }"
+              :style="scoreChangeMessage.home.scored
+                ? {
+                    backgroundColor: hexToRgba(homeTeamColors.primary),
+                    borderColor: hexToRgba(homeTeamColors.secondary),
+                    color: getContrastingTextColor(homeTeamColors.primary)
+                  }
+                : {}"
+            >
+              {{ scoreChangeMessage.home.text }}
+            </span>
+          </div>
+          <div v-if="finalScoreMessage" class="final-score-message" :style="{ backgroundColor: hexToRgba(finalScoreMessage.colors.primary), borderColor: hexToRgba(finalScoreMessage.colors.secondary), color: getContrastingTextColor(finalScoreMessage.colors.primary) }" v-html="finalScoreMessage.message">
+          </div>
+           <div v-if="seriesScoreMessage" class="series-score-message" :style="{ backgroundColor: hexToRgba(seriesScoreMessage.colors.primary), borderColor: hexToRgba(seriesScoreMessage.colors.secondary), color: getContrastingTextColor(seriesScoreMessage.colors.primary) }" v-html="seriesScoreMessage.message">
+          </div>
       </div>
 
       <!-- PLAYER CARDS & ACTIONS -->
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-        <div class="actions-container">
+        <div v-if="!(isGameOver && isSwingResultVisible && !(showDefensiveRollForThrowButton && !showThrowRollResult))" class="actions-container">
             <!-- PITCHER SELECTION STATE -->
-        <div v-if="isMyTeamAwaitingPitcher && amIDisplayDefensivePlayer" class="waiting-text">
-                <h3>Awaiting Pitcher</h3>
-                <p>You must substitute in a new pitcher to continue.</p>
+        <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
+                <h3>Invalid Lineup</h3>
+                <p>One or more players are out of position. Please correct your lineup to continue.</p>
             </div>
 
             <!-- Main Action Buttons -->
@@ -1124,63 +1881,73 @@ onUnmounted(() => {
             <div v-else-if="isDefensiveThrowDecision">
                 <h3>Defensive Throw</h3>
                 <p>Opponent is sending runners! Choose where to throw:</p>
-                <button v-for="(sent, fromBase) in gameStore.gameState.currentPlay.payload.choices"
-                        :key="fromBase"
-                        v-if="sent"
-                        @click="handleDefensiveThrow(parseInt(fromBase, 10) + 1)"
-                        class="tactile-button">
-                    Throw to {{ parseInt(fromBase, 10) + 1 }}B
-                </button>
+                <div class="defensive-throw-decisions">
+                    <button v-for="option in defensiveThrowOptions"
+                            :key="option.from"
+                            @click="handleDefensiveThrow(option.toBase)"
+                            class="tactile-button">
+                        Throw {{ option.toBaseLabel }}
+                    </button>
+                </div>
             </div>
-            <div v-else-if="isStealAttemptInProgress && amIDefensivePlayer">
+            <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && (!showStealResult || (!!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt))">
                 <div v-if="isSingleSteal">
-                    <h3><span v-if="stealingRunner">{{ stealingRunner.name }} is stealing!</span><span v-else>Opponent is stealing!</span></h3>
-                    <button @click="handleResolveSteal(null)" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                    <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
+                    <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
                 </div>
                 <div v-else>
-                    <h3>Opponent is stealing!</h3>
+                    <h3>Opponent is attempting a double steal!</h3>
                     <p>Choose which base to throw to:</p>
-                    <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                    <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    <div class="steal-throw-decisions">
+                      <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                      <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    </div>
                 </div>
-            </div>
-            <div v-else-if="isStealAttemptInProgress && amIOffensivePlayer">
-                <div class="waiting-text">Waiting for opponent to throw...</div>
             </div>
             <div v-else-if="isInfieldInDecision">
                 <h3>Infield In Play</h3>
                 <p>The defense has the infield in. What will the runner on third do?</p>
-                <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
-                <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+                <div class="infield-in-decisions">
+                    <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
+                    <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
+                </div>
             </div>
             <div v-else>
-                <button v-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleResolveDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
-                <div v-else-if="isWaitingForDoublePlayResolution" class="waiting-text">Waiting for throw...</div>
-                <button v-else-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-else-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
+                <div v-if="defensiveThrowMessage">
+                  <h3>{{ defensiveThrowMessage }}</h3>
+                </div>
+                <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW</strong></button>
+                <button v-else-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
+                <button v-else-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
+                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
                 <div class="secondary-actions">
-                    <button v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
-                    <div v-if="amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))" class="infield-in-checkbox">
+                    <button v-if="showRollForPitchButton" class="tactile-button" @click="handlePitch('intentional_walk')">Intentional Walk</button>
+                    <div v-if="showRollForPitchButton && isRunnerOnThird && outsToDisplay < 2" class="infield-in-checkbox">
                         <label>
                             <input type="checkbox" v-model="infieldIn" />
                             Infield In
                         </label>
                     </div>
-                    <button v-if="amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-                    <button v-if="canStealSecond && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
-                    <button v-if="canStealThird && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
-                    <button v-if="canDoubleSteal && amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
+                    <button v-if="showSwingAwayButton" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                    <button v-if="canStealSecond && showSwingAwayButton" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
+                    <button v-if="canStealThird && showSwingAwayButton" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
+                    <button v-if="canDoubleSteal && showSwingAwayButton" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
                 </div>
             </div>
 
             <!-- Waiting Indicators -->
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
-            <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision" class="waiting-text">Waiting for pitch...</div>
-            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
+            <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.opponentReadyForNext" class="waiting-text">Waiting for pitch...</div>
+            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings" class="turn-indicator">Waiting for swing...</div>
+            <div v-else-if="isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices)) || (isOffensiveStealInProgress && !gameStore.gameState.pendingStealAttempt)" class="waiting-text">Waiting for throw...</div>
+        </div>
+
+        <div v-else-if="showSetLineupForNextGameButton" class="actions-container">
+            <button class="action-button tactile-button" @click="proceedToNextGame()"><strong>Set Lineup for Next Game</strong></button>
         </div>
 
         <!-- Player Cards Wrapper -->
@@ -1196,8 +1963,13 @@ onUnmounted(() => {
               :primary-color="controlledPlayerTeamColors.primary"
             />
             <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
-                <span class="tbd-role">{{ controlledPlayerRole }}</span>
-                <span class="tbd-name">TBD</span>
+                <div v-if="(gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay)" class="selecting-pitcher-text">
+                    <h3><em></em></h3>
+                </div>
+                <template v-else>
+                    <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ controlledPlayerRole }}</span>
+                    <span class="tbd-name">TBD</span>
+                </template>
             </div>
           </div>
 
@@ -1212,8 +1984,13 @@ onUnmounted(() => {
               :primary-color="opponentPlayerTeamColors.primary"
             />
              <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
-                <span class="tbd-role">{{ opponentPlayerRole }}</span>
-                <span class="tbd-name">TBD</span>
+                <div v-if="gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay" class="selecting-pitcher-text">
+                     <h3><em>Selecting Pitcher...</em></h3>
+                </div>
+                <template v-else>
+                    <span v-if="!gameStore.gameState.awaiting_lineup_change" class="tbd-role">{{ opponentPlayerRole }}</span>
+                    <span class="tbd-name"></span>
+                </template>
             </div>
           </div>
         </div>
@@ -1227,42 +2004,42 @@ onUnmounted(() => {
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
-              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaitingPitcherSelection && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
+              <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaiting_lineup_change && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
           <ol>
-              <li v-for="(spot, index) in leftPanelData.lineup" :key="spot.player.card_id"
+              <li v-for="(spot, index) in leftPanelData.lineup" :key="index"
                   :class="{
-                      'now-batting': ((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                      'next-up': !((leftPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (leftPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex,
-                      'is-sub-target': playerToSubOut?.player.card_id === spot.player.card_id
+                      'now-batting': amIDisplayOffensivePlayer && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
+                      'next-up': amIDisplayDefensivePlayer && index === defensiveNextBatterIndex,
+                      'is-sub-target': playerToSubOut?.source === 'lineup' && playerToSubOut?.index === index,
+                      'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player.card_id)
                   }"
-                  :style="playerToSubOut && spot.player && playerToSubOut.player.card_id === spot.player.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
+                  :style="playerToSubOut && playerToSubOut.source === 'lineup' && playerToSubOut.index === index ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
                   class="lineup-item">
-                  <span @click.stop="selectPlayerToSubOut(spot.player, spot.position)"
+                  <span @click.stop="selectPlayerToSubOut(spot.player, spot.position, index, 'lineup')"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && (!playerToSubOut || playerToSubOut.player.card_id === spot.player.card_id),
-                            'active': playerToSubOut?.player.card_id === spot.player.card_id
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
+                            'active': playerToSubOut?.source === 'lineup' && playerToSubOut?.index === index
                         }">
                       ⇄
                   </span>
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.player.card_id === leftPanelData.pitcher?.card_id}" :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
+          <div v-if="useDh" class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
             <hr />
-            <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P')"
+            <span @click.stop="selectPlayerToSubOut(leftPanelData.pitcher, 'P', -1, 'pitcher')"
                   class="sub-icon"
                   :class="{
-                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && (!playerToSubOut || playerToSubOut.player.card_id === leftPanelData.pitcher.card_id),
-                      'active': playerToSubOut?.player.card_id === leftPanelData.pitcher.card_id
+                      'visible': isSubModeActive && leftPanelData.isMyTeam && leftPanelData.pitcher && isStartingPitcherEligible,
+                      'active': playerToSubOut?.source === 'pitcher'
                   }">
                 ⇄
             </span>
             <span @click="selectedCard = leftPanelData.pitcher">
-                <strong :style="playerToSubOut && leftPanelData.pitcher && playerToSubOut.player.card_id === leftPanelData.pitcher.card_id ? { color: 'inherit' } : { color: black }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }} <span v-if="isPitcherTired(leftPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
-                <template v-else>TBD</template>
+                <strong :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { color: 'inherit' } : { color: black }">Pitching: </strong>
+                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }}</template>
             </span>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
@@ -1271,20 +2048,22 @@ onUnmounted(() => {
                   <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
-                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && isStartingPitcherEligible }">
                           ⇄
                       </span>
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-icon tired" title="Tired"></span>
+                      <span v-else-if="p.pitchedYesterday && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Pitched in previous game"></span>
                   </li>
               </ul>
           </div>
           <div v-if="leftPanelData.bench.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
-                  <li v-for="p in leftPanelData.bench" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
+                  <li v-for="(p, index) in leftPanelData.bench" :key="index" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
-                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) }">
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7 || p.assignment !== 'BENCH') }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
@@ -1334,20 +2113,20 @@ onUnmounted(() => {
               <img :src="rightPanelData.team.logo_url" class="lineup-logo" /> {{ rightPanelData.team.city }} Lineup
           </h3>
           <ol>
-              <li v-for="(spot, index) in rightPanelData.lineup" :key="spot.player.card_id"
+              <li v-for="(spot, index) in rightPanelData.lineup" :key="index"
                   :class="{
-                      'now-batting': ((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
-                      'next-up': !((rightPanelData.teamKey === 'away' && gameStore.gameState.isTopInning) || (rightPanelData.teamKey === 'home' && !gameStore.gameState.isTopInning)) && index === defensiveNextBatterIndex
+                      'now-batting': amIDisplayDefensivePlayer && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
+                      'next-up': amIDisplayOffensivePlayer && index === defensiveNextBatterIndex
                   }"
                   class="lineup-item">
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
-          <div class="pitcher-info">
+          <div v-if="useDh" class="pitcher-info">
               <hr />
               <span @click="selectedCard = rightPanelData.pitcher">
                 <strong :style="{ color: black }">Pitching: </strong>
-                <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }} <span v-if="isPitcherTired(rightPanelData.pitcher)" class="tired-indicator">(Tired)</span></template>
+                <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }}</template>
                 <template v-else>TBD</template>
               </span>
           </div>
@@ -1355,7 +2134,9 @@ onUnmounted(() => {
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
               <ul>
                   <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                          <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                          <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-icon tired" title="Tired"></span>
+                          <span v-else-if="p.pitchedYesterday && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Pitched in previous game"></span>
                   </li>
               </ul>
           </div>
@@ -1507,22 +2288,38 @@ onUnmounted(() => {
     font-weight: bold;
   }
 
+.selecting-pitcher-text h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+}
+
+.selecting-pitcher-text p {
+    font-size: 1.5rem;
+    font-style: italic;
+    color: #555;
+    margin: 0;
+}
+
   /* --- Mobile Positioning Overrides --- */
   .result-box-left {
-    left: -40px;
+    left: -60px;
   }
   .result-box-right {
-    right: -40px;
+    right: -60px;
   }
   .defensive-ratings {
-    bottom: 5px;
-    left: 5px;
+    bottom: 10px;
+    left: -20px;
+  }
+  .score-update-flash {
+    bottom: 100px;
   }
   /* Target the ThrowRollResult component's root class */
   .diamond-and-results-container > .throw-roll-result {
-    bottom: 5px;
+    bottom: 10px;
     left: auto;
-    right: 5px;
+    right: -20px;
     transform: translateX(0);
   }
 }
@@ -1609,13 +2406,14 @@ onUnmounted(() => {
 }
 .lineup-item > span:not(.sub-icon), .pitcher-info > span:not(.sub-icon) {
   cursor: pointer;
-  flex-grow: 1;
 }
 .lineup-item > span:not(.sub-icon):hover, .pitcher-info > span:not(.sub-icon):hover {
   text-decoration: underline;
 }
 .pitcher-info { font-weight: bold; margin-top: 0.5rem; margin-left: -1.2rem}
-.tired-indicator { color: #dc3545; font-weight: bold; font-style: italic; }
+.is-tired {
+    /* Styles removed */
+}
 .is-sub-target {
   /* Now handled by inline :style binding for dynamic team colors */
 }
@@ -1625,6 +2423,21 @@ onUnmounted(() => {
 }
 .is-sub-target .tired-indicator {
     color: white; /* Make tired indicator visible on dark backgrounds */
+}
+.status-icon {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.status-icon.tired {
+    background-color: #dc3545;
+    border: 2px solid #dc3545;
+}
+.status-icon.used {
+    background-color: transparent;
+    border: 2px solid #000;
 }
 .is-sub-in-candidate:hover {
     background-color: #e9ecef;
@@ -1640,6 +2453,11 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.invalid-position {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
 
 .replacement-player span:first-child {
   font-style: italic;
@@ -1706,7 +2524,7 @@ onUnmounted(() => {
   width: 100%;
   margin: 0;
 }
-.runner-decisions-group {
+.runner-decisions-group, .steal-throw-decisions, .defensive-throw-decisions, .infield-in-decisions {
     margin-top: 1rem;
     margin-bottom: 1rem;
     display: flex;
@@ -1771,50 +2589,45 @@ onUnmounted(() => {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0rem; }
 .score-update-flash {
   position: absolute;
-  bottom: 375px; /* Position it below the container */
+  top: -25px; /* Position it below the container */
   left: 0;
   right: 0;
   font-size: 1.5rem;
   color: black;
   text-align: center;
   pointer-events: none; /* Prevent it from intercepting clicks */
-}
-
-.game-over-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  gap: 0.25rem;
 }
 
-.game-over-content {
-  background-color: white;
-  padding: 2rem 3rem;
-  border-radius: 8px;
+.score-box-highlight {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0px;
+  border: 3px solid;
+  font-weight: bold;
+}
+.final-score-message, .series-score-message {
+  padding: 0.5rem 1.5rem;
+  border-radius: 1px;
+  border: 3px solid;
   text-align: center;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  white-space: nowrap;
 }
 
-.game-over-content h2 {
-  margin-top: 0;
+.final-score-message {
+  font-size: 2rem;
+  top: 100px;
 }
 
-.game-over-content button, .game-over-content .button-link {
-    display: inline-block;
-    margin-top: 1rem;
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    font-weight: bold;
-    color: white;
-    background-color: #28a745;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none;
+.series-score-message {
+  font-size: 3rem;
+  bottom: 120px;
 }
+
 </style>

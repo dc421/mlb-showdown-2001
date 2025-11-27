@@ -1,0 +1,68 @@
+{
+  "game": {
+    "game_id": 1,
+    "status": "in_progress",
+    "home_team_user_id": 1,
+    "current_turn_user_id": 1
+  },
+  "series": null,
+  "gameState": {
+    "state_data": {
+      "inning": 1,
+      "isTopInning": false,
+      "homeScore": 0,
+      "awayScore": 0,
+      "outs": 1,
+      "bases": {
+        "first": { "card_id": 101, "name": "Cal Ripken Jr.", "display_name": "Cal Ripken Jr.", "speed": "B" },
+        "second": null,
+        "third": null
+      },
+      "homeTeam": { "userId": 1, "battingOrderPosition": 0, "used_player_ids": [] },
+      "awayTeam": { "userId": 2, "battingOrderPosition": 1, "used_player_ids": [] },
+      "lastCompletedAtBat": null,
+      "currentAtBat": {
+        "batter": { "card_id": 101, "name": "Cal Ripken Jr.", "display_name": "Cal Ripken Jr." },
+        "pitcher": { "card_id": 201, "name": "Mike Mussina", "display_name": "Mike Mussina" },
+        "basesBeforePlay": { "first": null, "second": null, "third": null },
+        "outsBeforePlay": 1,
+        "pitcherAction": "pitch",
+        "batterAction": "swing",
+        "swingRollResult": { "outcome": "1B" }
+      },
+      "homePlayerReadyForNext": false,
+      "awayPlayerReadyForNext": false
+    }
+  },
+  "gameEvents": [],
+  "batter": { "card_id": 101, "name": "Cal Ripken Jr.", "display_name": "Cal Ripken Jr." },
+  "pitcher": { "card_id": 201, "name": "Mike Mussina", "display_name": "Mike Mussina" },
+  "lineups": {
+    "home": {
+      "battingOrder": [
+        { "player": { "card_id": 101, "name": "Cal Ripken Jr.", "display_name": "Cal Ripken Jr." }, "position": "SS" },
+        { "player": { "card_id": 103, "name": "Eddie Murray", "display_name": "Eddie Murray" }, "position": "1B" }
+      ],
+      "startingPitcher": { "card_id": 104, "name": "Jim Palmer", "display_name": "Jim Palmer" }
+    },
+    "away": {
+      "battingOrder": [
+        { "player": { "card_id": 202, "name": "Babe Ruth", "display_name": "Babe Ruth" }, "position": "RF" },
+        { "player": { "card_id": 203, "name": "Lou Gehrig", "display_name": "Lou Gehrig" }, "position": "1B" }
+      ],
+      "startingPitcher": { "card_id": 201, "name": "Mike Mussina", "display_name": "Mike Mussina" }
+    }
+  },
+  "rosters": {
+    "home": [
+      { "card_id": 101, "name": "Cal Ripken Jr.", "display_name": "Cal Ripken Jr." },
+      { "card_id": 102, "name": "Brady Anderson", "display_name": "Brady Anderson", "speed": "A" },
+      { "card_id": 103, "name": "Eddie Murray", "display_name": "Eddie Murray" }
+    ],
+    "away": []
+  },
+  "teams": {
+    "home": { "abbreviation": "BAL" },
+    "away": { "abbreviation": "NYY" }
+  }
+}

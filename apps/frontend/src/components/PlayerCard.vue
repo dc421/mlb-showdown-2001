@@ -33,6 +33,25 @@ function handleImageError(event) {
   event.target.src = '/images/replacement.jpg';
 }
 
+const isReplacementPitcher = computed(() => {
+  return props.player && (props.player.card_id === 'replacement_pitcher' || props.player.card_id === -2);
+});
+
+const isTired = computed(() => {
+  return props.player && typeof props.player.effectiveControl === 'number' && props.player.effectiveControl < props.player.control;
+});
+
+const showFatigueIndicator = computed(() => {
+  if (isReplacementPitcher.value) {
+    return typeof props.player.effectiveControl === 'number';
+  }
+  return isTired.value;
+});
+
+const fatigueIndicatorText = computed(() => {
+  return props.player.effectiveControl;
+});
+
 const fieldingDisplay = computed(() => {
     if (!props.player?.fielding_ratings) return '';
     return Object.entries(props.player.fielding_ratings)
@@ -64,6 +83,13 @@ function formatRange(range) {
       class="card-image"
       @error="handleImageError"
     />
+    <!-- Fatigue Indicator -->
+    <div
+      v-if="showFatigueIndicator"
+      class="fatigue-indicator"
+    >
+      {{ fatigueIndicatorText }}
+    </div>
   </div>
   <div v-else class="player-card-container placeholder">
     <p>Loading {{ role }}...</p>
@@ -110,5 +136,30 @@ function formatRange(range) {
 
 .disadvantage .card-image {
   filter: grayscale(100%) contrast(1.1) brightness(1.05);
+}
+
+.fatigue-indicator {
+  position: absolute;
+  top: 13.5%;
+  right: 9%;
+  transform: translate(50%, -50%);
+  width: 14%;
+  aspect-ratio: 1 / 1; /* Ensures the element is always a perfect circle */
+  background-color: red;
+  border: 1px solid white;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /*
+    Fluid font size:
+    - Minimum size: 0.75rem (12px)
+    - Scales with 4% of the viewport width
+    - Maximum size: 1.375rem (22px)
+  */
+  font-size: clamp(0.75rem, 4vw, 1.375rem);
+  box-shadow: 0 0 5px rgba(0,0,0,0.7);
 }
 </style>
