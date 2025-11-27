@@ -77,7 +77,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
 app.use('/images', express.static(path.join(__dirname, 'card_images')));
-app.use('/team_logos', express.static(path.join(__dirname, 'team_logos')));
+//app.use('/team_logos', express.static(path.join(__dirname, 'team_logos')));
 
 
 // in server.js
@@ -1430,7 +1430,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                  newState.currentAtBat.pitchRollResult.advantage = newAdvantage;
             }
         }
-
+        
         // Pinch runner logic is handled by updating the `bases` object, which was done above.
 
         // The critical check: If the player being replaced was a pitcher (either as batter or runner),
@@ -2505,6 +2505,11 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
         finalState.currentAtBat.pitchRollResult = { roll: pitchRoll, advantage, penalty: controlPenalty };
 
         if (finalState.currentAtBat.batterAction) {
+            // Now that both players have acted, clear any leftover steal/throw results from the previous state.
+            finalState.lastStealResult = null;
+            finalState.pendingStealAttempt = null;
+            finalState.throwRollResult = null;
+
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
             const { infieldDefense, outfieldDefense } = finalState.isTopInning ? finalState.homeDefensiveRatings : finalState.awayDefensiveRatings;
