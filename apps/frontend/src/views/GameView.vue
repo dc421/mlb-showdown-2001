@@ -1238,9 +1238,8 @@ const pitcherToDisplay = computed(() => {
     console.log(`playersInInvalidPositions.value.size: ${playersInInvalidPositions.value.size}`);
     // --- END PRODUCTION DEBUGGING ---
 
-    // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
-    // change just happened), we should not show any pitcher, forcing the "TBD" state.
-    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0) {
+    // If we are awaiting a lineup change, force the "TBD" state.
+    if (isMyTeamAwaitingLineupChange.value || (gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0)) {
         console.log('pitcherToDisplay is returning NULL');
         return null;
     }
@@ -1249,23 +1248,17 @@ const pitcherToDisplay = computed(() => {
     }
     if (!gameStore.gameState) return null;
 
-    // NEW LOGIC: If the outcome is hidden, we must show the pitcher and their stats
-    // from the beginning of the at-bat to avoid revealing information.
-    // ADDITION: Do not use the rolled-back pitcher during a steal, as we need live fatigue data.
-    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value && !showRollForSwingButton.value) {
-        // atBatToDisplay correctly selects whether to show the current or last completed at-bat
-        // based on who is waiting. The pitcher object on that at-bat will have the
-        // effectiveControl as it was at the start of that specific at-bat.
-        return atBatToDisplay.value?.pitcher ?? null;
-    }
-
-
     let basePitcher = null;
 
-    // Determine the correct base pitcher object to use (for LIVE state)
-    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
+    // Determine the correct base pitcher object to use
+    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value && !showRollForSwingButton.value) {
+        // Use pitcher from the start of the at-bat being displayed
+        basePitcher = atBatToDisplay.value?.pitcher ?? null;
+    } else if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
+        // Opponent is ahead, use their last completed action's pitcher
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
+        // Fully caught up, use the current pitcher
         basePitcher = gameStore.pitcher;
     }
 
@@ -1273,7 +1266,7 @@ const pitcherToDisplay = computed(() => {
         return basePitcher;
     }
 
-    // Replicate the backend getEffectiveControl logic for the LIVE view
+    // ALWAYS replicate the backend getEffectiveControl logic for the LIVE view
     const pitcherStats = gameStore.gameState.pitcherStats;
     if (!pitcherStats) {
         return { ...basePitcher, effectiveControl: basePitcher.control };
