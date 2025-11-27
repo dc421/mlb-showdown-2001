@@ -1421,7 +1421,7 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
                  const pitcher = newState.currentAtBat.pitcher;
                  // Get effective control for the CURRENT inning/at-bat state
                  const effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
-                 
+
                  // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
                  const newAdvantage = playerInCard.control !== null
                     ? 'pitcher'
@@ -1713,10 +1713,10 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
     // Create a new state with the updated defensive setting
     const newState = { ...currentState };
     newState.currentAtBat.infieldIn = infieldIn;
-    
+
     await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
     await client.query('COMMIT');
-    
+
     // Notify the room that the game state has changed
     const gameData = await getAndProcessGameData(gameId, client);
     io.to(gameId).emit('game-updated', gameData);
@@ -2292,11 +2292,6 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
 
     // If the pitcher has already acted, we resolve the at-bat now.
     if (finalState.currentAtBat.pitcherAction === 'pitch') {
-      // Now that both players have acted, clear any leftover steal/throw results from the previous state.
-      finalState.lastStealResult = null;
-      finalState.pendingStealAttempt = null;
-      finalState.throwRollResult = null;
-
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
 
@@ -2684,7 +2679,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // Clear details from the previous play.
       delete newState.stealAttemptDetails;
-      
+
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
       // Logic to advance the batting order.

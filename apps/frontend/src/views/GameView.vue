@@ -943,7 +943,7 @@ const isRunnerOnOffensiveTeam = computed(() => {
   if (!offensiveTeam) {
       return false; // Or a sensible default
   }
-  
+
   return gameStore.gameState.lastStealResult.runnerTeamId === offensiveTeam.team_id;
 });
 
@@ -958,48 +958,50 @@ const isDoubleStealResultAvailable = computed(() => {
 
 
 const showStealResult = computed(() => {
-
-  //const offensivePlayerCondition = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) &&
-  //                               amIDisplayOffensivePlayer.value &&
-  //                               (isRunnerOnOffensiveTeam.value || gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) && 
-  //                               !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext) &&
-  //                               (!gameStore.gameState.currentAtBat.batterAction || (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext));
-  //const defensivePlayerCondition = ((!!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value) && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction) && !(gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk') && !gameStore.amIReadyForNext) &&
-  //                               amIDisplayDefensivePlayer.value
-  //                               // && (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext))
-  //                               ;
-  //return offensivePlayerCondition || defensivePlayerCondition;
-
-  const hasStealData = !!gameStore.gameState?.pendingStealAttempt || 
-                       !!gameStore.gameState?.lastStealResult || 
+  // Common condition: there must be some steal-related data in the game state.
+  const hasStealData = !!gameStore.gameState?.pendingStealAttempt ||
+                       !!gameStore.gameState?.lastStealResult ||
                        isDoubleStealResultAvailable.value;
 
-  if (!hasStealData) return false;
-  
-  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-      return !gameStore.amIReadyForNext;
+  if (!hasStealData) {
+    return false;
   }
-  
-  if (gameStore.amIReadyForNext) return false;
+
+  // Common condition: If I've already clicked "Next Hitter", hide the old result.
+  if (gameStore.amIReadyForNext) {
+    return false;
+  }
+
+  // Special case: Inning ended on the play. Show until I click "Next Hitter".
+  // The amIReadyForNext check above handles the dismissal.
+  if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+      return true;
+  }
+
+  // --- Player-specific logic ---
 
   if (amIDisplayOffensivePlayer.value) {
-      if (!isRunnerOnOffensiveTeam.value) return false;
-      
-      return !gameStore.gameState.currentAtBat.batterAction || gameStore.opponentReadyForNext;
+    // The runner must belong to the offensive team to show the box.
+    if (!isRunnerOnOffensiveTeam.value) {
+      return false;
+    }
+    // Show the result as long as the batter has NOT yet taken their action.
+    const batterHasActed = !!gameStore.gameState.currentAtBat.batterAction;
+    return !batterHasActed;
   }
 
   if (amIDisplayDefensivePlayer.value) {
-      // Defense should only see the box if there is a completed result to show.
-      // pendingStealAttempt alone is an ACTION trigger, not a result view for defense.
-      const hasDefensiveResult = !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value;
-      if (!hasDefensiveResult) return false;
-
-      const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
-      const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
-      
-      return (!pitcherHasActed && !isIBB) || gameStore.opponentReadyForNext;
+    // Defense should only see a *completed* result, not just a pending attempt.
+    const hasDefensiveResultToShow = !!gameStore.gameState?.lastStealResult || isDoubleStealResultAvailable.value;
+    if (!hasDefensiveResultToShow) {
+      return false;
+    }
+    // Show the result as long as the pitcher has NOT yet taken their action.
+    const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
+    return !pitcherHasActed;
   }
 
+  // Default for spectators or if something goes wrong.
   return false;
 });
 
@@ -1238,8 +1240,9 @@ const pitcherToDisplay = computed(() => {
     console.log(`playersInInvalidPositions.value.size: ${playersInInvalidPositions.value.size}`);
     // --- END PRODUCTION DEBUGGING ---
 
-    // If we are awaiting a lineup change, force the "TBD" state.
-    if (isMyTeamAwaitingLineupChange.value || (gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0)) {
+    // THIS IS THE FIX: If we are awaiting a lineup change (which implies an inning
+    // change just happened), we should not show any pitcher, forcing the "TBD" state.
+    if (isMyTeamAwaitingLineupChange.value || gameStore.gameState?.awaiting_lineup_change && amIDisplayOffensivePlayer.value && playersInInvalidPositions.value.size === 0) {
         console.log('pitcherToDisplay is returning NULL');
         return null;
     }
@@ -1248,17 +1251,23 @@ const pitcherToDisplay = computed(() => {
     }
     if (!gameStore.gameState) return null;
 
+    // NEW LOGIC: If the outcome is hidden, we must show the pitcher and their stats
+    // from the beginning of the at-bat to avoid revealing information.
+    // ADDITION: Do not use the rolled-back pitcher during a steal, as we need live fatigue data.
+    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value) {
+        // atBatToDisplay correctly selects whether to show the current or last completed at-bat
+        // based on who is waiting. The pitcher object on that at-bat will have the
+        // effectiveControl as it was at the start of that specific at-bat.
+        return atBatToDisplay.value?.pitcher ?? null;
+    }
+
+
     let basePitcher = null;
 
-    // Determine the correct base pitcher object to use
-    if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value && !showRollForSwingButton.value) {
-        // Use pitcher from the start of the at-bat being displayed
-        basePitcher = atBatToDisplay.value?.pitcher ?? null;
-    } else if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
-        // Opponent is ahead, use their last completed action's pitcher
+    // Determine the correct base pitcher object to use (for LIVE state)
+    if (!gameStore.amIReadyForNext && (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) && !isStealAttemptInProgress.value) {
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
-        // Fully caught up, use the current pitcher
         basePitcher = gameStore.pitcher;
     }
 
@@ -1266,7 +1275,7 @@ const pitcherToDisplay = computed(() => {
         return basePitcher;
     }
 
-    // ALWAYS replicate the backend getEffectiveControl logic for the LIVE view
+    // Replicate the backend getEffectiveControl logic for the LIVE view
     const pitcherStats = gameStore.gameState.pitcherStats;
     if (!pitcherStats) {
         return { ...basePitcher, effectiveControl: basePitcher.control };
@@ -1791,7 +1800,7 @@ function handleVisibilityChange() {
             :teamColors="pitcherTeamColors"
           />
           <ThrowRollResult
-            v-if="showStealResult"
+            v-if="showStealResult && stealDisplayDetails"
             :details="stealDisplayDetails"
             :teamColors="pitcherTeamColors"
           />
