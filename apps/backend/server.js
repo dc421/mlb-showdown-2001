@@ -2839,7 +2839,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-    const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
+    const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
     // This is the core of the fix. If a steal is ALREADY in progress,
@@ -2887,12 +2887,13 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                     runnerName,
                     throwToBase: toBase,
                     outcome,
+                    batterPlayerId: batter.card_id,
                     ...resultDetails
                 };
                 // We still use currentPlay to manage the overall "steal sequence" state
                 newState.currentPlay = {
                     type: 'STEAL_ATTEMPT',
-                    payload: { decisions }
+                    payload: { decisions, batterPlayerId: batter.card_id }
                 };
 
                 // CRITICAL CHANGE: If safe, it's both players' turn. If out, it's the defense's turn to clean up.
@@ -2903,7 +2904,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
         } else { // Double steal
             newState.currentPlay = {
                 type: 'STEAL_ATTEMPT',
-                payload: { decisions }
+                payload: { decisions, batterPlayerId: batter.card_id }
             };
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
         }
@@ -2979,7 +2980,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
-    const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
+    const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
 
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
@@ -3023,10 +3024,11 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
                         runnerName: newRunnerName,
                         throwToBase: toBase,
                         outcome: newOutcome,
+                        batterPlayerId: batter.card_id,
                         ...resultDetails
                     };
                 }
-                newState.currentPlay.payload = { decisions: queuedDecisions };
+                newState.currentPlay.payload = { decisions: queuedDecisions, batterPlayerId: batter.card_id };
                 await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
             } else {
                 newState.currentPlay = null;
