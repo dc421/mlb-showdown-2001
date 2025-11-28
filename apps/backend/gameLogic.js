@@ -277,7 +277,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
                     batter: runnerData,
                     runnerOnThird: third,
                     runnerOnSecond: second,
-                    runnerOnFirst: first
+                    runnerOnFirst: first,
+                    batterPlayerId: batter.card_id
                 }
             };
         }
@@ -388,7 +389,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
         // If there are manual decisions, create a play
         if (manualDecisions.length > 0) {
-            newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, autoHoldDecisions, initialEvent: combinedEvent } };
+            newState.currentPlay = { type: 'TAG_UP', payload: { decisions: manualDecisions, autoHoldDecisions, initialEvent: combinedEvent, batterPlayerId: batter.card_id } };
         } else {
             // Otherwise, process auto-holds and finalize the event
             events.push(combinedEvent);
@@ -454,7 +455,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           }
 
           newState.bases.first = runnerData;
-          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: allUserDecisions, hitType: '1B', initialEvent: combinedEvent, scorers } };
+          newState.currentPlay = { type: 'ADVANCE', payload: { decisions: allUserDecisions, hitType: '1B', initialEvent: combinedEvent, scorers, batterPlayerId: batter.card_id } };
 
       } else {
           // --- SCENARIO 2: All runner movement is automatic ---
@@ -548,7 +549,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           newState.bases.second = runnerData;
           if (runnerFrom1 && !newState.gameOver) {
               newState.bases.third = runnerFrom1;
-              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers } };
+              newState.currentPlay = { type: 'ADVANCE', payload: { decisions: potentialDecisions, hitType: '2B', initialEvent: combinedEvent, batter: runnerData, scorers, batterPlayerId: batter.card_id } };
           } else {
               events.push(combinedEvent);
           }

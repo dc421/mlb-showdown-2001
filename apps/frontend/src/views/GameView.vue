@@ -175,10 +175,29 @@ const amIDefensivePlayer = computed(() => {
     return !amIOffensivePlayer.value;
 });
 
+const shouldShowAdvanceFirst = computed(() => {
+  if (!gameStore.gameState) return false;
+
+  const advancePlay = gameStore.gameState.currentPlay;
+  const stealPlay = gameStore.gameState.pendingStealAttempt;
+
+  if (!advancePlay || !stealPlay) return false;
+
+  const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
+  const currentBatterId = gameStore.gameState.currentAtBat?.batter?.card_id;
+
+  if (!lastBatterId || !currentBatterId) return false;
+
+  return advancePlay.payload.batterPlayerId === lastBatterId && stealPlay.batterPlayerId === currentBatterId;
+});
+
 const isDefensiveThrowDecision = computed(() => {
     if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
         return false;
     }
+    if (shouldShowAdvanceFirst.value) return true;
+    if (gameStore.gameState.pendingStealAttempt) return false;
+
     const { type, payload } = gameStore.gameState.currentPlay;
     return (type === 'ADVANCE' || type === 'TAG_UP') && payload && payload.choices;
 });
@@ -1546,6 +1565,7 @@ function handleResolveSteal(throwToBase = null) {
 
 
 const isStealAttemptInProgress = computed(() => {
+    if (shouldShowAdvanceFirst.value) return false;
     if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
     const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
