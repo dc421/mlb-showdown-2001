@@ -673,7 +673,7 @@ async function resetRolls(gameId) {
   const displayOuts = computed(() => {
     if (!gameState.value) return 0;
 
-    if (isOutcomeHidden.value && !isStealResultVisible.value) {
+    if (isOutcomeHidden.value) {
         // Case 1: Outcome is hidden.
         // Logic restored based on user feedback: Explicitly show state from before the current action.
         if (opponentReadyForNext.value) {
@@ -826,7 +826,7 @@ async function resetRolls(gameId) {
         }
     }
 
-    if (isOutcomeHidden.value && !isStealResultVisible.value) {
+    if (isOutcomeHidden.value) {
         // Restored explicit rollback logic.
         const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
         if (rollbackSource && rollbackSource.basesBeforePlay) {

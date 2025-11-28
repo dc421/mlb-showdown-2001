@@ -981,7 +981,7 @@ const showStealResult = computed(() => {
     return !gameStore.amIReadyForNext && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
   }
   
-  if (gameStore.amIReadyForNext) return false;
+  if (gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) return false;
 
   if (amIDisplayOffensivePlayer.value) {
       if (!isRunnerOnOffensiveTeam.value) return false;
