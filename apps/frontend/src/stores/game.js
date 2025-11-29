@@ -242,6 +242,11 @@ async function submitPitch(gameId, action = null) {
       const optimisticAction = action || 'pitch';
       gameState.value.currentAtBat.pitcherAction = optimisticAction;
 
+      // If batter has already acted, then defensive player is going second.
+      if (gameState.value.currentAtBat.batterAction) {
+          gameState.value.defensivePlayerWentSecond = true;
+      }
+
       // For intentional walks, the batter automatically 'takes'.
       if (optimisticAction === 'intentional_walk') {
           gameState.value.currentAtBat.batterAction = 'take';
