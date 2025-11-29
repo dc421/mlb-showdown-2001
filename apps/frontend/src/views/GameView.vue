@@ -175,6 +175,7 @@ const amIDefensivePlayer = computed(() => {
     return !amIOffensivePlayer.value;
 });
 
+
 const shouldShowAdvanceFirst = computed(() => {
   if (!gameStore.gameState) return false;
 
@@ -185,17 +186,36 @@ const shouldShowAdvanceFirst = computed(() => {
 
   const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
   const currentBatterId = gameStore.gameState.currentAtBat?.batter?.card_id;
+  
+  if (!lastBatterId || !currentBatterId) return false;
+
+  if (shouldShowDoublePlayFirst.value) return false;
+  return stealPlay.batterPlayerId === currentBatterId;
+});
+
+
+const shouldShowDoublePlayFirst = computed(() => {
+  if (!gameStore.gameState) return false;
+
+  const dpDetails = gameStore.gameState.doublePlayDetails;
+  const stealPlay = gameStore.gameState.pendingStealAttempt;
+
+  if (!dpDetails || !stealPlay) return false;
+
+  const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
+  const currentBatterId = gameStore.gameState.currentAtBat?.batter?.card_id;
 
   if (!lastBatterId || !currentBatterId) return false;
 
-  return advancePlay.payload.batterPlayerId === lastBatterId && stealPlay.batterPlayerId === currentBatterId;
+  return dpDetails.batterPlayerId === lastBatterId && stealPlay.batterPlayerId === currentBatterId;
 });
+
 
 const isDefensiveThrowDecision = computed(() => {
     if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
         return false;
     }
-    if (shouldShowAdvanceFirst.value) return true;
+    if (shouldShowAdvanceFirst.value && gameStore.gameState.currentPlay.payload.choices) return true;
     if (gameStore.gameState.pendingStealAttempt) return false;
 
     const { type, payload } = gameStore.gameState.currentPlay;
@@ -831,6 +851,7 @@ const showRollForSwingButton = computed(() => {
 
 const showRollForDoublePlayButton = computed(() => {
   if (isGameOver.value) return false;
+  if (shouldShowDoublePlayFirst.value && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value) return true;
   const isDPBall = !!gameStore.gameState?.doublePlayDetails;
   return isDPBall && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value && !gameStore.amIReadyForNext;
 });
@@ -1566,6 +1587,7 @@ function handleResolveSteal(throwToBase = null) {
 
 const isStealAttemptInProgress = computed(() => {
     if (shouldShowAdvanceFirst.value) return false;
+    if (shouldShowDoublePlayFirst.value) return false;
     if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
     const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
