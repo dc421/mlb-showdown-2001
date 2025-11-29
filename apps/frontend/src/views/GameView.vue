@@ -954,9 +954,16 @@ const isRunnerOnOffensiveTeam = computed(() => {
     return false;
   }
 
+  // Robust check: Does the runner's team ID match the current user's team ID?
+  // We can use gameStore.myTeam to get 'home' or 'away', then check the ID.
+  const myTeamSide = gameStore.myTeam; // 'home' or 'away'
+  const myTeamData = gameStore.teams?.[myTeamSide];
 
-  // THIS IS THE FIX: Use the full team objects from `gameStore.teams` which contain the `team_id`.
-  // The objects in `gameState` are lightweight and do not have this property.
+  if (myTeamData && Number(gameStore.gameState.lastStealResult.runnerTeamId) === Number(myTeamData.team_id)) {
+      return true;
+  }
+
+  // Fallback: Check against the offensive team key (original logic) just in case
   const offensiveTeamKey = isDisplayTopInning.value ? 'away' : 'home';
   const offensiveTeam = gameStore.teams ? gameStore.teams[offensiveTeamKey] : null;
 
@@ -964,7 +971,7 @@ const isRunnerOnOffensiveTeam = computed(() => {
       return false; // Or a sensible default
   }
   
-  return gameStore.gameState.lastStealResult.runnerTeamId === offensiveTeam.team_id;
+  return Number(gameStore.gameState.lastStealResult.runnerTeamId) === Number(offensiveTeam.team_id);
 });
 
 const isDoubleStealResultAvailable = computed(() => {
