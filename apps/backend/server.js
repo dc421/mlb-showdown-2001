@@ -2699,10 +2699,10 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       // Clear all transient details from the previous play *before* creating the new `currentAtBat`.
       // This prevents stale data from causing UI glitches for the first player to click.
       //newState.throwRollResult = null;
-      newState.lastStealResult = null;
-      newState.pendingStealAttempt = null;
+      //newState.lastStealResult = null;
+      //newState.pendingStealAttempt = null;
       //newState.doublePlayDetails = null;
-      delete newState.stealAttemptDetails;
+      //delete newState.stealAttemptDetails;
       
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
@@ -2785,6 +2785,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.throwRollResult = null;
       newState.lastStealResult = null;
       newState.pendingStealAttempt = null;
+      delete newState.stealAttemptDetails;
 
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
