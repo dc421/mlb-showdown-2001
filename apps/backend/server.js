@@ -3007,7 +3007,8 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         const { outcome, runnerName, runner, ...resultDetails } = newState.pendingStealAttempt;
 
         const offensiveTeam = newState.isTopInning ? newState.awayTeam : newState.homeTeam;
-        newState.lastStealResult = { runner: runnerName, outcome, runnerTeamId: offensiveTeam.team_id, ...resultDetails };
+        // Explicitly cast team_id to Number to ensure consistent frontend comparisons
+        newState.lastStealResult = { runner: runnerName, outcome, runnerTeamId: Number(offensiveTeam.team_id), ...resultDetails };
         newState.pendingStealAttempt = null;
 
         // FIX: Define queuedDecisions before using it.
