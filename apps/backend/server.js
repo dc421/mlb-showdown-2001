@@ -1432,12 +1432,14 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
         // The critical check: If the player being replaced was a pitcher (either as batter or runner),
         // the substituting team will need a new pitcher for their NEXT defensive inning.
-        // We flag this by nullifying their designated pitcher slot, but we DO NOT touch `currentAtBat.pitcher`.
+        // If the NEW player is a pitcher, they become the new designated pitcher.
+        // Otherwise (e.g. pinch hitter), we nullify the slot.
         if (playerOutCard.control !== null) {
+            const newPitcher = playerInCard.control !== null ? playerInCard : null;
             if (teamKey === 'homeTeam') {
-                newState.currentHomePitcher = null;
+                newState.currentHomePitcher = newPitcher;
             } else {
-                newState.currentAwayPitcher = null;
+                newState.currentAwayPitcher = newPitcher;
             }
         }
     } else {
