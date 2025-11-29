@@ -2669,6 +2669,23 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
     const isHomePlayer = Number(userId) === Number(newState.homeTeam.userId);
 
+    // --- GUARD CLAUSE: Prevent premature advancement ---
+    // Ensure the current play is actually finished before allowing the state to advance.
+    const isBetweenInnings = originalState.isBetweenHalfInningsAway || originalState.isBetweenHalfInningsHome;
+    const isAtBatResolved = originalState.currentAtBat && originalState.currentAtBat.pitcherAction && originalState.currentAtBat.batterAction;
+    const isSpecialEndState = originalState.inningEndedOnCaughtStealing;
+
+    if (!isBetweenInnings && !isAtBatResolved && !isSpecialEndState) {
+        // If the play isn't done, we shouldn't be here.
+        // However, if one player is already "ready" (meaning they successfully called this before),
+        // we might just need to mark the second player as ready.
+        // But if NEITHER is ready, and the play isn't done, this is an illegal state transition.
+        if (!originalState.homePlayerReadyForNext && !originalState.awayPlayerReadyForNext) {
+             console.warn(`[next-hitter] blocked premature advancement for game ${gameId}. AtBat resolved: ${!!isAtBatResolved}`);
+             return res.status(400).json({ message: "Current play is not yet resolved." });
+        }
+    }
+
     // --- THIS IS THE NEW LOGIC ---
     // If you are the FIRST player to click, advance the game state.
     if (!originalState.homePlayerReadyForNext && !originalState.awayPlayerReadyForNext) {

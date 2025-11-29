@@ -1330,15 +1330,16 @@ const pitcherToDisplay = computed(() => {
     const hasBeenSubstituted = basePitcher.card_id !== gameStore.gameState.lastCompletedAtBat?.pitcher?.card_id;
 
     if (!shouldHideCurrentAtBatOutcome.value || hasBeenSubstituted) {
-        const pitcherTeamKey = gameStore.pitcherTeam;
-        const fullPitcherFromRoster = pitcherTeamKey ? gameStore.rosters[pitcherTeamKey]?.find(p => p.card_id === basePitcher.card_id) : null;
+        // Use the display-derived inning state to determine the correct pitcher team (Home pitches in Top, Away in Bottom)
+        const pitcherTeamKey = isDisplayTopInning.value ? 'home' : 'away';
+        const fullPitcherFromRoster = gameStore.rosters[pitcherTeamKey]?.find(p => p.card_id === basePitcher.card_id);
         if (fullPitcherFromRoster) {
             pitcherToProcess = { ...pitcherToProcess, ...fullPitcherFromRoster };
         }
     }
 
     // ALWAYS replicate the backend getEffectiveControl logic for the LIVE view
-    const pitcherStats = gameStore.gameState.pitcherStats;
+    const pitcherStats = gameStore.gameState?.pitcherStats;
     if (!pitcherStats) {
         return { ...pitcherToProcess, effectiveControl: pitcherToProcess.control };
     }
@@ -1583,6 +1584,12 @@ function handleResolveSteal(throwToBase = null) {
   hasRolledForSteal.value = true;
   gameStore.resolveSteal(gameId, throwToBase);
 }
+
+watch(isStealAttemptInProgress, (newValue) => {
+  if (newValue) {
+    hasRolledForSteal.value = false;
+  }
+});
 
 
 const isStealAttemptInProgress = computed(() => {
@@ -2017,15 +2024,21 @@ function handleVisibilityChange() {
             <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && (!showStealResult || (!!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt))">
                 <div v-if="isSingleSteal">
                     <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
-                    <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                    <div v-if="!hasRolledForSteal">
+                      <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                    </div>
+                    <div v-else class="waiting-text">Rolling...</div>
                 </div>
                 <div v-else>
                     <h3>Opponent is attempting a double steal!</h3>
-                    <p>Choose which base to throw to:</p>
-                    <div class="steal-throw-decisions">
-                      <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                      <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                    <div v-if="!hasRolledForSteal">
+                      <p>Choose which base to throw to:</p>
+                      <div class="steal-throw-decisions">
+                        <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
+                        <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                      </div>
                     </div>
+                    <div v-else class="waiting-text">Rolling...</div>
                 </div>
             </div>
             <div v-else-if="isInfieldInDecision">

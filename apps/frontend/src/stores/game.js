@@ -236,6 +236,18 @@ async function resolveDefensiveThrow(gameId, throwTo) {
 
 async function submitPitch(gameId, action = null) {
   console.log('2. Game Store: submitPitch action was called.');
+
+  // Optimistic Update: Immediately update the local state to reflect the action.
+  if (gameState.value && gameState.value.currentAtBat) {
+      const optimisticAction = action || 'pitch';
+      gameState.value.currentAtBat.pitcherAction = optimisticAction;
+
+      // For intentional walks, the batter automatically 'takes'.
+      if (optimisticAction === 'intentional_walk') {
+          gameState.value.currentAtBat.batterAction = 'take';
+      }
+  }
+
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
@@ -250,6 +262,11 @@ async function submitPitch(gameId, action = null) {
 
 // in src/stores/game.js
 async function submitAction(gameId, action) {
+  // Optimistic Update: Immediately update the local state.
+  if (gameState.value && gameState.value.currentAtBat) {
+      gameState.value.currentAtBat.batterAction = action;
+  }
+
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
@@ -310,6 +327,15 @@ async function resolveDoublePlay(gameId) {
 }
 
   async function nextHitter(gameId) {
+  // Optimistic Update: Immediately mark myself as ready.
+  if (gameState.value && myTeam.value) {
+      if (myTeam.value === 'home') {
+          gameState.value.homePlayerReadyForNext = true;
+      } else {
+          gameState.value.awayPlayerReadyForNext = true;
+      }
+  }
+
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
