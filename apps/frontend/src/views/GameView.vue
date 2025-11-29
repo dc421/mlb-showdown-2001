@@ -432,8 +432,10 @@ const myBenchAndBullpen = computed(() => {
     const onFieldIds = new Set(myLineup.value.battingOrder.map(s => s.player.card_id));
 
     // --- NEW: Also consider the current pitcher on the mound as "on field" ---
-    if (gameStore.pitcher && gameStore.myTeam === gameStore.pitcherTeam) {
-        onFieldIds.add(gameStore.pitcher.card_id);
+    // Correction: We must consider OUR designated pitcher, even if they aren't on the mound right now (e.g. we are batting).
+    const myPitcher = gameStore.myTeam === 'home' ? homePitcher.value : awayPitcher.value;
+    if (myPitcher) {
+        onFieldIds.add(myPitcher.card_id);
     }
 
     const benchAndBullpen = myRoster.value.filter(p => !onFieldIds.has(p.card_id));

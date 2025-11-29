@@ -624,8 +624,8 @@ async function resetRolls(gameId) {
     if (data.series) series.value = data.series;
     if (data.gameState) gameState.value = data.gameState.state_data;
     if (data.gameEvents) gameEvents.value = data.gameEvents;
-    if (data.batter) batter.value = data.batter;
-    if (data.pitcher) pitcher.value = data.pitcher;
+    if (data.batter !== undefined) batter.value = data.batter;
+    if (data.pitcher !== undefined) pitcher.value = data.pitcher;
     if (data.lineups) lineups.value = data.lineups;
     if (data.rosters) rosters.value = data.rosters;
     if (data.teams) teams.value = data.teams;
