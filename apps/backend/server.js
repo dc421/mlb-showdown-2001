@@ -3440,7 +3440,11 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
                     pitcherOfRecord = newState.currentAtBat.pitcher;
                 }
                 recordOutsForPitcher(newState, pitcherOfRecord, 1);
-                allEvents.push(`${contestedRunner.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
+                if (throwTo === 4) {
+                    allEvents.push(`${contestedRunner.name} is THROWN OUT at home!`);
+                } else {
+                    allEvents.push(`${contestedRunner.name} is THROWN OUT at ${getOrdinal(throwTo)}!`);
+                }
             }
         }
 
