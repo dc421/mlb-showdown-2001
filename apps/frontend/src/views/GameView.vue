@@ -1592,12 +1592,6 @@ function handleResolveSteal(throwToBase = null) {
   gameStore.resolveSteal(gameId, throwToBase);
 }
 
-watch(isStealAttemptInProgress, (newValue) => {
-  if (newValue) {
-    hasRolledForSteal.value = false;
-  }
-});
-
 
 const isStealAttemptInProgress = computed(() => {
     if (shouldShowAdvanceFirst.value) return false;
