@@ -2698,11 +2698,8 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // Clear all transient details from the previous play *before* creating the new `currentAtBat`.
       // This prevents stale data from causing UI glitches for the first player to click.
-      //newState.throwRollResult = null;
-      //newState.lastStealResult = null;
-      //newState.pendingStealAttempt = null;
-      //newState.doublePlayDetails = null;
-      //delete newState.stealAttemptDetails;
+      newState.pendingStealAttempt = null;
+      delete newState.stealAttemptDetails;
       
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
@@ -2778,14 +2775,9 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.awayPlayerReadyForNext = false;
       newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
 
-      // These properties are now cleared when the *first* player clicks next,
-      // but we still need to clear them here for the *second* player, otherwise
-      // they will persist in the state until the *next* at-bat.
       newState.doublePlayDetails = null;
       newState.throwRollResult = null;
       newState.lastStealResult = null;
-      newState.pendingStealAttempt = null;
-      delete newState.stealAttemptDetails;
 
       if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
         newState.currentPlay = null;
