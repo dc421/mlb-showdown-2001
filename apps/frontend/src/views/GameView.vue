@@ -179,7 +179,7 @@ const amIDefensivePlayer = computed(() => {
 const shouldShowAdvanceFirst = computed(() => {
   if (!gameStore.gameState) return false;
 
-  const advancePlay = gameStore.gameState.currentPlay;
+  const advancePlay = gameStore.gameState.currentPlay && !(gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT');
   const stealPlay = gameStore.gameState.pendingStealAttempt;
 
   if (!advancePlay || !stealPlay) return false;
@@ -850,7 +850,7 @@ const showRollForSwingButton = computed(() => {
 });
 
 const showRollForDoublePlayButton = computed(() => {
-  if (isGameOver.value) return false;
+  //if (isGameOver.value) return false;
   if (shouldShowDoublePlayFirst.value && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value) return true;
   const isDPBall = !!gameStore.gameState?.doublePlayDetails;
   return isDPBall && amIDisplayDefensivePlayer.value && !defensiveDPRollClicked.value && !gameStore.amIReadyForNext;
@@ -1394,7 +1394,7 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult)) {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton && !showThrowRollResult.value))) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1653,7 +1653,7 @@ const stealingRunner = computed(() => {
         const fromBase = Object.keys(decisions).find(k => decisions[k]);
         if (fromBase) {
              const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-             const runner = gameStore.gameState.bases[baseMap[fromBase]];
+             const runner = gameStore.gameState.currentAtBat.basesBeforePlay[baseMap[fromBase]];
              // Use display name if available, otherwise name, otherwise fallback
              return runner ? (runner.displayName || runner.name) : 'Runner';
         }
@@ -1981,7 +1981,7 @@ function handleVisibilityChange() {
       <!-- PLAYER CARDS & ACTIONS -->
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-        <div v-if="!(isGameOver && isSwingResultVisible && !(showDefensiveRollForThrowButton && !showThrowRollResult))" class="actions-container">
+        <div v-if="!(isGameOver && isSwingResultVisible && !((showDefensiveRollForThrowButton || showRollForDoublePlayButton) && !showThrowRollResult))" class="actions-container">
             <!-- PITCHER SELECTION STATE -->
         <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
                 <h3>Invalid Lineup</h3>
