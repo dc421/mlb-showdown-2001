@@ -176,13 +176,13 @@ const amIDefensivePlayer = computed(() => {
 });
 
 
-const shouldShowAdvanceFirst = computed(() => {
+const shouldDelayStealRoll = computed(() => {
   if (!gameStore.gameState) return false;
 
-  const advancePlay = gameStore.gameState.currentPlay && !(gameStore.gameState.currentPlay.type === 'STEAL_ATTEMPT');
+  const hitterPlay = !!(gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT');
   const stealPlay = gameStore.gameState.pendingStealAttempt;
 
-  if (!advancePlay || !stealPlay) return false;
+  if (!hitterPlay || !stealPlay) return false;
 
   const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
   const currentBatterId = gameStore.gameState.currentAtBat?.batter?.card_id;
@@ -215,7 +215,7 @@ const isDefensiveThrowDecision = computed(() => {
     if (isGameOver.value || !amIDefensivePlayer.value || !isMyTurn.value || !gameStore.gameState?.currentPlay) {
         return false;
     }
-    if (shouldShowAdvanceFirst.value && gameStore.gameState.currentPlay.payload.choices) return true;
+    if (shouldDelayStealRoll.value && gameStore.gameState.currentPlay.payload.choices) return true;
     if (gameStore.gameState.pendingStealAttempt) return false;
 
     const { type, payload } = gameStore.gameState.currentPlay;
@@ -1402,7 +1402,7 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton && !showThrowRollResult.value))) {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value))) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1594,7 +1594,7 @@ function handleResolveSteal(throwToBase = null) {
 
 
 const isStealAttemptInProgress = computed(() => {
-    if (shouldShowAdvanceFirst.value) return false;
+    if (shouldDelayStealRoll.value) return false;
     if (shouldShowDoublePlayFirst.value) return false;
     if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
