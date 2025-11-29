@@ -315,7 +315,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           roll: dpRoll,
           defense: infieldDefense,
           target: batterSpeed,
-          outcome: dpOutcome
+          outcome: dpOutcome,
+          batterPlayerId: batter.card_id
         };
 
     } else {
