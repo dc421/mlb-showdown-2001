@@ -1595,6 +1595,7 @@ const isStealAttemptInProgress = computed(() => {
                                   //&& !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)
                                   ;
     // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
+    // MODIFIED: Also return true if it looks like a single steal but is wrapped in a currentPlay (the complex sequence case)
     const isDoubleStealInProgress = gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !isSingleStealInProgress;
     // NEW: Only show the in-progress steal UI if we are actually in the current turn.
     // If the opponent has advanced (initiated steal) but we haven't clicked "Next Hitter" yet,
@@ -1613,19 +1614,71 @@ const isStealAttemptInProgress = computed(() => {
 });
 
 const isSingleSteal = computed(() => {
-    return (isStealAttemptInProgress.value && (!!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult)) &&
-    // this part to deal with a later double steal (next inning or after IBB)
-    !gameStore.gameState?.throwRollResult?.consolidatedOutcome;
+    // 1. Check for consolidated double steal result (which should override single steal UI)
+    if (gameStore.gameState?.throwRollResult?.consolidatedOutcome) {
+         return false;
+    }
+
+    const hasPendingOrLast = !!gameStore.gameState.pendingStealAttempt || !!gameStore.gameState?.lastStealResult;
+
+    // 2. Standard check: pendingStealAttempt exists
+    if (isStealAttemptInProgress.value && hasPendingOrLast) {
+         return true;
+    }
+
+    // 3. Fallback: Check currentPlay for single steal signature (when pendingStealAttempt is missing/cleared)
+    // This happens during complex sequences like Advance -> Steal
+    if (isStealAttemptInProgress.value && gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT') {
+         const decisions = gameStore.gameState.currentPlay.payload.decisions || {};
+         const activeDecisions = Object.keys(decisions).filter(k => decisions[k]);
+         return activeDecisions.length === 1;
+    }
+
+    return false;
 });
 
 const stealingRunner = computed(() => {
     if (!isSingleSteal.value) return null;
-    return  !!gameStore.gameState.pendingStealAttempt ? gameStore.gameState.pendingStealAttempt.runnerName : gameStore.gameState.lastStealResult.runnerName;
+
+    if (gameStore.gameState.pendingStealAttempt) {
+        return gameStore.gameState.pendingStealAttempt.runnerName;
+    }
+    if (gameStore.gameState.lastStealResult) {
+        return gameStore.gameState.lastStealResult.runnerName;
+    }
+
+    // Fallback for when currentPlay is STEAL_ATTEMPT but pendingStealAttempt is missing
+    if (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT') {
+        const decisions = gameStore.gameState.currentPlay.payload.decisions || {};
+        const fromBase = Object.keys(decisions).find(k => decisions[k]);
+        if (fromBase) {
+             const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+             const runner = gameStore.gameState.bases[baseMap[fromBase]];
+             // Use display name if available, otherwise name, otherwise fallback
+             return runner ? (runner.displayName || runner.name) : 'Runner';
+        }
+    }
+    return null;
 });
 
 const targetBase = computed(() => {
     if (!isSingleSteal.value) return null;
-    const baseNumber = !!gameStore.gameState.pendingStealAttempt ? gameStore.gameState.pendingStealAttempt.throwToBase : gameStore.gameState.lastStealResult.throwToBase;
+
+    let baseNumber;
+    if (gameStore.gameState.pendingStealAttempt) {
+        baseNumber = gameStore.gameState.pendingStealAttempt.throwToBase;
+    } else if (gameStore.gameState.lastStealResult) {
+        baseNumber = gameStore.gameState.lastStealResult.throwToBase;
+    } else if (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT') {
+        const decisions = gameStore.gameState.currentPlay.payload.decisions || {};
+        const fromBase = Object.keys(decisions).find(k => decisions[k]);
+        if (fromBase) {
+            baseNumber = parseInt(fromBase, 10) + 1;
+        }
+    }
+
+    if (!baseNumber) return null;
+
     const getOrdinal = (n) => {
         const s = ["th", "st", "nd", "rd"];
         const v = n % 100;
