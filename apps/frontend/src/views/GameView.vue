@@ -457,9 +457,17 @@ const awayPitcher = computed(() => gameStore.gameState?.currentAwayPitcher || ga
 const homeBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.home?.battingOrder || !gameStore.rosters.home) return [];
     const lineupIds = new Set(gameStore.lineups.home.battingOrder.map(s => s.player.card_id));
-    if (gameStore.pitcherTeam === 'home' && gameStore.pitcher) {
-        lineupIds.add(gameStore.pitcher.card_id);
+
+    // Always exclude the current Home Pitcher (who appears in the "Pitching:" slot)
+    if (homePitcher.value) {
+        lineupIds.add(homePitcher.value.card_id);
     }
+    // Also exclude the pitcher currently displayed on the mound if they are on the Home team.
+    // This handles visual rollbacks where the displayed pitcher might differ from the current state pitcher.
+    if (isDisplayTopInning.value && pitcherToDisplay.value) {
+        lineupIds.add(pitcherToDisplay.value.card_id);
+    }
+
     const benchAndBullpen = gameStore.rosters.home.filter(p => !lineupIds.has(p.card_id));
 
     const originalSP = gameStore.rosters.home?.find(p => p.card_id === gameStore.lineups.home.startingPitcher?.card_id);
@@ -472,9 +480,17 @@ const homeBenchAndBullpen = computed(() => {
 const awayBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.away?.battingOrder || !gameStore.rosters.away) return [];
     const lineupIds = new Set(gameStore.lineups.away.battingOrder.map(s => s.player.card_id));
-    if (gameStore.pitcherTeam === 'away' && gameStore.pitcher) {
-        lineupIds.add(gameStore.pitcher.card_id);
+
+    // Always exclude the current Away Pitcher (who appears in the "Pitching:" slot)
+    if (awayPitcher.value) {
+        lineupIds.add(awayPitcher.value.card_id);
     }
+    // Also exclude the pitcher currently displayed on the mound if they are on the Away team.
+    // This handles visual rollbacks where the displayed pitcher might differ from the current state pitcher.
+    if (isDisplayTopInning.value === false && pitcherToDisplay.value) {
+        lineupIds.add(pitcherToDisplay.value.card_id);
+    }
+
     const benchAndBullpen = gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
 
     const originalSP = gameStore.rosters.away?.find(p => p.card_id === gameStore.lineups.away.startingPitcher?.card_id);
