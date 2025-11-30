@@ -185,12 +185,11 @@ const shouldDelayStealRoll = computed(() => {
   if (!hitterPlay || !stealPlay) return false;
 
   const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
-  const currentBatterId = gameStore.gameState.currentAtBat?.batter?.card_id;
   
-  if (!lastBatterId || !currentBatterId) return false;
+  if (!lastBatterId || !gameStore.batterToDisplay) return false;
 
   if (shouldShowDoublePlayFirst.value) return false;
-  return stealPlay.batterPlayerId === currentBatterId;
+  return stealPlay.batterPlayerId === gameStore.batterToDisplay.card_id;
 });
 
 
@@ -1008,8 +1007,9 @@ const showStealResult = computed(() => {
 
   if (amIDisplayOffensivePlayer.value) {
       if (!isRunnerOnOffensiveTeam.value) return false;
+      const prevIBB =  gameStore.gameState?.lastCompletedAtBat?.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState?.lastCompletedAtBat?.batter.card_id;
       
-      return !gameStore.gameState.currentAtBat.batterAction || gameStore.opponentReadyForNext;
+      return !gameStore.gameState.currentAtBat.batterAction && !prevIBB || gameStore.opponentReadyForNext && !prevIBB;
   }
 
   if (amIDisplayDefensivePlayer.value) {
@@ -1020,8 +1020,9 @@ const showStealResult = computed(() => {
 
       const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
       const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
+      const prevIBB =  gameStore.gameState.lastCompletedAtBat.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult.batterPlayerId === gameStore.gameState.lastCompletedAtBat.batter.card_id;
       
-      return (!pitcherHasActed && !isIBB && !(amIDisplayDefensivePlayer.value && !isRunnerOnOffensiveTeam.value)) || gameStore.opponentReadyForNext;
+      return (!pitcherHasActed && !isIBB && !prevIBB & !(amIDisplayDefensivePlayer.value && !isRunnerOnOffensiveTeam.value)) || gameStore.opponentReadyForNext;
   }
 
   return false;
@@ -1563,7 +1564,8 @@ const isStealAttemptInProgress = computed(() => {
     if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
     const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
-                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.opponentReadyForNext))
+                                 (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.opponentReadyForNext)) &&
+                                 !(gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState?.currentAtBat.batter.card_id && gameStore.gameState?.currentAtBat?.batterAction === 'take')
                                   //&& !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext)
                                   ;
     // A double steal is in progress if the currentPlay indicates a steal, but there is no pending single steal.
