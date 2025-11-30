@@ -186,10 +186,10 @@ const shouldDelayStealRoll = computed(() => {
 
   const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
   
-  if (!lastBatterId || !gameStore.batterToDisplay) return false;
+  if (!lastBatterId || !batterToDisplay) return true;
 
   if (shouldShowDoublePlayFirst.value) return false;
-  return stealPlay.batterPlayerId === gameStore.batterToDisplay.card_id;
+  return stealPlay.batterPlayerId !== batterToDisplay.value.card_id;
 });
 
 
@@ -1000,7 +1000,7 @@ const showStealResult = computed(() => {
   if (!hasStealData) return false;
   
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-    return !gameStore.amIReadyForNext && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
+    return !gameStore.amIReadyForNext.value && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
   }
 
   if (gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) return false;
