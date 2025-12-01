@@ -1709,6 +1709,15 @@ watch(isStealAttemptInProgress, (newValue) => {
   }
 });
 
+watch(() => gameStore.gameState?.pendingStealAttempt, (newVal, oldVal) => {
+  // If a new steal attempt arrives from the server (different from the previous one),
+  // we must reset the local "hasRolled" state so the button reappears.
+  // This handles consecutive steals where isStealAttemptInProgress remains true.
+  if (newVal && oldVal && (newVal.throwToBase !== oldVal.throwToBase || newVal.runnerPlayerId !== oldVal.runnerPlayerId)) {
+    hasRolledForSteal.value = false;
+  }
+});
+
 
 
 const defensiveTeamKey = computed(() => isDisplayTopInning.value ? 'homeTeam' : 'awayTeam');

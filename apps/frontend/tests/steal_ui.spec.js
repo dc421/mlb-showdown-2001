@@ -26,7 +26,11 @@ test.describe('Steal UI Logic', () => {
             basesBeforePlay: { first: { card_id: 200, displayName: 'Speedy Runner' } }, outsBeforePlay: 0, homeScoreBeforePlay: 0, awayScoreBeforePlay: 0,
             batterAction: 'swing', pitcherAction: 'pitch'
           },
-          lastCompletedAtBat: null,
+          lastCompletedAtBat: {
+             batter: { card_id: 200, name: 'Previous Batter' }, // Matches runner on first?
+             pitcher: { card_id: 101, name: 'Home Pitcher' },
+             batterAction: 'walk', pitcherAction: 'pitch'
+          },
           // CRITICAL: currentPlay is STEAL_ATTEMPT, decisions has 1 entry, but pendingStealAttempt is NULL
           currentPlay: {
               type: 'STEAL_ATTEMPT',
