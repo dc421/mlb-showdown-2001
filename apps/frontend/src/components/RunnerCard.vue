@@ -17,7 +17,7 @@ const speedClass = computed(() => {
 
 function handleImageError(event) {
   // Use a local, relative path to the replacement image
-  event.target.src = '/images/replacement.jpg';
+  event.target.src = '/card_images/replacement.jpg';
 }
 </script>
 
