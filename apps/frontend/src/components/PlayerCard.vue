@@ -30,7 +30,7 @@ watch(() => props.player, (newPlayer, oldPlayer) => {
 
 function handleImageError(event) {
   // Use a local, relative path to the replacement image
-  event.target.src = '/card_images/replacement.jpg';
+  event.target.src = '/images/replacement.jpg';
 }
 
 const isReplacementPitcher = computed(() => {
