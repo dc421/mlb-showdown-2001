@@ -10,6 +10,7 @@ const selectedCard = ref(null);
 
 // --- STATE ---
 const filterPosition = ref('ALL');
+const searchQuery = ref('');
 const draggedItem = ref(null);
 
 const roster = ref({
@@ -54,6 +55,17 @@ const availablePlayers = computed(() => {
   return authStore.allPlayers
     .filter(p => !allPlayersOnRoster.value.some(rp => rp.card_id === p.card_id))
     .filter(p => {
+      // 1. Filter by Search Query
+      if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase();
+        const nameMatch = (p.name && p.name.toLowerCase().includes(query));
+        const displayNameMatch = (p.displayName && p.displayName.toLowerCase().includes(query));
+        if (!nameMatch && !displayNameMatch) {
+          return false;
+        }
+      }
+
+      // 2. Filter by Position
         if (filterPosition.value === 'ALL') return true;
         if (filterPosition.value === 'SP') return p.displayPosition === 'SP';
         if (filterPosition.value === 'RP') return p.displayPosition === 'RP';
@@ -306,6 +318,7 @@ onMounted(async () => {
       <div class="panel-header">
         <h2>Available Players</h2>
         <div class="filters">
+          <input v-model="searchQuery" type="text" placeholder="Search players..." />
           <select v-model="authStore.selectedPointSetId" title="Select Point Set">
             <option v-for="set in filteredPointSets" :key="set.point_set_id" :value="set.point_set_id">
               {{ set.name }}
