@@ -1020,7 +1020,7 @@ const showStealResult = computed(() => {
 
       const pitcherHasActed = !!gameStore.gameState.currentAtBat.pitcherAction;
       const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
-      const prevIBB =  gameStore.gameState.lastCompletedAtBat.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult.batterPlayerId === gameStore.gameState.lastCompletedAtBat.batter.card_id;
+      const prevIBB =  gameStore.gameState.lastCompletedAtBat.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState.lastCompletedAtBat?.batter.card_id;
       
       return (!pitcherHasActed && !isIBB && !prevIBB & !(amIDisplayDefensivePlayer.value && !isRunnerOnOffensiveTeam.value)) || gameStore.opponentReadyForNext;
   }
