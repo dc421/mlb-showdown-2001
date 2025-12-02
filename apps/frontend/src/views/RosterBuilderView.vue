@@ -318,7 +318,6 @@ onMounted(async () => {
       <div class="panel-header">
         <h2>Available Players</h2>
         <div class="filters">
-          <input v-model="searchQuery" type="text" placeholder="Search players..." />
           <select v-model="authStore.selectedPointSetId" title="Select Point Set">
             <option v-for="set in filteredPointSets" :key="set.point_set_id" :value="set.point_set_id">
               {{ set.name }}
@@ -338,6 +337,7 @@ onMounted(async () => {
             <option value="DH">DH-Only</option>
           </select>
         </div>
+        <input v-model="searchQuery" class="search-input" type="text" placeholder="Search players..." />
       </div>
       <div class="player-list drop-zone" @dragover.prevent @drop="removePlayer(draggedItem.player)">
         <div 
@@ -414,7 +414,8 @@ onMounted(async () => {
 .builder-container { display: grid; grid-template-columns: 400px 1fr; grid-template-rows: auto 1fr; gap: 1rem; padding: 1rem; height: calc(100vh - 50px); box-sizing: border-box; }
 .available-players-section { grid-row: 1 / 3; display: flex; flex-direction: column; background: #f4f6f8; padding: 1rem; border-radius: 8px; overflow: hidden; }
 .roster-section { grid-row: 1 / 3; display: flex; flex-direction: column; }
-.panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.panel-header { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+.search-input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
 .filters { display: flex; gap: 0.5rem; }
 .player-list { flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; background: white; border-radius: 4px; }
 .player-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; cursor: grab; border-bottom: 1px solid #eee; }
@@ -425,7 +426,7 @@ onMounted(async () => {
 .add-btn { background: #28a745; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 16px; line-height: 24px; cursor: pointer; }
 .roster-header { display: flex; gap: 1rem; align-items: center; background: #e9ecef; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;}
 .roster-header input { flex-grow: 1; padding: 0.75rem; font-size: 1.1rem; }
-.roster-stats { font-weight: bold; text-align: center; white-space: nowrap; }
+.roster-stats { font-weight: bold; text-align: center; white-space: nowrap; display: flex; gap: 1rem; }
 .roster-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; flex-grow: 1; overflow-y: auto; }
 .lineup-panel, .staff-panel { background: #f4f6f8; padding: 1rem; border-radius: 8px; display: flex; flex-direction: column; }
 .lineup-grid-positions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
