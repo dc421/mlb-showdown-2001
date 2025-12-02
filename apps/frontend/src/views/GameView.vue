@@ -2066,7 +2066,7 @@ function handleVisibilityChange() {
               :has-advantage="controlledPlayerHasAdvantage"
               :primary-color="controlledPlayerTeamColors.primary"
             />
-            <div v-else class="tbd-pitcher-card" :style="{ borderColor: controlledPlayerTeamColors.primary }">
+            <div v-else class="tbd-pitcher-card" :class="{ 'selecting-pitcher-mode': gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay }" :style="{ borderColor: controlledPlayerTeamColors.primary }">
                 <div v-if="(gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay)" class="selecting-pitcher-text">
                     <h3><em></em></h3>
                 </div>
@@ -2087,7 +2087,7 @@ function handleVisibilityChange() {
               :has-advantage="opponentPlayerHasAdvantage"
               :primary-color="opponentPlayerTeamColors.primary"
             />
-             <div v-else class="tbd-pitcher-card" :style="{ borderColor: opponentPlayerTeamColors.primary }">
+             <div v-else class="tbd-pitcher-card" :class="{ 'selecting-pitcher-mode': gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay }" :style="{ borderColor: opponentPlayerTeamColors.primary }">
                 <div v-if="gameStore.gameState.awaiting_lineup_change && !pitcherToDisplay" class="selecting-pitcher-text">
                      <h3><em>Selecting Pitcher...</em></h3>
                 </div>
@@ -2381,6 +2381,13 @@ function handleVisibilityChange() {
     align-items: center;
     text-align: center;
     gap: 0.5rem;
+}
+.tbd-pitcher-card.selecting-pitcher-mode {
+    max-width: 200px; /* Match PlayerCard */
+    height: auto;
+    aspect-ratio: 220 / 308; /* Match PlayerCard */
+    background-color: white; /* "just be white" */
+    border: none !important; /* Remove border and override inline styles if needed */
 }
 .tbd-role {
     font-size: 1.2rem;
