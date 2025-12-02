@@ -3403,9 +3403,16 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             const baseSpeed = parseInt(getSpeedValue(contestedRunner), 10);
             let speed = baseSpeed;
             let penalty = 0;
+            const adjustments = [];
 
-            if (throwTo === 4) speed += 5; // Bonus for going home
-            if (newState.outs === 2) speed += 5; // Bonus for 2 outs
+            if (throwTo === 4) {
+                speed += 5; // Bonus for going home
+                adjustments.push({ value: 5, reason: 'Going Home' });
+            }
+            if (newState.outs === 2) {
+                speed += 5; // Bonus for 2 outs
+                adjustments.push({ value: 5, reason: '2 Outs' });
+            }
 
             const isSafe = speed >= (outfieldDefense + d20Roll);
 
@@ -3413,7 +3420,8 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
                 roll: d20Roll, defense: outfieldDefense, target: speed, baseSpeed, penalty,
                 outcome: isSafe ? 'SAFE' : 'OUT',
                 runner: contestedRunner.name,
-                throwToBase: throwTo
+                throwToBase: throwTo,
+                adjustments
             };
 
             if (isSafe) {
