@@ -40,13 +40,13 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
 <style scoped>
 .global-nav {
   background-color: #343a40;
-  padding: 0.25rem 1rem;
+  padding: 0.35rem 1rem;
   display: flex;
   align-items: center;
   position: sticky;
   top: 0;
   z-index: 1000;
-  margin-bottom: 1rem;
+  margin-bottom: 0rem;
   /* Prevent expansion on scroll */
   max-height: 80px;
   overflow-y: hidden;
