@@ -3001,7 +3001,6 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
         // The outcome was already calculated in initiate-steal. We just use it here.
         const { outcome, runnerName, runner, ...resultDetails } = newState.pendingStealAttempt;
 
-        const offensiveTeam = newState.isTopInning ? newState.awayTeam : newState.homeTeam;
         // Explicitly cast team_id to Number to ensure consistent frontend comparisons
         newState.lastStealResult = { runner: runnerName, outcome, runnerTeamId: Number(offensiveTeam.team_id), ...resultDetails };
         newState.pendingStealAttempt = null;
