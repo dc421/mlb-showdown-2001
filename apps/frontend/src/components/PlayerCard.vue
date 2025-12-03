@@ -28,6 +28,19 @@ watch(() => props.player, (newPlayer, oldPlayer) => {
   console.log(`--- 3. PlayerCard prop CHANGED from ${oldName} to ${newName} ---`);
 });
 
+const imageUrl = computed(() => {
+  if (!props.player?.image_url) return '';
+  if (props.player.image_url.startsWith('http')) return props.player.image_url;
+  // If it's a relative path, we check if VITE_API_URL is defined.
+  // If defined (dev or configured prod), prepend it to load from backend.
+  // If undefined (prod without specific config), assume backend is same origin or use relative path.
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (apiUrl) {
+    return `${apiUrl}${props.player.image_url}`;
+  }
+  return props.player.image_url;
+});
+
 function handleImageError(event) {
   // Use a local, relative path to the replacement image
   event.target.src = '/images/replacement.jpg';
@@ -78,7 +91,7 @@ function formatRange(range) {
     v-if="player">
     
     <img 
-      :src="player.image_url" 
+      :src="imageUrl"
       :alt="player.name" 
       class="card-image"
       @error="handleImageError"
