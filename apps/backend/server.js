@@ -33,6 +33,9 @@ const REPLACEMENT_PITCHER_CARD = {
 
 const app = express();
 const server = http.createServer(app);
+
+app.use('/images', express.static(path.join(__dirname, 'images')));
+
 const allowedOrigins = [process.env.FRONTEND_URL, "http://localhost:5173"];
 const corsOptions = {
   origin: (origin, callback) => {
