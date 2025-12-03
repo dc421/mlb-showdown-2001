@@ -1262,7 +1262,7 @@ const pitcherToDisplay = computed(() => {
         if (amIDisplayDefensivePlayer.value) {
             // Defensive player: Check if my pitcher is in an invalid spot.
             const pitcherOnMound = gameStore.pitcher;
-            if (pitcherOnMound && playersInInvalidPositions.value.has(pitcherOnMound.card_id)) {
+            if (!pitcherOnMound || playersInInvalidPositions.value.has(pitcherOnMound.card_id)) {
                  return null; // My pitcher is the invalid one.
             }
         } else { // Offensive player: Check if the opponent's pitcher is invalid.
