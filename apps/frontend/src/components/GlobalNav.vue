@@ -47,6 +47,10 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   top: 0;
   z-index: 1000;
   margin-bottom: 1rem;
+  /* Prevent expansion on scroll */
+  max-height: 80px;
+  overflow-y: hidden;
+  box-sizing: border-box;
 }
 .global-nav a {
   color: white;
@@ -96,6 +100,8 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   .global-nav {
     padding: 0.5rem;
     gap: 0.5rem; /* Reduced gap for tighter fit */
+    max-height: unset; /* Allow mobile nav to grow if needed */
+    overflow-y: visible;
   }
 
   .nav-left {
