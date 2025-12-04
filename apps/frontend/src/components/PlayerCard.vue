@@ -31,14 +31,17 @@ watch(() => props.player, (newPlayer, oldPlayer) => {
 const imageUrl = computed(() => {
   if (!props.player?.image_url) return '';
   if (props.player.image_url.startsWith('http')) return props.player.image_url;
-  // If it's a relative path, we check if VITE_API_URL is defined.
-  // If defined (dev or configured prod), prepend it to load from backend.
-  // If undefined (prod without specific config), assume backend is same origin or use relative path.
-  const apiUrl = import.meta.env.VITE_API_URL;
-  if (apiUrl) {
-    return `${apiUrl}${props.player.image_url}`;
-  }
-  return props.player.image_url;
+
+  // 1. Try the environment variable first
+  const envUrl = import.meta.env.VITE_API_URL;
+  
+  // 2. Define your Render URL explicitly as a backup
+  // (Replace this string with your actual Render URL if different)
+  const hardcodedUrl = 'https://mlb-showdown-2001.onrender.com';
+
+  const baseUrl = envUrl || hardcodedUrl;
+
+  return `${baseUrl}${props.player.image_url}`;
 });
 
 function handleImageError(event) {
