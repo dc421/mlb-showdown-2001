@@ -21,19 +21,18 @@ const REPLACEMENT_HITTER_CARD = {
     fielding_ratings: { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0 },
     chart_data: { '1-2': 'SO', '3-20': 'GB' },
     control: null,
-    image_url: `${BACKEND_URL}/images/replacement.jpg`
+    image_url: `/images/replacement.jpg`
 };
 const REPLACEMENT_PITCHER_CARD = {
     card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1, speed: 10,
     points: 0,
     chart_data: { '1-3': 'PU', '4-9': 'SO', '10-13': 'GB', '14-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
     fielding_ratings: {},
-    image_url: `${BACKEND_URL}/images/replacement_pitcher.jpg`
+    image_url: `/images/replacement_pitcher.jpg`
 };
 
 const app = express();
 const server = http.createServer(app);
-app.use('/images', express.static(path.join(__dirname, 'images')));
 
 const allowedOrigins = [process.env.FRONTEND_URL, "http://localhost:5173"];
 const corsOptions = {
@@ -69,6 +68,7 @@ const dbConfig = process.env.NODE_ENV === 'production'
     };
 const pool = module.exports.pool = new Pool(dbConfig);
 app.use(express.json());
+app.use('/images', express.static(path.join(__dirname, 'card_images')));
 //app.use('/team_logos', express.static(path.join(__dirname, 'team_logos')));
 
 
