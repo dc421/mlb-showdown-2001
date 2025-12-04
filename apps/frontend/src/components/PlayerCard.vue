@@ -29,6 +29,7 @@ watch(() => props.player, (newPlayer, oldPlayer) => {
 });
 
 const imageUrl = computed(() => {
+  console.log("VITE_API_URL is:", import.meta.env.VITE_API_URL); // Check your browser console!
   if (!props.player?.image_url) return '';
   if (props.player.image_url.startsWith('http')) return props.player.image_url;
 
