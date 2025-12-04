@@ -250,6 +250,15 @@ onUnmounted(() => {
   }
 }
 
+@media (min-width: 769px) {
+  .dashboard-container {
+    padding-top: 2rem;
+  }
+  .team-header {
+    margin-top: 0;
+  }
+}
+
 .dashboard-footer {
   text-align: center;
   padding: 2rem;
