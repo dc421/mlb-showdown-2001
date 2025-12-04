@@ -47,10 +47,14 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   top: 0;
   z-index: 1000;
   margin-bottom: 0rem;
-  /* Prevent expansion on scroll */
-  max-height: 80px;
-  overflow-y: hidden;
   box-sizing: border-box;
+}
+@media (min-width: 769px) {
+  .global-nav {
+    /* Prevent expansion on scroll */
+    max-height: 80px;
+    overflow-y: hidden;
+  }
 }
 .global-nav a {
   color: white;
@@ -145,4 +149,3 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   }
 }
 </style>
-
