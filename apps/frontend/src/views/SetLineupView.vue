@@ -14,6 +14,7 @@ const gameId = route.params.id;
 const startingPitcher = ref(null);
 const battingOrder = ref([]);
 const hasSubmitted = ref(false); // New state for the waiting screen
+const opponentLineup = ref(null);
 const mandatoryPitcherId = ref(null);
 const unavailablePitcherIds = ref([]);
 const useDh = computed(() => gameStore.game?.use_dh !== false);
@@ -192,6 +193,9 @@ async function checkLineupStatus() {
             if (data.hasLineup) {
                 hasSubmitted.value = true;
             }
+            if (data.opponentLineup) {
+                opponentLineup.value = data.opponentLineup;
+            }
         }
     } catch (error) {
         console.error("Error checking lineup status:", error);
@@ -268,24 +272,39 @@ onUnmounted(() => {
       <h1>Set Your Starting Lineup</h1>
       <h2 class="subtitle" v-if="!useDh">Pitcher will bat</h2>
       <div class="lineup-builder">
-        <div class="panel">
-          <h2>Your Starters</h2>
-          <div class="player-list">
-            <h3>Position Players ({{ positionPlayers.length }})</h3>
-            <div v-for="p in availableBatters" :key="p.card_id" class="player-item" @click="addToLineup(p)">
-              {{ p.displayName }} ({{ p.displayPosition }})
-            </div>
-            <h3>Starting Pitchers ({{ availableStartingPitchers.length }})</h3>
-            <div v-for="p in availableStartingPitchers" :key="p.card_id" class="player-item">
-              {{ p.displayName }} (SP)
-            </div>
-             <div v-if="unavailableStartingPitchers.length > 0">
-                <h3 class="unavailable-header">Unavailable SPs</h3>
-                <div v-for="p in unavailableStartingPitchers" :key="p.card_id" class="player-item unavailable" title="Pitched recently in this series">
+        <div class="left-column">
+            <div class="panel">
+            <h2>Your Starters</h2>
+            <div class="player-list">
+                <h3>Position Players ({{ positionPlayers.length }})</h3>
+                <div v-for="p in availableBatters" :key="p.card_id" class="player-item" @click="addToLineup(p)">
+                {{ p.displayName }} ({{ p.displayPosition }})
+                </div>
+                <h3>Starting Pitchers ({{ availableStartingPitchers.length }})</h3>
+                <div v-for="p in availableStartingPitchers" :key="p.card_id" class="player-item">
                 {{ p.displayName }} (SP)
                 </div>
+                <div v-if="unavailableStartingPitchers.length > 0">
+                    <h3 class="unavailable-header">Unavailable SPs</h3>
+                    <div v-for="p in unavailableStartingPitchers" :key="p.card_id" class="player-item unavailable" title="Pitched recently in this series">
+                    {{ p.displayName }} (SP)
+                    </div>
+                </div>
             </div>
-          </div>
+            </div>
+            <div v-if="opponentLineup" class="panel opponent-panel">
+                <h2>Opponent Lineup (Submitted)</h2>
+                <div class="lineup-display">
+                    <div class="lineup-row">
+                        <span class="pos">SP</span>
+                        <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
+                    </div>
+                    <div v-for="(spot, index) in opponentLineup.battingOrder" :key="index" class="lineup-row">
+                        <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
+                        <span class="name">{{ spot.player.displayName }}</span>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="panel">
           <h2>Starting Pitcher</h2>
@@ -334,13 +353,30 @@ onUnmounted(() => {
         <h1>Lineup Submitted!</h1>
         <p>Waiting for your opponent to set their lineup...</p>
         <p>(You will be taken to the game automatically when they are ready)</p>
+        <div v-if="opponentLineup" class="opponent-display-waiting">
+            <h2>Opponent Lineup</h2>
+            <div class="lineup-display">
+                <div class="lineup-row">
+                    <span class="pos">SP</span>
+                    <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
+                </div>
+                <div v-for="(spot, index) in opponentLineup.battingOrder" :key="index" class="lineup-row">
+                    <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
+                    <span class="name">{{ spot.player.displayName }}</span>
+                </div>
+            </div>
+        </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-  .container { max-width: 1000px; margin: 2rem auto; font-family: sans-serif; }
+  .container { max-width: 1000px; margin: 0 auto; padding-top: 2rem; padding-bottom: 2rem; font-family: sans-serif; }
   .lineup-builder { display: grid; grid-template-columns: 1fr 1.5fr; gap: 2rem; }
+  .left-column { display: flex; flex-direction: column; gap: 2rem; }
+  @media (max-width: 768px) {
+    .lineup-builder { grid-template-columns: 1fr; }
+  }
   .panel { padding: 1rem; background-color: #f9f9f9; border-radius: 8px; }
   .player-list { max-height: 60vh; overflow-y: auto; }
   h3 { margin-top: 1rem; margin-bottom: 0.5rem; }
@@ -361,4 +397,26 @@ onUnmounted(() => {
   .unavailable-header { color: #999; }
   .player-item.unavailable { color: #999; cursor: not-allowed; font-style: italic; }
   .player-item.unavailable:hover { background-color: inherit; }
+
+  .opponent-panel, .opponent-display-waiting {
+    margin-top: 1rem;
+    border-top: 1px solid #ddd;
+    padding-top: 1rem;
+  }
+  .lineup-display {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+  }
+  .lineup-row {
+      display: flex;
+      justify-content: flex-start;
+      gap: 1rem;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.25rem;
+  }
+  .lineup-row .pos {
+      font-weight: bold;
+      width: 40px;
+  }
 </style>

@@ -3776,18 +3776,70 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const userId = req.user.userId;
   try {
-    const participantResult = await pool.query(
-      `SELECT lineup FROM game_participants WHERE game_id = $1 AND user_id = $2`,
-      [gameId, userId]
+    const participantsResult = await pool.query(
+      `SELECT user_id, lineup FROM game_participants WHERE game_id = $1`,
+      [gameId]
     );
 
-    if (participantResult.rows.length === 0) {
+    const myParticipant = participantsResult.rows.find(p => Number(p.user_id) === userId);
+    const opponentParticipant = participantsResult.rows.find(p => Number(p.user_id) !== userId);
+
+    if (!myParticipant) {
       // If the user is not a participant, they technically don't have a lineup set.
       return res.json({ hasLineup: false });
     }
 
-    const participant = participantResult.rows[0];
-    res.json({ hasLineup: !!participant.lineup });
+    const result = {
+        hasLineup: !!myParticipant.lineup
+    };
+
+    if (opponentParticipant && opponentParticipant.lineup) {
+        // Fetch card details for opponent's lineup
+        const lineup = opponentParticipant.lineup;
+        const cardIds = lineup.battingOrder.map(spot => spot.card_id);
+        if (lineup.startingPitcher) cardIds.push(lineup.startingPitcher);
+
+        // Filter out placeholders if any (though usually placeholders are replaced by cards, except for specific IDs like -1, -2)
+        const validCardIds = cardIds.filter(id => id > 0);
+
+        if (validCardIds.length > 0) {
+            const cardsResult = await pool.query(
+                `SELECT card_id, name, display_name, team, year, edition, card_type, positions, fielding_ratings, speed, ip, control FROM cards_player WHERE card_id = ANY($1::int[])`,
+                [validCardIds]
+            );
+            const cardsMap = {};
+            cardsResult.rows.forEach(c => cardsMap[c.card_id] = c);
+
+            // Reconstruct lineup with card details
+            const enrichedBattingOrder = lineup.battingOrder.map(spot => {
+                 let card = cardsMap[spot.card_id];
+                 if (!card) {
+                      if (spot.card_id === -1) card = REPLACEMENT_HITTER_CARD;
+                      else if (spot.card_id === -2) card = REPLACEMENT_PITCHER_CARD;
+                      else card = { name: 'Unknown', display_name: 'Unknown' };
+                 } else {
+                     // Ensure display properties exist
+                     card.displayName = card.display_name;
+                 }
+                 return { ...spot, player: card };
+            });
+
+            let spCard = cardsMap[lineup.startingPitcher];
+            if (!spCard) {
+                if (lineup.startingPitcher === -1) spCard = REPLACEMENT_HITTER_CARD;
+                else if (lineup.startingPitcher === -2) spCard = REPLACEMENT_PITCHER_CARD;
+            } else {
+                spCard.displayName = spCard.display_name;
+            }
+
+            result.opponentLineup = {
+                battingOrder: enrichedBattingOrder,
+                startingPitcher: spCard
+            };
+        }
+    }
+
+    res.json(result);
 
   } catch (error) {
     console.error(`Error fetching user lineup info for game ${gameId}:`, error);
