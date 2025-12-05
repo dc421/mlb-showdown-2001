@@ -293,15 +293,15 @@ onUnmounted(() => {
             </div>
             </div>
             <div v-if="opponentLineup" class="panel opponent-panel">
-                <h2>Opponent Lineup (Submitted)</h2>
+                <h2>Opponent Lineup</h2>
                 <div class="lineup-display">
-                    <div class="lineup-row">
-                        <span class="pos">SP</span>
-                        <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
-                    </div>
                     <div v-for="(spot, index) in opponentLineup.battingOrder" :key="index" class="lineup-row">
                         <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                         <span class="name">{{ spot.player.displayName }}</span>
+                    </div>
+                    <div class="lineup-row">
+                        <span class="pos"><strong>SP</strong></span>
+                        <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
                     </div>
                 </div>
             </div>
@@ -356,14 +356,15 @@ onUnmounted(() => {
         <div v-if="opponentLineup" class="opponent-display-waiting">
             <h2>Opponent Lineup</h2>
             <div class="lineup-display">
-                <div class="lineup-row">
-                    <span class="pos">SP</span>
-                    <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
-                </div>
                 <div v-for="(spot, index) in opponentLineup.battingOrder" :key="index" class="lineup-row">
                     <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                     <span class="name">{{ spot.player.displayName }}</span>
                 </div>
+                <div class="lineup-row">
+                    <span class="pos">SP</span>
+                    <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
+                </div>
+                
             </div>
         </div>
     </div>
@@ -411,12 +412,12 @@ onUnmounted(() => {
   .lineup-row {
       display: flex;
       justify-content: flex-start;
-      gap: 1rem;
+      gap: .25rem;
       border-bottom: 1px solid #eee;
       padding-bottom: 0.25rem;
   }
   .lineup-row .pos {
       font-weight: bold;
-      width: 40px;
+      width: 42px;
   }
 </style>

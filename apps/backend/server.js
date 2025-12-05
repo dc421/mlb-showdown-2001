@@ -3819,7 +3819,7 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
 
         if (validCardIds.length > 0) {
             const cardsResult = await pool.query(
-                `SELECT card_id, name, display_name, team, year, edition, card_type, positions, fielding_ratings, speed, ip, control FROM cards_player WHERE card_id = ANY($1::int[])`,
+                `SELECT card_id, name, display_name, team, year, set_name, fielding_ratings, speed, ip, control FROM cards_player WHERE card_id = ANY($1::int[])`,
                 [validCardIds]
             );
             const cardsMap = {};

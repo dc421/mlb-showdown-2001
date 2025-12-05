@@ -197,7 +197,7 @@ watch(useDh, (newValue) => {
     max-width: 50px;
     max-height: 50px;
     object-fit: contain;
-    border-radius: 50%;
+    border-radius: 0%;
     margin-bottom: 0.5rem;
 }
   button { padding: 0.5rem 1rem; font-size: 0.9rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
