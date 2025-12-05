@@ -1988,7 +1988,7 @@ app.get('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
 
     // 2. Get participant info, including team branding
     const participantsQuery = await pool.query(
-      `SELECT u.user_id, t.city, t.name, t.logo_url, t.display_format 
+      `SELECT u.user_id, t.city, t.name, t.logo_url, t.display_format, gp.roster_id
        FROM users u
        JOIN teams t ON u.team_id = t.team_id
        JOIN game_participants gp ON u.user_id = gp.user_id
@@ -1996,12 +1996,27 @@ app.get('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
       [gameId]
     );
     
-    // 3. Process participants to create the full display name
-    const participants = participantsQuery.rows.map(p => {
+    // 3. Process participants to create the full display name and fetch DH cards
+    const participants = await Promise.all(participantsQuery.rows.map(async p => {
         const format = p.display_format || '{city} {name}'; // Use default if null
         p.full_display_name = format.replace('{city}', p.city).replace('{name}', p.name);
+
+        // Fetch the assigned DH card
+        if (p.roster_id) {
+            const dhCardResult = await pool.query(`
+                SELECT cp.*
+                FROM cards_player cp
+                JOIN roster_cards rc ON cp.card_id = rc.card_id
+                WHERE rc.roster_id = $1 AND rc.assignment = 'DH'
+            `, [p.roster_id]);
+
+            p.dhCards = processPlayers(dhCardResult.rows);
+        } else {
+            p.dhCards = [];
+        }
+
         return p;
-    });
+    }));
 
     // 4. Send the complete payload to the frontend
     res.json({
