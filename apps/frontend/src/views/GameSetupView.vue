@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { useAuthStore } from '@/stores/auth';
 import { socket } from '@/services/socket';
+import PlayerCard from '@/components/PlayerCard.vue';
 
 const gameStore = useGameStore();
 const authStore = useAuthStore();
@@ -133,6 +134,26 @@ watch(useDh, (newValue) => {
         <div class="result">
           <strong>Home Team:</strong> {{ participants.find(p => p.user_id === homeTeamUserId)?.city }}
         </div>
+
+        <!-- NEW: Show DH Cards for reference -->
+        <div class="dh-reference-container">
+            <h3>Available Designated Hitters</h3>
+            <div class="dh-cards-row">
+                <div v-for="participant in participants" :key="participant.user_id" class="dh-team-column">
+                    <h4>{{ participant.city }}</h4>
+                    <div v-if="participant.dhCards && participant.dhCards.length > 0" class="cards-wrapper">
+                        <PlayerCard
+                            v-for="card in participant.dhCards"
+                            :key="card.card_id"
+                            :player="card"
+                            role="DH"
+                        />
+                    </div>
+                    <p v-else class="no-dh-text">No dedicated DH found.</p>
+                </div>
+            </div>
+        </div>
+
         <div v-if="isHomeTeam" class="dh-section">
           <p>As the home team, you decide the DH rule for this game.</p>
           <div class="dh-toggle">
@@ -155,7 +176,13 @@ watch(useDh, (newValue) => {
 </template>
 
 <style scoped>
-  .container { max-width: 600px; margin: 2rem auto; font-family: sans-serif; text-align: center; }
+  .container {
+      max-width: 800px; /* Increased width to accommodate cards */
+      margin: 0 auto;
+      padding-top: 2rem;
+      font-family: sans-serif;
+      text-align: center;
+  }
   .subtitle { color: #555; margin-bottom: 2rem; }
   .panel { padding: 2rem; background-color: #f9f9f9; border-radius: 8px; }
   .setup-section { margin-bottom: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 1.5rem; }
@@ -174,6 +201,48 @@ watch(useDh, (newValue) => {
     margin-bottom: 0.5rem;
 }
   button { padding: 0.5rem 1rem; font-size: 0.9rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
+
+  .declare-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 1rem; /* Spacing between Declare buttons */
+      margin-bottom: 1rem; /* Spacing below Declare buttons */
+  }
+
+  .roll-buttons {
+      margin-top: 1.5rem; /* Spacing above Roll button */
+  }
+
   .submit-btn { background-color: #28a745; color: white; border-color: #28a745; font-weight: bold; font-size: 1rem; margin-top: 1rem; }
   .submit-btn:disabled { background-color: #ccc; border-color: #ccc; cursor: not-allowed; }
+
+  /* DH Card Styles */
+  .dh-reference-container {
+      background-color: #f1f1f1;
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 1.5rem 0;
+  }
+  .dh-cards-row {
+      display: flex;
+      justify-content: space-around;
+      gap: 1rem;
+      flex-wrap: wrap;
+  }
+  .dh-team-column {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+  }
+  .dh-team-column h4 { margin-top: 0; margin-bottom: 0.5rem; }
+  .cards-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: 100%;
+      max-width: 200px; /* Constrain card width */
+  }
+  .no-dh-text { font-size: 0.9rem; color: #777; font-style: italic; }
 </style>
