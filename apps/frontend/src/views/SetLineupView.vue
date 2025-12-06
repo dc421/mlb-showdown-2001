@@ -299,7 +299,7 @@ onUnmounted(() => {
                         <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                         <span class="name">{{ spot.player.displayName }}</span>
                     </div>
-                    <div class="lineup-row">
+                    <div class="lineup-row sp-row">
                         <span class="pos"><strong>SP</strong></span>
                         <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
                     </div>
@@ -360,7 +360,7 @@ onUnmounted(() => {
                     <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                     <span class="name">{{ spot.player.displayName }}</span>
                 </div>
-                <div class="lineup-row">
+                <div class="lineup-row sp-row">
                     <span class="pos">SP</span>
                     <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
                 </div>
@@ -419,5 +419,9 @@ onUnmounted(() => {
   .lineup-row .pos {
       font-weight: bold;
       width: 42px;
+  }
+  .sp-row {
+      border-top: 3px double #ccc;
+      margin-top: 2px;
   }
 </style>
