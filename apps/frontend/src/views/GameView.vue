@@ -1000,10 +1000,11 @@ const showStealResult = computed(() => {
   if (!hasStealData) return false;
   
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-    return !gameStore.amIReadyForNext.value && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
+    return !gameStore.amIReadyForNext && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
   }
 
-  if (gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) return false;
+  //if (gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) return false;
+  if (gameStore.amIReadyForNext) return false;
 
   if (amIDisplayOffensivePlayer.value) {
       if (!isRunnerOnOffensiveTeam.value) return false;
