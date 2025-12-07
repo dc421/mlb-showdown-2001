@@ -792,7 +792,8 @@ const showSwingAwayButton = computed(() => {
 const showNextHitterButton = computed(() => {
   if (isGameOver.value) return false;
 
-  if (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext) {
+  if (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext && !isWaitingForQueuedStealResolution
+  ) {
     return true;
   } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
     return false;
@@ -1000,11 +1001,13 @@ const showStealResult = computed(() => {
   if (!hasStealData) return false;
   
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-    return !gameStore.amIReadyForNext && !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult);
+    return !(gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) &&
+     !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult) &&
+     isRunnerOnOffensiveTeam.value;
   }
 
-  //if (gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) return false;
-  if (gameStore.amIReadyForNext) return false;
+  if (gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) return false;
+  //if (gameStore.amIReadyForNext) return false;
 
   if (amIDisplayOffensivePlayer.value) {
       if (!isRunnerOnOffensiveTeam.value) return false;
