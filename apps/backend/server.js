@@ -3792,7 +3792,7 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
     const participantsResult = await pool.query(
-      `SELECT user_id, lineup FROM game_participants WHERE game_id = $1`,
+      `SELECT user_id, lineup, home_or_away FROM game_participants WHERE game_id = $1`,
       [gameId]
     );
 
@@ -3808,7 +3808,9 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
         hasLineup: !!myParticipant.lineup
     };
 
-    if (opponentParticipant && opponentParticipant.lineup) {
+    // FIX: Only the away team can see the home team's lineup (opponent's lineup) while waiting.
+    // The home team cannot see the away team's lineup.
+    if (myParticipant.home_or_away !== 'home' && opponentParticipant && opponentParticipant.lineup) {
         // Fetch card details for opponent's lineup
         const lineup = opponentParticipant.lineup;
         const cardIds = lineup.battingOrder.map(spot => spot.card_id);
