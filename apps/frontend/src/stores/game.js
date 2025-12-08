@@ -698,6 +698,13 @@ async function resetRolls(gameId) {
                           gameState.value.lastCompletedAtBat &&
                           gameState.value.currentAtBat.outsBeforePlay < gameState.value.lastCompletedAtBat.outsBeforePlay;
 
+    // Fix for Third-Out Steal Sync: If a steal is still pending (meaning we need to roll for it,
+    // or see the result), do NOT consider it "between innings" yet, even if the outs have reset.
+    // This allows the "Stealing..." UI to persist instead of jumping to the "3 Outs" display.
+    if (gameState.value.pendingStealAttempt) {
+      return false;
+    }
+
     return hasBetweenInningsFlags || outsHaveReset;
   });
 
@@ -909,15 +916,29 @@ async function resetRolls(gameId) {
         outs = 3;
     } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
         // Case: The opponent has advanced to the next at-bat (or triggered an IBB), but I am still viewing the previous result.
-        // The 'currentAtBat' on the server represents the *next* play (or the one in progress).
-        // Its 'basesBeforePlay' represents the state *after* the play I am supposed to be viewing (which is the state *before* the new play starts).
-        const src = gameState.value.currentAtBat;
-        if (src) {
-            bases = src.basesBeforePlay || bases;
-            // Only override outs and score if they are available on the source object.
-            if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
-            if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
-            if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
+
+        // SPECIAL CASE: If a steal is pending (persisted by backend), we are viewing the steal action.
+        // The 'currentAtBat' is the NEW one (next inning), so we must use 'lastCompletedAtBat' to get the state BEFORE the inning flip.
+        if (gameState.value.pendingStealAttempt) {
+             const src = gameState.value.lastCompletedAtBat;
+             if (src) {
+                 bases = src.basesBeforePlay || bases;
+                 // Show the outs *before* the steal (e.g. 2 outs)
+                 if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
+                 if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
+                 if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
+             }
+        } else {
+            // Normal Case: The 'currentAtBat' on the server represents the *next* play.
+            // Its 'basesBeforePlay' represents the state *after* the play I am supposed to be viewing.
+            const src = gameState.value.currentAtBat;
+            if (src) {
+                bases = src.basesBeforePlay || bases;
+                // Only override outs and score if they are available on the source object.
+                if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
+                if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
+                if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
+            }
         }
     }
 

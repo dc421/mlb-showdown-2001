@@ -2707,8 +2707,10 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
 
       // Clear all transient details from the previous play *before* creating the new `currentAtBat`.
       // This prevents stale data from causing UI glitches for the first player to click.
-      newState.pendingStealAttempt = null;
-      delete newState.stealAttemptDetails;
+      // FIX: Do NOT clear pendingStealAttempt or stealAttemptDetails here.
+      // If we are waiting for the opponent (e.g. steal defense interaction), clearing this
+      // prematurely hides the interaction from the opponent who hasn't clicked Next yet.
+      // These should only be cleared when BOTH players are ready.
       
       const wasBetweenHalfInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
 
