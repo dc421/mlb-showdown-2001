@@ -420,8 +420,10 @@ onUnmounted(() => {
       font-weight: bold;
       width: 42px;
   }
+  .lineup-display .lineup-row:nth-last-child(2) {
+      border-bottom: 3px double #ccc;
+  }
   .sp-row {
-      border-top: 3px double #ccc;
       margin-top: 2px;
   }
 </style>
