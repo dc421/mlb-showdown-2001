@@ -1959,20 +1959,42 @@ app.post('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   const { homeTeamUserId, useDh } = req.body;
 
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     console.log(`3. Backend: Received request for /api/games/${gameId}/setup.`);
-    await pool.query(
+
+    // 1. Update the main game record
+    await client.query(
       `UPDATE games SET home_team_user_id = $1, use_dh = $2, status = 'lineups' WHERE game_id = $3`,
       [homeTeamUserId, useDh, gameId]
     );
+
+    // 2. Synchronize the game_participants table
+    // Set the declared home team user to 'home'
+    await client.query(
+        `UPDATE game_participants SET home_or_away = 'home' WHERE game_id = $1 AND user_id = $2`,
+        [gameId, homeTeamUserId]
+    );
+    // Set the other user (who is NOT the home team user) to 'away'
+    await client.query(
+        `UPDATE game_participants SET home_or_away = 'away' WHERE game_id = $1 AND user_id != $2`,
+        [gameId, homeTeamUserId]
+    );
+
+    await client.query('COMMIT');
+
     console.log(`4. Backend: Emitting 'setup-complete' to room ${gameId}.`);
     io.emit('games-updated'); // This is the global signal for all dashboards.
     io.to(gameId).emit('setup-complete'); // This is the specific signal for the two players in this game.
     
     res.status(200).json({ message: 'Game setup complete.' });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error in game setup:', error);
     res.status(500).json({ message: 'Server error during game setup.' });
+  } finally {
+    client.release();
   }
 });
 
