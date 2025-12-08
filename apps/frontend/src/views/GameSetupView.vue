@@ -75,6 +75,7 @@ onMounted(async () => {
   socket.on('roll-updated', () => gameStore.fetchGameSetup(gameId));
   socket.on('choice-updated', (data) => { homeTeamUserId.value = data.homeTeamUserId; });
   socket.on('dh-rule-updated', (data) => { useDh.value = data.useDh; });
+  socket.on('games-updated', () => gameStore.fetchGameSetup(gameId)); // Listen for general updates (like opponent joining)
   socket.on('setup-complete', () => {
     router.push(`/game/${gameId}/lineup`);
   });
@@ -82,6 +83,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   socket.off('roll-updated');
+  socket.off('games-updated');
   socket.off('setup-complete');
 });
 
