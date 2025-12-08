@@ -786,13 +786,13 @@ const showRollForPitchButton = computed(() => {
 
 const showSwingAwayButton = computed(() => {
   if (isGameOver.value && isSwingResultVisible.value) return false;
-  return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
+  return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext && gameStore.displayGameState?.outs === 3);
 });
 
 const showNextHitterButton = computed(() => {
   if (isGameOver.value) return false;
 
-  if (gameStore.gameState?.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext && !isWaitingForQueuedStealResolution
+  if (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext && gameStore.displayGameState?.outs === 3
   ) {
     return true;
   } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {

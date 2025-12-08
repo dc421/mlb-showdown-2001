@@ -3810,7 +3810,8 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
 
     // FIX: Only the away team can see the home team's lineup (opponent's lineup) while waiting.
     // The home team cannot see the away team's lineup.
-    if (myParticipant.home_or_away !== 'home' && opponentParticipant && opponentParticipant.lineup) {
+
+    if (opponentParticipant.home_or_away === 'home' && opponentParticipant && opponentParticipant.lineup) {
         // Fetch card details for opponent's lineup
         const lineup = opponentParticipant.lineup;
         const cardIds = lineup.battingOrder.map(spot => spot.card_id);

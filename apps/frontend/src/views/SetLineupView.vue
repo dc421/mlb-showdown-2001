@@ -421,9 +421,9 @@ onUnmounted(() => {
       width: 42px;
   }
   .lineup-display .lineup-row:nth-last-child(2) {
-      border-bottom: 3px double #ccc;
+      border-bottom: 3px double #eee;
   }
   .sp-row {
-      margin-top: 2px;
+      margin-top: 0px;
   }
 </style>
