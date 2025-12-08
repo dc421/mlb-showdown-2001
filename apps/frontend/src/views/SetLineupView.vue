@@ -216,6 +216,9 @@ onMounted(async () => {
         router.push(`/game/${gameId}`);
     });
 
+    // Listen for updates when the opponent submits their lineup
+    socket.on('lineup-submitted', checkLineupStatus);
+
     // 2. Check if we already submitted (handles page refresh)
     await checkLineupStatus();
 
@@ -263,6 +266,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   socket.off('game-starting');
+  socket.off('lineup-submitted');
 });
 </script>
 
@@ -299,7 +303,7 @@ onUnmounted(() => {
                         <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                         <span class="name">{{ spot.player.displayName }}</span>
                     </div>
-                    <div class="lineup-row sp-row">
+                    <div v-if="useDh" class="lineup-row sp-row">
                         <span class="pos"><strong>SP</strong></span>
                         <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
                     </div>
@@ -360,7 +364,7 @@ onUnmounted(() => {
                     <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                     <span class="name">{{ spot.player.displayName }}</span>
                 </div>
-                <div class="lineup-row sp-row">
+                <div v-if="useDh" class="lineup-row sp-row">
                     <span class="pos">SP</span>
                     <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
                 </div>
