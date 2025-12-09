@@ -732,7 +732,7 @@ watch(shouldHideCurrentAtBatOutcome, (newValue) => {
 const offensiveChoiceMade = computed(() => !!gameStore.gameState?.currentAtBat?.batterAction);
 
 const isOffensiveStealInProgress = computed(() => {
-    return amIOffensivePlayer.value && gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT';
+    return amIOffensivePlayer.value && gameStore.gameState?.currentPlay?.type === 'STEAL_ATTEMPT' && !gameStore.gameState?.inningEndedOnCaughtStealing;
 });
 
 const canAttemptSteal = computed(() => {
@@ -780,19 +780,19 @@ const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
   if (isGameOver.value && isSwingResultVisible.value) return false;
-  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.amIReadyForNext);
+  const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
   if (isGameOver.value && isSwingResultVisible.value) return false;
-  return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext && gameStore.displayGameState?.outs === 3);
+  return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
 
 const showNextHitterButton = computed(() => {
   if (isGameOver.value) return false;
 
-  if (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.amIReadyForNext && gameStore.displayGameState?.outs === 3
+  if (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3
   ) {
     return true;
   } else if (showRollForDoublePlayButton.value && (amIDefensivePlayer.value || !offensiveDPResultVisible.value)) {
@@ -830,7 +830,7 @@ const showRollForSwingButton = computed(() => {
     return false;
   } else if (isSwingResultVisible.value) {
     return false;
-  } else if (gameStore.gameState.inningEndedOnCaughtStealing) {
+  } else if (gameStore.gameState.inningEndedOnCaughtStealing && gameStore.displayGameState.outs === 3) {
     return false;
   } else {
     return bothPlayersSetAction.value || gameStore.opponentReadyForNext;
