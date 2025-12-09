@@ -2996,6 +2996,9 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                 newState.isBetweenHalfInningsHome = true;
             }
             newState.inningEndedOnCaughtStealing = true;
+            // Reset ready flags to ensure both players must click 'Next Hitter' to see the new inning
+            newState.homePlayerReadyForNext = false;
+            newState.awayPlayerReadyForNext = false;
         }
     }
 
@@ -3538,6 +3541,10 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             } else {
                 newState.isBetweenHalfInningsHome = true;
             }
+            newState.inningEndedOnCaughtStealing = true;
+            // Reset ready flags to ensure both players must click 'Next Hitter' to see the new inning
+            newState.homePlayerReadyForNext = false;
+            newState.awayPlayerReadyForNext = false;
         }
 
         newState.awayPlayerReadyForNext = false;

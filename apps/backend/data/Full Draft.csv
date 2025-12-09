@@ -1,0 +1,81 @@
+Pick,Round,Team,Player,Pos,Pts
+1,1,Chicago,Pedro Martinez,SP,700
+2,1,Boston,Robb Nen,RP,330
+3,1,New York,C.C. Sabathia,SP,10
+4,1,Laramie,Gabe White,RP,260
+5,2,Boston,Barry Zito,SP,560
+6,2,New York,Kevin Brown,SP,570
+7,2,Boston,Todd Helton,1B,560
+8,2,Chicago,Alex Rodriguez (TEX),SS,640
+9,3,Chicago,Ugueth Urbina,RP,270
+10,3,Boston,Alex Rodriguez (SEA),SS,550
+11,3,New York,Chan Ho Park,SP,470
+12,3,Laramie,Brian Giles,CF,510
+13,4,Laramie,Greg Maddux,SP,590
+14,4,New York,Mark Grace (ARI),1B,300
+15,4,Boston,Jeff D'Amico,SP,530
+16,4,Chicago,Ryan Klesko,1B,380
+17,5,Chicago,Kip Wells,SP,160
+18,5,Laramie,Rey Ordonez,B,2
+19,5,New York,Corey Koskie,3B,280
+20,5,Laramie,Alex Gonzalez,B,2
+21,6,Laramie,Carlos Delgado,1B,610
+22,6,New York,Roger Cedeno,RF,260
+23,6,Boston,Lenny Harris,DH,60
+24,6,Chicago,Scott Sauerbeck,RP,20
+25,7,Chicago,Craig House,RP,10
+26,7,Boston,Fernando Vina,2B,240
+27,7,New York,Livan Hernandez,SP,480
+28,7,Laramie,Kevin Jordan,B,2
+29,8,Laramie,Terry Jones,B,4
+30,8,New York,Brad Ausmus (HOU),C,200
+31,8,Laramie,Brad Ausmus (DET),C,210
+32,8,Chicago,Henry Blanco,C,160
+33,9,Chicago,Craig Biggio,2B,260
+34,9,Boston,Juan Pierre,CF,180
+35,9,New York,Jeff Zimmerman,RP,10
+36,9,Laramie,Darin Erstad,RF,510
+37,10,Laramie,Mike Hampton (COL),SP,390
+38,10,New York,Arthur Rhodes,RP,250
+39,10,Boston,Kevin Sefcik,B,4
+40,10,Chicago,Jeff Cirillo,3B,300
+41,11,Chicago,Robert Person,SP,290
+42,11,Boston,Ron Villone,SP,10
+43,11,New York,Kevin Walker,RP,220
+44,11,Laramie,Homer Bush,2B,110
+45,12,Laramie,Phil Nevin,3B,360
+46,12,New York,Wilton Guerrero,DH,60
+47,12,Laramie,Calvin Murray,LF,130
+48,12,Chicago,Rob Ducey,DH,30
+49,13,Chicago,Keith Foulke,RP,270
+50,13,Boston,Tim Bogar,B,4
+51,13,New York,Eric Owens,CF,180
+52,13,Laramie,Doug Creek,RP,10
+53,14,Laramie,Jarrod Washburn,SP,430
+54,14,New York,Felix Rodriguez,RP,190
+55,14,Boston,Cliff Politte,SP,130
+56,14,Chicago,Jimmy Haynes,SP,230
+57,15,Chicago,Mark Kotsay,LF,230
+58,15,Boston,Mike Redmond,C,6
+59,15,New York,Vinny Castilla,B,6
+60,15,Laramie,Ramon Martinez,SP,110
+61,16,Laramie,Jimmy Rollins,SS,170
+62,16,New York,Mike Lansing,B,8
+63,16,Boston,Jeff Brantley,RP,10
+64,16,Chicago,Jason LaRue,B,16
+65,17,Chicago,Byung-Hyun Kim,RP,110
+66,17,Boston,Ellis Burks (SFG),RF,540
+67,17,New York,Luis Matos,B,12
+68,17,Laramie,Edgar Martinez,DH,460
+69,18,Laramie,Roberto Hernandez,RP,120
+70,18,New York,Manny Ramirez (BOS),LF,490
+71,18,Boston,Aaron Boone,3B,240
+72,18,Chicago,Kelly Stinnett,B,10
+73,19,Chicago,Magglio Ordonez,RF,420
+74,19,Boston,Mariano Rivera,RP,300
+75,19,New York,Jeff Kent,2B,580
+76,19,Boston,Mike Lieberthal,C,270
+77,20,Boston,Larry Walker,LF,340
+78,20,New York,Derek Jeter,SS,410
+79,20,Boston,Olmedo Saenz,B,44
+80,20,Chicago,Richard Hidalgo,CF,500
