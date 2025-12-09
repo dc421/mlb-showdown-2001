@@ -463,7 +463,36 @@ async function ingestSeriesResults(client) {
     }
 }
 
-async function ingestRosters(client) {
+async function getCardIdMap(client) {
+    const cardIdMap = new Map();
+    try {
+        const res = await client.query('SELECT display_name, card_id FROM cards_player');
+        for (const row of res.rows) {
+            cardIdMap.set(row.display_name.toLowerCase(), row.card_id);
+        }
+    } catch (e) {
+        console.warn('Could not fetch cards_player view. Card IDs will be null.', e.message);
+    }
+    return cardIdMap;
+}
+
+function findCardId(playerName, cardIdMap) {
+    if (!playerName) return null;
+    const cleanName = playerName.trim();
+    // Try exact match case-insensitive
+    const cardId = cardIdMap.get(cleanName.toLowerCase());
+    if (cardId) return cardId;
+
+    // Try removing team suffix like " (NYM)"
+    const match = cleanName.match(/^(.*) \([A-Z]{2,3}\)$/);
+    if (match) {
+        return cardIdMap.get(match[1].toLowerCase()) || null;
+    }
+
+    return null;
+}
+
+async function ingestRosters(client, cardIdMap) {
     console.log('Ingesting Rosters...');
     try {
         await client.query('TRUNCATE TABLE historical_rosters RESTART IDENTITY');
@@ -514,11 +543,12 @@ async function ingestRosters(client) {
                 const playerName = row[colIndex];
                 if (playerName && playerName.trim()) {
                     const seasonName = seasonCols[colIndex];
+                    const cardId = findCardId(playerName.trim(), cardIdMap);
 
                     await client.query(
-                        `INSERT INTO historical_rosters (season, team_name, player_name, position)
-                         VALUES ($1, $2, $3, $4)`,
-                        [seasonName, teamName, playerName.trim(), position]
+                        `INSERT INTO historical_rosters (season, team_name, player_name, position, card_id)
+                         VALUES ($1, $2, $3, $4, $5)`,
+                        [seasonName, teamName, playerName.trim(), position, cardId]
                     );
                 }
             }
@@ -527,13 +557,20 @@ async function ingestRosters(client) {
     console.log('Roster ingestion complete.');
 }
 
-async function ingestDrafts(client) {
+async function ingestDrafts(client, cardIdMap) {
     console.log('Ingesting Drafts...');
     try {
         await client.query('TRUNCATE TABLE draft_history RESTART IDENTITY');
     } catch (e) {
         console.warn('Table draft_history does not exist. Skipping.');
         return;
+    }
+
+    try {
+        await client.query('TRUNCATE TABLE random_removals RESTART IDENTITY');
+    } catch (e) {
+        console.warn('Table random_removals does not exist. Skipping.');
+        // We continue, as this table might be optional or handled elsewhere if user didn't migrate
     }
 
     const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith('RRD') || f === 'Full Draft.csv');
@@ -554,10 +591,31 @@ async function ingestDrafts(client) {
 
         for (const row of results) {
             const pick = parseInt(row['Pick'], 10) || 0;
-            const round = row['Round'];
+            const round = row['Round'] ? row['Round'].trim() : '';
             const team = row['Team'];
             let player = row['Selection'] || row['Player'];
             let notes = '';
+
+            // Handle Random Removals
+            if (row['Lost'] && row['Lost'].trim()) {
+                const lostPlayer = row['Lost'].trim();
+                const lostCardId = findCardId(lostPlayer, cardIdMap);
+                try {
+                    await client.query(
+                        `INSERT INTO random_removals (season, player_name, card_id)
+                         VALUES ($1, $2, $3)`,
+                        [seasonName, lostPlayer, lostCardId]
+                    );
+                } catch (e) {
+                    // Ignore if table doesn't exist
+                    if (e.code !== '42P01') console.error('Error inserting random removal:', e);
+                }
+            }
+
+            // Skip ADD/DROP rounds
+            if (round.toUpperCase().startsWith('ADD/DROP')) {
+                continue;
+            }
 
             if (row['Pts']) {
                 notes = `Pos: ${row['Pos']}, Pts: ${row['Pts']}`;
@@ -567,10 +625,11 @@ async function ingestDrafts(client) {
             }
 
             if (player && team) {
+                const cardId = findCardId(player.trim(), cardIdMap);
                 await client.query(
-                    `INSERT INTO draft_history (season, round, pick_number, team_name, player_name, notes)
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [seasonName, round, pick, team, player.trim(), notes]
+                    `INSERT INTO draft_history (season, round, pick_number, team_name, player_name, notes, card_id)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [seasonName, round, pick, team, player.trim(), notes, cardId]
                 );
             }
         }
@@ -586,9 +645,11 @@ async function ingest() {
 
     await client.query('BEGIN');
 
+    const cardIdMap = await getCardIdMap(client);
+
     await ingestSeriesResults(client);
-    await ingestRosters(client);
-    await ingestDrafts(client);
+    await ingestRosters(client, cardIdMap);
+    await ingestDrafts(client, cardIdMap);
 
     await client.query('COMMIT');
     console.log('Ingestion process finished successfully.');
