@@ -56,7 +56,7 @@ onMounted(() => {
 
     <div v-else class="teams-list">
         <div v-for="team in leagueData" :key="team.team_id" class="team-block">
-            <div class="team-header" :style="{ borderBottom: `4px solid ${authStore.user?.team?.team_id === team.team_id ? '#28a745' : '#ccc'}` }">
+            <div class="team-header" >
                 <img :src="team.logo_url" :alt="team.name" class="team-logo" />
                 <div class="team-info">
                     <h2>{{ team.full_display_name }}</h2>
@@ -99,7 +99,7 @@ onMounted(() => {
 .league-container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 1rem;
 }
 
 h1 {
@@ -122,7 +122,7 @@ h1 {
 .team-block {
     background: #f9f9f9;
     border-radius: 8px;
-    padding: 1.5rem;
+    padding: 1rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -131,7 +131,7 @@ h1 {
     align-items: center;
     gap: 1rem;
     padding-bottom: 1rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0rem;
 }
 
 .team-logo {
@@ -152,7 +152,7 @@ h1 {
 .team-info p {
     margin: 0;
     color: #666;
-    font-size: 0.9rem;
+    font-size: .8rem;
 }
 
 .roster-table-container {
