@@ -8,6 +8,7 @@ import GameScorecard from '@/components/GameScorecard.vue';
 const authStore = useAuthStore();
 const router = useRouter();
 const seriesType = ref('exhibition'); // Default to exhibition
+const teamAccolades = ref({ spaceships: [], spoons: [] });
 
 const myTeamDisplayName = computed(() => {
   if (!authStore.user?.team) return '';
@@ -15,6 +16,21 @@ const myTeamDisplayName = computed(() => {
   const format = team.display_format || '{city} {name}';
   return format.replace('{city}', team.city).replace('{name}', team.name);
 });
+
+async function fetchTeamAccolades() {
+    if (authStore.user?.team?.team_id) {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${authStore.user.team.team_id}/accolades`, {
+                headers: { 'Authorization': `Bearer ${authStore.token}` }
+            });
+            if (response.ok) {
+                teamAccolades.value = await response.json();
+            }
+        } catch (error) {
+            console.error('Error fetching accolades:', error);
+        }
+    }
+}
 
 const gamesToJoin = computed(() => {
     if (!authStore.user) return [];
@@ -67,10 +83,11 @@ function goToRosterBuilder() {
   router.push('/roster-builder');
 }
 
-onMounted(() => {
-  authStore.fetchMyRoster();
+onMounted(async () => {
+  await authStore.fetchMyRoster();
   authStore.fetchMyGames();
   authStore.fetchOpenGames();
+  fetchTeamAccolades();
   socket.connect();
   socket.on('games-updated', refreshData);
 });
@@ -88,6 +105,16 @@ onUnmounted(() => {
         <h1>{{ myTeamDisplayName }}</h1>
         <p>Owner: {{ authStore.user.owner }}</p>
         <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
+      </div>
+      <div class="accolades">
+          <div v-if="teamAccolades.spaceships.length > 0" class="accolade-item" :title="teamAccolades.spaceships.map(s => s.season_name).join('\n')">
+              <span class="icon">🚀</span>
+              <span class="count">{{ teamAccolades.spaceships.length }}</span>
+          </div>
+          <div v-if="teamAccolades.spoons.length > 0" class="accolade-item" :title="teamAccolades.spoons.map(s => s.season_name).join('\n')">
+              <span class="icon">🥄</span>
+              <span class="count">{{ teamAccolades.spoons.length }}</span>
+          </div>
       </div>
     </header>
 
@@ -163,6 +190,33 @@ onUnmounted(() => {
 }
 .team-info h1 { margin: 0; font-size: 2.5rem; }
 .team-info p { margin: 0; font-size: 1.2rem; opacity: 0.9; }
+
+.accolades {
+    margin-left: auto;
+    display: flex;
+    gap: 1.5rem;
+}
+
+.accolade-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: help; /* Indicates tooltip on hover */
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.accolade-item .icon {
+    font-size: 2rem;
+}
+
+.accolade-item .count {
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
 .dashboard-main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));

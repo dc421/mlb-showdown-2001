@@ -3810,6 +3810,36 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
   }
 });
 
+// GET TEAM ACCOLADES
+app.get('/api/teams/:teamId/accolades', authenticateToken, async (req, res) => {
+    const { teamId } = req.params;
+    try {
+        const spaceshipQuery = `
+            SELECT season_name, date
+            FROM series_results
+            WHERE winning_team_id = $1 AND round = 'Golden Spaceship'
+            ORDER BY date DESC
+        `;
+        const spoonQuery = `
+            SELECT season_name, date
+            FROM series_results
+            WHERE losing_team_id = $1 AND round = 'Wooden Spoon'
+            ORDER BY date DESC
+        `;
+
+        const spaceships = await pool.query(spaceshipQuery, [teamId]);
+        const spoons = await pool.query(spoonQuery, [teamId]);
+
+        res.json({
+            spaceships: spaceships.rows, // Array of { season_name, date }
+            spoons: spoons.rows // Array of { season_name, date }
+        });
+    } catch (error) {
+        console.error('Error fetching team accolades:', error);
+        res.status(500).json({ message: 'Server error fetching accolades.' });
+    }
+});
+
 // GET A USER'S LINEUP STATUS FOR A SPECIFIC GAME
 app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
