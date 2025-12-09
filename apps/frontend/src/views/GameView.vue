@@ -252,10 +252,35 @@ const runnerDecisionsWithLabels = computed(() => {
             case 4: toBaseLabel = 'Home'; break;
             default: toBaseLabel = `to base ${toBase}`; // Fallback
         }
+
+        // --- NEW: Calculate "Roll Needed" for Out ---
+        const runnerSpeed = parseInt(decision.runner.speed, 10);
+        let adjustedSpeed = runnerSpeed;
+
+        // Apply Adjustments (Must match backend logic in resolveThrow)
+        if (gameStore.gameState.currentPlay.type === 'ADVANCE') {
+            if (toBase === 4) adjustedSpeed += 5;
+            if (outsToDisplay.value === 2) adjustedSpeed += 5;
+        } else if (gameStore.gameState.currentPlay.type === 'TAG_UP') {
+            if (toBase === 4) adjustedSpeed += 5;
+            if (toBase === 2) adjustedSpeed -= 5;
+        }
+
+        // Logic: Safe if (AdjSpeed) >= (Defense + Roll)
+        //        Out if Roll > (AdjSpeed - Defense)
+        //        Min Roll for Out = (AdjSpeed - Defense) + 1
+        let threshold = (adjustedSpeed - outfieldDefense.value) + 1;
+        // Clamp visually to 1-20 range for user sanity, or leave open?
+        // User asked for "10+, 15+", so raw numbers are expected.
+        // If it requires > 20, let's show 21+ (impossible).
+        // If it requires <= 1, let's show 1+ (auto).
+        threshold = Math.max(1, threshold);
+
         return {
             ...decision,
             toBase,
-            toBaseLabel
+            toBaseLabel,
+            outThreshold: threshold
         };
     });
 });
@@ -276,6 +301,16 @@ watch(defensiveThrowOptions, (newOptions) => {
     }
 });
 
+const defensiveThrowRollThreshold = computed(() => {
+    if (!gameStore.gameState?.throwRollResult) return null;
+    const { target, defense } = gameStore.gameState.throwRollResult;
+    // target is the Adjusted Speed.
+    // Out if Roll > (target - defense).
+    // Threshold = target - defense + 1.
+    return Math.max(1, target - defense + 1);
+});
+
+
 const baserunningOptionGroups = computed(() => {
     if (!gameStore.gameState?.currentPlay?.payload?.decisions) {
         return [];
@@ -293,9 +328,11 @@ const baserunningOptionGroups = computed(() => {
 
     if (isAdvanceWithRunnersOnFirstAndSecond) {
         const leadRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 2);
+        const trailRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 1);
+
         return [
-            { text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel}`, choices: { '2': true } },
-            { text: "Send Both Runners", choices: { '1': true, '2': true } }
+            { text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel} (${leadRunnerDecision.outThreshold}+)`, choices: { '2': true } },
+            { text: `Send Both Runners (${leadRunnerDecision.outThreshold}+, ${trailRunnerDecision.outThreshold}+)`, choices: { '1': true, '2': true } }
         ];
     }
 
@@ -307,20 +344,36 @@ const baserunningOptionGroups = computed(() => {
         const cumulativeOptions = [];
         let cumulativeChoices = {};
         const runnerDestinations = [];
+        const runnerThresholds = [];
 
         for (let i = 0; i < runnerCount; i++) {
             const decision = sortedDecisions[i];
             cumulativeChoices[decision.from] = true;
             runnerDestinations.push(decision.toBaseLabel.replace('to ', ''));
+            runnerThresholds.push(decision.outThreshold);
 
             let text = '';
             if (i === 0) {
-                text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
+                text = `Send ${decision.runner.name} ${decision.toBaseLabel} (${decision.outThreshold}+)`;
             } else if (i === runnerCount - 1) {
-                text = "Send All Runners";
+                //text = "Send All Runners";
+                text = `Send All Runners (${runnerThresholds.join('+, ')}+)`;
             } else {
                 const destinations = [...runnerDestinations].reverse();
-                text = `Send Runners to ${destinations.join(' & ')}`;
+                //text = `Send Runners to ${destinations.join(' & ')}`;
+                // This intermediate text is tricky to format perfectly with rolls, but let's try.
+                // "Send Runners to 3rd & 2nd (10+, 15+)"
+                const thresholds = [...runnerThresholds].reverse(); // Match destination order if reversed?
+                // Wait, runnerDestinations pushed in loop (Lead first).
+                // destinations reversed makes it Trail first? No.
+                // sortedDecisions is Lead to Trail (3rd, then 2nd, then 1st).
+                // Loop i=0 is Lead.
+                // runnerDestinations: [Home, 3rd]
+                // Reversed: [3rd, Home].
+                // runnerThresholds: [8, 12].
+                // We should keep order consistent.
+                // "Send Runners to Home & 3rd (8+, 12+)"
+                text = `Send Runners to ${runnerDestinations.join(' & ')} (${runnerThresholds.join('+, ')}+)`;
             }
 
             cumulativeOptions.push({
@@ -335,7 +388,7 @@ const baserunningOptionGroups = computed(() => {
     const defaultOptions = [];
     for (const decision of sortedDecisions) {
         const choices = { [decision.from]: true };
-        const text = `Send ${decision.runner.name} ${decision.toBaseLabel}`;
+        const text = `Send ${decision.runner.name} ${decision.toBaseLabel} (${decision.outThreshold}+)`;
         defaultOptions.push({ text, choices });
     }
     return defaultOptions;
@@ -1988,7 +2041,7 @@ function handleVisibilityChange() {
                             :key="option.from"
                             @click="handleDefensiveThrow(option.toBase)"
                             class="tactile-button">
-                        Throw {{ option.toBaseLabel }}
+                        Throw {{ option.toBaseLabel }} ({{ option.outThreshold }}+)
                     </button>
                 </div>
             </div>
@@ -2024,7 +2077,7 @@ function handleVisibilityChange() {
                 <div v-if="defensiveThrowMessage">
                   <h3>{{ defensiveThrowMessage }}</h3>
                 </div>
-                <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW</strong></button>
+                <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW ({{ defensiveThrowRollThreshold }}+)</strong></button>
                 <button v-else-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
                 <button v-else-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
