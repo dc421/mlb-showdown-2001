@@ -13,7 +13,8 @@
     "atob": "^2.1.2",
     "axios": "^1.13.2",
     "playwright": "^1.56.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "vue": "^3.5.25"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1"
