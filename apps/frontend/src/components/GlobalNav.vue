@@ -66,7 +66,7 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   display: flex;
   align-items: center;
   flex-basis: 200px;
-  gap: .5rem; 
+  gap: 1.25rem; 
 }
 .global-nav a:hover {
   opacity: 0.8;
