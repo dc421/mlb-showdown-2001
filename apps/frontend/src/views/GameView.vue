@@ -34,6 +34,19 @@ const choices = ref({});
 const selectedCard = ref(null);
 const black = ref('#000000');
 
+const getSpeedValue = (runner) => {
+  if (!runner) return 0;
+  // Pitchers always have C/10 speed
+  if (runner.control !== null && typeof runner.control !== 'undefined') {
+    return 10;
+  }
+  const speed = runner.speed;
+  if (speed === 'A') return 20;
+  if (speed === 'B') return 15;
+  if (speed === 'C') return 10;
+  return parseInt(speed, 10);
+};
+
 // NEW: Computed property for DH rule
 const useDh = computed(() => gameStore.game?.use_dh !== false);
 
@@ -1045,6 +1058,102 @@ const isDoubleStealResultAvailable = computed(() => {
     return !!gameStore.gameState?.throwRollResult?.consolidatedOutcome;
 });
 
+const stealOutThresholds = computed(() => {
+    const thresholds = {};
+    const bases = gameStore.gameState?.bases;
+    if (!bases) return {};
+
+    if (bases.first) {
+        const speed = getSpeedValue(bases.first);
+        // Steal 2nd (No penalty). Target to be safe > CatcherArm + Roll.
+        // Out if Roll >= Speed - CatcherArm.
+        const t = speed - catcherArm.value;
+        thresholds['2'] = Math.max(1, t);
+    }
+    if (bases.second) {
+        const speed = getSpeedValue(bases.second);
+        // Steal 3rd (Penalty 5).
+        const t = (speed - 5) - catcherArm.value;
+        thresholds['3'] = Math.max(1, t);
+    }
+    return thresholds;
+});
+
+const doubleStealDefenseThresholds = computed(() => {
+     if (!gameStore.gameState?.currentPlay?.payload?.decisions) return {};
+     const decisions = gameStore.gameState.currentPlay.payload.decisions;
+     const res = {};
+     Object.keys(decisions).forEach(k => {
+         if (decisions[k]) {
+             const from = parseInt(k, 10);
+             const to = from + 1;
+             // In a double steal scenario (defense choosing), runners are still on their original bases in the state.
+             const runner = gameStore.gameState.bases[from === 1 ? 'first' : 'second'];
+             if (runner) {
+                 const speed = getSpeedValue(runner);
+                 const penalty = to === 3 ? 5 : 0;
+                 res[to] = Math.max(1, (speed - penalty) - catcherArm.value);
+             }
+         }
+     });
+     return res;
+});
+
+const stealingRunnerOutThreshold = computed(() => {
+    if (!isSingleSteal.value) return null;
+
+    // If pending result exists, calculations are done in backend, we can derive it.
+    if (gameStore.gameState.pendingStealAttempt) {
+        const { target, penalty, defense } = gameStore.gameState.pendingStealAttempt;
+        // Backend: isSafe = (target - penalty) > (defense + roll)
+        // Out: roll >= (target - penalty) - defense
+        return Math.max(1, (target - penalty) - defense);
+    }
+
+    // If just starting (no result yet), calculate dynamically
+    let runner = null;
+    let toBase = null;
+
+    if (gameStore.gameState.currentPlay?.type === 'STEAL_ATTEMPT') {
+        const decisions = gameStore.gameState.currentPlay.payload.decisions || {};
+        const fromBaseStr = Object.keys(decisions).find(k => decisions[k]);
+        if (fromBaseStr) {
+             const fromBase = parseInt(fromBaseStr, 10);
+             const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+             runner = gameStore.gameState.bases[baseMap[fromBase]];
+             toBase = fromBase + 1;
+        }
+    }
+
+    if (runner && toBase) {
+        const speed = getSpeedValue(runner);
+        const penalty = toBase === 3 ? 5 : 0;
+        return Math.max(1, (speed - penalty) - catcherArm.value);
+    }
+
+    return null;
+});
+
+const doublePlayOutThreshold = computed(() => {
+    const batter = atBatToDisplay.value?.batter;
+    if (!batter) return null;
+    const speed = getSpeedValue(batter);
+    // DP: Roll >= (BatterSpeed - InfieldDefense) + 1
+    const t = (speed - infieldDefense.value) + 1;
+    return Math.max(1, t);
+});
+
+const infieldInOutThreshold = computed(() => {
+    if (!isInfieldInDecision.value) return null;
+    // For Infield In choice, runner on third is in payload
+    const runner = gameStore.gameState.currentPlay.payload.runnerOnThird;
+    if (!runner) return null;
+    const speed = getSpeedValue(runner);
+    // Out: Roll >= (Speed - InfieldDefense) + 1
+    const t = (speed - infieldDefense.value) + 1;
+    return Math.max(1, t);
+});
+
 
 const showStealResult = computed(() => {
   const hasStealData = !!gameStore.gameState?.pendingStealAttempt || 
@@ -2049,7 +2158,7 @@ function handleVisibilityChange() {
                 <div v-if="isSingleSteal">
                     <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
                     <div v-if="!hasRolledForSteal">
-                      <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW</strong></button>
+                      <button @click="handleResolveSteal()" class="action-button tactile-button"><strong>ROLL FOR THROW ({{ stealingRunnerOutThreshold }}+)</strong></button>
                     </div>
                     <div v-else class="waiting-text">Rolling...</div>
                 </div>
@@ -2058,8 +2167,8 @@ function handleVisibilityChange() {
                     <div v-if="!hasRolledForSteal">
                       <p>Choose which base to throw to:</p>
                       <div class="steal-throw-decisions">
-                        <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd</button>
-                        <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd</button>
+                        <button @click="handleResolveSteal(2)" v-if="gameStore.gameState.currentPlay.payload.decisions['1']" class="tactile-button">Throw to 2nd ({{ doubleStealDefenseThresholds[2] }}+)</button>
+                        <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd ({{ doubleStealDefenseThresholds[3] }}+)</button>
                       </div>
                     </div>
                     <div v-else class="waiting-text">Rolling...</div>
@@ -2069,7 +2178,7 @@ function handleVisibilityChange() {
                 <h3>Infield In Play</h3>
                 <p>The defense has the infield in. What will the runner on third do?</p>
                 <div class="infield-in-decisions">
-                    <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home</button>
+                    <button @click="handleInfieldInDecision(true)" class="tactile-button">Send Runner Home ({{ infieldInOutThreshold }}+)</button>
                     <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
                 </div>
             </div>
@@ -2078,7 +2187,7 @@ function handleVisibilityChange() {
                   <h3>{{ defensiveThrowMessage }}</h3>
                 </div>
                 <button v-if="showDefensiveRollForThrowButton" class="action-button tactile-button" @click="handleRollForThrow()"><strong>ROLL FOR THROW ({{ defensiveThrowRollThreshold }}+)</strong></button>
-                <button v-else-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY</strong></button>
+                <button v-else-if="showRollForDoublePlayButton" class="action-button tactile-button" @click="handleRollForDoublePlay()"><strong>ROLL FOR DOUBLE PLAY ({{ doublePlayOutThreshold }}+)</strong></button>
                 <button v-else-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
                 <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-else-if="showRollForSwingButton" class="action-button tactile-button" @click="handleSwing()"><strong>ROLL FOR SWING </strong></button>
@@ -2094,9 +2203,9 @@ function handleVisibilityChange() {
                         </label>
                     </div>
                     <button v-if="showSwingAwayButton" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
-                    <button v-if="canStealSecond && showSwingAwayButton" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd</button>
-                    <button v-if="canStealThird && showSwingAwayButton" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd</button>
-                    <button v-if="canDoubleSteal && showSwingAwayButton" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal</button>
+                    <button v-if="canStealSecond && showSwingAwayButton" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd ({{ stealOutThresholds['2'] }}+)</button>
+                    <button v-if="canStealThird && showSwingAwayButton" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd ({{ stealOutThresholds['3'] }}+)</button>
+                    <button v-if="canDoubleSteal && showSwingAwayButton" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal ({{ stealOutThresholds['3'] }}+, {{ stealOutThresholds['2'] }}+)</button>
                 </div>
             </div>
 
