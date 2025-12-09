@@ -52,7 +52,6 @@ onMounted(() => {
 
 <template>
   <div class="league-container">
-    <h1>League Rosters</h1>
     <div v-if="loading" class="loading">Loading league data...</div>
 
     <div v-else class="teams-list">
@@ -141,7 +140,7 @@ h1 {
     object-fit: contain;
     background: white;
     padding: 4px;
-    border-radius: 50%;
+    border-radius: 20%;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -175,7 +174,7 @@ h1 {
 }
 
 .roster-table td {
-    padding: 0.5rem;
+    padding: 0.25rem;
     border-bottom: 1px solid #dee2e6;
 }
 
