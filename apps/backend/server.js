@@ -3430,19 +3430,31 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         if (contestedDecision && choices[contestedDecision.from.toString()]) {
             const contestedRunner = contestedDecision.runner;
 
+            const { type } = newState.currentPlay;
             const d20Roll = Math.floor(Math.random() * 20) + 1;
             const baseSpeed = parseInt(getSpeedValue(contestedRunner), 10);
             let speed = baseSpeed;
             let penalty = 0;
             const adjustments = [];
 
-            if (throwTo === 4) {
-                speed += 5; // Bonus for going home
-                adjustments.push({ value: 5, reason: 'Going Home' });
-            }
-            if (newState.outs === 2) {
-                speed += 5; // Bonus for 2 outs
-                adjustments.push({ value: 5, reason: '2 Outs' });
+            if (type === 'ADVANCE') {
+                if (throwTo === 4) {
+                    speed += 5; // Bonus for going home
+                    adjustments.push({ value: 5, reason: 'Going Home' });
+                }
+                if (newState.outs === 2) {
+                    speed += 5; // Bonus for 2 outs
+                    adjustments.push({ value: 5, reason: '2 Outs' });
+                }
+            } else if (type === 'TAG_UP') {
+                if (throwTo === 4) {
+                    speed += 5; // Bonus for going home
+                    adjustments.push({ value: 5, reason: 'Going Home' });
+                }
+                if (throwTo === 2) {
+                    speed -= 5;
+                    adjustments.push({ value: -5, reason: 'Tagging to 2nd' });
+                }
             }
 
             const isSafe = speed >= (outfieldDefense + d20Roll);
