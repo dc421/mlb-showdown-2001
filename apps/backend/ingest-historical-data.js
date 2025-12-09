@@ -1,6 +1,10 @@
 // ingest-historical-data.js
 require('dotenv').config();
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+const csv = require('csv-parser');
+const { execSync } = require('child_process');
 
 const dbConfig = process.env.NODE_ENV === 'production'
   ? {
@@ -16,6 +20,39 @@ const dbConfig = process.env.NODE_ENV === 'production'
     };
 
 const pool = new Pool(dbConfig);
+
+const SHEET_URL_BASE = 'https://docs.google.com/spreadsheets/d/1NDz3ByLjAzOA2EOEp3zeRPayhAqWcr9_LdsVF2sMwJ4/export?format=csv&gid=';
+
+const SHEET_GIDS = {
+    'Ann Arbor': '607921415',
+    'Boston': '1619251521',
+    'Detroit': '1706872671',
+    'New York': '1907615676',
+    'NY South': '846226663',
+    'RRD1': '1724113215',
+    'RRD2': '721185276',
+    'RRD3': '1616212789',
+    'RRD4': '1696735254',
+    'RRD5': '1892793486',
+    'RRD6': '841635474',
+    'RRD7': '1228836819',
+    'RRD8': '1892437077',
+    'RRD9': '70597302',
+    'RRD10': '1389829762',
+    'RRD11': '643190407',
+    'RRD12': '2020164420',
+    'RRD13': '175153179',
+    'RRD14': '417595007',
+    'RRD15': '138845959',
+    'RRD16': '392235661',
+    'RRD17': '395986830',
+    'RRD18': '1661802636',
+    'RRD19': '4902159',
+    'RRD20': '477076192',
+    'RRD21': '23858755',
+    'RRD22': '97830873',
+    'Full Draft': '1368939496'
+};
 
 const seasonMap = {
     '7/5/20': 'Early July 2020',
@@ -60,7 +97,10 @@ const teamIdMap = {
     'Phantoms': null
 };
 
-const rawData = `
+const DATA_DIR = path.join(__dirname, 'data');
+
+// Raw data for Series Results (Keep existing logic)
+const rawSeriesData = `
 DraftRR	8/4/25	Boston	4	Ann Arbor	3	Round Robin
 DraftRR	8/4/25	NY South	5	Ann Arbor	2	Round Robin
 DraftRR	8/4/25	Ann Arbor	6	Detroit	1	Round Robin
@@ -332,97 +372,229 @@ Free	7/5/20	New York	4	Laramie	3	Golden Spaceship
 Free	7/5/20	Boston	4	Chicago	3	Wooden Spoon	16-inning Game 7 classic, tired House vs. tired House
 `;
 
+function downloadCSVs() {
+    console.log('Downloading CSVs...');
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
+    for (const [name, gid] of Object.entries(SHEET_GIDS)) {
+        const url = `${SHEET_URL_BASE}${gid}`;
+        const filePath = path.join(DATA_DIR, `${name}.csv`);
+        console.log(`Fetching ${name}...`);
+        try {
+            // Using curl via execSync for simplicity as it handles redirects well
+            execSync(`curl -L "${url}" -o "${filePath}"`, { stdio: 'ignore' });
+        } catch (e) {
+            console.error(`Failed to download ${name}: ${e.message}`);
+        }
+    }
+    console.log('Download complete.');
+}
+
+async function ingestSeriesResults(client) {
+    try {
+        console.log('Ingesting Series Results...');
+        try {
+            await client.query('TRUNCATE TABLE series_results RESTART IDENTITY');
+        } catch (e) {
+            if (e.code === '42P01') {
+                console.warn('Table series_results does not exist. Skipping series results ingestion.');
+                return;
+            }
+            throw e;
+        }
+
+        const lines = rawSeriesData.trim().split('\n');
+        let insertedCount = 0;
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+
+            let parts = line.split('\t');
+            if (parts.length < 5) continue;
+
+            const style = parts[0].trim();
+            const dateStr = parts[1].trim();
+            const team1Name = parts[2].trim();
+            const score1Str = parts[3].trim();
+            const team2Name = parts[4].trim();
+            const score2Str = parts[5].trim();
+            const round = parts[6] ? parts[6].trim() : '';
+            const notes = parts[7] ? parts[7].trim() : '';
+
+            if (!score1Str || !score2Str || score1Str === 'N/A' || score2Str === 'N/A') continue;
+
+            const score1 = parseInt(score1Str, 10);
+            const score2 = parseInt(score2Str, 10);
+
+            if (isNaN(score1) || isNaN(score2)) continue;
+
+            let winningTeamName, losingTeamName, winningScore, losingScore, winningTeamId, losingTeamId;
+
+            if (score1 > score2) {
+                winningTeamName = team1Name;
+                losingTeamName = team2Name;
+                winningScore = score1;
+                losingScore = score2;
+            } else {
+                winningTeamName = team2Name;
+                losingTeamName = team1Name;
+                winningScore = score2;
+                losingScore = score1;
+            }
+
+            winningTeamId = teamIdMap[winningTeamName] || null;
+            losingTeamId = teamIdMap[losingTeamName] || null;
+
+            const seasonName = seasonMap[dateStr] || 'Unknown Season';
+
+            await client.query(
+                `INSERT INTO series_results
+                (date, season_name, style, round, winning_team_name, losing_team_name, winning_team_id, losing_team_id, winning_score, losing_score, notes)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                [dateStr, seasonName, style, round, winningTeamName, losingTeamName, winningTeamId, losingTeamId, winningScore, losingScore, notes]
+            );
+            insertedCount++;
+        }
+        console.log(`Successfully ingested ${insertedCount} series results.`);
+    } catch (err) {
+        console.error('Error ingesting series results:', err);
+    }
+}
+
+async function ingestRosters(client) {
+    console.log('Ingesting Rosters...');
+    try {
+        await client.query('TRUNCATE TABLE historical_rosters RESTART IDENTITY');
+    } catch (e) {
+        console.warn('Table historical_rosters does not exist. Skipping.');
+        return;
+    }
+
+    const rosterTabs = ['Ann Arbor', 'Boston', 'Detroit', 'New York', 'NY South'];
+
+    for (const teamName of rosterTabs) {
+        const filePath = path.join(DATA_DIR, `${teamName}.csv`);
+        if (!fs.existsSync(filePath)) {
+            console.warn(`File ${filePath} not found. Skipping.`);
+            continue;
+        }
+
+        console.log(`Processing ${teamName}...`);
+
+        const rows = [];
+        await new Promise((resolve, reject) => {
+            fs.createReadStream(filePath)
+                .pipe(csv({ headers: false }))
+                .on('data', (row) => rows.push(row))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        if (rows.length < 3) continue;
+
+        const dateRow = rows[1];
+        const seasonCols = {};
+
+        Object.keys(dateRow).forEach(key => {
+            if (key === '0') return;
+            const dateStr = dateRow[key];
+            if (seasonMap[dateStr]) {
+                seasonCols[key] = seasonMap[dateStr];
+            }
+        });
+
+        for (let i = 3; i < rows.length; i++) {
+            const row = rows[i];
+            const position = row['0'];
+            if (!position) continue;
+
+            for (const colIndex in seasonCols) {
+                const playerName = row[colIndex];
+                if (playerName && playerName.trim()) {
+                    const seasonName = seasonCols[colIndex];
+
+                    await client.query(
+                        `INSERT INTO historical_rosters (season, team_name, player_name, position)
+                         VALUES ($1, $2, $3, $4)`,
+                        [seasonName, teamName, playerName.trim(), position]
+                    );
+                }
+            }
+        }
+    }
+    console.log('Roster ingestion complete.');
+}
+
+async function ingestDrafts(client) {
+    console.log('Ingesting Drafts...');
+    try {
+        await client.query('TRUNCATE TABLE draft_history RESTART IDENTITY');
+    } catch (e) {
+        console.warn('Table draft_history does not exist. Skipping.');
+        return;
+    }
+
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith('RRD') || f === 'Full Draft.csv');
+
+    for (const file of files) {
+        const filePath = path.join(DATA_DIR, file);
+        const seasonName = path.basename(file, '.csv');
+        console.log(`Processing ${seasonName}...`);
+
+        const results = [];
+        await new Promise((resolve, reject) => {
+            fs.createReadStream(filePath)
+                .pipe(csv())
+                .on('data', (data) => results.push(data))
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        for (const row of results) {
+            const pick = parseInt(row['Pick'], 10) || 0;
+            const round = row['Round'];
+            const team = row['Team'];
+            let player = row['Selection'] || row['Player'];
+            let notes = '';
+
+            if (row['Pts']) {
+                notes = `Pos: ${row['Pos']}, Pts: ${row['Pts']}`;
+            }
+            if (row['Lost (Original Rd)']) {
+                notes = `Lost: ${row['Lost (Original Rd)']}`;
+            }
+
+            if (player && team) {
+                await client.query(
+                    `INSERT INTO draft_history (season, round, pick_number, team_name, player_name, notes)
+                     VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [seasonName, round, pick, team, player.trim(), notes]
+                );
+            }
+        }
+    }
+    console.log('Draft ingestion complete.');
+}
+
 async function ingest() {
   const client = await pool.connect();
   try {
+    // Download data first
+    downloadCSVs();
+
     await client.query('BEGIN');
 
-    // Clear existing data to avoid duplicates on re-run
-    await client.query('TRUNCATE TABLE series_results RESTART IDENTITY');
-
-    const lines = rawData.trim().split('\n');
-    let insertedCount = 0;
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      // Tokenize the line. Assuming tab separation based on copy-paste,
-      // but providing fallback if spaces are used.
-      let parts = line.split('\t');
-      if (parts.length < 5) {
-          // Attempt to split by multiple spaces if tabs failed
-          // Regex strategy:
-          // Style | Date | Team 1 | Score 1 | Team 2 | Score 2 | Round | Notes
-          // Teams can be multi-word.
-          // But Score is always a number or N/A.
-          // We can assume the structure:
-          // [Style] [Date] [Team1...] [Score1] [Team2...] [Score2] [Round...] [Notes...]
-
-          // Actually, matching the teams from the map is safer.
-          // Let's rely on the user input being tab-separated as provided in the prompt.
-          // If the copy-paste lost tabs, we might be in trouble.
-          // But let's assume tabs for now since it came from a spreadsheet.
-          // If that fails, I'll log it.
-          console.warn('Line parsing issue (not tab separated):', line);
-          continue;
-      }
-
-      const style = parts[0].trim();
-      const dateStr = parts[1].trim();
-      const team1Name = parts[2].trim();
-      const score1Str = parts[3].trim();
-      const team2Name = parts[4].trim();
-      const score2Str = parts[5].trim();
-      const round = parts[6] ? parts[6].trim() : '';
-      const notes = parts[7] ? parts[7].trim() : '';
-
-      // Skip if scores are missing or N/A
-      if (!score1Str || !score2Str || score1Str === 'N/A' || score2Str === 'N/A') {
-          console.log(`Skipping row due to missing scores: ${dateStr} ${team1Name} vs ${team2Name}`);
-          continue;
-      }
-
-      const score1 = parseInt(score1Str, 10);
-      const score2 = parseInt(score2Str, 10);
-
-      if (isNaN(score1) || isNaN(score2)) {
-          console.log(`Skipping row due to invalid scores: ${dateStr} ${team1Name} vs ${team2Name} (${score1Str}-${score2Str})`);
-          continue;
-      }
-
-      let winningTeamName, losingTeamName, winningScore, losingScore, winningTeamId, losingTeamId;
-
-      if (score1 > score2) {
-          winningTeamName = team1Name;
-          losingTeamName = team2Name;
-          winningScore = score1;
-          losingScore = score2;
-      } else {
-          winningTeamName = team2Name;
-          losingTeamName = team1Name;
-          winningScore = score2;
-          losingScore = score1;
-      }
-
-      winningTeamId = teamIdMap[winningTeamName] || null;
-      losingTeamId = teamIdMap[losingTeamName] || null;
-
-      const seasonName = seasonMap[dateStr] || 'Unknown Season';
-
-      await client.query(
-          `INSERT INTO series_results
-           (date, season_name, style, round, winning_team_name, losing_team_name, winning_team_id, losing_team_id, winning_score, losing_score, notes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-           [dateStr, seasonName, style, round, winningTeamName, losingTeamName, winningTeamId, losingTeamId, winningScore, losingScore, notes]
-      );
-      insertedCount++;
-    }
+    await ingestSeriesResults(client);
+    await ingestRosters(client);
+    await ingestDrafts(client);
 
     await client.query('COMMIT');
-    console.log(`Successfully ingested ${insertedCount} historical records.`);
+    console.log('Ingestion process finished successfully.');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Error ingesting data:', err);
+    console.error('Error during ingestion process:', err);
   } finally {
     client.release();
     await pool.end();
