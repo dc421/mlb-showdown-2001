@@ -9,6 +9,7 @@ import SetLineupView from '../views/SetLineupView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import GameSetupView from '../views/GameSetupView.vue';
 import DevToolView from '../views/DevToolView.vue' // <-- ADD THIS
+import LeagueView from '../views/LeagueView.vue'
 import OfficialRulesView from '../views/OfficialRulesView.vue'
 
 const router = createRouter({
@@ -34,6 +35,12 @@ const router = createRouter({
       path: '/roster-builder',
       name: 'roster-builder',
       component: RosterBuilderView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/league',
+      name: 'league',
+      component: LeagueView,
       meta: { requiresAuth: true }
     },
     // ADD THIS NEW DYNAMIC ROUTE

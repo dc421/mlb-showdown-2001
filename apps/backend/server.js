@@ -1911,6 +1911,73 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
     }
 });
 
+// GET LEAGUE ROSTERS
+app.get('/api/league', authenticateToken, async (req, res) => {
+    const { point_set_id } = req.query;
+    if (!point_set_id) {
+        return res.status(400).json({ message: 'A point_set_id is required.' });
+    }
+
+    try {
+        const query = `
+            SELECT
+                t.team_id, t.city, t.name as team_name, t.logo_url, t.display_format,
+                u.owner_first_name, u.owner_last_name,
+                cp.*,
+                rc.assignment, rc.is_starter,
+                ppv.points
+            FROM teams t
+            JOIN users u ON t.user_id = u.user_id
+            JOIN rosters r ON u.user_id = r.user_id
+            JOIN roster_cards rc ON r.roster_id = rc.roster_id
+            JOIN cards_player cp ON rc.card_id = cp.card_id
+            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
+            ORDER BY t.city, t.name, rc.is_starter DESC, cp.display_name
+        `;
+        const result = await pool.query(query, [point_set_id]);
+
+        // Group by team
+        const teamsMap = {};
+        result.rows.forEach(row => {
+             if (!teamsMap[row.team_id]) {
+                 const format = row.display_format || '{city} {name}';
+                 teamsMap[row.team_id] = {
+                     team_id: row.team_id,
+                     city: row.city,
+                     name: row.team_name,
+                     logo_url: row.logo_url,
+                     owner: `${row.owner_first_name} ${row.owner_last_name}`,
+                     full_display_name: format.replace('{city}', row.city).replace('{name}', row.team_name),
+                     roster: []
+                 };
+             }
+             // Process player
+             const player = { ...row };
+             // Cleanup team properties from player object
+             delete player.team_id;
+             delete player.city;
+             delete player.team_name;
+             delete player.logo_url;
+             delete player.display_format;
+             delete player.owner_first_name;
+             delete player.owner_last_name;
+
+             teamsMap[row.team_id].roster.push(player);
+        });
+
+        // Process players for each team
+        const leagueData = Object.values(teamsMap).map(team => {
+            team.roster = processPlayers(team.roster);
+            return team;
+        });
+
+        res.json(leagueData);
+    } catch (error) {
+        console.error('Error fetching league data:', error);
+        res.status(500).json({ message: 'Server error fetching league data.' });
+    }
+});
+
 // GAME SETUP & PLAY
 app.post('/api/games', authenticateToken, async (req, res) => {
     const { roster_id, home_or_away, league_designation, series_type } = req.body;
