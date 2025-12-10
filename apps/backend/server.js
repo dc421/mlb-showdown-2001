@@ -1966,8 +1966,44 @@ app.get('/api/league', authenticateToken, async (req, res) => {
         });
 
         // Process players for each team
+        const positionOrder = {
+            'SP': 1, 'RP': 2, 'C': 3, '1B': 4, '2B': 5, 'SS': 6, '3B': 7,
+            'LF': 8, 'CF': 9, 'RF': 10, 'DH': 11, 'B': 12
+        };
+
         const leagueData = Object.values(teamsMap).map(team => {
             team.roster = processPlayers(team.roster);
+
+            // Apply transformations and sorting
+            team.roster.forEach(p => {
+                if (p.assignment === 'BENCH') {
+                    p.assignment = 'B';
+                    if (p.points) p.points = Math.round(p.points / 5);
+                }
+            });
+
+            team.roster.sort((a, b) => {
+                const getSortPos = (p) => {
+                    if (p.assignment === 'B') return 'B';
+                    if (p.assignment === 'PITCHING_STAFF') {
+                        return p.displayPosition; // SP or RP
+                    }
+                    return p.assignment || p.displayPosition;
+                };
+
+                const posA = getSortPos(a);
+                const posB = getSortPos(b);
+
+                const rankA = positionOrder[posA] || 99;
+                const rankB = positionOrder[posB] || 99;
+
+                if (rankA !== rankB) {
+                    return rankA - rankB;
+                }
+
+                return (b.points || 0) - (a.points || 0);
+            });
+
             return team;
         });
 
