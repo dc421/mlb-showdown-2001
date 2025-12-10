@@ -1703,7 +1703,11 @@ function handleNextHitter() {
   defensiveThrowRollClicked.value = false;
   wasMultiThrowSituation.value = false;
 
-  if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings) {
+  // Only set the anticipated batter if we are NOT at the end of an inning (3 outs).
+  // If the inning is ending (outs >= 3), we must wait for the authoritative server update
+  // to flip the inning and provide the correct batter (leadoff of the OTHER team),
+  // rather than incorrectly predicting the next batter in the CURRENT team's lineup.
+  if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings && outsToDisplay.value < 3) {
     anticipatedBatter.value = nextBatterInLineup.value;
   }
   gameStore.setIsSwingResultVisible(false);
