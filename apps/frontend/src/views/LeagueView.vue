@@ -75,7 +75,7 @@ onMounted(() => {
                     </thead>
                     <tbody>
                         <tr v-for="player in team.roster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row">
-                            <td class="pos-cell">{{ player.displayPosition || player.position }}</td>
+                            <td class="pos-cell">{{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}</td>
                             <td class="name-cell">{{ player.displayName || player.name }}</td>
                             <td class="points-cell">{{ player.points }}</td>
                         </tr>
