@@ -9,6 +9,8 @@ const authStore = useAuthStore();
 const router = useRouter();
 const seriesType = ref('exhibition'); // Default to exhibition
 const teamAccolades = ref({ spaceships: [], spoons: [] });
+// Ensure apiUrl is an empty string if VITE_API_URL is not defined, to allow relative paths (proxied) to work.
+const apiUrl = import.meta.env.VITE_API_URL || '';
 
 const myTeamDisplayName = computed(() => {
   if (!authStore.user?.team) return '';
@@ -20,7 +22,7 @@ const myTeamDisplayName = computed(() => {
 async function fetchTeamAccolades() {
     if (authStore.user?.team?.team_id) {
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teams/${authStore.user.team.team_id}/accolades`, {
+            const response = await fetch(`${apiUrl}/api/teams/${authStore.user.team.team_id}/accolades`, {
                 headers: { 'Authorization': `Bearer ${authStore.token}` }
             });
             if (response.ok) {
@@ -107,13 +109,21 @@ onUnmounted(() => {
         <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
       </div>
       <div class="accolades">
-          <div v-if="teamAccolades.spaceships.length > 0" class="accolade-item" :title="teamAccolades.spaceships.map(s => s.season_name).join('\n')">
-              <span class="icon">🚀</span>
-              <span class="count">{{ teamAccolades.spaceships.length }}</span>
+          <div v-if="teamAccolades.spaceships.length > 0" class="accolade-row">
+              <img v-for="(accolade, index) in teamAccolades.spaceships"
+                   :key="accolade.season_name + index"
+                   :src="`${apiUrl}/images/golden_spaceship.jpg`"
+                   :title="accolade.season_name"
+                   class="accolade-icon"
+                   alt="Golden Spaceship" />
           </div>
-          <div v-if="teamAccolades.spoons.length > 0" class="accolade-item" :title="teamAccolades.spoons.map(s => s.season_name).join('\n')">
-              <span class="icon">🥄</span>
-              <span class="count">{{ teamAccolades.spoons.length }}</span>
+          <div v-if="teamAccolades.spoons.length > 0" class="accolade-row">
+               <img v-for="(accolade, index) in teamAccolades.spoons"
+                   :key="accolade.season_name + index"
+                   :src="`${apiUrl}/images/wooden_spoon.jpg`"
+                   :title="accolade.season_name"
+                   class="accolade-icon"
+                   alt="Wooden Spoon" />
           </div>
       </div>
     </header>
@@ -194,27 +204,21 @@ onUnmounted(() => {
 .accolades {
     margin-left: auto;
     display: flex;
-    gap: 1.5rem;
-}
-
-.accolade-item {
-    display: flex;
     flex-direction: column;
-    align-items: center;
-    cursor: help; /* Indicates tooltip on hover */
-    background: rgba(255, 255, 255, 0.2);
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    gap: 0.5rem;
+    align-items: flex-end;
 }
 
-.accolade-item .icon {
-    font-size: 2rem;
+.accolade-row {
+    display: flex;
+    gap: 0.25rem;
 }
 
-.accolade-item .count {
-    font-size: 1.2rem;
-    font-weight: bold;
+.accolade-icon {
+    width: 30px;
+    height: auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .dashboard-main {
@@ -320,4 +324,3 @@ onUnmounted(() => {
   border-top: 1px solid #eee;
 }
 </style>
-
