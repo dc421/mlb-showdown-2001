@@ -110,20 +110,20 @@ onUnmounted(() => {
       </div>
       <div class="accolades">
           <div v-if="teamAccolades.spaceships.length > 0" class="accolade-row">
-              <img v-for="(accolade, index) in teamAccolades.spaceships"
-                   :key="accolade.season_name + index"
-                   :src="`${apiUrl}/images/golden_spaceship.png`"
+            <div v-for="(accolade, index) in teamAccolades.spaceships" :key="accolade.season_name + index" class="accolade-item">
+              <img :src="`${apiUrl}/images/golden_spaceship.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Golden Spaceship" />
+            </div>
           </div>
           <div v-if="teamAccolades.spoons.length > 0" class="accolade-row">
-               <img v-for="(accolade, index) in teamAccolades.spoons"
-                   :key="accolade.season_name + index"
-                   :src="`${apiUrl}/images/wooden_spoon.png`"
+             <div v-for="(accolade, index) in teamAccolades.spoons" :key="accolade.season_name + index" class="accolade-item">
+               <img :src="`${apiUrl}/images/wooden_spoon.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Wooden Spoon" />
+             </div>
           </div>
       </div>
     </header>
@@ -206,12 +206,18 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    align-items: center;
+    align-items: flex-end;
 }
 
 .accolade-row {
     display: flex;
     gap: 0.25rem;
+}
+
+.accolade-item {
+    width: 40px;
+    display: flex;
+    justify-content: center;
 }
 
 .accolade-icon {
