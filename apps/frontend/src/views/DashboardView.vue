@@ -112,7 +112,7 @@ onUnmounted(() => {
           <div v-if="teamAccolades.spaceships.length > 0" class="accolade-row">
               <img v-for="(accolade, index) in teamAccolades.spaceships"
                    :key="accolade.season_name + index"
-                   :src="`${apiUrl}/images/golden_spaceship.jpg`"
+                   :src="`${apiUrl}/images/golden_spaceship.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Golden Spaceship" />
@@ -120,7 +120,7 @@ onUnmounted(() => {
           <div v-if="teamAccolades.spoons.length > 0" class="accolade-row">
                <img v-for="(accolade, index) in teamAccolades.spoons"
                    :key="accolade.season_name + index"
-                   :src="`${apiUrl}/images/wooden_spoon.jpg`"
+                   :src="`${apiUrl}/images/wooden_spoon.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Wooden Spoon" />
@@ -215,10 +215,8 @@ onUnmounted(() => {
 }
 
 .accolade-icon {
-    width: 30px;
-    height: auto;
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    width: flex;
+    height: 35px;
 }
 
 .dashboard-main {
