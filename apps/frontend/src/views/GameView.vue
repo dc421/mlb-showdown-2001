@@ -1164,7 +1164,7 @@ const showStealResult = computed(() => {
   
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
     return !(gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) &&
-     !(amIDisplayDefensivePlayer.value && !gameStore.gameState?.lastStealResult) &&
+     !(amIDisplayDefensivePlayer.value && (!gameStore.gameState?.lastStealResult && !isDoubleStealResultAvailable.value)) &&
      isRunnerOnOffensiveTeam.value;
   }
 
