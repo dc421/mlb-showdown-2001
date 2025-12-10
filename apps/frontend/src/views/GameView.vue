@@ -1009,7 +1009,7 @@ const showAutoThrowResult = computed(() => {
     if (amIDisplayDefensivePlayer.value) {
         return defensiveThrowRollClicked.value;
     }
-    return true;
+    return isRunnerOnOffensiveTeam.value;
 });
 
 // NEW: This computed specifically controls the visibility of the steal result box.
