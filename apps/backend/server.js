@@ -1068,7 +1068,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         isBetweenHalfInningsAway: false,
         isBetweenHalfInningsHome: false,
         awayTeam: { userId: awayParticipant.user_id, team_id: awayParticipant.team_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], roster: awayRosterData },
-        homeTeam: { userId: homeParticipant.user_id, team_id: homeParticipant.team_id, rosterId: homeParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], roster: homeRosterData },
+        homeTeam: { userId: homeParticipant.user_id, team_id: homeParticipant.team_id, rosterId: homeParticipant.roster_id, battingOrderPosition: -1, used_player_ids: [], roster: homeRosterData },
         homeDefensiveRatings: {
             catcherArm: await getCatcherArm(homeParticipant),
             infieldDefense: await getInfieldDefense(homeParticipant),
