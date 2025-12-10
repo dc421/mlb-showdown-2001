@@ -206,7 +206,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    align-items: flex-end;
+    align-items: center;
 }
 
 .accolade-row {
@@ -215,7 +215,7 @@ onUnmounted(() => {
 }
 
 .accolade-icon {
-    width: flex;
+    width: auto;
     height: 35px;
 }
 
