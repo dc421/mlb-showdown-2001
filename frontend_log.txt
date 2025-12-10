@@ -3,7 +3,7 @@
 > vite --port 5173 --port 5173
 
 
-  VITE v7.2.6  ready in 1204 ms
+  VITE v7.2.6  ready in 1064 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
@@ -16,3 +16,5 @@
 [1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
 
 [1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+1:14:25 AM [vite] (client) hmr update /src/views/DashboardView.vue?vue&type=style&index=0&scoped=336c5134&lang.css
