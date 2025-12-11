@@ -45,6 +45,10 @@ function closePlayerCard() {
     selectedPlayer.value = null;
 }
 
+function getTeamTotalPoints(roster) {
+    return roster.reduce((sum, player) => sum + (player.points || 0), 0);
+}
+
 onMounted(() => {
     fetchLeagueData();
 });
@@ -68,9 +72,9 @@ onMounted(() => {
                 <table class="roster-table">
                     <thead>
                         <tr>
-                            <th>Pos</th>
-                            <th>Player</th>
-                            <th>Points</th>
+                            <th class="header-pos">Pos</th>
+                            <th class="header-player">Player</th>
+                            <th class="header-points">Points</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -80,6 +84,12 @@ onMounted(() => {
                             <td class="points-cell">{{ player.points }}</td>
                         </tr>
                     </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="2" class="total-label">Total</td>
+                            <td class="total-points">{{ getTeamTotalPoints(team.roster) }}</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -173,6 +183,10 @@ h1 {
     font-weight: 600;
 }
 
+.header-points {
+    text-align: right !important;
+}
+
 .roster-table td {
     padding: 0.25rem;
     border-bottom: 1px solid #dee2e6;
@@ -189,7 +203,26 @@ h1 {
 
 .points-cell {
     font-weight: bold;
-    color: #28a745;
+    color: #000000;
+    text-align: right;
+}
+
+/* Footer Styles */
+.total-row td {
+    border-top: 2px solid #aaa; /* Slightly darker border for separation */
+    padding: 0.5rem 0.25rem;
+    font-weight: bold;
+    background-color: #f1f3f5;
+}
+
+.total-label {
+    text-align: right;
+    padding-right: 1rem;
+}
+
+.total-points {
+    text-align: right;
+    color: #000000;
 }
 
 /* Modal Styles */
