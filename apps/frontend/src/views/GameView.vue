@@ -1009,7 +1009,7 @@ const showAutoThrowResult = computed(() => {
     if (amIDisplayDefensivePlayer.value) {
         return defensiveThrowRollClicked.value;
     }
-    return isRunnerOnOffensiveTeam.value;
+    return true;
 });
 
 // NEW: This computed specifically controls the visibility of the steal result box.
@@ -1165,6 +1165,8 @@ const showStealResult = computed(() => {
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
     return !(gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) &&
      !(amIDisplayDefensivePlayer.value && (!gameStore.gameState?.lastStealResult && !isDoubleStealResultAvailable.value)) &&
+     !(amIDisplayOffensivePlayer.value && amIOffensivePlayer.value && gameStore.gameState?.currentAtBat.outsBeforePlay === 0) &&
+     !(amIDisplayDefensivePlayer.value && amIDefensivePlayer.value && gameStore.gameState?.currentAtBat.outsBeforePlay === 0) &&
      isRunnerOnOffensiveTeam.value;
   }
 
@@ -1754,7 +1756,7 @@ const isStealAttemptInProgress = computed(() => {
     // This allows the "ROLL FOR THROW" button to appear below the result of the previous steal.
     const isConsecutiveSteal = !!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt;
 
-    return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isPastStealDef;
+    return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isPastStealDef && !gameStore.gameState?.throwRollResult;
 });
 
 const isSingleSteal = computed(() => {
