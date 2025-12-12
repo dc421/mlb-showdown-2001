@@ -917,9 +917,10 @@ async function resetRolls(gameId) {
     } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
         // Case: The opponent has advanced to the next at-bat (or triggered an IBB), but I am still viewing the previous result.
 
-        // SPECIAL CASE: If a steal is pending (persisted by backend), we are viewing the steal action.
-        // The 'currentAtBat' is the NEW one (next inning), so we must use 'lastCompletedAtBat' to get the state BEFORE the inning flip.
-        if (gameState.value.pendingStealAttempt) {
+        // SPECIAL CASE: If a steal is pending OR if we are viewing a throw result (like a Tag Up) that hasn't been cleared,
+        // we are viewing a past action. The 'currentAtBat' is the NEW one (next batter), so we must use 'lastCompletedAtBat'
+        // to get the state BEFORE the result was applied to avoid spoilers.
+        if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
              const src = gameState.value.lastCompletedAtBat;
              if (src) {
                  bases = src.basesBeforePlay || bases;
