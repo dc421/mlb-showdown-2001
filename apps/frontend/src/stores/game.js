@@ -589,6 +589,17 @@ async function resetRolls(gameId) {
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
+    // Condition 1.5: Stale Tag Up + Steal Collision (Logs)
+    // If we are stuck viewing the "Ghost of Tag Up Past", we must hide the future steal logs.
+    if (!amIReadyForNext.value && gameState.value?.throwRollResult && (gameState.value?.lastStealResult || gameState.value?.pendingStealAttempt)) {
+        return gameEvents.value.filter(e => {
+            const isSteal = e.event_type === 'steal';
+            // Also hide the inning change message if the steal resulted in the 3rd out.
+            const isSystemInningChange = e.event_type === 'system' && (e.log_message.includes('Top') || e.log_message.includes('Bottom'));
+            return !isSteal && !isSystemInningChange;
+        });
+    }
+
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
     // We need to continue hiding just the inning change message.
     if (isEffectivelyBetween && !amIReadyForNext.value) {
@@ -841,6 +852,81 @@ async function resetRolls(gameId) {
              ...gameState.value,
              bases: newBases,
              outs: outs
+         };
+    }
+
+    // Condition: Stale Tag Up + Steal Collision
+    // If we have a throwRollResult (from a Tag Up) AND a steal result (from a subsequent play),
+    // and we haven't clicked Next, we are stuck viewing the "Ghost of Tag Up Past".
+    // We must roll back the state to ignore the steal.
+    if (!amIReadyForNext.value && gameState.value.throwRollResult && (gameState.value.lastStealResult || gameState.value.pendingStealAttempt)) {
+         // Determine which steal object represents the "future" state we need to revert.
+         // Usually it's lastStealResult (if resolved) or pendingStealAttempt (if initiated).
+         const futureSteal = gameState.value.lastStealResult || gameState.value.pendingStealAttempt;
+
+         let outs = gameState.value.outs;
+         let bases = { ...gameState.value.bases };
+         let inning = gameState.value.inning;
+         let isTopInning = gameState.value.isTopInning;
+
+         // 1. Rollback Outs
+         if (futureSteal.outcome === 'OUT') {
+             // If the future steal was an out, decrement the count.
+             outs = outs - 1;
+
+             // If the future steal was the 3rd out, we need to roll back the INNING transition too.
+             if (outs === 2 && gameState.value.outs === 0) {
+                 // We wrapped around.
+                 outs = 2; // Restore to 2 outs.
+                 if (gameState.value.isTopInning) {
+                    inning = Math.max(1, gameState.value.inning - 1);
+                    isTopInning = false;
+                 } else {
+                    isTopInning = true;
+                 }
+             } else if (gameState.value.outs === 0 && outs < 0) {
+                 // This shouldn't happen if logic is correct, but safe guard.
+                 outs = 2;
+             }
+         }
+
+         // 2. Rollback Bases
+         // If the steal was SAFE, the runner moved. We need to move them back.
+         // If OUT, they are gone. We need to restore them.
+         // However, `throwRollResult` (Tag Up) put them on a base.
+         // The steal moved them FROM that base.
+         const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
+         // The steal source is not explicitly in `lastStealResult` always?
+         // We might need to infer it or just use `lastCompletedAtBat` if available?
+         // Actually, if it's `lastStealResult`, the `runner` object is there.
+         // `throwRollResult` tells us where the Tag Up landed them (`throwToBase`).
+         // So they SHOULD be at `throwRollResult.throwToBase`.
+
+         // Simplified Base Rollback:
+         // Just ensure the runner from the tag up is at the destination of the tag up.
+         const tagUpDest = gameState.value.throwRollResult.throwToBase;
+         const runnerName = gameState.value.throwRollResult.runner; // This is a string name
+         // We need the object. We can try to grab it from `futureSteal.runner` (which might be an object or string? check backend).
+         // In `resolve-throw`, `runner` is a name string. `runner` object is not in `throwRollResult`.
+         // But `futureSteal` usually has the full runner object or at least we can try to find it.
+         // Actually, simpler: Just use `lastCompletedAtBat.basesBeforePlay` if available?
+         // No, `lastCompletedAtBat` captures state BEFORE the Steal (which is exactly what we want!).
+         // If the steal was the 3rd out, `lastCompletedAtBat` is the steal play. Its `basesBeforePlay` is the state before the steal.
+         if (gameState.value.lastCompletedAtBat && gameState.value.lastCompletedAtBat.basesBeforePlay) {
+             bases = gameState.value.lastCompletedAtBat.basesBeforePlay;
+         }
+
+         return {
+             ...gameState.value,
+             outs,
+             bases,
+             inning,
+             isTopInning,
+             // Ensure we hide the "future" steal result from the UI
+             lastStealResult: null,
+             pendingStealAttempt: null,
+             isBetweenHalfInningsAway: false,
+             isBetweenHalfInningsHome: false
          };
     }
 
