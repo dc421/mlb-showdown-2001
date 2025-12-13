@@ -562,30 +562,6 @@ async function resetRolls(gameId) {
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
-    // Condition 0: Stale Throw Result (Tag Up Race Condition).
-    // If we are rolling back state due to a stale throw result, we must hide
-    // the events that occurred after that state (e.g. the Tag Up outcome itself,
-    // and any subsequent Steal outcomes).
-    if (isStaleThrowResult.value) {
-        // Filter out any steal events (like "SAFE" or "Caught Stealing")
-        let filteredEvents = gameEvents.value.filter(e => e.event_type !== 'steal');
-
-        // Also, filter out the LAST 'baserunning' event if it exists.
-        // This is likely the Tag Up result we are currently rolling for.
-        // (We iterate backwards to find the last one)
-        let baserunningIndex = -1;
-        for (let i = filteredEvents.length - 1; i >= 0; i--) {
-            if (filteredEvents[i].event_type === 'baserunning') {
-                baserunningIndex = i;
-                break;
-            }
-        }
-        if (baserunningIndex !== -1) {
-            filteredEvents.splice(baserunningIndex, 1);
-        }
-        return filteredEvents;
-    }
-
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
 
@@ -735,12 +711,6 @@ async function resetRolls(gameId) {
   const displayOuts = computed(() => {
     if (!gameState.value) return 0;
 
-    // Condition 0: Stale Throw Result Override
-    // If we are showing a stale throw result, we MUST show the outs from BEFORE that play completed.
-    if (isStaleThrowResult.value && gameState.value.lastCompletedAtBat) {
-        return gameState.value.lastCompletedAtBat.outsBeforePlay;
-    }
-
     if (isOutcomeHidden.value) {
         // Case 1: Outcome is hidden.
         // Logic restored based on user feedback: Explicitly show state from before the current action.
@@ -782,14 +752,6 @@ async function resetRolls(gameId) {
     return gameState.value.outs;
   });
 
-  const isStaleThrowResult = computed(() => {
-      return gameState.value &&
-             gameState.value.throwRollResult &&
-             gameState.value.currentAtBat &&
-             !gameState.value.currentAtBat.batterAction &&
-             !gameState.value.currentAtBat.pitcherAction;
-  });
-
   const displayGameState = computed(() => {
     const auth = useAuthStore();
 
@@ -802,29 +764,6 @@ async function resetRolls(gameId) {
         inning: 1, isTopInning: true, outs: 0, homeScore: 0, awayScore: 0, bases: {},
         isBetweenHalfInningsAway: false, isBetweenHalfInningsHome: false
       };
-    }
-
-    // Condition: Stale Throw Result (e.g., Tag Up followed by Steal).
-    // If there is a `throwRollResult` present, but the `currentAtBat` is fresh (Next Batter),
-    // it means the throw result belongs to the *previous* batter's turn (e.g., Tag Up).
-    // The server state has already advanced (e.g., Runner is on 3rd after a subsequent steal),
-    // but the user is still viewing the throw animation. We must force a rollback
-    // to the state *before* the Tag Up result was finalized.
-    if (isStaleThrowResult.value && gameState.value.lastCompletedAtBat) {
-        const src = gameState.value.lastCompletedAtBat;
-        // basesBeforePlay is the state before the Tag Up result (e.g. Runner on 1st).
-        // If we used `src.bases`, we'd see the result (Runner on 2nd).
-        // If we used `gameState.bases`, we'd see the future state (Runner on 3rd).
-        return {
-            ...gameState.value,
-            bases: src.basesBeforePlay,
-            outs: src.outsBeforePlay,
-            homeScore: src.homeScoreBeforePlay,
-            awayScore: src.awayScoreBeforePlay,
-            // Keep the current inning/topInning unless we need to roll that back too?
-            // Usually Tag Ups don't cross innings unless it's the 3rd out.
-            // If it was the 3rd out, `isEffectivelyBetweenHalfInnings` handles the inning display.
-        };
     }
 
     // If the steal result is visible, we calculate the outcome of the steal

@@ -188,7 +188,7 @@ h1 {
 }
 
 .roster-table td {
-    padding: 0.25rem;
+    padding: 0.25rem 0.5rem;
     border-bottom: 1px solid #dee2e6;
 }
 
