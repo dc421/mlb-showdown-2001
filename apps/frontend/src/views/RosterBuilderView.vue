@@ -19,6 +19,8 @@ const roster = ref({
   bench: [],
 });
 
+const draftState = ref(null);
+
 // --- COMPUTED PROPERTIES ---
 const filteredPointSets = computed(() => {
   const allowedNames = ["Original Pts", "Upcoming Season", "8/4/25 Season"];
@@ -54,6 +56,15 @@ const starterPlayerIds = computed(() => {
 const availablePlayers = computed(() => {
   return authStore.allPlayers
     .filter(p => !allPlayersOnRoster.value.some(rp => rp.card_id === p.card_id))
+    .map(p => {
+        // Mark unavailable players if in draft mode
+        if (draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
+            if (draftState.value.takenPlayerIds.includes(p.card_id)) {
+                return { ...p, isUnavailable: true };
+            }
+        }
+        return p;
+    })
     .filter(p => {
       // 1. Filter by Search Query
       if (searchQuery.value) {
@@ -191,10 +202,8 @@ function removePlayer(playerToRemove) {
 
 
 
-async function saveRoster() {
-  // Build the detailed list of cards with their assignments
+function buildRosterPayload() {
   const cardsToSave = [];
-  
   // Lineup Players
   for (const pos in roster.value.lineup) {
     if (roster.value.lineup[pos]) {
@@ -221,11 +230,32 @@ async function saveRoster() {
       assignment: 'BENCH'
     });
   });
+  return { cards: cardsToSave };
+}
 
-  const rosterData = {
-    cards: cardsToSave
-  };
+async function saveRoster() {
+  const rosterData = buildRosterPayload();
   await authStore.saveRoster(rosterData);
+}
+
+async function submitDraftTurn() {
+    if (!confirm("Are you sure you want to finalize your roster and end your turn?")) return;
+    const rosterData = buildRosterPayload();
+    try {
+        const response = await fetch(`${authStore.API_URL}/api/draft/submit-turn`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authStore.token}` },
+            body: JSON.stringify(rosterData)
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            alert(data.message);
+        } else {
+            router.push('/draft');
+        }
+    } catch (error) {
+        console.error("Draft submission error:", error);
+    }
 }
 
 function clearRoster() {
@@ -272,6 +302,21 @@ watch(() => authStore.selectedPointSetId, async (newId, oldId) => {
 
 onMounted(async () => {
   await authStore.fetchPointSets();
+
+  // Check Draft State
+  try {
+      const resp = await fetch(`${authStore.API_URL}/api/draft/state`, { headers: { 'Authorization': `Bearer ${authStore.token}` }});
+      if (resp.ok) {
+          draftState.value = await resp.json();
+          // If draft is active, force Upcoming Season
+          if (draftState.value.is_active) {
+              const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
+              if (upcoming) {
+                  authStore.selectedPointSetId = upcoming.point_set_id;
+              }
+          }
+      }
+  } catch (e) { console.error(e); }
 
   if (authStore.selectedPointSetId) {
     await authStore.fetchAllPlayers(authStore.selectedPointSetId);
@@ -344,8 +389,9 @@ onMounted(async () => {
           v-for="player in availablePlayers" 
           :key="player.card_id"
           class="player-item"
-          draggable="true"
-          @dragstart="onDragStart($event, player, 'available')">
+          :class="{ 'unavailable': player.isUnavailable }"
+          :draggable="!player.isUnavailable"
+          @dragstart="!player.isUnavailable && onDragStart($event, player, 'available')">
           
           <div class="player-info">
             <span class="player-name">{{ player.displayName }} ({{ player.displayPosition }})</span>
@@ -355,8 +401,9 @@ onMounted(async () => {
           </div>
           
           <div class="player-actions">
-            <span>{{ player.points }} pts</span>
-            <button @click.stop="addPlayer(player)" class="add-btn">+</button>
+            <span v-if="player.isUnavailable" class="owned-label">Owned</span>
+            <span v-else>{{ player.points }} pts</span>
+            <button v-if="!player.isUnavailable" @click.stop="addPlayer(player)" class="add-btn">+</button>
           </div>
         </div>
       </div>
@@ -368,7 +415,12 @@ onMounted(async () => {
                 <span>Players: {{ playerCount }} / 20</span>
                 <span :class="{ 'over-limit': totalPoints > 5000 }">Points: {{ totalPoints }} / 5000</span>
             </div>
-            <button @click="saveRoster">Save Roster</button>
+            <button v-if="draftState && draftState.is_active && (draftState.current_round === 4 || draftState.current_round === 5) && authStore.user.team.team_id === draftState.active_team_id"
+                    @click="submitDraftTurn"
+                    class="draft-submit-btn">
+                Finalize Draft Turn
+            </button>
+            <button v-else @click="saveRoster">Save Roster</button>
         </div>
         <div class="roster-grid">
             <div class="lineup-panel">
@@ -439,4 +491,6 @@ onMounted(async () => {
 .over-limit { color: #dc3545; }
 .drop-zone:hover { border-color: #007bff; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+.unavailable { opacity: 0.5; cursor: not-allowed; background-color: #eee; }
+.owned-label { font-size: 0.8em; color: #dc3545; font-weight: bold; margin-right: 0.5rem; }
 </style>

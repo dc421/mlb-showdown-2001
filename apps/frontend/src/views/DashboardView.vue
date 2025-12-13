@@ -106,7 +106,10 @@ onUnmounted(() => {
       <div class="team-info">
         <h1>{{ myTeamDisplayName }}</h1>
         <p>Owner: {{ authStore.user.owner }}</p>
-        <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
+        <div class="header-buttons">
+            <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
+            <RouterLink to="/draft" class="roster-btn draft-link">Draft Room</RouterLink>
+        </div>
       </div>
       <div class="accolades">
           <div v-if="teamAccolades.spaceships.length > 0" class="accolade-row">

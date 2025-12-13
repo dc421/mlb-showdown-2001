@@ -10,6 +10,7 @@ import RegisterView from '../views/RegisterView.vue';
 import GameSetupView from '../views/GameSetupView.vue';
 import DevToolView from '../views/DevToolView.vue' // <-- ADD THIS
 import LeagueView from '../views/LeagueView.vue'
+import DraftView from '../views/DraftView.vue'
 import OfficialRulesView from '../views/OfficialRulesView.vue'
 
 const router = createRouter({
@@ -41,6 +42,12 @@ const router = createRouter({
       path: '/league',
       name: 'league',
       component: LeagueView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/draft',
+      name: 'draft',
+      component: DraftView,
       meta: { requiresAuth: true }
     },
     // ADD THIS NEW DYNAMIC ROUTE
