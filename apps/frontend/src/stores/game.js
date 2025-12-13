@@ -562,6 +562,31 @@ async function resetRolls(gameId) {
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
+    // --- FIX FOR TAG UP SPOILERS ---
+    // Calculate "Display Defensive Player" dynamically because server state (amIDefensivePlayer)
+    // might be flipped if the game has already advanced to the next half-inning.
+    const isDisplayDefensive = displayGameState.value && myTeam.value ?
+        ((displayGameState.value.isTopInning && myTeam.value === 'home') ||
+         (!displayGameState.value.isTopInning && myTeam.value === 'away')) :
+        amIDefensivePlayer.value;
+
+    // If the defensive player is facing a Tag Up decision, and they are NOT ready for the next play
+    // (indicating they haven't seen the result yet), we must hide any events that occurred AFTER the Tag Up.
+    // This prevents the game log from showing "SAFE at 2nd" or a subsequent Steal result while the user
+    // is still deciding on the throw.
+    if (isDisplayDefensive && gameState.value?.currentPlay?.type === 'TAG_UP' && !amIReadyForNext.value && opponentReadyForNext.value) {
+        // Stop including events if we hit a baserunning result or inning change
+        const filteredEvents = [];
+        for (const event of gameEvents.value) {
+            if (event.log_message.includes('tags up') || event.log_message.includes('Steal attempt') || event.log_message.includes('inning-change-message')) {
+                break;
+            }
+            filteredEvents.push(event);
+        }
+        return filteredEvents;
+    }
+
+
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
 
@@ -703,6 +728,15 @@ async function resetRolls(gameId) {
     // This allows the "Stealing..." UI to persist instead of jumping to the "3 Outs" display.
     if (gameState.value.pendingStealAttempt) {
       return false;
+    }
+
+    // --- FIX FOR SKIPPED STEAL ---
+    // If the opponent has advanced the inning, but we are still waiting to resolve (or see) a steal
+    // that happened (e.g., resulted in the 3rd out), we are NOT between innings yet.
+    // We check this by seeing if the 'lastStealResult' is recent and hasn't been 'cleared' by our readiness.
+    // If we are NOT ready, and the opponent IS ready, and there was a steal...
+    if (!amIReadyForNext.value && opponentReadyForNext.value && gameState.value.lastStealResult && !isStealResultVisible.value) {
+        return false;
     }
 
     return hasBetweenInningsFlags || outsHaveReset;
@@ -941,6 +975,42 @@ async function resetRolls(gameId) {
                 if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
             }
         }
+
+        // --- FIX FOR SKIPPED STEAL ---
+        // If we are lagging and the opponent has advanced the inning (meaning currentAtBat is the new inning),
+        // but we are still viewing the last Steal result, we need to ensure the inning/isTopInning
+        // are rolled back so we aren't showing the new inning's context.
+        if (gameState.value.lastStealResult && !isStealResultVisible.value) {
+            // Determine if the *last* inning ended on this steal.
+            // If the server's outs are 0, it means the inning ended.
+            // We should display the *end* of the *previous* inning.
+
+            // We need to check if the outs *were* 0 in the new state (meaning new inning started).
+            if (gameState.value.outs === 0) {
+                 if (gameState.value.isTopInning) {
+                    // Server: Top X. We want Bottom X-1.
+                    return {
+                        ...gameState.value,
+                        outs: outs, // Use rolled back outs (should be 2 or 3 from loop above)
+                        bases: bases,
+                        homeScore: homeScore,
+                        awayScore: awayScore,
+                        inning: Math.max(1, gameState.value.inning - 1),
+                        isTopInning: false
+                    }
+                } else {
+                    // Server: Bottom X. We want Top X.
+                    return {
+                        ...gameState.value,
+                        outs: outs,
+                        bases: bases,
+                        homeScore: homeScore,
+                        awayScore: awayScore,
+                        isTopInning: true
+                    }
+                }
+            }
+        }
     }
 
     // If the game is between innings and we're awaiting a pitcher selection,
@@ -970,28 +1040,71 @@ async function resetRolls(gameId) {
     };
   });
 
-  return { game, series, gameState, nextGameId, displayGameState, gameEvents, batter, pitcher, lineups, rosters, setupState, teams,
-    fetchGame, declareHomeTeam,setGameState,loadScenario,initiateSteal,resolveSteal,submitPitch, submitSwing, fetchGameSetup, submitRoll, submitGameSetup,submitTagUp,
-    isOutcomeHidden, setOutcomeHidden, gameEventsToDisplay, isBetweenHalfInnings, displayOuts,
-    isSwingResultVisible, setIsSwingResultVisible,
-    isStealResultVisible, setIsStealResultVisible,
-    submitBaserunningDecisions,submitAction,nextHitter,resolveDefensiveThrow,submitSubstitution, advanceRunners,setDefense,submitInfieldInDecision,resetRolls,resolveDoublePlay,
-    updateGameData,
-    resetGameState,
+
+  return {
+    game,
+    series,
+    gameState,
+    gameEvents,
+    batter,
+    pitcher,
+    lineups,
+    rosters,
+    teams,
+    setupState,
+    nextLineupIsSet,
+    nextGameId,
+    playerSelectedForSwap,
+    isOutcomeHidden,
+    isSwingResultVisible,
+    isStealResultVisible,
+    gameEventsToDisplay,
     myTeam,
     pitcherTeam,
+    amIDefensivePlayer,
     opponentReadyForNext,
     amIReadyForNext,
+    isBetweenHalfInnings,
     isEffectivelyBetweenHalfInnings,
-    playerSelectedForSwap,
-    swapPlayerPositions,
-    amIDefensivePlayer,
+    displayOuts,
+    displayGameState,
     snapshots,
+    // Actions
+    fetchGame,
+    submitBaserunningDecisions,
+    submitPitch,
+    submitSwing,
+    submitAction,
+    submitSubstitution,
+    resolveDoublePlay,
+    nextHitter,
+    declareHomeTeam,
+    advanceRunners,
+    submitTagUp,
+    initiateSteal,
+    resolveSteal,
+    submitInfieldInDecision,
+    resetRolls,
+    setOutcomeHidden,
+    setIsSwingResultVisible,
+    setIsStealResultVisible,
+    updateGameData,
+    resetGameState,
+    fetchGameSetup,
+    submitGameSetup,
+    checkLineupForNextGame,
+    submitRoll,
+    swapPlayerPositions,
     fetchSnapshots,
     createSnapshot,
     restoreSnapshot,
     deleteSnapshot,
-    checkLineupForNextGame,
-    nextLineupIsSet,
+    setGameState,
+    loadScenario,
+    resolveDefensiveThrow,
+    setDefense,
   };
-})
+}, {
+  // Persist specific state across reloads if needed
+  persist: false,
+});
