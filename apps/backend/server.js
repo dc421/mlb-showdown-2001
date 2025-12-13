@@ -813,6 +813,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
 // --- API Routes ---
 
 app.use('/api/dev', require('./routes/dev'));
+app.use('/api/draft', require('./routes/draft'));
 
 // USER REGISTRATION (Updated for Teams)
 app.post('/api/register', async (req, res) => {
