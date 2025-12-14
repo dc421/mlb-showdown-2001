@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { socket } from '@/services/socket';
@@ -18,6 +18,9 @@ const availablePlayers = ref([]);
 const loading = ref(true);
 const searchQuery = ref('');
 const filterPosition = ref('ALL');
+const availableSeasons = ref([]);
+const selectedSeason = ref('');
+const isSeasonOver = ref(false);
 
 // --- COMPUTED ---
 const isDraftActive = computed(() => draftState.value.is_active);
@@ -56,14 +59,46 @@ const filteredPlayers = computed(() => {
 });
 
 // --- ACTIONS ---
-async function fetchDraftState() {
-    loading.value = true;
+async function fetchAvailableSeasons() {
     try {
-        const response = await fetch(`${authStore.API_URL}/api/draft/state`, {
+        const response = await fetch(`${authStore.API_URL}/api/draft/seasons`, {
             headers: { 'Authorization': `Bearer ${authStore.token}` }
         });
         if (response.ok) {
-            draftState.value = await response.json();
+            availableSeasons.value = await response.json();
+            // Default to latest if available and not set
+            if (availableSeasons.value.length > 0 && !selectedSeason.value) {
+                // If there is an active draft (handled by fetchDraftState default), it might be the latest.
+                // But generally, the latest season is the first one.
+                // We'll let fetchDraftState handle the default "active/latest" if we pass nothing,
+                // but for the dropdown we should probably select the one returned by state.
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching seasons:", error);
+    }
+}
+
+async function fetchDraftState() {
+    loading.value = true;
+    try {
+        let url = `${authStore.API_URL}/api/draft/state`;
+        if (selectedSeason.value) {
+            url += `?season=${encodeURIComponent(selectedSeason.value)}`;
+        }
+
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${authStore.token}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            draftState.value = data;
+            isSeasonOver.value = data.isSeasonOver;
+
+            // If we have a state and no season selected in dropdown (e.g. initial load), set it
+            if (data.season_name && !selectedSeason.value) {
+                selectedSeason.value = data.season_name;
+            }
         }
     } catch (error) {
         console.error("Error fetching draft state:", error);
@@ -73,7 +108,7 @@ async function fetchDraftState() {
 }
 
 async function startDraft() {
-    if (!confirm("Are you sure you want to start the Offseason Draft? This will remove 5 players from every team.")) return;
+    if (!confirm("Are you sure you want to perform random removals? This will remove 5 players from every team.")) return;
     try {
         const response = await fetch(`${authStore.API_URL}/api/draft/start`, {
             method: 'POST',
@@ -84,6 +119,7 @@ async function startDraft() {
             alert(data.message);
         } else {
             fetchDraftState();
+            fetchAvailableSeasons(); // Refresh seasons list as a new one might be created
         }
     } catch (error) {
         console.error("Error starting draft:", error);
@@ -111,17 +147,8 @@ async function makePick(player) {
 }
 
 async function fetchAvailablePlayers() {
-    // We can reuse the `cards/player` endpoint but filter out taken ones?
-    // Actually, `cards/player` returns ALL players. We need to filter client side or fetch from a new endpoint.
-    // Let's assume we fetch all and authStore.allPlayers is populated.
-    // But we need the "Upcoming Season" points.
-    // Let's rely on authStore having fetched the right set.
     if (authStore.allPlayers.length === 0) {
         // Need to find upcoming season ID.
-        // For now, let's just use what's loaded, assuming the backend switch worked.
-        // Wait, the backend doesn't force the frontend state.
-        // The frontend needs to know to switch.
-        // Let's fetch the point sets and find "Upcoming Season" manually here if needed.
     }
     availablePlayers.value = authStore.allPlayers; // Simple for now
 }
@@ -130,16 +157,23 @@ function goToRosterBuilder() {
     router.push('/roster-builder');
 }
 
+// Watch for season selection change
+watch(selectedSeason, (newVal, oldVal) => {
+    if (newVal !== oldVal) {
+        fetchDraftState();
+    }
+});
+
 onMounted(async () => {
     await authStore.fetchPointSets();
-    // Switch to Upcoming Season if available
     const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
     if (upcoming) {
         authStore.selectedPointSetId = upcoming.point_set_id;
         await authStore.fetchAllPlayers(upcoming.point_set_id);
     }
 
-    fetchDraftState();
+    await fetchAvailableSeasons();
+    await fetchDraftState();
     fetchAvailablePlayers();
 
     socket.on('draft-updated', fetchDraftState);
@@ -153,27 +187,41 @@ onUnmounted(() => {
 
 <template>
     <div class="draft-container">
-        <h1>Offseason Draft</h1>
+        <div class="header-section">
+            <h1>Offseason Draft</h1>
+            <div class="controls">
+                <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select">
+                    <option v-for="season in availableSeasons" :key="season" :value="season">
+                        {{ season }}
+                    </option>
+                </select>
+            </div>
+        </div>
 
         <div v-if="loading" class="loading">Loading...</div>
 
+        <!-- INACTIVE STATE (Season Over check) -->
         <div v-else-if="!isDraftActive" class="inactive-state">
-            <p>The draft is currently inactive.</p>
-            <button @click="startDraft" class="start-btn">Start Offseason Draft</button>
+            <p v-if="isSeasonOver">The season is over. You can now perform random removals to start the draft.</p>
+            <p v-else>The draft is currently inactive. Waiting for the season to end.</p>
+
+            <button v-if="isSeasonOver" @click="startDraft" class="start-btn">Perform Random Removals</button>
 
             <div class="history-section" v-if="draftState.history && draftState.history.length > 0">
-                <h3>Draft History</h3>
-                <ul>
+                <h3>Draft History ({{ draftState.season_name }})</h3>
+                <ul class="history-list">
                     <li v-for="item in draftState.history" :key="item.id">
-                        {{ new Date(item.timestamp).toLocaleString() }}:
-                        <strong>{{ item.team_name || item.team_id }}</strong>
-                        {{ item.action }}
-                        {{ item.player_name }} ({{ item.round }})
+                        <span class="timestamp">{{ new Date(item.timestamp).toLocaleString() }}</span>
+                        <span class="team-name">{{ item.team_name || item.team_id }}</span>
+                        <span class="action" :class="item.action.toLowerCase()">{{ item.action.replace('_', ' ') }}</span>:
+                        <span class="player-name">{{ item.player_name }}</span>
+                        <span class="round-name">({{ item.round }})</span>
                     </li>
                 </ul>
             </div>
         </div>
 
+        <!-- ACTIVE DRAFT STATE -->
         <div v-else class="active-draft">
             <div class="status-bar">
                 <div class="round-info">
@@ -227,7 +275,9 @@ onUnmounted(() => {
 
 <style scoped>
 .draft-container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
-.start-btn { padding: 1rem 2rem; font-size: 1.2rem; background: #28a745; color: white; border: none; cursor: pointer; }
+.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.season-select { padding: 0.5rem; font-size: 1rem; }
+.start-btn { padding: 1rem 2rem; font-size: 1.2rem; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
 .status-bar { display: flex; justify-content: space-between; background: #f0f0f0; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; }
 .my-turn { color: #d9534f; font-weight: bold; }
 .draft-workspace { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
@@ -235,6 +285,14 @@ onUnmounted(() => {
 .player-card-row { display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid #eee; }
 .player-card-row button { background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; }
 .side-history { background: #f9f9f9; padding: 1rem; border-radius: 8px; }
-.side-history ul { padding-left: 1rem; }
+.side-history ul { padding-left: 1rem; list-style: none; }
 .builder-btn { padding: 1rem; font-size: 1.1rem; background: #17a2b8; color: white; border: none; cursor: pointer; }
+.history-list { list-style: none; padding: 0; }
+.history-list li { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+.timestamp { color: #888; font-size: 0.8rem; margin-right: 0.5rem; }
+.team-name { font-weight: bold; margin-right: 0.5rem; }
+.action { font-weight: bold; margin-right: 0.5rem; }
+.action.added { color: green; }
+.action.dropped { color: red; }
+.action.removed_random { color: orange; }
 </style>

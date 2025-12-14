@@ -187,7 +187,7 @@ onUnmounted(() => {
         <p>Owner: {{ authStore.user.owner }}</p>
         <div class="header-buttons">
             <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
-            <RouterLink to="/draft" class="roster-btn draft-link">Draft Room</RouterLink>
+            <!-- REMOVED: Draft Room Link -->
         </div>
       </div>
       <div class="accolades">
