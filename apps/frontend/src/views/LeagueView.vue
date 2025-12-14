@@ -7,6 +7,7 @@ const authStore = useAuthStore();
 const leagueData = ref([]);
 const loading = ref(true);
 const selectedPlayer = ref(null);
+const seasonSummary = ref(null);
 
 async function fetchLeagueData() {
   if (!authStore.selectedPointSetId) {
@@ -22,16 +23,29 @@ async function fetchLeagueData() {
   }
 
   try {
-    const response = await fetch(`${authStore.API_URL}/api/league?point_set_id=${pointSetId}`, {
-       headers: { 'Authorization': `Bearer ${authStore.token}` }
-    });
-    if (response.ok) {
-        leagueData.value = await response.json();
+    const [leagueResponse, summaryResponse] = await Promise.all([
+        fetch(`${authStore.API_URL}/api/league?point_set_id=${pointSetId}`, {
+           headers: { 'Authorization': `Bearer ${authStore.token}` }
+        }),
+        fetch(`${authStore.API_URL}/api/league/season-summary`, {
+           headers: { 'Authorization': `Bearer ${authStore.token}` }
+        })
+    ]);
+
+    if (leagueResponse.ok) {
+        leagueData.value = await leagueResponse.json();
     } else {
         console.error("Failed to fetch league data");
     }
+
+    if (summaryResponse.ok) {
+        seasonSummary.value = await summaryResponse.json();
+    } else {
+        console.error("Failed to fetch season summary");
+    }
+
   } catch (error) {
-      console.error("Error fetching league data:", error);
+      console.error("Error fetching data:", error);
   } finally {
       loading.value = false;
   }
@@ -58,39 +72,87 @@ onMounted(() => {
   <div class="league-container">
     <div v-if="loading" class="loading">Loading league data...</div>
 
-    <div v-else class="teams-list">
-        <div v-for="team in leagueData" :key="team.team_id" class="team-block">
-            <div class="team-header" >
-                <img :src="team.logo_url" :alt="team.name" class="team-logo" />
-                <div class="team-info">
-                    <h2>{{ team.full_display_name }}</h2>
-                    <p>Owner: {{ team.owner }}</p>
-                </div>
-            </div>
+    <div v-else>
+        <!-- Season Summary Section -->
+        <div v-if="seasonSummary && (seasonSummary.standings.length > 0 || seasonSummary.recentResults.length > 0)" class="summary-section">
 
-            <div class="roster-table-container">
-                <table class="roster-table">
+            <div class="summary-column standings-column">
+                <h3>Standings</h3>
+                <table class="summary-table standings-table">
                     <thead>
                         <tr>
-                            <th class="header-pos">Pos</th>
-                            <th class="header-player">Player</th>
-                            <th class="header-points">Points</th>
+                            <th>Team</th>
+                            <th class="text-right">W</th>
+                            <th class="text-right">L</th>
+                            <th class="text-right">Pct</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="player in team.roster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row">
-                            <td class="pos-cell">{{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}</td>
-                            <td class="name-cell">{{ player.displayName || player.name }}</td>
-                            <td class="points-cell">{{ player.points }}</td>
+                        <tr v-for="team in seasonSummary.standings" :key="team.team_id">
+                            <td>{{ team.name }}</td>
+                            <td class="text-right">{{ team.wins }}</td>
+                            <td class="text-right">{{ team.losses }}</td>
+                            <td class="text-right">{{ team.winPctDisplay }}</td>
                         </tr>
                     </tbody>
-                    <tfoot>
-                        <tr class="total-row">
-                            <td colspan="2" class="total-label">Total</td>
-                            <td class="total-points">{{ getTeamTotalPoints(team.roster) }}</td>
-                        </tr>
-                    </tfoot>
                 </table>
+            </div>
+
+            <div class="summary-column results-column">
+                <h3>Recent Series Results</h3>
+                <div class="results-list">
+                    <div v-for="result in seasonSummary.recentResults" :key="result.id" class="result-item">
+                        <template v-if="result.score">
+                            <span class="result-winner">{{ result.winner }}</span> def.
+                            <span class="result-loser">{{ result.loser }}</span>
+                            <span class="result-score">({{ result.score }})</span>
+                        </template>
+                        <template v-else>
+                            <span class="result-matchup">{{ result.winner }} vs. {{ result.loser }}</span>
+                        </template>
+                    </div>
+                    <div v-if="seasonSummary.recentResults.length === 0" class="no-results">
+                        No results yet this season.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="teams-list">
+            <div v-for="team in leagueData" :key="team.team_id" class="team-block">
+                <div class="team-header" >
+                    <img :src="team.logo_url" :alt="team.name" class="team-logo" />
+                    <div class="team-info">
+                        <h2>{{ team.full_display_name }}</h2>
+                        <p>Owner: {{ team.owner }}</p>
+                    </div>
+                </div>
+
+                <div class="roster-table-container">
+                    <table class="roster-table">
+                        <thead>
+                            <tr>
+                                <th class="header-pos">Pos</th>
+                                <th class="header-player">Player</th>
+                                <th class="header-points">Points</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="player in team.roster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row">
+                                <td class="pos-cell">{{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}</td>
+                                <td class="name-cell">{{ player.displayName || player.name }}</td>
+                                <td class="points-cell">{{ player.points }}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td colspan="2" class="total-label">Total</td>
+                                <td class="total-points">{{ getTeamTotalPoints(team.roster) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -123,6 +185,94 @@ h1 {
     color: #666;
 }
 
+/* Summary Section Styles */
+.summary-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    background: #fff; /* Optional: adds a background to distinguish it */
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.summary-column {
+    flex: 1 1 300px; /* Minimum width 300px, grow equally */
+}
+
+.summary-column h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+}
+
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.summary-table th {
+    text-align: left;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+}
+
+.summary-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.text-right {
+    text-align: right !important;
+}
+
+/* Results List Styles */
+.results-list {
+    max-height: 300px; /* Optional: limit height and scroll if very long list */
+    overflow-y: auto;
+}
+
+.result-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f1f1f1;
+    font-size: 0.95rem;
+}
+
+.result-item:last-child {
+    border-bottom: none;
+}
+
+.result-winner {
+    font-weight: 600;
+    color: #28a745; /* Greenish for winner */
+}
+
+.result-loser {
+    font-weight: 600;
+    color: #dc3545; /* Reddish for loser? Or just regular black */
+    color: #333;
+}
+
+.result-score {
+    color: #666;
+    font-weight: bold;
+    margin-left: 0.5rem;
+}
+
+.no-results {
+    color: #888;
+    font-style: italic;
+    padding: 1rem 0;
+}
+
+
+/* Existing Styles */
 .teams-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

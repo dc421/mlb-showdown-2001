@@ -8,10 +8,10 @@ const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
 const bcrypt = require('bcrypt');
-const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
 const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange } = require('./gameLogic');
+const { pool } = require('./db');
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
 
@@ -52,21 +52,8 @@ const io = module.exports.io = new Server(server, {
 });
 const PORT = process.env.PORT || 3001;
 
-const dbConfig = process.env.NODE_ENV === 'production'
-  ? { // For Render/production
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    }
-  : { // For local development
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_DATABASE,
-      password: process.env.DB_PASSWORD,
-      port: process.env.DB_PORT,
-    };
-const pool = module.exports.pool = new Pool(dbConfig);
+// Database connection moved to db.js
+module.exports.pool = pool;
 app.use(express.json());
 app.use('/images', express.static(path.join(__dirname, 'card_images')));
 //app.use('/team_logos', express.static(path.join(__dirname, 'team_logos')));
@@ -814,6 +801,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
 
 app.use('/api/dev', require('./routes/dev'));
 app.use('/api/draft', require('./routes/draft'));
+app.use('/api/league', require('./routes/league'));
 
 // USER REGISTRATION (Updated for Teams)
 app.post('/api/register', async (req, res) => {
