@@ -845,13 +845,13 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  if (isGameOver.value && isSwingResultVisible.value) return false;
+  if (isGameOver.value && (isSwingResultVisible.value || gameStore.displayGameState.outs === 3)) return false;
   const result = amIDisplayDefensivePlayer.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs > 0);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
-  if (isGameOver.value && isSwingResultVisible.value) return false;
+  if (isGameOver.value && (isSwingResultVisible.value || gameStore.displayGameState.outs === 3)) return false;
   return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
 
@@ -1539,7 +1539,7 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value))) {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value)) && gameStore.displayGameState.outs < 3 ) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1575,7 +1575,7 @@ const finalScoreMessage = computed(() => {
 });
 
 const seriesScoreMessage = computed(() => {
-  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult)) {
+  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value)) && gameStore.displayGameState.outs < 3 ) {
     return null;
   }
 
@@ -1733,7 +1733,7 @@ function handleResolveSteal(throwToBase = null) {
 const isStealAttemptInProgress = computed(() => {
     if (shouldDelayStealRoll.value) return false;
     if (shouldShowDoublePlayFirst.value) return false;
-    if (isGameOver.value || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
+    if (isGameOver.value && gameStore.displayGameState.outs < 3 || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
     const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
                                  (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs > 0)) &&
