@@ -4,9 +4,44 @@ const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
 
 // Helper to get the active draft state
-async function getDraftState(client) {
-    const res = await client.query('SELECT * FROM draft_state ORDER BY created_at DESC LIMIT 1');
+async function getDraftState(client, seasonName = null) {
+    let query = 'SELECT * FROM draft_state ORDER BY created_at DESC LIMIT 1';
+    let params = [];
+
+    if (seasonName) {
+        query = 'SELECT * FROM draft_state WHERE season_name = $1 ORDER BY created_at DESC LIMIT 1';
+        params = [seasonName];
+    }
+
+    const res = await client.query(query, params);
     return res.rows[0];
+}
+
+// Helper to check if season is over
+async function checkSeasonOver(client) {
+    try {
+        const spoonRes = await client.query(`
+            SELECT winning_team_id, winning_team_wins
+            FROM series_results
+            WHERE round = 'Wooden Spoon'
+            ORDER BY date DESC LIMIT 1
+        `);
+
+        const shipRes = await client.query(`
+            SELECT winning_team_id, winning_team_wins
+            FROM series_results
+            WHERE round = 'Golden Spaceship'
+            ORDER BY date DESC LIMIT 1
+        `);
+
+        if (spoonRes.rows.length > 0 && shipRes.rows.length > 0) {
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.warn("Check Season Over Error:", e);
+        return false;
+    }
 }
 
 // Helper to determine draft order based on previous season
@@ -41,10 +76,6 @@ async function calculateDraftOrder(client) {
     const spoonW = spoonRes.rows[0].winning_team_id;
     const shipL = shipRes.rows[0].losing_team_id;
     const shipW = shipRes.rows[0].winning_team_id;
-
-    // Determine Season Name (e.g. "Season 2")
-    // We assume the new season is named sequentially or we just use "Upcoming Season" as the key
-    // Actually, let's use the point set name "Upcoming Season" as the target identifier.
 
     // Find Neutral Team
     const participants = [spoonL, spoonW, shipL, shipW];
@@ -129,10 +160,6 @@ async function generateSchedule(client, teamIds) {
         );
         const seriesId = seriesRes.rows[0].id;
 
-        // Create Game 1
-        // Game 1 Home Team is Series Home Team
-        // DH Rule: For now default to TRUE or based on home team pref?
-        // Let's assume standard 'use_dh' = true for now, or fetch global setting.
         const useDh = true;
 
         // We need roster_ids.
@@ -144,10 +171,6 @@ async function generateSchedule(client, teamIds) {
         const homeRosterId = homeRosterRes.rows[0].roster_id;
         const awayRosterId = awayRosterRes.rows[0].roster_id;
 
-        // Get League Designations (AL/NL) from team or user?
-        // We'll just default to AL/NL based on an arbitrary split or random.
-        // Actually, just keep what they had? Or "AL" for everyone.
-        // Let's default to AL for simplicity unless we store it on the team.
         const league = 'AL';
 
         const gameRes = await client.query(
@@ -165,8 +188,22 @@ async function generateSchedule(client, teamIds) {
     }
 }
 
+// GET AVAILABLE SEASONS
+router.get('/seasons', authenticateToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const result = await client.query('SELECT DISTINCT season_name FROM draft_state ORDER BY season_name DESC');
+        res.json(result.rows.map(r => r.season_name));
+    } catch (error) {
+        console.error("Get Draft Seasons Error:", error);
+        res.status(500).json({ message: "Error fetching draft seasons." });
+    } finally {
+        client.release();
+    }
+});
 
-// START DRAFT (Kickoff)
+
+// START DRAFT (Kickoff) - "Perform Random Removals"
 router.post('/start', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
@@ -191,54 +228,40 @@ router.post('/start', authenticateToken, async (req, res) => {
         }
 
         // 3. Switch Point Set to "Upcoming Season"
-        // Find the ID
         const psRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
         if (psRes.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(500).json({ message: "Point set 'Upcoming Season' not found." });
         }
-        // const upcomingPointSetId = psRes.rows[0].point_set_id;
-        // Note: We don't "switch" a global flag in the DB because `auth.js` just looks for it.
-        // But we rely on the Frontend to now default to this ID.
 
         // 4. Random Removal (5 players per team)
         const seasonName = "Season " + new Date().getFullYear(); // Or generate dynamically
 
         for (const teamId of draftOrder) {
-            // Get user_id for the team
             const teamRes = await client.query('SELECT user_id FROM teams WHERE team_id = $1', [teamId]);
             const userId = teamRes.rows[0].user_id;
 
-            // Get Roster
             const rosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
             if (rosterRes.rows.length === 0) continue;
             const rosterId = rosterRes.rows[0].roster_id;
 
-            // Get Cards
             const cardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
             let cards = cardsRes.rows.map(c => c.card_id);
 
-            // Shuffle and Pick 5
             cards.sort(() => 0.5 - Math.random());
             const toRemove = cards.slice(0, 5);
 
-            // Remove from DB and Log
             for (const cardId of toRemove) {
                 await client.query('DELETE FROM roster_cards WHERE roster_id = $1 AND card_id = $2', [rosterId, cardId]);
                 await client.query(
-                    `INSERT INTO draft_history (season_name, round, team_id, player_id, action)
+                    `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
                      VALUES ($1, 'Removal', $2, $3, 'REMOVED_RANDOM')`,
                     [seasonName, teamId, cardId]
                 );
             }
         }
 
-        // 5. Initialize Draft State (Start at Round 2 (Pick 1) immediately after removal? Or call Removal Round 1?)
-        // Plan said: Round 1 & 2 are "Add".
-        // Let's call Removal "Round 1" in the DB state just for tracking, but effectively we jump to Round 2 (The first draft round).
-        // Actually, let's map DB `current_round` to:
-        // 1=Removal (Done), 2=Draft Round 1, 3=Draft Round 2, 4=Add/Drop 1, 5=Add/Drop 2.
-
+        // 5. Initialize Draft State
         const firstTeamId = draftOrder[0];
         await client.query(
             `INSERT INTO draft_state (season_name, current_round, current_pick_number, active_team_id, draft_order, is_active)
@@ -248,8 +271,8 @@ router.post('/start', authenticateToken, async (req, res) => {
 
         await client.query('COMMIT');
 
-        io.emit('draft-updated'); // Notify clients
-        res.json({ message: "Draft started successfully!" });
+        io.emit('draft-updated');
+        res.json({ message: "Random removals performed and draft started!" });
 
     } catch (error) {
         await client.query('ROLLBACK');
@@ -264,23 +287,27 @@ router.post('/start', authenticateToken, async (req, res) => {
 router.get('/state', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
-        const state = await getDraftState(client);
-        if (!state) return res.json({ isActive: false });
+        const seasonName = req.query.season; // Optional query param
+        const state = await getDraftState(client, seasonName);
+        const seasonOver = await checkSeasonOver(client);
+
+        // If requesting specific season and it doesn't exist, return empty
+        // If requesting latest (no param) and no state exists, return default
+        if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver });
 
         // Fetch History
+        // Use card_id join
         const historyRes = await client.query(
-            'SELECT dh.*, cp.name as player_name, t.city, t.name as team_name FROM draft_history dh JOIN cards_player cp ON dh.player_id = cp.card_id JOIN teams t ON dh.team_id = t.team_id WHERE dh.season_name = $1 ORDER BY dh.timestamp DESC',
+            'SELECT dh.*, cp.name as player_name, t.city, t.name as team_name FROM draft_history dh LEFT JOIN cards_player cp ON dh.card_id = cp.card_id LEFT JOIN teams t ON dh.team_id = t.team_id WHERE dh.season_name = $1 ORDER BY dh.timestamp DESC',
             [state.season_name]
         );
 
-        // Fetch Current Active Team Info
         let activeTeam = null;
         if (state.active_team_id) {
             const tRes = await client.query('SELECT * FROM teams WHERE team_id = $1', [state.active_team_id]);
             activeTeam = tRes.rows[0];
         }
 
-        // Fetch Taken Players (Players on any roster)
         const takenRes = await client.query('SELECT card_id FROM roster_cards');
         const takenPlayerIds = takenRes.rows.map(r => r.card_id);
 
@@ -288,7 +315,8 @@ router.get('/state', authenticateToken, async (req, res) => {
             ...state,
             history: historyRes.rows,
             activeTeam,
-            takenPlayerIds
+            takenPlayerIds,
+            isSeasonOver: seasonOver
         });
 
     } catch (error) {
@@ -307,14 +335,13 @@ router.post('/pick', authenticateToken, async (req, res) => {
 
     try {
         await client.query('BEGIN');
-        const state = await getDraftState(client);
+        const state = await getDraftState(client); // Picks always apply to CURRENT active draft
 
         if (!state || !state.is_active) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: "No active draft." });
         }
 
-        // Validate Turn
         const teamRes = await client.query('SELECT team_id FROM teams WHERE user_id = $1', [userId]);
         if (teamRes.rows.length === 0 || teamRes.rows[0].team_id !== state.active_team_id) {
             await client.query('ROLLBACK');
@@ -322,25 +349,20 @@ router.post('/pick', authenticateToken, async (req, res) => {
         }
         const teamId = state.active_team_id;
 
-        // Validate Round (Must be 2 or 3)
         if (state.current_round !== 2 && state.current_round !== 3) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: "Invalid round for single pick." });
         }
 
-        // Check if player is already owned
         const ownedCheck = await client.query('SELECT 1 FROM roster_cards WHERE card_id = $1', [playerId]);
         if (ownedCheck.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: "Player is already on a roster." });
         }
 
-        // Add Player to Roster
         const rosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
         const rosterId = rosterRes.rows[0].roster_id;
 
-        // Determine Assignment (Bench/PITCHING_STAFF/Lineup is irrelevant for now, just put them on BENCH or PITCHING_STAFF based on position)
-        // Actually, just checking card type
         const cardRes = await client.query('SELECT * FROM cards_player WHERE card_id = $1', [playerId]);
         const card = cardRes.rows[0];
         const assignment = card.control !== null ? 'PITCHING_STAFF' : 'BENCH';
@@ -352,15 +374,13 @@ router.post('/pick', authenticateToken, async (req, res) => {
             [rosterId, playerId, isStarter, assignment]
         );
 
-        // Log History
         const roundName = state.current_round === 2 ? "Round 1" : "Round 2";
         await client.query(
-            `INSERT INTO draft_history (season_name, round, team_id, player_id, action)
+            `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
              VALUES ($1, $2, $3, $4, 'ADDED')`,
             [state.season_name, roundName, teamId, playerId]
         );
 
-        // Advance State
         const newState = await advanceDraftState(client, state);
 
         await client.query('COMMIT');
@@ -378,7 +398,7 @@ router.post('/pick', authenticateToken, async (req, res) => {
 
 // SUBMIT ROSTER (Rounds 4 & 5 - The "Add/Drop" Rounds)
 router.post('/submit-turn', authenticateToken, async (req, res) => {
-    const { cards } = req.body; // Expecting full roster cards list like my-roster endpoint
+    const { cards } = req.body;
     const userId = req.user.userId;
     const client = await pool.connect();
 
@@ -391,7 +411,6 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: "No active draft." });
         }
 
-        // Validate Turn
         const teamRes = await client.query('SELECT team_id FROM teams WHERE user_id = $1', [userId]);
         if (teamRes.rows.length === 0 || teamRes.rows[0].team_id !== state.active_team_id) {
             await client.query('ROLLBACK');
@@ -399,14 +418,11 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         }
         const teamId = state.active_team_id;
 
-        // Validate Round (Must be 4 or 5)
         if (state.current_round !== 4 && state.current_round !== 5) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: "Invalid round for roster submission." });
         }
 
-        // --- STRICT VALIDATION (20 Players, 5000 Points) ---
-        // 1. Fetch "Upcoming Season" Points
         const psRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
         const pointSetId = psRes.rows[0].point_set_id;
 
@@ -430,7 +446,6 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         for (const card of cards) {
             const info = cardMap[card.card_id];
             let pts = info.points || 0;
-            // Apply Bench logic
             if (card.assignment === 'BENCH' && info.control === null) {
                 pts = Math.round(pts / 5);
             }
@@ -442,11 +457,9 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: `Roster exceeds 5000 points. Total: ${totalPoints}` });
         }
 
-        // --- UPDATE ROSTER & CALCULATE DIFF ---
         const rosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
         const rosterId = rosterRes.rows[0].roster_id;
 
-        // Get Old Roster
         const oldCardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
         const oldCardIds = oldCardsRes.rows.map(c => c.card_id);
         const newCardIds = cards.map(c => c.card_id);
@@ -454,7 +467,6 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         const added = newCardIds.filter(id => !oldCardIds.includes(id));
         const dropped = oldCardIds.filter(id => !newCardIds.includes(id));
 
-        // Verify Added Players are Available
         if (added.length > 0) {
             const availabilityCheck = await client.query(
                 `SELECT card_id FROM roster_cards WHERE card_id = ANY($1::int[]) AND roster_id != $2`,
@@ -466,10 +478,8 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             }
         }
 
-        // Delete Old Roster
         await client.query('DELETE FROM roster_cards WHERE roster_id = $1', [rosterId]);
 
-        // Insert New Roster
         for (const card of cards) {
             await client.query(
                 'INSERT INTO roster_cards (roster_id, card_id, is_starter, assignment) VALUES ($1, $2, $3, $4)',
@@ -477,24 +487,22 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             );
         }
 
-        // Log Changes
         const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
         for (const id of added) {
             await client.query(
-                `INSERT INTO draft_history (season_name, round, team_id, player_id, action)
+                `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
                  VALUES ($1, $2, $3, $4, 'ADDED')`,
                 [state.season_name, roundName, teamId, id]
             );
         }
         for (const id of dropped) {
             await client.query(
-                `INSERT INTO draft_history (season_name, round, team_id, player_id, action)
+                `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
                  VALUES ($1, $2, $3, $4, 'DROPPED')`,
                 [state.season_name, roundName, teamId, id]
             );
         }
 
-        // Advance State
         const newState = await advanceDraftState(client, state);
 
         await client.query('COMMIT');

@@ -21,6 +21,7 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
       </RouterLink>
       <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
       <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text">League</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text">Draft</RouterLink>
     </div>
     
     <div class="nav-center">
