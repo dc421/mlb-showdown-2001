@@ -213,7 +213,7 @@ onUnmounted(() => {
                     <li v-for="item in draftState.history" :key="item.id">
                         <span class="timestamp">{{ new Date(item.timestamp).toLocaleString() }}</span>
                         <span class="team-name">{{ item.team_name || item.team_id }}</span>
-                        <span class="action" :class="item.action.toLowerCase()">{{ item.action.replace('_', ' ') }}</span>:
+                        <span class="action" :class="(item.action || '').toLowerCase()">{{ (item.action || 'UNKNOWN').replace('_', ' ') }}</span>:
                         <span class="player-name">{{ item.player_name }}</span>
                         <span class="round-name">({{ item.round }})</span>
                     </li>

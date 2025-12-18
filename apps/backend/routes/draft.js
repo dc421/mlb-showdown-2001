@@ -21,14 +21,14 @@ async function getDraftState(client, seasonName = null) {
 async function checkSeasonOver(client) {
     try {
         const spoonRes = await client.query(`
-            SELECT winning_team_id, winning_team_wins
+            SELECT winning_team_id
             FROM series_results
             WHERE round = 'Wooden Spoon'
             ORDER BY date DESC LIMIT 1
         `);
 
         const shipRes = await client.query(`
-            SELECT winning_team_id, winning_team_wins
+            SELECT winning_team_id
             FROM series_results
             WHERE round = 'Golden Spaceship'
             ORDER BY date DESC LIMIT 1
