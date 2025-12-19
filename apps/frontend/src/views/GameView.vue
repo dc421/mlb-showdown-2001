@@ -1982,7 +1982,11 @@ const swingResultClasses = computed(() => {
 
 // in GameView.vue
 onMounted(async () => {
+  console.log('Mounting GameView for gameId:', gameId);
   await gameStore.fetchGame(gameId);
+  console.log('Game fetched. Game state:', gameStore.gameState);
+  console.log('Is Game Over?', isGameOver.value);
+  console.log('Lineups:', gameStore.lineups);
 
   // Initialize isSwingResultVisible from localStorage on component mount
   const storedResultSeen = JSON.parse(localStorage.getItem(seenResultStorageKey)) || false;

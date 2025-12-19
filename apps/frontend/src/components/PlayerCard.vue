@@ -34,7 +34,7 @@ const imageUrl = computed(() => {
   if (props.player.image_url.startsWith('http')) return props.player.image_url;
 
   // 1. Try the environment variable first
-  const envUrl = import.meta.env.VITE_API_URL;
+  const envUrl = import.meta.env.VITE_API_URL || '';
   
   // 2. Define your Render URL explicitly as a backup
   // (Replace this string with your actual Render URL if different)

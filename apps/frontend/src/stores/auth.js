@@ -12,7 +12,7 @@ const myRoster = ref(null);
   const myGames = ref([]);
   const openGames = ref([]);
   const activeRosterCards = ref([]);
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_API_URL || '';
   const isAuthenticated = computed(() => !!token.value);
     const availableTeams = ref([]); // New state for registration
 
