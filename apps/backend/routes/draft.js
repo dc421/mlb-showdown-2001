@@ -20,19 +20,30 @@ async function getDraftState(client, seasonName = null) {
 // Helper to check if season is over
 async function checkSeasonOver(client) {
     try {
-        const spoonRes = await client.query(`
-            SELECT winning_team_id
+        const latestRes = await client.query(`
+            SELECT season_name
             FROM series_results
-            WHERE round = 'Wooden Spoon'
-            ORDER BY date DESC LIMIT 1
+            ORDER BY date DESC, created_at DESC
+            LIMIT 1
         `);
 
-        const shipRes = await client.query(`
-            SELECT winning_team_id
+        if (latestRes.rows.length === 0) return false;
+
+        const latestSeason = latestRes.rows[0].season_name;
+
+        const spoonRes = await client.query(`
+            SELECT 1
             FROM series_results
-            WHERE round = 'Golden Spaceship'
-            ORDER BY date DESC LIMIT 1
-        `);
+            WHERE round = 'Wooden Spoon' AND season_name = $1
+            LIMIT 1
+        `, [latestSeason]);
+
+        const shipRes = await client.query(`
+            SELECT 1
+            FROM series_results
+            WHERE round = 'Golden Spaceship' AND season_name = $1
+            LIMIT 1
+        `, [latestSeason]);
 
         if (spoonRes.rows.length > 0 && shipRes.rows.length > 0) {
             return true;

@@ -207,9 +207,19 @@ onUnmounted(() => {
 
             <button v-if="isSeasonOver" @click="startDraft" class="start-btn">Perform Random Removals</button>
 
-            <div class="history-section" v-if="draftState.history && draftState.history.length > 0">
-                <h3>Draft History ({{ draftState.season_name }})</h3>
-                <ul class="history-list">
+            <div class="history-section">
+                <div class="history-header">
+                    <h3>Draft History ({{ draftState.season_name }})</h3>
+                    <div class="history-controls">
+                         <label>View Draft:</label>
+                        <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select-inline">
+                            <option v-for="season in availableSeasons" :key="season" :value="season">
+                                {{ season }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+                <ul class="history-list" v-if="draftState.history && draftState.history.length > 0">
                     <li v-for="item in draftState.history" :key="item.id">
                         <span class="timestamp">{{ new Date(item.timestamp).toLocaleString() }}</span>
                         <span class="team-name">{{ item.team_name || item.team_id }}</span>
@@ -289,6 +299,9 @@ onUnmounted(() => {
 .builder-btn { padding: 1rem; font-size: 1.1rem; background: #17a2b8; color: white; border: none; cursor: pointer; }
 .history-list { list-style: none; padding: 0; }
 .history-list li { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.history-controls { display: flex; align-items: center; gap: 0.5rem; }
+.season-select-inline { padding: 0.25rem; font-size: 0.9rem; }
 .timestamp { color: #888; font-size: 0.8rem; margin-right: 0.5rem; }
 .team-name { font-weight: bold; margin-right: 0.5rem; }
 .action { font-weight: bold; margin-right: 0.5rem; }
