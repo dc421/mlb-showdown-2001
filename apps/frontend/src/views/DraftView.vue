@@ -187,31 +187,18 @@ onUnmounted(() => {
 
 <template>
     <div class="draft-container">
-        <div class="header-section">
-            <h1>Offseason Draft</h1>
-            <div class="controls">
-                <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select">
-                    <option v-for="season in availableSeasons" :key="season" :value="season">
-                        {{ season }}
-                    </option>
-                </select>
-            </div>
-        </div>
-
         <div v-if="loading" class="loading">Loading...</div>
 
         <!-- INACTIVE STATE (Season Over check) -->
         <div v-else-if="!isDraftActive" class="inactive-state">
             <p v-if="isSeasonOver">The season is over. You can now perform random removals to start the draft.</p>
-            <p v-else>The draft is currently inactive. Waiting for the season to end.</p>
-
+            
             <button v-if="isSeasonOver" @click="startDraft" class="start-btn">Perform Random Removals</button>
 
             <div class="history-section">
                 <div class="history-header">
-                    <h3>Draft History ({{ draftState.season_name }})</h3>
+                    <h2>Draft History</h2>
                     <div class="history-controls">
-                         <label>View Draft:</label>
                         <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select-inline">
                             <option v-for="season in availableSeasons" :key="season" :value="season">
                                 {{ season }}
