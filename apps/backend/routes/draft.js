@@ -203,8 +203,18 @@ async function generateSchedule(client, teamIds) {
 router.get('/seasons', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
-        const result = await client.query('SELECT DISTINCT season_name FROM draft_state ORDER BY season_name DESC');
-        res.json(result.rows.map(r => r.season_name));
+        const result = await client.query(`
+            SELECT DISTINCT season_name FROM draft_state
+            UNION
+            SELECT DISTINCT season_name FROM draft_history
+        `);
+        // Sort using Natural Sort in JS
+        const seasons = result.rows.map(r => r.season_name);
+        seasons.sort((a, b) => {
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        // Return descending (latest first)
+        res.json(seasons.reverse());
     } catch (error) {
         console.error("Get Draft Seasons Error:", error);
         res.status(500).json({ message: "Error fetching draft seasons." });
@@ -299,17 +309,48 @@ router.get('/state', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
         const seasonName = req.query.season; // Optional query param
-        const state = await getDraftState(client, seasonName);
+        let state = await getDraftState(client, seasonName);
         const seasonOver = await checkSeasonOver(client);
 
-        // If requesting specific season and it doesn't exist, return empty
-        // If requesting latest (no param) and no state exists, return default
+        // Fallback to finding state from history if not found in draft_state
+        if (!state) {
+            let targetSeason = seasonName;
+
+            // If no specific season requested, find the latest from history via natural sort
+            if (!targetSeason) {
+                const historySeasonsRes = await client.query(
+                    'SELECT DISTINCT season_name FROM draft_history'
+                );
+                const seasons = historySeasonsRes.rows.map(r => r.season_name);
+                if (seasons.length > 0) {
+                    seasons.sort((a, b) => {
+                        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                    });
+                    // Latest is last in ascending sort
+                    targetSeason = seasons[seasons.length - 1];
+                }
+            }
+
+            // If we have a target season, construct a read-only state
+            if (targetSeason) {
+                state = {
+                    season_name: targetSeason,
+                    is_active: false,
+                    current_round: 0,
+                    current_pick_number: 1,
+                    active_team_id: null,
+                    draft_order: [],
+                };
+            }
+        }
+
+        // If still no state (no history, no active draft), return empty
         if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver });
 
         // Fetch History
-        // Use card_id join
+        // Changed ORDER BY from timestamp (which doesn't exist) to created_at
         const historyRes = await client.query(
-            'SELECT dh.*, cp.name as player_name, t.city, t.name as team_name FROM draft_history dh LEFT JOIN cards_player cp ON dh.card_id = cp.card_id LEFT JOIN teams t ON dh.team_id = t.team_id WHERE dh.season_name = $1 ORDER BY dh.timestamp DESC',
+            'SELECT dh.*, cp.name as player_name, t.city, t.name as team_name FROM draft_history dh LEFT JOIN cards_player cp ON dh.card_id = cp.card_id LEFT JOIN teams t ON dh.team_id = t.team_id WHERE dh.season_name = $1 ORDER BY dh.created_at DESC',
             [state.season_name]
         );
 
