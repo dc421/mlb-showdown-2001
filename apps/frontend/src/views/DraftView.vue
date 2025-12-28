@@ -12,6 +12,7 @@ const draftState = ref({
     current_pick_number: 1,
     active_team_id: null,
     history: [],
+    randomRemovals: [],
     takenPlayerIds: []
 });
 const availablePlayers = ref([]);
@@ -56,6 +57,53 @@ const filteredPlayers = computed(() => {
         if (draftState.value.takenPlayerIds.includes(p.card_id)) return false;
         return true;
     }).sort((a, b) => (b.points || 0) - (a.points || 0));
+});
+
+// History List (Draft Picks) - excluding removals
+const draftPicks = computed(() => {
+    if (!draftState.value.history) return [];
+    return draftState.value.history.filter(item => {
+        const action = (item.action || '').toUpperCase();
+        return action !== 'REMOVED_RANDOM';
+    });
+});
+
+// Random Removals - Grouped by Team
+const randomRemovalsByTeam = computed(() => {
+    const removals = [];
+
+    // 1. From 'randomRemovals' (Historical table)
+    if (draftState.value.randomRemovals) {
+        removals.push(...draftState.value.randomRemovals);
+    }
+
+    // 2. From 'history' (Active/Recent drafts where action is REMOVED_RANDOM)
+    // We only add these if they aren't duplicates (though simple concatenation is likely fine for display)
+    // Actually, for active draft, 'randomRemovals' from API might be empty, so we rely on history.
+    if (draftState.value.history) {
+        const historyRemovals = draftState.value.history.filter(item => (item.action || '').toUpperCase() === 'REMOVED_RANDOM');
+        // Map history item to structure { player_name, team_name }
+        historyRemovals.forEach(h => {
+             // Avoid duplicates if both sources present same data
+             // We can check unique card_id/team_id combo if needed, but for now simple check:
+             const exists = removals.some(r => r.player_name === h.player_name && r.team_name === h.team_name);
+             if (!exists) {
+                 removals.push({
+                     player_name: h.player_name,
+                     team_name: h.team_name
+                 });
+             }
+        });
+    }
+
+    // Group by Team
+    const groups = {};
+    removals.forEach(r => {
+        if (!groups[r.team_name]) groups[r.team_name] = [];
+        groups[r.team_name].push(r);
+    });
+
+    return groups;
 });
 
 // --- ACTIONS ---
@@ -206,15 +254,45 @@ onUnmounted(() => {
                         </select>
                     </div>
                 </div>
-                <ul class="history-list" v-if="draftState.history && draftState.history.length > 0">
-                    <li v-for="item in draftState.history" :key="item.id">
-                        <span class="timestamp">{{ new Date(item.timestamp).toLocaleString() }}</span>
-                        <span class="team-name">{{ item.team_name || item.team_id }}</span>
-                        <span class="action" :class="(item.action || '').toLowerCase()">{{ (item.action || 'UNKNOWN').replace('_', ' ') }}</span>:
-                        <span class="player-name">{{ item.player_name }}</span>
-                        <span class="round-name">({{ item.round }})</span>
-                    </li>
-                </ul>
+
+                <!-- DRAFT TABLE -->
+                <div v-if="draftPicks.length > 0" class="draft-table-container">
+                    <table class="draft-table">
+                        <thead>
+                            <tr>
+                                <th>Round Name</th>
+                                <th>Pick #</th>
+                                <th>Player Name</th>
+                                <th>Team Name</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="item in draftPicks" :key="item.id">
+                                <td>{{ item.round }}</td>
+                                <td>{{ item.pick_number || '-' }}</td>
+                                <td>{{ item.player_name }}</td>
+                                <td>{{ item.team_name || item.team_id }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p v-else>No draft picks found for this season.</p>
+
+                <!-- RANDOM REMOVALS SECTION -->
+                <div class="removals-section" v-if="Object.keys(randomRemovalsByTeam).length > 0">
+                    <h2>Random Removals</h2>
+                    <div class="removals-grid">
+                        <div v-for="(players, teamName) in randomRemovalsByTeam" :key="teamName" class="team-removals">
+                            <h3>{{ teamName }}</h3>
+                            <ul>
+                                <li v-for="p in players" :key="p.player_name + p.card_id">
+                                    {{ p.player_name }}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -295,4 +373,17 @@ onUnmounted(() => {
 .action.added { color: green; }
 .action.dropped { color: red; }
 .action.removed_random { color: orange; }
+
+/* TABLE STYLES */
+.draft-table-container { margin-bottom: 2rem; }
+.draft-table { width: 100%; border-collapse: collapse; }
+.draft-table th, .draft-table td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+.draft-table th { background-color: #f2f2f2; }
+
+/* REMOVALS STYLES */
+.removals-section { margin-top: 2rem; }
+.removals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.team-removals { background: #fff; border: 1px solid #ddd; padding: 1rem; border-radius: 4px; }
+.team-removals h3 { margin-top: 0; font-size: 1rem; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+.team-removals ul { padding-left: 1.2rem; margin: 0; }
 </style>

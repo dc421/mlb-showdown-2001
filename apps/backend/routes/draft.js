@@ -354,6 +354,16 @@ router.get('/state', authenticateToken, async (req, res) => {
             [state.season_name]
         );
 
+        // Fetch Random Removals (Historical)
+        const removalRes = await client.query(
+            `SELECT rr.player_name, hr.team_name, rr.card_id
+             FROM random_removals rr
+             JOIN historical_rosters hr ON rr.card_id = hr.card_id AND rr.season = hr.season
+             WHERE rr.season = $1
+             ORDER BY hr.team_name, rr.player_name`,
+            [state.season_name]
+        );
+
         let activeTeam = null;
         if (state.active_team_id) {
             const tRes = await client.query('SELECT * FROM teams WHERE team_id = $1', [state.active_team_id]);
@@ -366,6 +376,7 @@ router.get('/state', authenticateToken, async (req, res) => {
         res.json({
             ...state,
             history: historyRes.rows,
+            randomRemovals: removalRes.rows,
             activeTeam,
             takenPlayerIds,
             isSeasonOver: seasonOver
