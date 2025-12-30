@@ -1539,7 +1539,8 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value)) && gameStore.displayGameState.outs < 3 ) {
+  if ((!(isGameOver.value && gameStore.displayGameState.outs === 3) || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value))
+   ) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1575,7 +1576,7 @@ const finalScoreMessage = computed(() => {
 });
 
 const seriesScoreMessage = computed(() => {
-  if ((!isGameOver.value || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value)) && gameStore.displayGameState.outs < 3 ) {
+  if ((!(isGameOver.value && gameStore.displayGameState.outs === 3) || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value))) {
     return null;
   }
 
