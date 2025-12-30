@@ -602,9 +602,9 @@ async function ingestDrafts(client, cardIdMap) {
                 const lostCardId = findCardId(lostPlayer, cardIdMap);
                 try {
                     await client.query(
-                        `INSERT INTO random_removals (season, player_name, card_id)
-                         VALUES ($1, $2, $3)`,
-                        [seasonName, lostPlayer, lostCardId]
+                        `INSERT INTO random_removals (season, player_name, card_id, team_name)
+                         VALUES ($1, $2, $3, $4)`,
+                        [seasonName, lostPlayer, lostCardId, team]
                     );
                 } catch (e) {
                     // Ignore if table doesn't exist

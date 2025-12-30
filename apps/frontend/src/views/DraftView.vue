@@ -78,19 +78,16 @@ const randomRemovalsByTeam = computed(() => {
     }
 
     // 2. From 'history' (Active/Recent drafts where action is REMOVED_RANDOM)
-    // We only add these if they aren't duplicates (though simple concatenation is likely fine for display)
-    // Actually, for active draft, 'randomRemovals' from API might be empty, so we rely on history.
     if (draftState.value.history) {
         const historyRemovals = draftState.value.history.filter(item => (item.action || '').toUpperCase() === 'REMOVED_RANDOM');
-        // Map history item to structure { player_name, team_name }
         historyRemovals.forEach(h => {
-             // Avoid duplicates if both sources present same data
-             // We can check unique card_id/team_id combo if needed, but for now simple check:
-             const exists = removals.some(r => r.player_name === h.player_name && r.team_name === h.team_name);
+             // For active draft history, we use 'team_name' (which we populated via COALESCE)
+             const teamName = h.team_name || "Unknown Team";
+             const exists = removals.some(r => r.player_name === h.player_name && r.team_name === teamName);
              if (!exists) {
                  removals.push({
                      player_name: h.player_name,
-                     team_name: h.team_name
+                     team_name: teamName
                  });
              }
         });
@@ -99,8 +96,9 @@ const randomRemovalsByTeam = computed(() => {
     // Group by Team
     const groups = {};
     removals.forEach(r => {
-        if (!groups[r.team_name]) groups[r.team_name] = [];
-        groups[r.team_name].push(r);
+        const t = r.team_name || "Unknown Team";
+        if (!groups[t]) groups[t] = [];
+        groups[t].push(r);
     });
 
     return groups;
@@ -281,14 +279,27 @@ onUnmounted(() => {
                 <!-- RANDOM REMOVALS SECTION -->
                 <div class="removals-section" v-if="Object.keys(randomRemovalsByTeam).length > 0">
                     <h2>Random Removals</h2>
-                    <div class="removals-grid">
-                        <div v-for="(players, teamName) in randomRemovalsByTeam" :key="teamName" class="team-removals">
-                            <h3>{{ teamName }}</h3>
-                            <ul>
-                                <li v-for="p in players" :key="p.player_name + p.card_id">
-                                    {{ p.player_name }}
-                                </li>
-                            </ul>
+                    <div class="teams-list">
+                        <div v-for="(players, teamName) in randomRemovalsByTeam" :key="teamName" class="team-block">
+                            <div class="team-header">
+                                <div class="team-info">
+                                    <h2>{{ teamName }}</h2>
+                                </div>
+                            </div>
+                            <div class="roster-table-container">
+                                <table class="roster-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="header-player">Removed Player</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="p in players" :key="p.player_name + p.card_id" class="player-row">
+                                            <td class="name-cell">{{ p.player_name }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -382,8 +393,66 @@ onUnmounted(() => {
 
 /* REMOVALS STYLES */
 .removals-section { margin-top: 2rem; }
-.removals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
-.team-removals { background: #fff; border: 1px solid #ddd; padding: 1rem; border-radius: 4px; }
-.team-removals h3 { margin-top: 0; font-size: 1rem; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
-.team-removals ul { padding-left: 1.2rem; margin: 0; }
+
+/* Styles adapted from LeagueView.vue */
+.teams-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.team-block {
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.team-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 0rem;
+}
+
+.team-info h2 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.roster-table-container {
+    overflow-x: auto;
+}
+
+.roster-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.roster-table th {
+    text-align: left;
+    padding: 0.5rem;
+    background: #e9ecef;
+    color: #495057;
+    font-weight: 600;
+}
+
+.roster-table td {
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.player-row {
+    transition: background-color 0.2s;
+}
+
+.player-row:hover {
+    background-color: #e2e6ea;
+}
+
+.name-cell {
+    font-weight: normal;
+}
 </style>

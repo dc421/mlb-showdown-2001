@@ -112,8 +112,7 @@ async function advanceDraftState(client, currentState) {
     current_pick_number++;
 
     // Check if round is complete
-    if (current_pick_number > numTeams) {
-        current_pick_number = 1;
+    if ((current_pick_number - 1) % numTeams === 0) {
         current_round++;
     }
 
@@ -128,7 +127,8 @@ async function advanceDraftState(client, currentState) {
         await generateSchedule(client, order);
     } else {
         // Get next team
-        nextTeamId = order[current_pick_number - 1];
+        const index = (current_pick_number - 1) % numTeams;
+        nextTeamId = order[index];
     }
 
     await client.query(
@@ -348,19 +348,22 @@ router.get('/state', authenticateToken, async (req, res) => {
         if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver });
 
         // Fetch History
-        // Changed ORDER BY from timestamp (which doesn't exist) to created_at
         const historyRes = await client.query(
-            'SELECT dh.*, cp.name as player_name, t.city, t.name as team_name FROM draft_history dh LEFT JOIN cards_player cp ON dh.card_id = cp.card_id LEFT JOIN teams t ON dh.team_id = t.team_id WHERE dh.season_name = $1 ORDER BY dh.created_at DESC',
+            `SELECT dh.*, cp.name as player_name, t.city, COALESCE(t.name, dh.team_name) as team_name
+             FROM draft_history dh
+             LEFT JOIN cards_player cp ON dh.card_id = cp.card_id
+             LEFT JOIN teams t ON dh.team_id = t.team_id
+             WHERE dh.season_name = $1
+             ORDER BY dh.pick_number ASC, dh.created_at ASC`,
             [state.season_name]
         );
 
         // Fetch Random Removals (Historical)
         const removalRes = await client.query(
-            `SELECT rr.player_name, hr.team_name, rr.card_id
+            `SELECT rr.player_name, rr.team_name, rr.card_id
              FROM random_removals rr
-             JOIN historical_rosters hr ON rr.card_id = hr.card_id AND rr.season = hr.season
              WHERE rr.season = $1
-             ORDER BY hr.team_name, rr.player_name`,
+             ORDER BY rr.team_name, rr.player_name`,
             [state.season_name]
         );
 
@@ -439,9 +442,9 @@ router.post('/pick', authenticateToken, async (req, res) => {
 
         const roundName = state.current_round === 2 ? "Round 1" : "Round 2";
         await client.query(
-            `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
-             VALUES ($1, $2, $3, $4, 'ADDED')`,
-            [state.season_name, roundName, teamId, playerId]
+            `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+             VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
+            [state.season_name, roundName, teamId, playerId, state.current_pick_number]
         );
 
         const newState = await advanceDraftState(client, state);
@@ -553,16 +556,16 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
         for (const id of added) {
             await client.query(
-                `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
-                 VALUES ($1, $2, $3, $4, 'ADDED')`,
-                [state.season_name, roundName, teamId, id]
+                `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                 VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
+                [state.season_name, roundName, teamId, id, state.current_pick_number]
             );
         }
         for (const id of dropped) {
             await client.query(
-                `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
-                 VALUES ($1, $2, $3, $4, 'DROPPED')`,
-                [state.season_name, roundName, teamId, id]
+                `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                 VALUES ($1, $2, $3, $4, 'DROPPED', $5)`,
+                [state.season_name, roundName, teamId, id, state.current_pick_number]
             );
         }
 
