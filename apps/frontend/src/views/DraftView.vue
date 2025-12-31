@@ -387,9 +387,13 @@ onUnmounted(() => {
 
 /* TABLE STYLES */
 .draft-table-container { margin-bottom: 2rem; }
-.draft-table { width: 100%; border-collapse: collapse; }
-.draft-table th, .draft-table td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+.draft-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.draft-table th, .draft-table td { border: 1px solid #ddd; padding: 0.25rem 0.5rem; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-table th { background-color: #f2f2f2; }
+.draft-table th:nth-child(1) { width: 15%; }
+.draft-table th:nth-child(2) { width: 10%; }
+.draft-table th:nth-child(3) { width: 45%; }
+.draft-table th:nth-child(4) { width: 30%; }
 
 /* REMOVALS STYLES */
 .removals-section { margin-top: 2rem; }

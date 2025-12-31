@@ -348,8 +348,9 @@ router.get('/state', authenticateToken, async (req, res) => {
         if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver });
 
         // Fetch History
+        // Prioritize official display_name from cards_player, then clean name, then raw history name
         const historyRes = await client.query(
-            `SELECT dh.*, cp.name as player_name, t.city, COALESCE(t.name, dh.team_name) as team_name
+            `SELECT dh.*, COALESCE(cp.display_name, cp.name, dh.player_name) as player_name, t.city, COALESCE(t.name, dh.team_name) as team_name
              FROM draft_history dh
              LEFT JOIN cards_player cp ON dh.card_id = cp.card_id
              LEFT JOIN teams t ON dh.team_id = t.team_id
