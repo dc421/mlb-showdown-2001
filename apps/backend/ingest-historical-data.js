@@ -81,6 +81,30 @@ const seasonMap = {
     '8/4/25': 'Fall 2025'
 };
 
+// Create a map to link RRD filenames to the Season they affect.
+// Logic: RRD{N} draft sets up the season at index {N}.
+// orderedSeasons[0] is 'Early July 2020' (Initial season, no RRD before it except Full Draft)
+// orderedSeasons[1] is 'Mid July 2020' (Setup by RRD1)
+const orderedSeasons = Object.values(seasonMap); // Ensure this order matches the dates in seasonMap keys
+
+const rrdSeasonMap = {};
+// Map RRD{i} to orderedSeasons[i]
+// e.g. RRD1 -> orderedSeasons[1] (Mid July 2020)
+// The removal for RRD1 comes from orderedSeasons[0] (Early July 2020)
+for (let i = 1; i <= 22; i++) {
+    if (i < orderedSeasons.length) {
+        rrdSeasonMap[`RRD${i}`] = orderedSeasons[i];
+    }
+}
+
+// Map RRD{i} to the PREVIOUS season (where removals come from)
+const rrdRemovalSourceMap = {};
+for (let i = 1; i <= 22; i++) {
+    if (i - 1 >= 0 && i - 1 < orderedSeasons.length) {
+        rrdRemovalSourceMap[`RRD${i}`] = orderedSeasons[i - 1];
+    }
+}
+
 const teamIdMap = {
     'Boston': 1,
     'Detroit': 2,
@@ -99,7 +123,7 @@ const teamIdMap = {
 
 const DATA_DIR = path.join(__dirname, 'data');
 
-// Raw data for Series Results (Keep existing logic)
+// Raw data for Series Results
 const rawSeriesData = `
 DraftRR	8/4/25	Boston	4	Ann Arbor	3	Round Robin
 DraftRR	8/4/25	NY South	5	Ann Arbor	2	Round Robin
@@ -478,12 +502,16 @@ async function getCardIdMap(client) {
 
 function findCardId(playerName, cardIdMap) {
     if (!playerName) return null;
-    const cleanName = playerName.trim();
-    // Try exact match case-insensitive
+    let cleanName = playerName.trim();
+
+    // 1. Remove trailing numbers in parentheses e.g. "Alex Rodriguez (SEA) (3)" -> "Alex Rodriguez (SEA)"
+    cleanName = cleanName.replace(/\s\(\d+\)$/, '');
+
+    // 2. Try exact match case-insensitive
     const cardId = cardIdMap.get(cleanName.toLowerCase());
     if (cardId) return cardId;
 
-    // Try removing team suffix like " (NYM)"
+    // 3. Try removing team suffix like " (NYM)"
     const match = cleanName.match(/^(.*) \([A-Z]{2,3}\)$/);
     if (match) {
         return cardIdMap.get(match[1].toLowerCase()) || null;
@@ -491,6 +519,10 @@ function findCardId(playerName, cardIdMap) {
 
     return null;
 }
+
+// Global map for quick roster lookups during draft ingestion
+// historicalRosterMap[seasonName][cardId] = teamName
+const historicalRosterMap = {};
 
 async function ingestRosters(client, cardIdMap) {
     console.log('Ingesting Rosters...');
@@ -545,6 +577,12 @@ async function ingestRosters(client, cardIdMap) {
                     const seasonName = seasonCols[colIndex];
                     const cardId = findCardId(playerName.trim(), cardIdMap);
 
+                    if (cardId) {
+                        // Populate map
+                        if (!historicalRosterMap[seasonName]) historicalRosterMap[seasonName] = {};
+                        historicalRosterMap[seasonName][cardId] = teamName;
+                    }
+
                     await client.query(
                         `INSERT INTO historical_rosters (season, team_name, player_name, position, card_id)
                          VALUES ($1, $2, $3, $4, $5)`,
@@ -577,8 +615,10 @@ async function ingestDrafts(client, cardIdMap) {
 
     for (const file of files) {
         const filePath = path.join(DATA_DIR, file);
-        const seasonName = path.basename(file, '.csv');
-        console.log(`Processing ${seasonName}...`);
+        const fileNameBase = path.basename(file, '.csv'); // e.g., "RRD1"
+        const seasonName = rrdSeasonMap[fileNameBase] || fileNameBase;
+
+        console.log(`Processing ${fileNameBase} (mapped to ${seasonName})...`);
 
         const results = [];
         await new Promise((resolve, reject) => {
@@ -600,14 +640,26 @@ async function ingestDrafts(client, cardIdMap) {
             if (row['Lost'] && row['Lost'].trim()) {
                 const lostPlayer = row['Lost'].trim();
                 const lostCardId = findCardId(lostPlayer, cardIdMap);
+
+                // Infer Team for Random Removal
+                // 1. Try column value
+                let removalTeam = team;
+                // 2. If missing, look up in previous season's roster
+                if (!removalTeam && lostCardId) {
+                    const previousSeason = rrdRemovalSourceMap[fileNameBase];
+                    if (previousSeason && historicalRosterMap[previousSeason] && historicalRosterMap[previousSeason][lostCardId]) {
+                        removalTeam = historicalRosterMap[previousSeason][lostCardId];
+                    }
+                }
+                if (!removalTeam) removalTeam = 'Unknown Team';
+
                 try {
                     await client.query(
                         `INSERT INTO random_removals (season, player_name, card_id, team_name)
                          VALUES ($1, $2, $3, $4)`,
-                        [seasonName, lostPlayer, lostCardId, team]
+                        [seasonName, lostPlayer, lostCardId, removalTeam]
                     );
                 } catch (e) {
-                    // Ignore if table doesn't exist
                     if (e.code !== '42P01') console.error('Error inserting random removal:', e);
                 }
             }
@@ -624,12 +676,20 @@ async function ingestDrafts(client, cardIdMap) {
                 notes = `Lost: ${row['Lost (Original Rd)']}`;
             }
 
-            if (player && team) {
-                const cardId = findCardId(player.trim(), cardIdMap);
+            // Fix for RRD19 Pick #9
+            let finalPlayerName = player ? player.trim() : '';
+            let finalCardId = findCardId(finalPlayerName, cardIdMap);
+
+            if (fileNameBase === 'RRD19' && pick === 9) {
+                finalPlayerName = 'pass';
+                finalCardId = null;
+            }
+
+            if (finalPlayerName && team) {
                 await client.query(
-                    `INSERT INTO draft_history (season, round, pick_number, team_name, player_name, notes, card_id)
+                    `INSERT INTO draft_history (season_name, round, pick_number, team_name, player_name, notes, card_id)
                      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                    [seasonName, round, pick, team, player.trim(), notes, cardId]
+                    [seasonName, round, pick, team, finalPlayerName, notes, finalCardId]
                 );
             }
         }
