@@ -3,6 +3,33 @@ const router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
 
+const seasonMap = {
+    '7/5/20': 'Early July 2020',
+    '7/15/20': 'Mid July 2020',
+    '7/20/20': 'Late July 2020',
+    '8/1/20': 'Early August 2020',
+    '8/13/20': 'Late August 2020',
+    '9/9/20': 'September 2020',
+    '10/1/20': 'October 2020',
+    '10/22/20': 'November 2020',
+    '11/22/20': 'December 2020',
+    '12/27/20': 'January 2021',
+    '2/7/21': 'March 2021',
+    '3/15/21': 'April 2021',
+    '4/18/21': 'May 2021',
+    '5/26/21': 'Summer 2021',
+    '8/15/21': 'Fall 2021',
+    '12/24/21': 'Winter 2022',
+    '4/2/22': 'Summer 2022',
+    '12/23/22': 'Winter 2023',
+    '4/1/23': 'Summer 2023',
+    '7/4/23': 'Fall 2023',
+    '2/28/24': 'Spring 2024',
+    '8/18/24': 'Fall 2024',
+    '2/28/25': 'Spring 2025',
+    '8/4/25': 'Fall 2025'
+};
+
 // Helper to get the active draft state
 async function getDraftState(client, seasonName = null) {
     let query = 'SELECT * FROM draft_state ORDER BY created_at DESC LIMIT 1';
@@ -208,13 +235,32 @@ router.get('/seasons', authenticateToken, async (req, res) => {
             UNION
             SELECT DISTINCT season_name FROM draft_history
         `);
-        // Sort using Natural Sort in JS
         const seasons = result.rows.map(r => r.season_name);
+
+        // Reverse map season name to date string
+        const nameToDate = {};
+        for (const [date, name] of Object.entries(seasonMap)) {
+            nameToDate[name] = date;
+        }
+
         seasons.sort((a, b) => {
-            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            const dateA = nameToDate[a];
+            const dateB = nameToDate[b];
+
+            if (dateA && dateB) {
+                // Parse date strings MM/DD/YY
+                const dA = new Date(dateA);
+                const dB = new Date(dateB);
+                return dB - dA; // Descending (Newest first)
+            }
+            if (dateA) return -1; // A has date, B doesn't -> A first
+            if (dateB) return 1;  // B has date, A doesn't -> B first
+
+            // Fallback to alphabetical if neither has a date
+            return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
         });
-        // Return descending (latest first)
-        res.json(seasons.reverse());
+
+        res.json(seasons);
     } catch (error) {
         console.error("Get Draft Seasons Error:", error);
         res.status(500).json({ message: "Error fetching draft seasons." });

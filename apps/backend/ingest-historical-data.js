@@ -637,27 +637,41 @@ async function ingestDrafts(client, cardIdMap) {
             let notes = '';
 
             // Handle Random Removals
-            if (row['Lost'] && row['Lost'].trim()) {
-                const lostPlayer = row['Lost'].trim();
-                const lostCardId = findCardId(lostPlayer, cardIdMap);
+            let rawLostPlayer = row['Lost'];
+            if (!rawLostPlayer || !rawLostPlayer.trim()) {
+                rawLostPlayer = row['Lost (Original Rd)'];
+            }
+
+            if (rawLostPlayer && rawLostPlayer.trim()) {
+                // Clean the name: Remove trailing (N) but keep (TEX)
+                // "C.C. Sabathia (1)" -> "C.C. Sabathia"
+                // "Alex Rodriguez (TEX) (1)" -> "Alex Rodriguez (TEX)"
+                // "Alex Rodriguez (TEX)" -> "Alex Rodriguez (TEX)"
+                const cleanLostPlayer = rawLostPlayer.trim().replace(/\s\(\d+\)$/, '');
+                const lostCardId = findCardId(cleanLostPlayer, cardIdMap);
 
                 // Infer Team for Random Removal
-                // 1. Try column value
-                let removalTeam = team;
-                // 2. If missing, look up in previous season's roster
-                if (!removalTeam && lostCardId) {
+                // Priority: Previous Season Roster -> Drafting Team -> Unknown
+                let removalTeam = null;
+
+                if (lostCardId) {
                     const previousSeason = rrdRemovalSourceMap[fileNameBase];
                     if (previousSeason && historicalRosterMap[previousSeason] && historicalRosterMap[previousSeason][lostCardId]) {
                         removalTeam = historicalRosterMap[previousSeason][lostCardId];
                     }
                 }
+
+                if (!removalTeam) {
+                    removalTeam = team;
+                }
+
                 if (!removalTeam) removalTeam = 'Unknown Team';
 
                 try {
                     await client.query(
                         `INSERT INTO random_removals (season, player_name, card_id, team_name)
                          VALUES ($1, $2, $3, $4)`,
-                        [seasonName, lostPlayer, lostCardId, removalTeam]
+                        [seasonName, cleanLostPlayer, lostCardId, removalTeam]
                     );
                 } catch (e) {
                     if (e.code !== '42P01') console.error('Error inserting random removal:', e);
