@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useGameStore } from '@/stores/game';
 import { socket } from '@/services/socket';
+import { apiClient } from '@/services/api';
 
 const authStore = useAuthStore();
 const gameStore = useGameStore();
@@ -185,9 +186,7 @@ async function handleSubmission() {
 
 async function checkLineupStatus() {
     try {
-        const response = await fetch(`${authStore.API_URL}/api/games/${gameId}/my-lineup`, {
-            headers: { 'Authorization': `Bearer ${authStore.token}` }
-        });
+        const response = await apiClient(`/api/games/${gameId}/my-lineup`);
         if (response.ok) {
             const data = await response.json();
             if (data.hasLineup) {

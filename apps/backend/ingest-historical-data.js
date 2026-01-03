@@ -89,19 +89,19 @@ const orderedSeasons = Object.values(seasonMap); // Ensure this order matches th
 
 const rrdSeasonMap = {};
 // Map RRD{i} to orderedSeasons[i]
-// e.g. RRD1 -> orderedSeasons[1] (Mid July 2020)
-// The removal for RRD1 comes from orderedSeasons[0] (Early July 2020)
+// e.g. RRD1 -> orderedSeasons[2] (Late July 2020) - Shifted one forward
+// The removal for RRD1 comes from orderedSeasons[1] (Mid July 2020) - Shifted one forward
 for (let i = 1; i <= 22; i++) {
-    if (i < orderedSeasons.length) {
-        rrdSeasonMap[`RRD${i}`] = orderedSeasons[i];
+    if (i + 1 < orderedSeasons.length) {
+        rrdSeasonMap[`RRD${i}`] = orderedSeasons[i + 1];
     }
 }
 
 // Map RRD{i} to the PREVIOUS season (where removals come from)
 const rrdRemovalSourceMap = {};
 for (let i = 1; i <= 22; i++) {
-    if (i - 1 >= 0 && i - 1 < orderedSeasons.length) {
-        rrdRemovalSourceMap[`RRD${i}`] = orderedSeasons[i - 1];
+    if (i < orderedSeasons.length) {
+        rrdRemovalSourceMap[`RRD${i}`] = orderedSeasons[i];
     }
 }
 
@@ -643,11 +643,11 @@ async function ingestDrafts(client, cardIdMap) {
             }
 
             if (rawLostPlayer && rawLostPlayer.trim()) {
-                // Clean the name: Remove trailing (N) but keep (TEX)
+                // Clean the name: Remove trailing (N) or (UD) but keep (TEX)
                 // "C.C. Sabathia (1)" -> "C.C. Sabathia"
                 // "Alex Rodriguez (TEX) (1)" -> "Alex Rodriguez (TEX)"
-                // "Alex Rodriguez (TEX)" -> "Alex Rodriguez (TEX)"
-                const cleanLostPlayer = rawLostPlayer.trim().replace(/\s\(\d+\)$/, '');
+                // "Gary Sheffield (UD)" -> "Gary Sheffield"
+                const cleanLostPlayer = rawLostPlayer.trim().replace(/\s\((?:\d+|UD)\)$/, '');
                 const lostCardId = findCardId(cleanLostPlayer, cardIdMap);
 
                 // Infer Team for Random Removal

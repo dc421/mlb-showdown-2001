@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { calculateDisplayGameState } from '@/utils/gameState';
+import { formatNameShort } from '@/utils/playerUtils';
 
 const props = defineProps({
   game: {
@@ -148,20 +149,14 @@ const pitcherDisplay = computed(() => {
     const pitcher = isTop ? gameState.value.currentHomePitcher : gameState.value.currentAwayPitcher;
     if (!pitcher || !pitcher.name) return 'P: TBD';
 
-    const parts = pitcher.name.split(' ');
-    const firstInitial = parts[0][0];
-    const lastName = parts.slice(1).join(' ');
-    return `P: ${firstInitial}.${lastName}`;
+    return `P: ${formatNameShort(pitcher.name)}`;
 });
 
 const batterDisplay = computed(() => {
     if (!gameState.value || !gameState.value.currentAtBat || !gameState.value.currentAtBat.batter) return '';
     const batter = gameState.value.currentAtBat.batter;
 
-    const parts = batter.name.split(' ');
-    const firstInitial = parts[0][0];
-    const lastName = parts.slice(1).join(' ');
-    return `AB: ${firstInitial}.${lastName}`;
+    return `AB: ${formatNameShort(batter.name)}`;
 });
 
 </script>

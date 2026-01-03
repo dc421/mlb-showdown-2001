@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 
 const authStore = useAuthStore();
@@ -23,13 +24,10 @@ async function fetchLeagueData() {
   }
 
   try {
+    // Use apiClient for automatic auth handling
     const [leagueResponse, summaryResponse] = await Promise.all([
-        fetch(`${authStore.API_URL}/api/league?point_set_id=${pointSetId}`, {
-           headers: { 'Authorization': `Bearer ${authStore.token}` }
-        }),
-        fetch(`${authStore.API_URL}/api/league/season-summary`, {
-           headers: { 'Authorization': `Bearer ${authStore.token}` }
-        })
+        apiClient(`/api/league?point_set_id=${pointSetId}`),
+        apiClient(`/api/league/season-summary`)
     ]);
 
     if (leagueResponse.ok) {

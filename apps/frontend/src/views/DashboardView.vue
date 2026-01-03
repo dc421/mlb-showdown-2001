@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { RouterLink, useRouter } from 'vue-router';
 import { socket } from '@/services/socket';
+import { apiClient } from '@/services/api';
 import GameScorecard from '@/components/GameScorecard.vue';
 import PlayerCard from '@/components/PlayerCard.vue';
 
@@ -84,9 +85,7 @@ const teamTotalPoints = computed(() => {
 async function fetchTeamAccolades() {
     if (authStore.user?.team?.team_id) {
         try {
-            const response = await fetch(`${apiUrl}/api/teams/${authStore.user.team.team_id}/accolades`, {
-                headers: { 'Authorization': `Bearer ${authStore.token}` }
-            });
+            const response = await apiClient(`/api/teams/${authStore.user.team.team_id}/accolades`);
             if (response.ok) {
                 teamAccolades.value = await response.json();
             }
