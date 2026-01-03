@@ -27,6 +27,7 @@ const defensiveThrowRollClicked = ref(false);
 const hasRolledForSteal = ref(false);
 const isTransitioningToNextHitter = ref(false);
 const wasMultiThrowSituation = ref(false);
+const isConnected = ref(true); // Default to true to avoid flashing error on load
 
 // NEW: Local state to track the offensive player's choice
 const choices = ref({});
@@ -2013,7 +2014,31 @@ onMounted(async () => {
   }
 
   socket.connect();
-  socket.emit('join-game-room', gameId);
+
+  // --- SOCKET CONNECTION LOGIC ---
+  // Ensure we join the room immediately if already connected
+  if (socket.connected) {
+      isConnected.value = true;
+      socket.emit('join-game-room', gameId);
+  }
+
+  // Handle re-connections automatically
+  socket.on('connect', () => {
+      console.log('Socket connected/reconnected. Joining room:', gameId);
+      isConnected.value = true;
+      socket.emit('join-game-room', gameId);
+  });
+
+  socket.on('disconnect', () => {
+      console.warn('Socket disconnected.');
+      isConnected.value = false;
+  });
+
+  socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
+      isConnected.value = false;
+  });
+
   socket.on('game-updated', (data) => {
     gameStore.updateGameData(data);
   });
@@ -2036,6 +2061,9 @@ onUnmounted(() => {
   gameStore.resetGameState();
   socket.off('game-updated');
   socket.off('series-next-game-ready');
+  socket.off('connect');
+  socket.off('disconnect');
+  socket.off('connect_error');
   // Do not disconnect socket here, as it's needed for other views
   document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
@@ -2050,6 +2078,11 @@ function handleVisibilityChange() {
 <template>
   <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
     <div @click.stop><PlayerCard :player="selectedCard" /></div>
+  </div>
+
+  <!-- CONNECTION ERROR BANNER -->
+  <div v-if="!isConnected" class="connection-banner">
+      ⚠️ Connection Lost. Reconnecting...
   </div>
 
   <div class="game-view-container" v-if="gameStore.gameState && (isGameOver || (gameStore.lineups?.home && gameStore.lineups?.away))">
@@ -2645,6 +2678,17 @@ function handleVisibilityChange() {
 }
 
 /* --- REUSABLE & MISC STYLES --- */
+
+.connection-banner {
+    background-color: #dc3545;
+    color: white;
+    text-align: center;
+    padding: 0.5rem;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+    z-index: 2000;
+}
 
 .loading-container { text-align: center; padding: 5rem; font-size: 1.5rem; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
