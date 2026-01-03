@@ -213,7 +213,7 @@ onUnmounted(() => {
     <main class="dashboard-main">
       <!-- COLUMN 1: Roster -->
       <div class="panel roster-panel">
-          <h2>My Roster</h2>
+          <h2>Roster</h2>
           <div v-if="processedRoster.length === 0">No roster loaded.</div>
           <div v-else class="roster-table-container">
             <table class="roster-table">
