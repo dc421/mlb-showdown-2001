@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import PlayerCard from '@/components/PlayerCard.vue'; // Import the PlayerCard component
+import { getLastName } from '@/utils/playerUtils';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -89,7 +90,16 @@ const availablePlayers = computed(() => {
 }
 return playerPositions.includes(filterPosition.value);
     })
-    .sort((a, b) => (b.points || 0) - (a.points || 0));
+    .sort((a, b) => {
+        // Sort by Points (Desc)
+        const pointsDiff = (b.points || 0) - (a.points || 0);
+        if (pointsDiff !== 0) return pointsDiff;
+
+        // Then by Last Name (Asc)
+        const nameA = getLastName(a.displayName).toLowerCase();
+        const nameB = getLastName(b.displayName).toLowerCase();
+        return nameA.localeCompare(nameB);
+    });
 });
 
 const lineupPlayers = computed(() => Object.values(roster.value.lineup).filter(p => p));
@@ -137,6 +147,11 @@ const isRosterValid = computed(() => {
 
   return true; // If all checks pass, the roster is valid
 });
+
+// Helper to check if a player is owned by another team
+function isPlayerOwnedByOther(player) {
+    return player.owned_by_team_id && player.owned_by_team_id !== authStore.user.team.team_id;
+}
 
 // --- METHODS ---
 function onDragStart(event, player, from, originalPosition = null) {
@@ -234,6 +249,14 @@ function buildRosterPayload() {
 }
 
 async function saveRoster() {
+  // Check for players owned by other teams
+  const ownedPlayers = allPlayersOnRoster.value.filter(isPlayerOwnedByOther);
+  if (ownedPlayers.length > 0) {
+      const names = ownedPlayers.map(p => p.displayName).join(', ');
+      alert(`Cannot save roster. The following players are on another team's roster: ${names}`);
+      return;
+  }
+
   const rosterData = buildRosterPayload();
   await authStore.saveRoster(rosterData);
 }
@@ -394,7 +417,10 @@ onMounted(async () => {
           @dragstart="!player.isUnavailable && onDragStart($event, player, 'available')">
           
           <div class="player-info">
-            <span class="player-name">{{ player.displayName }} ({{ player.displayPosition }})</span>
+            <span class="player-name" :class="{ 'owned-player-text': isPlayerOwnedByOther(player) }">
+                {{ player.displayName }} ({{ player.displayPosition }})
+            </span>
+            <img v-if="isPlayerOwnedByOther(player)" :src="player.owned_by_team_logo" class="owning-team-logo" :title="player.owned_by_team_name" />
             <span class="view-icon" @click.stop="selectedCard = player" title="View Card">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </span>
@@ -493,4 +519,6 @@ onMounted(async () => {
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .unavailable { opacity: 0.5; cursor: not-allowed; background-color: #eee; }
 .owned-label { font-size: 0.8em; color: #dc3545; font-weight: bold; margin-right: 0.5rem; }
+.owned-player-text { color: #888; }
+.owning-team-logo { height: 20px; width: auto; vertical-align: middle; margin-left: 5px; margin-right: 5px; }
 </style>

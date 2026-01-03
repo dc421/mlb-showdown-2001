@@ -1883,15 +1883,39 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
 
     try {
         const query = `
-            SELECT
+            SELECT DISTINCT ON (cp.card_id)
                 cp.*,
-                ppv.points
+                ppv.points,
+                t.team_id as owned_by_team_id,
+                t.logo_url as owned_by_team_logo,
+                t.name as owned_by_team_name
             FROM cards_player cp
-            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id
-            WHERE ppv.point_set_id = $1
+            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
+            LEFT JOIN roster_cards rc ON cp.card_id = rc.card_id
+            LEFT JOIN rosters r ON rc.roster_id = r.roster_id
+            LEFT JOIN users u ON r.user_id = u.user_id
+            LEFT JOIN teams t ON u.team_id = t.team_id
             ORDER BY cp.display_name;
         `;
-        const allCardsResult = await pool.query(query, [point_set_id]);
+        // Note: DISTINCT ON requires ORDER BY to start with the DISTINCT columns.
+        // We modify ORDER BY to ensure valid SQL.
+        const distinctQuery = `
+            SELECT DISTINCT ON (cp.display_name, cp.card_id)
+                cp.*,
+                ppv.points,
+                t.team_id as owned_by_team_id,
+                t.logo_url as owned_by_team_logo,
+                t.name as owned_by_team_name
+            FROM cards_player cp
+            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
+            LEFT JOIN roster_cards rc ON cp.card_id = rc.card_id
+            LEFT JOIN rosters r ON rc.roster_id = r.roster_id
+            LEFT JOIN users u ON r.user_id = u.user_id
+            LEFT JOIN teams t ON u.team_id = t.team_id
+            ORDER BY cp.display_name, cp.card_id;
+        `;
+
+        const allCardsResult = await pool.query(distinctQuery, [point_set_id]);
         const processedCards = processPlayers(allCardsResult.rows);
         res.json(processedCards);
     } catch (error) {
