@@ -3,6 +3,7 @@ import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { socket } from '@/services/socket';
+import { apiClient } from '@/services/api';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -107,9 +108,7 @@ const randomRemovalsByTeam = computed(() => {
 // --- ACTIONS ---
 async function fetchAvailableSeasons() {
     try {
-        const response = await fetch(`${authStore.API_URL}/api/draft/seasons`, {
-            headers: { 'Authorization': `Bearer ${authStore.token}` }
-        });
+        const response = await apiClient(`/api/draft/seasons`);
         if (response.ok) {
             availableSeasons.value = await response.json();
             // Default to latest if available and not set
@@ -128,14 +127,12 @@ async function fetchAvailableSeasons() {
 async function fetchDraftState() {
     loading.value = true;
     try {
-        let url = `${authStore.API_URL}/api/draft/state`;
+        let url = `/api/draft/state`;
         if (selectedSeason.value) {
             url += `?season=${encodeURIComponent(selectedSeason.value)}`;
         }
 
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${authStore.token}` }
-        });
+        const response = await apiClient(url);
         if (response.ok) {
             const data = await response.json();
             draftState.value = data;
@@ -156,9 +153,8 @@ async function fetchDraftState() {
 async function startDraft() {
     if (!confirm("Are you sure you want to perform random removals? This will remove 5 players from every team.")) return;
     try {
-        const response = await fetch(`${authStore.API_URL}/api/draft/start`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authStore.token}` }
+        const response = await apiClient(`/api/draft/start`, {
+            method: 'POST'
         });
         if (!response.ok) {
             const data = await response.json();
@@ -175,9 +171,8 @@ async function startDraft() {
 async function makePick(player) {
     if (!confirm(`Draft ${player.name}?`)) return;
     try {
-        const response = await fetch(`${authStore.API_URL}/api/draft/pick`, {
+        const response = await apiClient(`/api/draft/pick`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authStore.token}` },
             body: JSON.stringify({ playerId: player.card_id })
         });
         if (!response.ok) {

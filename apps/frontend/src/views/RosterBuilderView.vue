@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
-import PlayerCard from '@/components/PlayerCard.vue'; // Import the PlayerCard component
+import { apiClient } from '@/services/api';
+import PlayerCard from '@/components/PlayerCard.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -242,9 +243,8 @@ async function submitDraftTurn() {
     if (!confirm("Are you sure you want to finalize your roster and end your turn?")) return;
     const rosterData = buildRosterPayload();
     try {
-        const response = await fetch(`${authStore.API_URL}/api/draft/submit-turn`, {
+        const response = await apiClient(`/api/draft/submit-turn`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authStore.token}` },
             body: JSON.stringify(rosterData)
         });
         if (!response.ok) {
@@ -305,7 +305,7 @@ onMounted(async () => {
 
   // Check Draft State
   try {
-      const resp = await fetch(`${authStore.API_URL}/api/draft/state`, { headers: { 'Authorization': `Bearer ${authStore.token}` }});
+      const resp = await apiClient(`/api/draft/state`);
       if (resp.ok) {
           draftState.value = await resp.json();
           // If draft is active, force Upcoming Season

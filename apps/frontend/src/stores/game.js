@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from './auth';
 import { calculateDisplayGameState } from '../utils/gameState';
+import { apiClient } from '../services/api'; // Import apiClient
 
 const teams = ref({ home: null, away: null });
 
@@ -25,17 +26,14 @@ async function swapPlayerPositions(gameId, playerAId, playerBId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/swap-positions`, {
+    const response = await apiClient(`/api/games/${gameId}/swap-positions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ playerAId, playerBId })
     });
     if (!response.ok) throw new Error('Failed to swap player positions');
 
     // Manually fetch and apply the updated state to win the race against the websocket.
-    const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-    });
+    const updatedGameData = await apiClient(`/api/games/${gameId}`);
     if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after swap');
     updateGameData(await updatedGameData.json());
 
@@ -45,18 +43,13 @@ async function swapPlayerPositions(gameId, playerAId, playerBId) {
   }
 }
 
-// in src/stores/game.js
-// in src/stores/game.js
 async function fetchGame(gameId) {
   const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-      });
+      const response = await apiClient(`/api/games/${gameId}`);
       if (!response.ok) throw new Error('Failed to fetch game data');
       
-      // The data from the server is now pre-processed and ready to use.
       const data = await response.json();
 
       // --- START PRODUCTION DEBUGGING ---
@@ -83,33 +76,25 @@ async function fetchGame(gameId) {
     }
 }
 
-  // in src/stores/game.js
 async function submitBaserunningDecisions(gameId, decisions) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/submit-decisions`, {
+    await apiClient(`/api/games/${gameId}/submit-decisions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ decisions })
     });
   } catch (error) { console.error("Error submitting decisions:", error); }
 }
-// Also, make sure `submitBaserunningDecisions` is in your return object at the end of the file.
 
 async function setGameState(gameId, partialState) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/dev/games/${gameId}/set-state`, {
+    await apiClient(`/api/dev/games/${gameId}/set-state`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
       body: JSON.stringify(partialState)
     });
-    // The game-updated event will refresh the UI automatically
   } catch (error) {
     console.error("Error setting game state:", error);
   }
@@ -119,16 +104,10 @@ async function loadScenario(gameId, scenario) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/dev/games/${gameId}/load-scenario`, {
+    await apiClient(`/api/dev/games/${gameId}/load-scenario`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
       body: JSON.stringify({ scenario })
     });
-    // The game-updated event will refresh the UI automatically, but we can fetch
-    // for immediate feedback.
     await fetchGame(gameId);
   } catch (error) {
     console.error("Error loading scenario:", error);
@@ -139,12 +118,8 @@ async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    const response = await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-throw`, {
+    const response = await apiClient(`/api/games/${gameId}/resolve-throw`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
       body: JSON.stringify({ throwTo })
     });
     if (!response.ok) throw new Error('Failed to resolve throw');
@@ -159,12 +134,8 @@ async function resolveDefensiveThrow(gameId, throwTo) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/set-defense`, {
+    await apiClient(`/api/games/${gameId}/set-defense`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
       body: JSON.stringify({ infieldIn: infieldIn })
     });
   } catch (error) {
@@ -176,9 +147,7 @@ async function resolveDefensiveThrow(gameId, throwTo) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/games/${gameId}/setup`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-      });
+      const response = await apiClient(`/api/games/${gameId}/setup`);
       if (!response.ok) throw new Error('Failed to fetch setup');
       setupState.value = await response.json();
     } catch (error) {
@@ -190,15 +159,12 @@ async function resolveDefensiveThrow(gameId, throwTo) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/games/${gameId}/my-lineup`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-      });
+      const response = await apiClient(`/api/games/${gameId}/my-lineup`);
       if (!response.ok) throw new Error('Failed to check lineup status');
       const data = await response.json();
       nextLineupIsSet.value = data.hasLineup;
     } catch (error) {
       console.error(error);
-      // Assume lineup is not set if the check fails
       nextLineupIsSet.value = false;
     }
   }
@@ -207,9 +173,8 @@ async function resolveDefensiveThrow(gameId, throwTo) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-        await fetch(`${auth.API_URL}/api/games/${gameId}/roll`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${auth.token}` }
+        await apiClient(`/api/games/${gameId}/roll`, {
+            method: 'POST'
         });
     } catch (error) {
         console.error('Error submitting roll:', error);
@@ -218,13 +183,12 @@ async function resolveDefensiveThrow(gameId, throwTo) {
 
   async function submitGameSetup(gameId, setupData) {
     console.log('2. Game Store: submitGameSetup action was called.');
-      console.log(' -> Data being sent:', setupData); // <-- ADD THIS LOG
+      console.log(' -> Data being sent:', setupData);
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/games/${gameId}/setup`, {
+      const response = await apiClient(`/api/games/${gameId}/setup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify(setupData)
       });
       if (!response.ok) throw new Error('Failed to submit game setup');
@@ -237,17 +201,14 @@ async function resolveDefensiveThrow(gameId, throwTo) {
 async function submitPitch(gameId, action = null) {
   console.log('2. Game Store: submitPitch action was called.');
 
-  // Optimistic Update: Immediately update the local state to reflect the action.
+  // Optimistic Update
   if (gameState.value && gameState.value.currentAtBat) {
       const optimisticAction = action || 'pitch';
       gameState.value.currentAtBat.pitcherAction = optimisticAction;
 
-      // If batter has already acted, then defensive player is going second.
       if (gameState.value.currentAtBat.batterAction) {
           gameState.value.defensivePlayerWentSecond = true;
       }
-
-      // For intentional walks, the batter automatically 'takes'.
       if (optimisticAction === 'intentional_walk') {
           gameState.value.currentAtBat.batterAction = 'take';
       }
@@ -256,18 +217,16 @@ async function submitPitch(gameId, action = null) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/pitch`, {
+    await apiClient(`/api/games/${gameId}/pitch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action: action })
     });
     await fetchGame(gameId);
   } catch (error) { console.error('Error submitting pitch:', error); }
 }
 
-// in src/stores/game.js
 async function submitAction(gameId, action) {
-  // Optimistic Update: Immediately update the local state.
+  // Optimistic Update
   if (gameState.value && gameState.value.currentAtBat) {
       gameState.value.currentAtBat.batterAction = action;
   }
@@ -275,9 +234,8 @@ async function submitAction(gameId, action) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/set-action`, {
+    await apiClient(`/api/games/${gameId}/set-action`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action })
     });
     await fetchGame(gameId);
@@ -288,9 +246,8 @@ async function submitSwing(gameId, action = null) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/swing`, {
+    await apiClient(`/api/games/${gameId}/swing`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ action: action })
     });
   } catch (error) { console.error('Error submitting swing:', error); }
@@ -300,17 +257,14 @@ async function submitSwing(gameId, action = null) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/games/${gameId}/substitute`, {
+      const response = await apiClient(`/api/games/${gameId}/substitute`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify(substitutionData)
       });
       if (!response.ok) throw new Error('Failed to make substitution');
 
-      // Manually fetch and apply the updated state to win the race against the websocket.
-      const updatedGameData = await fetch(`${auth.API_URL}/api/games/${gameId}`, {
-          headers: { 'Authorization': `Bearer ${auth.token}` }
-      });
+      // Manually fetch and apply updated state
+      const updatedGameData = await apiClient(`/api/games/${gameId}`);
       if (!updatedGameData.ok) throw new Error('Failed to fetch updated game data after substitution');
       updateGameData(await updatedGameData.json());
 
@@ -324,15 +278,14 @@ async function resolveDoublePlay(gameId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-double-play`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${auth.token}` }
+    await apiClient(`/api/games/${gameId}/resolve-double-play`, {
+      method: 'POST'
     });
   } catch (error) { console.error("Error resolving double play:", error); }
 }
 
   async function nextHitter(gameId) {
-  // Optimistic Update: Immediately mark myself as ready.
+  // Optimistic Update
   if (gameState.value && myTeam.value) {
       if (myTeam.value === 'home') {
           gameState.value.homePlayerReadyForNext = true;
@@ -344,26 +297,20 @@ async function resolveDoublePlay(gameId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/next-hitter`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${auth.token}` }
+    await apiClient(`/api/games/${gameId}/next-hitter`, {
+      method: 'POST'
     });
   } catch (error) { console.error("Error advancing to next hitter:", error); }
 }
-
-// in src/stores/game.js
 
 async function declareHomeTeam(gameId, homeTeamUserId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    // This sends the choice to your new backend endpoint
-    await fetch(`${auth.API_URL}/api/games/${gameId}/declare-home`, {
+    await apiClient(`/api/games/${gameId}/declare-home`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ homeTeamUserId })
     });
-    // The websocket event will handle the UI update for the other player
   } catch (error) {
     console.error("Error declaring home team:", error);
   }
@@ -375,15 +322,10 @@ async function declareHomeTeam(gameId, homeTeamUserId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/advance-runners`, {
+    await apiClient(`/api/games/${gameId}/advance-runners`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
       body: JSON.stringify({ decisions })
     });
-    // The websocket event will handle the state update
   } catch (error) {
     console.error("Error advancing runners:", error);
   }
@@ -393,9 +335,8 @@ async function declareHomeTeam(gameId, homeTeamUserId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/tag-up`, {
+    await apiClient(`/api/games/${gameId}/tag-up`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ decisions })
     });
   } catch (error) {
@@ -407,9 +348,8 @@ async function initiateSteal(gameId, decisions) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      await fetch(`${auth.API_URL}/api/games/${gameId}/initiate-steal`, {
+      await apiClient(`/api/games/${gameId}/initiate-steal`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ decisions })
       });
     } catch (error) { console.error("Error initiating steal:", error); }
@@ -420,24 +360,20 @@ async function resolveSteal(gameId, throwToBase) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-steal`, {
+      await apiClient(`/api/games/${gameId}/resolve-steal`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ throwToBase })
       });
-      // The game-updated socket event should refresh the state, but we'll fetch manually to be safe.
       await fetchGame(gameId);
     } catch (error) { console.error("Error resolving steal:", error); }
   }
 
-// in src/stores/game.js
 async function submitInfieldInDecision(gameId, sendRunner) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/resolve-infield-in-gb`, {
+    await apiClient(`/api/games/${gameId}/resolve-infield-in-gb`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
       body: JSON.stringify({ sendRunner })
     });
   } catch (error) {
@@ -449,9 +385,8 @@ async function resetRolls(gameId) {
   const auth = useAuthStore();
   if (!auth.token) return;
   try {
-    await fetch(`${auth.API_URL}/api/games/${gameId}/reset-rolls`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${auth.token}` }
+    await apiClient(`/api/games/${gameId}/reset-rolls`, {
+      method: 'POST'
     });
   } catch (error) {
     console.error('Error resetting rolls:', error);
@@ -466,9 +401,7 @@ async function resetRolls(gameId) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-      });
+      const response = await apiClient(`/api/dev/games/${gameId}/snapshots`);
       if (!response.ok) throw new Error('Failed to fetch snapshots');
       snapshots.value = await response.json();
     } catch (error) {
@@ -480,9 +413,8 @@ async function resetRolls(gameId) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots`, {
+      const response = await apiClient(`/api/dev/games/${gameId}/snapshots`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ snapshot_name: snapshotName })
       });
       if (!response.ok) throw new Error('Failed to create snapshot');
@@ -496,9 +428,8 @@ async function resetRolls(gameId) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots/${snapshotId}/restore`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${auth.token}` }
+      const response = await apiClient(`/api/dev/games/${gameId}/snapshots/${snapshotId}/restore`, {
+        method: 'POST'
       });
       if (!response.ok) throw new Error('Failed to restore snapshot');
       // Game state will be updated via websocket, but we can also fetch manually
@@ -512,9 +443,8 @@ async function resetRolls(gameId) {
     const auth = useAuthStore();
     if (!auth.token) return;
     try {
-      const response = await fetch(`${auth.API_URL}/api/dev/games/${gameId}/snapshots/${snapshotId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${auth.token}` }
+      const response = await apiClient(`/api/dev/games/${gameId}/snapshots/${snapshotId}`, {
+        method: 'DELETE'
       });
       if (!response.ok) throw new Error('Failed to delete snapshot');
       await fetchSnapshots(gameId); // Refresh the list
@@ -563,19 +493,12 @@ async function resetRolls(gameId) {
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
     // --- FIX FOR TAG UP SPOILERS ---
-    // Calculate "Display Defensive Player" dynamically because server state (amIDefensivePlayer)
-    // might be flipped if the game has already advanced to the next half-inning.
     const isDisplayDefensive = displayGameState.value && myTeam.value ?
         ((displayGameState.value.isTopInning && myTeam.value === 'home') ||
          (!displayGameState.value.isTopInning && myTeam.value === 'away')) :
         amIDefensivePlayer.value;
 
-    // If the defensive player is facing a Tag Up decision, and they are NOT ready for the next play
-    // (indicating they haven't seen the result yet), we must hide any events that occurred AFTER the Tag Up.
-    // This prevents the game log from showing "SAFE at 2nd" or a subsequent Steal result while the user
-    // is still deciding on the throw.
     if (isDisplayDefensive && gameState.value?.currentPlay?.type === 'TAG_UP' && !amIReadyForNext.value && opponentReadyForNext.value) {
-        // Stop including events if we hit a baserunning result or inning change
         const filteredEvents = [];
         for (const event of gameEvents.value) {
             if (event.log_message.includes('tags up') || event.log_message.includes('Steal attempt') || event.log_message.includes('inning-change-message')) {
@@ -590,45 +513,32 @@ async function resetRolls(gameId) {
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
 
-      // Exception: If the play is waiting for a baserunning decision, the log message
-      // for the hit has not been generated yet. The "last event" currently in the log
-      // is actually the PREVIOUS play's outcome, so we must NOT hide it.
       const currentPlayType = gameState.value?.currentPlay?.type;
       if (['ADVANCE', 'TAG_UP', 'INFIELD_IN_CHOICE'].includes(currentPlayType)) {
         return gameEvents.value;
       }
 
-      // If it's a third-out play, hide both the play result and the inning change message.
       if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
 
-      // NEW LOGIC: Check if the last event is a substitution. If so, hide it AND the play outcome.
       const lastEvent = gameEvents.value[gameEvents.value.length - 1];
       if (lastEvent && lastEvent.event_type === 'substitution') {
-        // This handles the case where a pinch hitter comes in, we need to hide their announcement AND the outcome.
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
 
-      // Otherwise, it's a normal mid-inning play; just hide the last event.
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
-    // We need to continue hiding just the inning change message.
     if (isEffectivelyBetween && !amIReadyForNext.value) {
-        // --- THIS IS THE FIX ---
-        // Only hide the last event if it's the inning change system message.
-        // Otherwise, in the 'awaiting pitcher' scenario, the last event is the
-        // 3rd out, and we must show it.
         const lastEvent = gameEvents.value[gameEvents.value.length - 1];
         if (lastEvent && lastEvent.event_type === 'system') {
             return gameEvents.value.slice(0, gameEvents.value.length - 1);
         }
     }
 
-    // Condition 3: Consecutive "Automatic" events (like Intentional Walks) where the user hasn't acknowledged the first.
-    // If the opponent walked twice in a row, we want to show the result of the FIRST walk, hiding the second one.
+    // Condition 3: Consecutive "Automatic" events
     if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2) {
         const lastEvent = gameEvents.value[gameEvents.value.length - 1];
         const prevEvent = gameEvents.value[gameEvents.value.length - 2];
@@ -637,7 +547,6 @@ async function resetRolls(gameId) {
         }
     }
 
-    // In all other cases (e.g., mid-inning play revealed, or after "Next Hitter" is clicked), show the full log.
     return gameEvents.value;
   });
 
@@ -723,18 +632,10 @@ async function resetRolls(gameId) {
                           gameState.value.lastCompletedAtBat &&
                           gameState.value.currentAtBat.outsBeforePlay < gameState.value.lastCompletedAtBat.outsBeforePlay;
 
-    // Fix for Third-Out Steal Sync: If a steal is still pending (meaning we need to roll for it,
-    // or see the result), do NOT consider it "between innings" yet, even if the outs have reset.
-    // This allows the "Stealing..." UI to persist instead of jumping to the "3 Outs" display.
     if (gameState.value.pendingStealAttempt) {
       return false;
     }
 
-    // --- FIX FOR SKIPPED STEAL ---
-    // If the opponent has advanced the inning, but we are still waiting to resolve (or see) a steal
-    // that happened (e.g., resulted in the 3rd out), we are NOT between innings yet.
-    // We check this by seeing if the 'lastStealResult' is recent and hasn't been 'cleared' by our readiness.
-    // If we are NOT ready, and the opponent IS ready, and there was a steal...
     if (!amIReadyForNext.value && opponentReadyForNext.value && gameState.value.lastStealResult && !isStealResultVisible.value) {
         return false;
     }
@@ -746,8 +647,6 @@ async function resetRolls(gameId) {
     if (!gameState.value) return 0;
 
     if (isOutcomeHidden.value) {
-        // Case 1: Outcome is hidden.
-        // Logic restored based on user feedback: Explicitly show state from before the current action.
         if (opponentReadyForNext.value) {
             if (gameState.value.lastCompletedAtBat) {
                 return gameState.value.lastCompletedAtBat.outsBeforePlay;
@@ -760,14 +659,10 @@ async function resetRolls(gameId) {
         return 0; // Fallback
     }
 
-    // Case 2: Outcome revealed, but we are showing the "End of Inning" state (3 outs).
     if (isEffectivelyBetweenHalfInnings.value) {
         return 3;
     }
 
-    // Case 3: Normal gameplay
-    // Also handle duplicate logic for calculating steal outs if steal result is visible,
-    // matching displayGameState logic.
     if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' && gameState.value.currentPlay.payload.results) {
       const { decisions, results } = gameState.value.currentPlay.payload;
       let newOuts = gameState.value.outs;
@@ -800,9 +695,6 @@ async function resetRolls(gameId) {
       };
     }
 
-    // If the steal result is visible, we calculate the outcome of the steal
-    // on the frontend to show the result immediately, before the defensive
-    // player has even made their throw.
     if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' && gameState.value.currentPlay.payload.results) {
       const { decisions, results } = gameState.value.currentPlay.payload;
       const newBases = { ...gameState.value.bases };
@@ -813,8 +705,6 @@ async function resetRolls(gameId) {
         if (decisions[fromBaseStr]) {
           const fromBase = parseInt(fromBaseStr, 10);
           const toBase = fromBase + 1;
-          // Always read the runner's original position from the authoritative gameState
-          // to prevent race conditions in multi-runner steals.
           const runner = gameState.value.bases[baseMap[fromBase]];
           const result = results[fromBase];
 
@@ -824,7 +714,6 @@ async function resetRolls(gameId) {
               if (toBase <= 3) {
                 newBases[baseMap[toBase]] = runner;
               }
-              // Note: This logic doesn't handle stealing home, as it's not a feature.
             } else { // OUT
               newOuts++;
             }
@@ -839,14 +728,9 @@ async function resetRolls(gameId) {
       };
     }
 
-    // Condition: Consecutive Steals (Defense View)
-    // If there is a pending steal attempt AND a last steal result, and we are the defense,
-    // we are viewing the result of the *last* steal (2nd), but the bases have already updated
-    // for the *pending* steal (3rd). We must visually roll back the runner.
     const isConsecutiveSteal = gameState.value.lastStealResult && gameState.value.pendingStealAttempt;
 
     if (isConsecutiveSteal && amIDefensivePlayer.value) {
-         // Get the runner from the pending attempt (which is the one causing the future state)
          const pending = gameState.value.pendingStealAttempt;
          const toBase = pending.throwToBase;
          const fromBase = toBase - 1;
@@ -854,19 +738,15 @@ async function resetRolls(gameId) {
 
          const newBases = { ...gameState.value.bases };
 
-         // Remove from toBase (if there, meaning they were SAFE in the pending steal)
          if (toBase <= 3) {
             newBases[baseMap[toBase]] = null;
          }
 
-         // Add to fromBase (restoring their position before the pending steal)
          if (fromBase >= 1 && pending.runner) {
             newBases[baseMap[fromBase]] = pending.runner;
          }
 
          let outs = gameState.value.outs;
-         // If the pending steal resulted in an out, the global out count is already incremented.
-         // We need to roll it back to show the state before that attempt.
          if (pending.outcome === 'OUT') {
              outs = outs - 1;
          }
@@ -878,15 +758,10 @@ async function resetRolls(gameId) {
          };
     }
 
-    // Condition: Consecutive "Automatic" events (Double IBB fix).
-    // If we detected this pattern in gameEventsToDisplay, we must also roll back the board state.
     if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2 && gameState.value.lastCompletedAtBat) {
         const lastEvent = gameEvents.value[gameEvents.value.length - 1];
         const prevEvent = gameEvents.value[gameEvents.value.length - 2];
         if (lastEvent.log_message?.includes('intentionally walked') && prevEvent.log_message?.includes('intentionally walked')) {
-            // Roll back to the state BEFORE the second walk (which is the state AFTER the first walk).
-            // The last completed at-bat is the 2nd walk (Event N). Its 'basesBeforePlay'
-            // represents the state of the bases when that batter stepped up (i.e., after the 1st walk).
             const rollbackSource = gameState.value.lastCompletedAtBat;
             return {
                 ...gameState.value,
@@ -899,22 +774,17 @@ async function resetRolls(gameId) {
     }
 
     if (isOutcomeHidden.value) {
-        // Restored explicit rollback logic.
         const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
         if (rollbackSource && rollbackSource.basesBeforePlay) {
-            // We also need to check if the inning needs to be rolled back (if the outs crossed a boundary).
             let inning = gameState.value.inning;
             let isTopInning = gameState.value.isTopInning;
-            const displayOutsValue = rollbackSource.outsBeforePlay; // Using direct source value
+            const displayOutsValue = rollbackSource.outsBeforePlay;
 
             if (gameState.value.outs === 0 && displayOutsValue !== 0) {
-                // We advanced to a new half-inning. Roll back to previous.
                 if (gameState.value.isTopInning) {
-                    // Currently Top X. Previous was Bottom X-1.
                     inning = Math.max(1, gameState.value.inning - 1);
                     isTopInning = false;
                 } else {
-                    // Currently Bottom X. Previous was Top X.
                     isTopInning = true;
                 }
             }
@@ -931,13 +801,9 @@ async function resetRolls(gameId) {
                 isBetweenHalfInningsHome: false,
             };
         }
-        // Fallback to helper if source is missing, though this shouldn't happen.
         return calculateDisplayGameState(gameState.value, auth.user?.userId, !isOutcomeHidden.value);
     }
 
-    // When the outcome is revealed but we are still showing 3 outs, we need to
-    // override the current (empty) bases with the bases from before the play.
-    // Use isEffectivelyBetweenHalfInnings.value directly instead of displayOuts.value
     const shouldShowThreeOuts = isEffectivelyBetweenHalfInnings.value;
 
     let bases = gameState.value.bases;
@@ -949,49 +815,30 @@ async function resetRolls(gameId) {
         bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
         outs = 3;
     } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
-        // Case: The opponent has advanced to the next at-bat (or triggered an IBB), but I am still viewing the previous result.
-
-        // SPECIAL CASE: If a steal is pending OR if we are viewing a throw result (like a Tag Up) that hasn't been cleared,
-        // we are viewing a past action. The 'currentAtBat' is the NEW one (next batter), so we must use 'lastCompletedAtBat'
-        // to get the state BEFORE the result was applied to avoid spoilers.
         if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
              const src = gameState.value.lastCompletedAtBat;
              if (src) {
                  bases = src.basesBeforePlay || bases;
-                 // Show the outs *before* the steal (e.g. 2 outs)
                  if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
                  if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
                  if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
              }
         } else {
-            // Normal Case: The 'currentAtBat' on the server represents the *next* play.
-            // Its 'basesBeforePlay' represents the state *after* the play I am supposed to be viewing.
             const src = gameState.value.currentAtBat;
             if (src) {
                 bases = src.basesBeforePlay || bases;
-                // Only override outs and score if they are available on the source object.
                 if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
                 if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
                 if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
             }
         }
 
-        // --- FIX FOR SKIPPED STEAL ---
-        // If we are lagging and the opponent has advanced the inning (meaning currentAtBat is the new inning),
-        // but we are still viewing the last Steal result, we need to ensure the inning/isTopInning
-        // are rolled back so we aren't showing the new inning's context.
         if (gameState.value.lastStealResult && !isStealResultVisible.value) {
-            // Determine if the *last* inning ended on this steal.
-            // If the server's outs are 0, it means the inning ended.
-            // We should display the *end* of the *previous* inning.
-
-            // We need to check if the outs *were* 0 in the new state (meaning new inning started).
             if (gameState.value.outs === 0) {
                  if (gameState.value.isTopInning) {
-                    // Server: Top X. We want Bottom X-1.
                     return {
                         ...gameState.value,
-                        outs: outs, // Use rolled back outs (should be 2 or 3 from loop above)
+                        outs: outs,
                         bases: bases,
                         homeScore: homeScore,
                         awayScore: awayScore,
@@ -999,7 +846,6 @@ async function resetRolls(gameId) {
                         isTopInning: false
                     }
                 } else {
-                    // Server: Bottom X. We want Top X.
                     return {
                         ...gameState.value,
                         outs: outs,
@@ -1013,22 +859,18 @@ async function resetRolls(gameId) {
         }
     }
 
-    // If the game is between innings and we're awaiting a pitcher selection,
-    // the server state has already advanced to the *next* inning. We need to
-    // roll back the inning and isTopInning values to match the display outs and bases.
     let inning = gameState.value.inning;
     let isTopInning = gameState.value.isTopInning;
 
     if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
-      if (gameState.value.isTopInning) { // Server says Top 2, we want to show Bottom 1
+      if (gameState.value.isTopInning) {
         inning = gameState.value.inning - 1;
         isTopInning = false;
-      } else { // Server says Bottom 1, we want to show Top 1
+      } else {
         isTopInning = true;
       }
     }
 
-    // In all other cases, return the current, authoritative state from the server, but with our overrides.
     return {
       ...gameState.value,
       outs,
