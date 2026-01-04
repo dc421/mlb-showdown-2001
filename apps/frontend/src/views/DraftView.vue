@@ -113,10 +113,8 @@ async function fetchAvailableSeasons() {
             availableSeasons.value = await response.json();
             // Default to latest if available and not set
             if (availableSeasons.value.length > 0 && !selectedSeason.value) {
-                // If there is an active draft (handled by fetchDraftState default), it might be the latest.
-                // But generally, the latest season is the first one.
-                // We'll let fetchDraftState handle the default "active/latest" if we pass nothing,
-                // but for the dropdown we should probably select the one returned by state.
+                // Determine the most recent season (first in the list)
+                selectedSeason.value = availableSeasons.value[0];
             }
         }
     } catch (error) {

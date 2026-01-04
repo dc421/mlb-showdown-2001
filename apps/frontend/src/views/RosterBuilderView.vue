@@ -99,7 +99,17 @@ return playerPositions.includes(filterPosition.value);
         // Then by Last Name (Asc)
         const nameA = getLastName(a.displayName).toLowerCase();
         const nameB = getLastName(b.displayName).toLowerCase();
-        return nameA.localeCompare(nameB);
+        const lastNameDiff = nameA.localeCompare(nameB);
+        if (lastNameDiff !== 0) return lastNameDiff;
+
+        // Then by First Name (Asc)
+        const firstA = a.displayName.split(' ')[0].toLowerCase();
+        const firstB = b.displayName.split(' ')[0].toLowerCase();
+        const firstNameDiff = firstA.localeCompare(firstB);
+        if (firstNameDiff !== 0) return firstNameDiff;
+
+        // Finally by Full Name (Asc)
+        return a.displayName.localeCompare(b.displayName);
     });
 });
 

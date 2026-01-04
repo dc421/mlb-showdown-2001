@@ -369,7 +369,25 @@ router.get('/state', authenticateToken, async (req, res) => {
                 );
                 const seasons = historySeasonsRes.rows.map(r => r.season_name);
                 if (seasons.length > 0) {
+                    // Reverse map season name to date string
+                    const nameToDate = {};
+                    for (const [date, name] of Object.entries(seasonMap)) {
+                        nameToDate[name] = date;
+                    }
                     seasons.sort((a, b) => {
+                        const dateA = nameToDate[a];
+                        const dateB = nameToDate[b];
+
+                        if (dateA && dateB) {
+                            // Parse date strings MM/DD/YY
+                            const dA = new Date(dateA);
+                            const dB = new Date(dateB);
+                            return dB - dA; // Descending (Newest first)
+                        }
+                        if (dateA) return -1; // A has date, B doesn't -> A first
+                        if (dateB) return 1;  // B has date, A doesn't -> B first
+
+                        // Fallback to alphabetical if neither has a date
                         return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
                     });
                     // Latest is last in ascending sort
