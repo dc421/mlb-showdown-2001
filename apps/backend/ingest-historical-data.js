@@ -105,6 +105,15 @@ for (let i = 1; i <= 22; i++) {
     }
 }
 
+// Manual Override Map for known removal errors where historical data is missing or incorrect
+// Season Name -> Player Name -> Correct Team Name
+const manualRemovalOverrides = {
+    'October 2020': {
+        'Alex Rodriguez (TEX)': 'New York',
+        'Lenny Harris': 'Boston'
+    }
+};
+
 const teamIdMap = {
     'Boston': 1,
     'Detroit': 2,
@@ -651,10 +660,15 @@ async function ingestDrafts(client, cardIdMap) {
                 const lostCardId = findCardId(cleanLostPlayer, cardIdMap);
 
                 // Infer Team for Random Removal
-                // Priority: Previous Season Roster -> Drafting Team -> Unknown
+                // Priority: Manual Override -> Previous Season Roster -> Drafting Team -> Unknown
                 let removalTeam = null;
 
-                if (lostCardId) {
+                // Check Manual Overrides
+                if (manualRemovalOverrides[seasonName] && manualRemovalOverrides[seasonName][cleanLostPlayer]) {
+                    removalTeam = manualRemovalOverrides[seasonName][cleanLostPlayer];
+                }
+
+                if (!removalTeam && lostCardId) {
                     const previousSeason = rrdRemovalSourceMap[fileNameBase];
                     if (previousSeason && historicalRosterMap[previousSeason] && historicalRosterMap[previousSeason][lostCardId]) {
                         removalTeam = historicalRosterMap[previousSeason][lostCardId];

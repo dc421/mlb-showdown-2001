@@ -209,6 +209,11 @@ async function fetchAvailableSeasons() {
         const response = await apiClient(`/api/draft/seasons`);
         if (response.ok) {
             availableSeasons.value = await response.json();
+            // Default to latest if available and not set
+            if (availableSeasons.value.length > 0 && !selectedSeason.value) {
+                // Determine the most recent season (first in the list)
+                selectedSeason.value = availableSeasons.value[0];
+            }
         }
     } catch (error) {
         console.error("Error fetching seasons:", error);
