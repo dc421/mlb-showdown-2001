@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
+const { sendPickConfirmation } = require('../services/emailService');
 
 const seasonMap = {
     '7/5/20': 'Early July 2020',
@@ -158,9 +159,10 @@ async function advanceDraftState(client, currentState) {
         nextTeamId = order[index];
     }
 
+    // Reset notification_level to 0 for the new turn
     await client.query(
         `UPDATE draft_state
-         SET current_round = $1, current_pick_number = $2, active_team_id = $3, is_active = $4, updated_at = NOW()
+         SET current_round = $1, current_pick_number = $2, active_team_id = $3, is_active = $4, updated_at = NOW(), notification_level = 0
          WHERE id = $5`,
         [current_round, current_pick_number, nextTeamId, isActive, id]
     );
@@ -513,6 +515,39 @@ router.post('/pick', authenticateToken, async (req, res) => {
 
         const newState = await advanceDraftState(client, state);
 
+        // --- EMAIL NOTIFICATION LOGIC ---
+        // Fetch current team info for the email
+        const currentTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [teamId]);
+        const currentTeam = currentTeamRes.rows[0];
+        const teamDisplayName = `${currentTeam.city} ${currentTeam.name}`;
+
+        // Fetch next team info
+        let nextTeam = null;
+        if (newState.active_team_id) {
+            const nextTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [newState.active_team_id]);
+            const nt = nextTeamRes.rows[0];
+            nextTeam = { name: `${nt.city} ${nt.name}` };
+        }
+
+        const pickDetails = {
+            player: {
+                name: card.display_name || card.name,
+                position: card.control !== null ? (card.ip > 3 ? 'SP' : 'RP') : Object.keys(card.fielding_ratings || {}).join('/')
+            },
+            team: { name: teamDisplayName },
+            round: state.current_round,
+            pickNumber: state.current_pick_number
+        };
+
+        // Fire and forget email (don't await in critical path if not needed, but here we await to ensure logic integrity in mock)
+        // In prod, might wrap in try/catch to not fail the request if email fails.
+        try {
+            await sendPickConfirmation(pickDetails, nextTeam, client);
+        } catch (emailErr) {
+            console.error("Failed to send draft email:", emailErr);
+        }
+        // --------------------------------
+
         await client.query('COMMIT');
         io.emit('draft-updated');
         res.json(newState);
@@ -685,6 +720,36 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         }
 
         const newState = await advanceDraftState(client, state);
+
+        // --- EMAIL NOTIFICATION LOGIC ---
+        // For Add/Drop rounds, we can just say "Roster Submitted"
+        const currentTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [teamId]);
+        const currentTeam = currentTeamRes.rows[0];
+        const teamDisplayName = `${currentTeam.city} ${currentTeam.name}`;
+
+        let nextTeam = null;
+        if (newState.active_team_id) {
+            const nextTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [newState.active_team_id]);
+            const nt = nextTeamRes.rows[0];
+            nextTeam = { name: `${nt.city} ${nt.name}` };
+        }
+
+        const pickDetails = {
+            player: {
+                name: "Roster Submission",
+                position: "Multi"
+            },
+            team: { name: teamDisplayName },
+            round: state.current_round,
+            pickNumber: state.current_pick_number
+        };
+
+        try {
+            await sendPickConfirmation(pickDetails, nextTeam, client);
+        } catch (emailErr) {
+            console.error("Failed to send draft email:", emailErr);
+        }
+        // --------------------------------
 
         await client.query('COMMIT');
         io.emit('draft-updated');

@@ -1,0 +1,130 @@
+const nodemailer = require('nodemailer');
+const { pool } = require('../db');
+
+// Configure transporter
+const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: process.env.EMAIL_PORT,
+    secure: process.env.EMAIL_PORT == 465, // true for 465, false for other ports
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+// Helper: Get all user emails
+async function getLeagueEmails(client) {
+    try {
+        // Just fetch all users for now. In a real multi-league app, we'd filter by league/team.
+        // Assuming single league context based on current codebase structure.
+        const res = await client.query('SELECT email FROM users WHERE email IS NOT NULL');
+        return res.rows.map(r => r.email);
+    } catch (error) {
+        console.error("Error fetching league emails:", error);
+        return [];
+    }
+}
+
+async function sendEmail(to, subject, html) {
+    if (!to || to.length === 0) {
+        console.log("No recipients for email:", subject);
+        return;
+    }
+
+    const mailOptions = {
+        from: `"League Commissioner" <${process.env.EMAIL_USER}>`,
+        to: Array.isArray(to) ? to.join(', ') : to,
+        subject: subject,
+        html: html,
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+        console.log("--- SIMULATING EMAIL SEND ---");
+        console.log(`To: ${mailOptions.to}`);
+        console.log(`Subject: ${mailOptions.subject}`);
+        console.log(`Content: ${mailOptions.html.substring(0, 100)}...`);
+        return;
+    }
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log("Message sent: %s", info.messageId);
+    } catch (error) {
+        console.error("Error sending email:", error);
+    }
+}
+
+// Template: Pick Confirmation
+async function sendPickConfirmation(pickDetails, nextTeam, client) {
+    const recipients = await getLeagueEmails(client);
+    const { player, team, round, pickNumber } = pickDetails;
+
+    const subject = `Draft Update: ${player.name} Selected!`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>The Pick Is In!</h2>
+            <p><strong>${team.name}</strong> has selected <strong>${player.name}</strong> (${player.position || 'Player'}) in Round ${round}, Pick ${pickNumber}.</p>
+
+            <hr />
+
+            <h3>Up Next: ${nextTeam ? nextTeam.name : 'Draft Complete!'}</h3>
+            ${nextTeam ? `<p>It is now <strong>${nextTeam.name}</strong>'s turn to pick.</p>` : ''}
+
+            <p>
+                <a href="${process.env.FRONTEND_URL}/draft" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Draft Board</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
+// Template: Stalled Draft Notification
+async function sendStalledDraftNotification(level, team, client) {
+    const recipients = await getLeagueEmails(client);
+
+    let subject = '';
+    let messageBody = '';
+
+    if (level === 1) { // 24 Hours
+        subject = `Draft Alert: 24 Hour Frown of Disapproval`;
+        messageBody = `
+            <h3>Frown of Disapproval ☹️</h3>
+            <p>It has been over 24 hours since the last pick.</p>
+            <p>The <strong>${team.name}</strong> has officially received a Frown of Disapproval Note.</p>
+            <p>Please make your pick soon!</p>
+        `;
+    } else if (level === 2) { // 48 Hours
+        subject = `Draft Alert: 48 Hour Notice of Censure`;
+        messageBody = `
+            <h3>Notice of Censure ⚠️</h3>
+            <p>It has been over 48 hours since the last pick.</p>
+            <p>The <strong>${team.name}</strong> has officially received a Notice of Censure.</p>
+            <p>The league is waiting...</p>
+        `;
+    } else if (level === 3) { // 72 Hours
+        subject = `Draft Alert: 72 Hour Threat of Pick Forfeiture`;
+        messageBody = `
+            <h3>Threat of Pick Forfeiture 🚨</h3>
+            <p>It has been over 72 hours since the last pick.</p>
+            <p>The <strong>${team.name}</strong> has officially received a Threat of Pick Forfeiture.</p>
+            <p>Make your pick immediately or risk losing it!</p>
+        `;
+    }
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            ${messageBody}
+            <p>
+                <a href="${process.env.FRONTEND_URL}/draft" style="background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Draft</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
+module.exports = {
+    sendPickConfirmation,
+    sendStalledDraftNotification
+};
