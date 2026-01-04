@@ -12,6 +12,7 @@ import DevToolView from '../views/DevToolView.vue' // <-- ADD THIS
 import LeagueView from '../views/LeagueView.vue'
 import DraftView from '../views/DraftView.vue'
 import OfficialRulesView from '../views/OfficialRulesView.vue'
+import ClassicView from '../views/ClassicView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,6 +49,12 @@ const router = createRouter({
       path: '/draft',
       name: 'draft',
       component: DraftView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/classic',
+      name: 'classic',
+      component: ClassicView,
       meta: { requiresAuth: true }
     },
     // ADD THIS NEW DYNAMIC ROUTE
