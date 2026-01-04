@@ -3,6 +3,9 @@ import { ref, onMounted, computed } from 'vue';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 
+// Ensure apiUrl is an empty string if VITE_API_URL is not defined, to allow relative paths (proxied) to work.
+const apiUrl = import.meta.env.VITE_API_URL || '';
+
 const loading = ref(true);
 const state = ref({
     seeding: [],
@@ -16,58 +19,94 @@ const selectedPlayer = ref(null);
 
 // Bracket Computation
 const bracket = computed(() => {
-    // We need to map the series data to bracket slots.
-    // Slots:
-    // - PlayIn (4v5)
-    // - Semi1 (1 vs Winner of PlayIn)
-    // - Semi2 (2 vs 3)
-    // - Final
-
-    // We need to identify series based on participants and round/notes logic.
-    // Assuming backend returns enough info or we infer it.
-    // For this iteration, we might just list the games or try to deduce positions.
-    // Given the constraints, let's look for matching User IDs from the seeding.
-
     if (!state.value.seeding || state.value.seeding.length < 5) return null;
 
-    const seeds = state.value.seeding; // 0=5th seed, 1=4th, 2=3rd, 3=2nd, 4=1st (Wait, sorting is typically 1-5)
-    // Seeding array from backend is "ordered 5th seed to 1st seed (based on spoon recency)" - Wait, checking backend comments.
-    // "Most recent loser is Seed 5".
-    // So seeding[0] is #5, seeding[1] is #4, ... seeding[4] is #1.
-
+    const seeds = state.value.seeding; // 0=5th seed, ... 4=1st seed.
     const seed5 = seeds[0];
     const seed4 = seeds[1];
     const seed3 = seeds[2];
     const seed2 = seeds[3];
     const seed1 = seeds[4];
 
+    // Helper to find a series between two user IDs
     const findSeries = (uid1, uid2) => {
+        if (!uid1 || !uid2) return null;
         return state.value.series.find(s =>
             (s.home_user_id === uid1 && s.away_user_id === uid2) ||
             (s.home_user_id === uid2 && s.away_user_id === uid1)
         );
     };
 
-    const playIn = findSeries(seed4?.user_id, seed5?.user_id);
-    // Winner of playIn plays Seed 1.
-    // We don't know the winner ID easily without parsing score, but we can look for series involving Seed 1.
-    const semi1 = state.value.series.find(s =>
+    // Helper to determine the winner of a series
+    const getWinner = (series) => {
+        if (!series || !series.winning_team_id) return null;
+        return series.winning_team_id === series.home_team_id ? series.home_user_id : series.away_user_id;
+    };
+
+    // Helper to get team details by user ID
+    const getTeam = (userId) => {
+        const seed = seeds.find(s => s.user_id === userId);
+        if (seed) return seed; // Return the seeding object which contains name, logo etc. (assuming seeding has it)
+        // If not found in seeding (unlikely for classic participants), look in rosters/participants
+        // For now, rely on seeding array having team info.
+        return { name: 'TBD', logo_url: '' };
+    };
+
+    // --- PLAY-IN (4 vs 5) ---
+    const playInSeries = findSeries(seed4?.user_id, seed5?.user_id);
+    const playInWinnerId = getWinner(playInSeries);
+    const playInWinner = playInWinnerId ? getTeam(playInWinnerId) : null;
+
+    // --- SEMI 1 (1 vs Winner of Play-In) ---
+    // If playInWinner is known, we look for series between Seed 1 and that winner.
+    // If not known yet, we can't find the series definitively by ID pair unless created ahead of time.
+    // We search for a series involving Seed 1 that ISN'T against Seed 2 or 3.
+    const semi1Series = state.value.series.find(s =>
         (s.home_user_id === seed1?.user_id && s.away_user_id !== seed2?.user_id && s.away_user_id !== seed3?.user_id) ||
         (s.away_user_id === seed1?.user_id && s.home_user_id !== seed2?.user_id && s.home_user_id !== seed3?.user_id)
     );
-    const semi2 = findSeries(seed2?.user_id, seed3?.user_id);
+    const semi1WinnerId = getWinner(semi1Series);
+    const semi1Winner = semi1WinnerId ? getTeam(semi1WinnerId) : null;
 
-    // Final involves survivors. Usually hard to pinpoint without exact winner logic,
-    // but it's the series that isn't one of the above.
-    const final = state.value.series.find(s => s !== playIn && s !== semi1 && s !== semi2);
+    // --- SEMI 2 (2 vs 3) ---
+    const semi2Series = findSeries(seed2?.user_id, seed3?.user_id);
+    const semi2WinnerId = getWinner(semi2Series);
+    const semi2Winner = semi2WinnerId ? getTeam(semi2WinnerId) : null;
+
+    // --- FINAL (Winner Semi 1 vs Winner Semi 2) ---
+    // The final is the series that isn't any of the others.
+    const finalSeries = state.value.series.find(s => s !== playInSeries && s !== semi1Series && s !== semi2Series);
 
     return {
         seeds: { 1: seed1, 2: seed2, 3: seed3, 4: seed4, 5: seed5 },
         matchups: {
-            playIn: { label: 'Play-In (4 v 5)', series: playIn, p1: seed4, p2: seed5 },
-            semi1: { label: 'Semifinal (1 v 4/5)', series: semi1, p1: seed1, p2: null }, // p2 is undetermined purely from seeding
-            semi2: { label: 'Semifinal (2 v 3)', series: semi2, p1: seed2, p2: seed3 },
-            final: { label: 'Championship', series: final }
+            playIn: {
+                label: 'Play-In (4 v 5)',
+                series: playInSeries,
+                team1: seed4,
+                team2: seed5,
+                winner: playInWinner
+            },
+            semi1: {
+                label: 'Semifinal (1 v 4/5)',
+                series: semi1Series,
+                team1: seed1,
+                team2: playInWinner || { name: 'Winner Play-In' }, // Dynamic placeholder
+                winner: semi1Winner
+            },
+            semi2: {
+                label: 'Semifinal (2 v 3)',
+                series: semi2Series,
+                team1: seed2,
+                team2: seed3,
+                winner: semi2Winner
+            },
+            final: {
+                label: 'Championship',
+                series: finalSeries,
+                team1: semi1Winner || { name: 'Winner Semi 1' },
+                team2: semi2Winner || { name: 'Winner Semi 2' }
+            }
         }
     };
 });
@@ -105,55 +144,74 @@ onMounted(async () => {
         <div v-if="loading">Loading...</div>
 
         <div v-else>
-            <!-- SEEDING -->
-            <div class="section seeding-section">
-                <h2>Seeding (Wooden Spoon History)</h2>
-                <ul>
-                    <li v-for="(seed, index) in state.seeding" :key="seed.team_id">
-                        <strong>#{{ 5 - index }}</strong>: {{ seed.name }}
-                        <span class="subtext">(Last Spoon: {{ new Date(seed.lastSpoonDate).toLocaleDateString() }})</span>
-                    </li>
-                </ul>
-            </div>
-
             <!-- BRACKET -->
             <div class="section bracket-section" v-if="bracket">
                 <h2>Tournament Bracket</h2>
                 <div class="bracket-grid">
+                    <!-- Play-In -->
                     <div class="matchup">
                         <h3>{{ bracket.matchups.playIn.label }}</h3>
-                        <div class="team">{{ bracket.seeds[4]?.name || 'Seed 4' }}</div>
-                        <div class="team">{{ bracket.seeds[5]?.name || 'Seed 5' }}</div>
+                        <div class="team-entry">
+                            <img v-if="bracket.matchups.playIn.team1.logo_url" :src="bracket.matchups.playIn.team1.logo_url" class="team-logo-tiny" />
+                            <span class="team-name">{{ bracket.matchups.playIn.team1.name }}</span>
+                        </div>
+                        <div class="team-entry">
+                            <img v-if="bracket.matchups.playIn.team2.logo_url" :src="bracket.matchups.playIn.team2.logo_url" class="team-logo-tiny" />
+                            <span class="team-name">{{ bracket.matchups.playIn.team2.name }}</span>
+                        </div>
                         <div class="result" v-if="bracket.matchups.playIn.series">
                             Result: {{ bracket.matchups.playIn.series.score }}
-                            ({{ bracket.matchups.playIn.series.home_user_id === bracket.matchups.playIn.series.winning_team_id ? bracket.matchups.playIn.series.home : bracket.matchups.playIn.series.away }} wins)
                         </div>
                     </div>
 
+                    <!-- Semi 1 -->
                     <div class="matchup">
                         <h3>{{ bracket.matchups.semi1.label }}</h3>
-                        <div class="team">{{ bracket.seeds[1]?.name || 'Seed 1' }}</div>
-                        <div class="team">Winner of Play-In</div>
+                        <div class="team-entry">
+                            <img v-if="bracket.matchups.semi1.team1.logo_url" :src="bracket.matchups.semi1.team1.logo_url" class="team-logo-tiny" />
+                            <span class="team-name">{{ bracket.matchups.semi1.team1.name }}</span>
+                        </div>
+                        <div class="team-entry">
+                            <img v-if="bracket.matchups.semi1.team2.logo_url" :src="bracket.matchups.semi1.team2.logo_url" class="team-logo-tiny" />
+                            <span class="team-name">{{ bracket.matchups.semi1.team2.name }}</span>
+                        </div>
                         <div class="result" v-if="bracket.matchups.semi1.series">
                             Result: {{ bracket.matchups.semi1.series.score }}
                         </div>
                     </div>
 
+                    <!-- Semi 2 -->
                     <div class="matchup">
                         <h3>{{ bracket.matchups.semi2.label }}</h3>
-                        <div class="team">{{ bracket.seeds[2]?.name || 'Seed 2' }}</div>
-                        <div class="team">{{ bracket.seeds[3]?.name || 'Seed 3' }}</div>
+                        <div class="team-entry">
+                            <img v-if="bracket.matchups.semi2.team1.logo_url" :src="bracket.matchups.semi2.team1.logo_url" class="team-logo-tiny" />
+                            <span class="team-name">{{ bracket.matchups.semi2.team1.name }}</span>
+                        </div>
+                        <div class="team-entry">
+                            <img v-if="bracket.matchups.semi2.team2.logo_url" :src="bracket.matchups.semi2.team2.logo_url" class="team-logo-tiny" />
+                            <span class="team-name">{{ bracket.matchups.semi2.team2.name }}</span>
+                        </div>
                         <div class="result" v-if="bracket.matchups.semi2.series">
                             Result: {{ bracket.matchups.semi2.series.score }}
                         </div>
                     </div>
 
+                    <!-- Final -->
                     <div class="matchup final">
-                        <h3>{{ bracket.matchups.final.label }}</h3>
-                        <div class="team">Winner Semi 1</div>
-                        <div class="team">Winner Semi 2</div>
-                        <div class="result" v-if="bracket.matchups.final.series">
-                            Result: {{ bracket.matchups.final.series.score }}
+                        <img :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-bg" alt="Trophy" />
+                        <div class="matchup-content">
+                            <h3>{{ bracket.matchups.final.label }}</h3>
+                            <div class="team-entry">
+                                <img v-if="bracket.matchups.final.team1.logo_url" :src="bracket.matchups.final.team1.logo_url" class="team-logo-tiny" />
+                                <span class="team-name">{{ bracket.matchups.final.team1.name }}</span>
+                            </div>
+                            <div class="team-entry">
+                                <img v-if="bracket.matchups.final.team2.logo_url" :src="bracket.matchups.final.team2.logo_url" class="team-logo-tiny" />
+                                <span class="team-name">{{ bracket.matchups.final.team2.name }}</span>
+                            </div>
+                            <div class="result" v-if="bracket.matchups.final.series">
+                                Result: {{ bracket.matchups.final.series.score }}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -236,9 +294,10 @@ h2 {
     padding: 1rem;
     border: 1px solid #ddd;
     border-radius: 4px;
+    position: relative; /* Context for trophy positioning */
+    overflow: hidden; /* Keep trophy inside */
 }
 .matchup h3 { margin-top: 0; font-size: 1rem; color: #555; }
-.matchup .team { font-weight: bold; margin: 0.25rem 0; }
 .matchup .result {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
@@ -249,7 +308,44 @@ h2 {
 .final {
     border-color: #ffd700;
     background-color: #fff9db;
+    min-height: 120px; /* Ensure enough height for trophy */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+.final .matchup-content {
+    position: relative;
+    z-index: 2; /* Text above trophy */
+    width: 100%;
+}
+
+.trophy-bg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%; /* Adjust size as needed */
+    height: auto;
+    opacity: 0.2; /* Watermark effect */
+    z-index: 1; /* Behind text */
+    pointer-events: none;
+}
+
+.team-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0;
+}
+.team-logo-tiny {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+.team-name {
+    font-weight: bold;
+}
+
 .locked-message {
     text-align: center;
     padding: 2rem;
