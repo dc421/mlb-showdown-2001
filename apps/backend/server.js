@@ -802,6 +802,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
 app.use('/api/dev', require('./routes/dev'));
 app.use('/api/draft', require('./routes/draft'));
 app.use('/api/league', require('./routes/league'));
+app.use('/api/classic', require('./routes/classic'));
 
 // USER REGISTRATION (Updated for Teams)
 app.post('/api/register', async (req, res) => {
@@ -880,12 +881,15 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- SINGLE ROSTER ENDPOINTS ---
+// --- ROSTER ENDPOINTS (Now supports types) ---
 // in server.js
 app.get('/api/my-roster', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
+    const { type } = req.query;
+    const rosterType = type || 'league'; // Default to 'league'
+
     try {
-        const rosterResult = await pool.query('SELECT roster_id, user_id FROM rosters WHERE user_id = $1', [userId]);
+        const rosterResult = await pool.query('SELECT roster_id, user_id, roster_type FROM rosters WHERE user_id = $1 AND roster_type = $2', [userId, rosterType]);
         if (rosterResult.rows.length === 0) {
             return res.json(null);
         }
@@ -907,10 +911,11 @@ app.get('/api/my-roster', authenticateToken, async (req, res) => {
     }
 });
 
-// CREATE or UPDATE a user's single roster (Upsert)
+// CREATE or UPDATE a user's roster (Upsert)
 app.post('/api/my-roster', authenticateToken, async (req, res) => {
-    const { cards } = req.body;
+    const { cards, type } = req.body;
     const userId = req.user.userId;
+    const rosterType = type || 'league';
 
     if (!cards || cards.length !== 20) {
         return res.status(400).json({ message: 'A valid roster requires a name and 20 cards.' });
@@ -920,7 +925,7 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        const existingRoster = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
+        const existingRoster = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1 AND roster_type = $2', [userId, rosterType]);
         let rosterId;
         let oldCards = [];
 
@@ -931,7 +936,7 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
             oldCards = oldCardsRes.rows.map(c => c.card_id);
             await client.query('DELETE FROM roster_cards WHERE roster_id = $1', [rosterId]);
         } else {
-            const newRoster = await client.query('INSERT INTO rosters (user_id) VALUES ($1) RETURNING roster_id', [userId]);
+            const newRoster = await client.query('INSERT INTO rosters (user_id, roster_type) VALUES ($1, $2) RETURNING roster_id', [userId, rosterType]);
             rosterId = newRoster.rows[0].roster_id;
         }
 

@@ -14,6 +14,8 @@ const selectedCard = ref(null);
 const filterPosition = ref('ALL');
 const searchQuery = ref('');
 const draggedItem = ref(null);
+const rosterType = ref('league');
+const ineligibleIds = ref(new Set());
 
 const roster = ref({
   lineup: { C: null, '1B': null, '2B': null, SS: null, '3B': null, LF: null, CF: null, RF: null, DH: null },
@@ -25,6 +27,9 @@ const draftState = ref(null);
 
 // --- COMPUTED PROPERTIES ---
 const filteredPointSets = computed(() => {
+  if (rosterType.value === 'classic') {
+      return authStore.pointSets.filter(set => set.name === 'Original Pts');
+  }
   const allowedNames = ["Original Pts", "Upcoming Season", "8/4/25 Season"];
   return authStore.pointSets
     .filter(set => allowedNames.includes(set.name))
@@ -59,6 +64,10 @@ const availablePlayers = computed(() => {
   return authStore.allPlayers
     .filter(p => !allPlayersOnRoster.value.some(rp => rp.card_id === p.card_id))
     .map(p => {
+        // Classic Mode: Mark ineligible players
+        if (rosterType.value === 'classic' && ineligibleIds.value.has(p.card_id)) {
+            return { ...p, isUnavailable: true, unavailabilityReason: 'Ineligible (5+ appearances)' };
+        }
         // Mark unavailable players if in draft mode
         if (draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
             if (draftState.value.takenPlayerIds.includes(p.card_id)) {
@@ -260,16 +269,18 @@ function buildRosterPayload() {
 }
 
 async function saveRoster() {
-  // Check for players owned by other teams
-  const ownedPlayers = allPlayersOnRoster.value.filter(isPlayerOwnedByOther);
-  if (ownedPlayers.length > 0) {
-      const names = ownedPlayers.map(p => p.displayName).join(', ');
-      alert(`Cannot save roster. The following players are on another team's roster: ${names}`);
-      return;
+  // Check for players owned by other teams (Only applies to League rosters)
+  if (rosterType.value === 'league') {
+      const ownedPlayers = allPlayersOnRoster.value.filter(isPlayerOwnedByOther);
+      if (ownedPlayers.length > 0) {
+          const names = ownedPlayers.map(p => p.displayName).join(', ');
+          alert(`Cannot save roster. The following players are on another team's roster: ${names}`);
+          return;
+      }
   }
 
   const rosterData = buildRosterPayload();
-  await authStore.saveRoster(rosterData);
+  await authStore.saveRoster(rosterData, rosterType.value);
 }
 
 async function submitDraftTurn() {
@@ -334,6 +345,12 @@ watch(() => authStore.selectedPointSetId, async (newId, oldId) => {
 });
 
 onMounted(async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const typeParam = urlParams.get('type');
+  if (typeParam === 'classic') {
+      rosterType.value = 'classic';
+  }
+
   await authStore.fetchPointSets();
 
   // Check Draft State
@@ -342,7 +359,7 @@ onMounted(async () => {
       if (resp.ok) {
           draftState.value = await resp.json();
           // If draft is active, force Upcoming Season
-          if (draftState.value.is_active) {
+          if (draftState.value.is_active && rosterType.value === 'league') {
               const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
               if (upcoming) {
                   authStore.selectedPointSetId = upcoming.point_set_id;
@@ -351,11 +368,26 @@ onMounted(async () => {
       }
   } catch (e) { console.error(e); }
 
+  if (rosterType.value === 'classic') {
+      const originalPts = authStore.pointSets.find(ps => ps.name === 'Original Pts');
+      if (originalPts) {
+          authStore.selectedPointSetId = originalPts.point_set_id;
+      }
+      // Fetch eligibility
+      try {
+          const resp = await apiClient('/api/classic/eligibility');
+          if (resp.ok) {
+              const data = await resp.json();
+              ineligibleIds.value = new Set(data.ineligibleIds);
+          }
+      } catch (e) { console.error("Error fetching eligibility:", e); }
+  }
+
   if (authStore.selectedPointSetId) {
     await authStore.fetchAllPlayers(authStore.selectedPointSetId);
   }
   
-  await authStore.fetchMyRoster();
+  await authStore.fetchMyRoster(rosterType.value);
 
   if (authStore.myRoster && authStore.myRoster.cards) {
     const savedCards = authStore.myRoster.cards;

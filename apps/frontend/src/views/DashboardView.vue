@@ -12,6 +12,8 @@ const router = useRouter();
 const seriesType = ref('exhibition'); // Default to exhibition
 const teamAccolades = ref({ spaceships: [], spoons: [] });
 const selectedPlayer = ref(null);
+const activeRosterTab = ref('league'); // 'league' or 'classic'
+
 // Ensure apiUrl is an empty string if VITE_API_URL is not defined, to allow relative paths (proxied) to work.
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
@@ -114,6 +116,8 @@ function getGameTypeName(seriesType) {
       return 'Regular Season Series';
     case 'playoff':
       return 'Playoff Series';
+    case 'classic':
+      return 'Classic Series';
     case 'exhibition':
     default:
       return 'Exhibition';
@@ -121,6 +125,24 @@ function getGameTypeName(seriesType) {
 }
 
 function handleCreateGame() {
+  // If Classic series is selected, we need to ensure we use the Classic roster.
+  // However, `authStore.myRoster` is currently loaded based on `activeRosterTab`.
+  // Ideally, the game creation logic should pick the right roster ID.
+  // But strictly, you should only be able to create a Classic game if you have a Classic roster.
+  // The current UI loads `myRoster` based on the tab.
+
+  // If the user selects "Classic" series type but is viewing "League" roster,
+  // we should probably warn them or fetch the correct roster ID.
+  // For simplicity, let's assume the user has switched tabs or `createGame` logic is updated.
+  // Wait, `createGame` takes a roster ID. We should probably fetch the Classic roster ID if seriesType is classic.
+  // BUT, to keep it simple and surgical:
+  // Let's enforce that to create a Classic game, you must be in the Classic tab (so `myRoster` is correct).
+
+  if (seriesType.value === 'classic' && activeRosterTab.value !== 'classic') {
+      alert("Please switch to the 'Classic' roster tab to create a Classic series game.");
+      return;
+  }
+
   if (authStore.myRoster) {
     // Pass the selected series type to the store action
     authStore.createGame(authStore.myRoster.roster_id, seriesType.value);
@@ -143,7 +165,11 @@ function refreshData() {
 }
 
 function goToRosterBuilder() {
-  router.push('/roster-builder');
+  if (activeRosterTab.value === 'classic') {
+      router.push('/roster-builder?type=classic');
+  } else {
+      router.push('/roster-builder');
+  }
 }
 
 function openPlayerCard(player) {
@@ -154,11 +180,32 @@ function closePlayerCard() {
     selectedPlayer.value = null;
 }
 
+async function switchRosterTab(tab) {
+    activeRosterTab.value = tab;
+    // Reload roster for the new tab
+    await authStore.fetchMyRoster(tab);
+
+    // Determine appropriate point set
+    if (tab === 'classic') {
+        const original = authStore.pointSets.find(ps => ps.name === 'Original Pts');
+        if (original && authStore.myRoster) {
+            authStore.fetchRosterDetails(authStore.myRoster.roster_id, original.point_set_id);
+        }
+    } else {
+        // League defaults
+        // Re-determine current season logic if needed, or rely on authStore.selectedPointSetId which is likely already set correctly for League
+        if (authStore.myRoster && authStore.selectedPointSetId) {
+            authStore.fetchRosterDetails(authStore.myRoster.roster_id, authStore.selectedPointSetId);
+        }
+    }
+}
+
 onMounted(async () => {
   // Ensure point sets are loaded to get the current season ID
   await authStore.fetchPointSets();
 
-  await authStore.fetchMyRoster();
+  // Initial fetch (League by default)
+  await authStore.fetchMyRoster('league');
 
   // Now fetch full roster details with points for the selected point set
   if (authStore.myRoster && authStore.myRoster.roster_id && authStore.selectedPointSetId) {
@@ -185,7 +232,7 @@ onUnmounted(() => {
         <h1>{{ myTeamDisplayName }}</h1>
         <p>Owner: {{ authStore.user.owner }}</p>
         <div class="header-buttons">
-            <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? 'Edit Roster' : 'Create Roster' }}</button>
+            <button @click="goToRosterBuilder" class="roster-btn">{{ authStore.myRoster ? `Edit ${activeRosterTab === 'classic' ? 'Classic ' : ''}Roster` : `Create ${activeRosterTab === 'classic' ? 'Classic ' : ''}Roster` }}</button>
             <!-- REMOVED: Draft Room Link -->
         </div>
       </div>
@@ -212,8 +259,15 @@ onUnmounted(() => {
     <main class="dashboard-main">
       <!-- COLUMN 1: Roster -->
       <div class="panel roster-panel">
-          <h2>Roster</h2>
-          <div v-if="processedRoster.length === 0">No roster loaded.</div>
+          <div class="roster-header-tabs">
+              <h2>Roster</h2>
+              <div class="tabs">
+                  <button :class="{ active: activeRosterTab === 'league' }" @click="switchRosterTab('league')">League</button>
+                  <button :class="{ active: activeRosterTab === 'classic' }" @click="switchRosterTab('classic')">Classic</button>
+              </div>
+          </div>
+
+          <div v-if="processedRoster.length === 0">No {{ activeRosterTab }} roster loaded.</div>
           <div v-else class="roster-table-container">
             <table class="roster-table">
                 <thead>
@@ -260,6 +314,7 @@ onUnmounted(() => {
                 <label><input type="radio" v-model="seriesType" value="exhibition"> Exhibition</label>
                 <label><input type="radio" v-model="seriesType" value="regular_season"> Regular Season (7 Games)</label>
                 <label><input type="radio" v-model="seriesType" value="playoff"> Playoff (Best of 7)</label>
+                <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
             </div>
             <button @click="handleCreateGame" :disabled="!authStore.myRoster" class="action-btn">+ Create New Game</button>
             <h3 class="join-header">Open Games to Join</h3>
@@ -365,7 +420,28 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
-.panel h2 { margin-top: 0; }
+.panel h2 { margin-top: 0; margin-bottom: 0; }
+.roster-header-tabs {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+}
+.tabs button {
+    background: none;
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-weight: bold;
+    color: #888;
+    border-bottom: 3px solid transparent;
+}
+.tabs button.active {
+    color: #333;
+    border-bottom-color: #007bff;
+}
 .roster-btn {
   margin-top: 1rem;
   padding: .5rem 1rem;

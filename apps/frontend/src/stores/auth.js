@@ -91,6 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
       const sets = await response.json();
       pointSets.value = sets;
 
+      // Only set default if not already set (allows components to override before fetch)
       if (sets.length > 0 && !selectedPointSetId.value) {
         const currentSeasonSet = sets.find(set => set.name === "8/4/25 Season");
         if (currentSeasonSet) {
@@ -104,10 +105,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-async function fetchMyRoster() {
+async function fetchMyRoster(type = 'league') {
     if (!token.value) return;
     try {
-      const response = await apiClient(`/api/my-roster`);
+      const response = await apiClient(`/api/my-roster?type=${type}`);
       if (!response.ok) throw new Error('Failed to fetch roster');
       myRoster.value = await response.json();
     } catch (error) {
@@ -144,12 +145,12 @@ async function fetchAvailableTeams() {
   }
 }
 
-  async function saveRoster(rosterData) {
+  async function saveRoster(rosterData, type = 'league') {
   if (!token.value) return;
   try {
     const response = await apiClient(`/api/my-roster`, {
       method: 'POST',
-      body: JSON.stringify(rosterData)
+      body: JSON.stringify({ ...rosterData, type })
     });
 
     const data = await response.json();
@@ -162,7 +163,7 @@ async function fetchAvailableTeams() {
       throw new Error(data.message || 'Failed to create roster');
     }
 
-    await fetchMyRoster();
+    await fetchMyRoster(type);
     router.push('/dashboard');
 
   } catch (error) {
