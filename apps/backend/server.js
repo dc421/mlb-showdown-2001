@@ -981,6 +981,42 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
             }
         }
         // ----------------------------------------------------
+
+        // --- NEW: Classic Roster Email Notification ---
+        // Only send if this is a 'classic' roster and the previous version of the roster (oldCards) was NOT complete (was < 20 cards).
+        // oldCards is an array of IDs fetched earlier in this route.
+        if (rosterType === 'classic' && oldCards.length < 20) {
+             const allOwnersRes = await client.query('SELECT user_id, email, owner_first_name, owner_last_name FROM users WHERE team_id IS NOT NULL');
+             const allOwners = allOwnersRes.rows.map(u => ({
+                 user_id: u.user_id,
+                 email: u.email,
+                 owner_name: `${u.owner_first_name} ${u.owner_last_name}`.trim()
+             }));
+
+             // Check for valid rosters (20 cards)
+             const validRostersRes = await client.query(`
+                SELECT r.user_id
+                FROM rosters r
+                JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                WHERE r.roster_type = 'classic'
+                GROUP BY r.user_id
+                HAVING COUNT(rc.card_id) = 20
+             `);
+             const validUserIds = validRostersRes.rows.map(r => r.user_id);
+
+             const currentUser = allOwners.find(u => u.user_id === userId);
+             const missingUsers = allOwners.filter(u => !validUserIds.includes(u.user_id));
+
+             const { sendClassicRosterSubmissionEmail } = require('./services/emailService');
+
+             // Fire and forget (but handle error logging)
+             // We await here to ensure the client is still valid for fetching emails
+             try {
+                await sendClassicRosterSubmissionEmail(currentUser, missingUsers, client);
+             } catch (err) {
+                 console.error("Error sending classic roster email:", err);
+             }
+        }
         
         await client.query('COMMIT');
         res.status(201).json({ message: 'Roster saved successfully!' });

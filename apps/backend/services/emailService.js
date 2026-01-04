@@ -79,6 +79,33 @@ async function sendPickConfirmation(pickDetails, nextTeam, client) {
     await sendEmail(recipients, subject, html);
 }
 
+// Template: Classic Roster Submission
+async function sendClassicRosterSubmissionEmail(userWhoSubmitted, missingUsers, client) {
+    const recipients = await getLeagueEmails(client);
+
+    const submitterName = userWhoSubmitted.owner_name || userWhoSubmitted.email;
+    const missingNames = missingUsers.map(u => u.owner_name || u.email).join(', ');
+
+    const subject = `Classic Roster Submitted: ${submitterName}`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Roster Submission Update</h2>
+            <p><strong>${submitterName}</strong> has submitted their Classic roster.</p>
+
+            <hr />
+
+            <h3>Still Need To Submit:</h3>
+            <p>${missingNames || "Everyone has submitted! Ready to reveal!"}</p>
+
+            <p>
+                <a href="${process.env.FRONTEND_URL}/classic" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Classic League</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
 // Template: Stalled Draft Notification
 async function sendStalledDraftNotification(level, team, client) {
     const recipients = await getLeagueEmails(client);
@@ -126,5 +153,6 @@ async function sendStalledDraftNotification(level, team, client) {
 
 module.exports = {
     sendPickConfirmation,
-    sendStalledDraftNotification
+    sendStalledDraftNotification,
+    sendClassicRosterSubmissionEmail
 };
