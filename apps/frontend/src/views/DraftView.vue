@@ -14,7 +14,9 @@ const draftState = ref({
     active_team_id: null,
     history: [],
     randomRemovals: [],
-    takenPlayerIds: []
+    takenPlayerIds: [],
+    draft_order: [],
+    teams: {}
 });
 const availablePlayers = ref([]);
 const loading = ref(true);
@@ -26,24 +28,12 @@ const isSeasonOver = ref(false);
 
 // --- COMPUTED ---
 const isDraftActive = computed(() => draftState.value.is_active);
-const currentRoundName = computed(() => {
-    const r = draftState.value.current_round;
-    if (r === 2) return "Round 1 (Pick)";
-    if (r === 3) return "Round 2 (Pick)";
-    if (r === 4) return "Round 3 (Add/Drop)";
-    if (r === 5) return "Round 4 (Add/Drop)";
-    return "Unknown";
-});
-const activeTeamName = computed(() => {
-    if (draftState.value.activeTeam) {
-        return draftState.value.activeTeam.name; // Simplified, ideally construct full name
-    }
-    return "Unknown";
-});
+
 const isMyTurn = computed(() => {
     if (!authStore.user || !authStore.user.team) return false;
     return authStore.user.team.team_id === draftState.value.active_team_id;
 });
+
 const filteredPlayers = computed(() => {
     return availablePlayers.value.filter(p => {
         if (searchQuery.value) {
@@ -52,7 +42,6 @@ const filteredPlayers = computed(() => {
         }
         if (filterPosition.value !== 'ALL') {
             if (filterPosition.value === 'P' && p.control === null) return false;
-            // Simplified position check
         }
         // Exclude taken players
         if (draftState.value.takenPlayerIds.includes(p.card_id)) return false;
@@ -60,14 +49,74 @@ const filteredPlayers = computed(() => {
     }).sort((a, b) => (b.points || 0) - (a.points || 0));
 });
 
-// History List (Draft Picks) - excluding removals
-const draftPicks = computed(() => {
-    if (!draftState.value.history) return [];
-    return draftState.value.history.filter(item => {
-        const action = (item.action || '').toUpperCase();
-        return action !== 'REMOVED_RANDOM';
+// Draft Table Generation
+const displayRows = computed(() => {
+    // If no active draft data is available (e.g. historical only, no order),
+    // fallback to just showing history.
+    if (!draftState.value.draft_order || draftState.value.draft_order.length === 0) {
+        return draftState.value.history.filter(item => (item.action || '').toUpperCase() !== 'REMOVED_RANDOM');
+    }
+
+    const rows = [];
+    const order = draftState.value.draft_order;
+    const teamCount = order.length;
+
+    // Generate 10 fixed slots for Rounds 1 & 2 (which are DB Rounds 2 & 3)
+    // Round 1 (DB 2): Picks 1-5
+    // Round 2 (DB 3): Picks 6-10
+    const totalFixedPicks = teamCount * 2;
+
+    for (let i = 1; i <= totalFixedPicks; i++) {
+        const teamIndex = (i - 1) % teamCount;
+        const teamId = order[teamIndex];
+        // Fetch Team Name from map or raw ID
+        const teamName = (draftState.value.teams && draftState.value.teams[teamId]) || `Team ${teamId}`;
+
+        // DB Round Calculation: Round 1 is Picks 1-5, Round 2 is Picks 6-10
+        // DB Round 2 -> UI Round 1
+        // DB Round 3 -> UI Round 2
+        const roundNum = i <= teamCount ? "Round 1" : "Round 2";
+
+        // Check if this pick has been made
+        const historyItem = draftState.value.history.find(h => h.pick_number === i && h.round !== 'Removal');
+
+        rows.push({
+            id: `pick-${i}`,
+            round: roundNum,
+            pick_number: i,
+            team_name: teamName,
+            player_name: historyItem ? historyItem.player_name : '', // Empty if future
+            action: historyItem ? historyItem.action : 'PENDING'
+        });
+    }
+
+    // Append any subsequent history (Add/Drops, etc) that goes beyond the fixed rounds
+    // or if we simply want to show all history that isn't already covered.
+    // However, the fixed rows cover pick_number 1-10.
+    // Add/Drop items usually share pick numbers or just append?
+    // In DB, Add/Drops have `pick_number` corresponding to when they happened.
+    // If the draft goes into Add/Drop (Round 4/5), `pick_number` continues incrementing.
+
+    const additionalHistory = draftState.value.history.filter(h => {
+        if ((h.action || '').toUpperCase() === 'REMOVED_RANDOM') return false;
+        // Include if pick_number > 10 (Add/Drop rounds)
+        return (h.pick_number > totalFixedPicks);
     });
+
+    additionalHistory.forEach(h => {
+        rows.push({
+            id: `hist-${h.id}`,
+            round: h.round, // "Add/Drop 1" etc
+            pick_number: h.pick_number,
+            team_name: h.team_name,
+            player_name: h.player_name,
+            action: h.action
+        });
+    });
+
+    return rows;
 });
+
 
 // Random Removals - Grouped by Team
 const randomRemovalsByTeam = computed(() => {
@@ -82,7 +131,6 @@ const randomRemovalsByTeam = computed(() => {
     if (draftState.value.history) {
         const historyRemovals = draftState.value.history.filter(item => (item.action || '').toUpperCase() === 'REMOVED_RANDOM');
         historyRemovals.forEach(h => {
-             // For active draft history, we use 'team_name' (which we populated via COALESCE)
              const teamName = h.team_name || "Unknown Team";
              const exists = removals.some(r => r.player_name === h.player_name && r.team_name === teamName);
              if (!exists) {
@@ -111,13 +159,6 @@ async function fetchAvailableSeasons() {
         const response = await apiClient(`/api/draft/seasons`);
         if (response.ok) {
             availableSeasons.value = await response.json();
-            // Default to latest if available and not set
-            if (availableSeasons.value.length > 0 && !selectedSeason.value) {
-                // If there is an active draft (handled by fetchDraftState default), it might be the latest.
-                // But generally, the latest season is the first one.
-                // We'll let fetchDraftState handle the default "active/latest" if we pass nothing,
-                // but for the dropdown we should probably select the one returned by state.
-            }
         }
     } catch (error) {
         console.error("Error fetching seasons:", error);
@@ -161,7 +202,7 @@ async function startDraft() {
             alert(data.message);
         } else {
             fetchDraftState();
-            fetchAvailableSeasons(); // Refresh seasons list as a new one might be created
+            fetchAvailableSeasons();
         }
     } catch (error) {
         console.error("Error starting draft:", error);
@@ -179,7 +220,6 @@ async function makePick(player) {
             const data = await response.json();
             alert(data.message);
         } else {
-            // State will update via socket or re-fetch
             fetchDraftState();
         }
     } catch (error) {
@@ -188,17 +228,13 @@ async function makePick(player) {
 }
 
 async function fetchAvailablePlayers() {
-    if (authStore.allPlayers.length === 0) {
-        // Need to find upcoming season ID.
-    }
-    availablePlayers.value = authStore.allPlayers; // Simple for now
+    availablePlayers.value = authStore.allPlayers;
 }
 
 function goToRosterBuilder() {
     router.push('/roster-builder');
 }
 
-// Watch for season selection change
 watch(selectedSeason, (newVal, oldVal) => {
     if (newVal !== oldVal) {
         fetchDraftState();
@@ -228,157 +264,129 @@ onUnmounted(() => {
 
 <template>
     <div class="draft-container">
+
+        <!-- HEADER / SEASON SELECT -->
+        <div class="history-header">
+            <h2>Draft History</h2>
+            <div class="history-controls">
+                <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select-inline">
+                    <option v-for="season in availableSeasons" :key="season" :value="season">
+                        {{ season }}
+                    </option>
+                </select>
+            </div>
+        </div>
+
         <div v-if="loading" class="loading">Loading...</div>
 
-        <!-- INACTIVE STATE (Season Over check) -->
-        <div v-else-if="!isDraftActive" class="inactive-state">
-            <p v-if="isSeasonOver">The season is over. You can now perform random removals to start the draft.</p>
+        <!-- ACTIVE DRAFT CONTROLS -->
+        <div v-else-if="isDraftActive && isMyTurn" class="active-controls">
             
-            <button v-if="isSeasonOver" @click="startDraft" class="start-btn">Perform Random Removals</button>
-
-            <div class="history-section">
-                <div class="history-header">
-                    <h2>Draft History</h2>
-                    <div class="history-controls">
-                        <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select-inline">
-                            <option v-for="season in availableSeasons" :key="season" :value="season">
-                                {{ season }}
-                            </option>
-                        </select>
+            <!-- PICKING INTERFACE (Rounds 1 & 2) -->
+            <div v-if="draftState.current_round === 2 || draftState.current_round === 3" class="pick-interface">
+                <h3>Make Your Pick (Pick #{{ draftState.current_pick_number }})</h3>
+                <input v-model="searchQuery" placeholder="Search Players..." class="search-input" />
+                <div class="player-list">
+                    <div v-for="player in filteredPlayers" :key="player.card_id" class="player-card-row">
+                        <span>{{ player.displayName }} ({{ player.points }} pts)</span>
+                        <button @click="makePick(player)">Draft</button>
                     </div>
                 </div>
+            </div>
 
-                <!-- DRAFT TABLE -->
-                <div v-if="draftPicks.length > 0" class="draft-table-container">
-                    <table class="draft-table">
-                        <thead>
-                            <tr>
-                                <th>Round Name</th>
-                                <th>Pick #</th>
-                                <th>Player Name</th>
-                                <th>Team Name</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="item in draftPicks" :key="item.id">
-                                <td>{{ item.round }}</td>
-                                <td>{{ item.pick_number || '-' }}</td>
-                                <td>{{ item.player_name }}</td>
-                                <td>{{ item.team_name || item.team_id }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p v-else>No draft picks found for this season.</p>
-
-                <!-- RANDOM REMOVALS SECTION -->
-                <div class="removals-section" v-if="Object.keys(randomRemovalsByTeam).length > 0">
-                    <h2>Random Removals</h2>
-                    <div class="teams-list">
-                        <div v-for="(players, teamName) in randomRemovalsByTeam" :key="teamName" class="team-block">
-                            <div class="team-header">
-                                <div class="team-info">
-                                    <h2>{{ teamName }}</h2>
-                                </div>
-                            </div>
-                            <div class="roster-table-container">
-                                <table class="roster-table">
-                                    <thead>
-                                        <tr>
-                                            <th class="header-player">Removed Player</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="p in players" :key="p.player_name + p.card_id" class="player-row">
-                                            <td class="name-cell">{{ p.player_name }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
+            <!-- ADD/DROP INTERFACE (Rounds 3 & 4) -->
+            <div v-else-if="draftState.current_round === 4 || draftState.current_round === 5" class="add-drop-interface">
+                <h3>Finalize Your Roster</h3>
+                <p>You can add and drop as many players as you like.</p>
+                <button @click="goToRosterBuilder" class="builder-btn">Go to Roster Builder</button>
             </div>
         </div>
 
-        <!-- ACTIVE DRAFT STATE -->
-        <div v-else class="active-draft">
-            <div class="status-bar">
-                <div class="round-info">
-                    <h2>{{ currentRoundName }}</h2>
-                    <p>Pick #{{ draftState.current_pick_number }}</p>
-                </div>
-                <div class="active-team" :class="{ 'my-turn': isMyTurn }">
-                    <h3>Current Pick: {{ activeTeamName }}</h3>
-                    <p v-if="isMyTurn">IT'S YOUR TURN!</p>
-                </div>
-            </div>
+        <!-- WAITING MESSAGE FOR ACTIVE DRAFT -->
+        <div v-else-if="isDraftActive && !isMyTurn" class="waiting-message">
+            <p>Waiting for current pick...</p>
+        </div>
 
-            <div class="draft-workspace">
-                <!-- PICKING INTERFACE (Rounds 1 & 2) -->
-                <div v-if="(draftState.current_round === 2 || draftState.current_round === 3) && isMyTurn" class="pick-interface">
-                    <h3>Make Your Pick</h3>
-                    <input v-model="searchQuery" placeholder="Search Players..." class="search-input" />
-                    <div class="player-list">
-                        <div v-for="player in filteredPlayers" :key="player.card_id" class="player-card-row">
-                            <span>{{ player.displayName }} ({{ player.points }} pts)</span>
-                            <button @click="makePick(player)">Draft</button>
+        <!-- START BUTTON (If Season Over) -->
+        <div v-if="!isDraftActive && isSeasonOver" class="start-section">
+            <p>The season is over. You can now perform random removals to start the draft.</p>
+            <button @click="startDraft" class="start-btn">Perform Random Removals</button>
+        </div>
+
+
+        <!-- DRAFT TABLE (Unified) -->
+        <div v-if="!loading && displayRows.length > 0" class="draft-table-container">
+            <table class="draft-table">
+                <thead>
+                    <tr>
+                        <th>Round Name</th>
+                        <th>Pick #</th>
+                        <th>Player Name</th>
+                        <th>Team Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="item in displayRows" :key="item.id || item.pick_number">
+                        <td>{{ item.round }}</td>
+                        <td>{{ item.pick_number || '-' }}</td>
+                        <td>{{ item.player_name }}</td>
+                        <td>{{ item.team_name }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p v-else-if="!loading && !isSeasonOver && !isDraftActive">No draft data found.</p>
+
+        <!-- RANDOM REMOVALS SECTION -->
+        <div class="removals-section" v-if="!loading && Object.keys(randomRemovalsByTeam).length > 0">
+            <h2>Random Removals</h2>
+            <div class="teams-list">
+                <div v-for="(players, teamName) in randomRemovalsByTeam" :key="teamName" class="team-block">
+                    <div class="team-header">
+                        <div class="team-info">
+                            <h2>{{ teamName }}</h2>
                         </div>
                     </div>
-                </div>
-
-                <!-- ADD/DROP INTERFACE (Rounds 3 & 4) -->
-                <div v-else-if="(draftState.current_round === 4 || draftState.current_round === 5) && isMyTurn" class="add-drop-interface">
-                    <h3>Finalize Your Roster</h3>
-                    <p>You can add and drop as many players as you like.</p>
-                    <p>Your roster must be valid (20 players, 5000 pts) to finish your turn.</p>
-                    <button @click="goToRosterBuilder" class="builder-btn">Go to Roster Builder</button>
-                </div>
-
-                <div v-else class="waiting-message">
-                    Waiting for {{ activeTeamName }} to make their move...
-                </div>
-
-                <!-- RECENT HISTORY -->
-                <div class="side-history">
-                    <h3>Recent Activity</h3>
-                    <ul>
-                        <li v-for="item in draftState.history.slice(0, 10)" :key="item.id">
-                            <strong>{{ item.team_name }}</strong> {{ item.action }} {{ item.player_name }}
-                        </li>
-                    </ul>
+                    <div class="roster-table-container">
+                        <table class="roster-table">
+                            <thead>
+                                <tr>
+                                    <th class="header-player">Removed Player</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="p in players" :key="p.player_name + p.card_id" class="player-row">
+                                    <td class="name-cell">{{ p.player_name }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
+
     </div>
 </template>
 
 <style scoped>
 .draft-container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-.season-select { padding: 0.5rem; font-size: 1rem; }
-.start-btn { padding: 1rem 2rem; font-size: 1.2rem; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
-.status-bar { display: flex; justify-content: space-between; background: #f0f0f0; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; }
-.my-turn { color: #d9534f; font-weight: bold; }
-.draft-workspace { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
-.player-list { height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 0.5rem; }
-.player-card-row { display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid #eee; }
-.player-card-row button { background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; }
-.side-history { background: #f9f9f9; padding: 1rem; border-radius: 8px; }
-.side-history ul { padding-left: 1rem; list-style: none; }
-.builder-btn { padding: 1rem; font-size: 1.1rem; background: #17a2b8; color: white; border: none; cursor: pointer; }
-.history-list { list-style: none; padding: 0; }
-.history-list li { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
-.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .history-controls { display: flex; align-items: center; gap: 0.5rem; }
 .season-select-inline { padding: 0.25rem; font-size: 0.9rem; }
-.timestamp { color: #888; font-size: 0.8rem; margin-right: 0.5rem; }
-.team-name { font-weight: bold; margin-right: 0.5rem; }
-.action { font-weight: bold; margin-right: 0.5rem; }
-.action.added { color: green; }
-.action.dropped { color: red; }
-.action.removed_random { color: orange; }
+
+.start-section { margin-bottom: 2rem; text-align: center; }
+.start-btn { padding: 1rem 2rem; font-size: 1.2rem; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
+
+.active-controls { margin-bottom: 2rem; padding: 1rem; background: #f0f8ff; border: 1px solid #b8daff; border-radius: 8px; }
+.waiting-message { margin-bottom: 2rem; padding: 1rem; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; text-align: center; }
+
+.pick-interface h3 { margin-top: 0; }
+.search-input { width: 100%; padding: 0.5rem; margin-bottom: 1rem; box-sizing: border-box; }
+.player-list { height: 300px; overflow-y: auto; border: 1px solid #ccc; background: white; }
+.player-card-row { display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid #eee; align-items: center; }
+.player-card-row button { background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; border-radius: 4px; }
+
+.builder-btn { padding: 1rem; font-size: 1.1rem; background: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px; }
 
 /* TABLE STYLES */
 .draft-table-container { margin-bottom: 2rem; }
@@ -392,66 +400,15 @@ onUnmounted(() => {
 
 /* REMOVALS STYLES */
 .removals-section { margin-top: 2rem; }
-
-/* Styles adapted from LeagueView.vue */
-.teams-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-}
-
-.team-block {
-    background: #f9f9f9;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.team-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
-    margin-bottom: 0rem;
-}
-
-.team-info h2 {
-    margin: 0;
-    font-size: 1.4rem;
-}
-
-.roster-table-container {
-    overflow-x: auto;
-}
-
-.roster-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-}
-
-.roster-table th {
-    text-align: left;
-    padding: 0.5rem;
-    background: #e9ecef;
-    color: #495057;
-    font-weight: 600;
-}
-
-.roster-table td {
-    padding: 0.25rem 0.5rem;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.player-row {
-    transition: background-color 0.2s;
-}
-
-.player-row:hover {
-    background-color: #e2e6ea;
-}
-
-.name-cell {
-    font-weight: normal;
-}
+.teams-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+.team-block { background: #f9f9f9; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.team-header { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; margin-bottom: 0rem; }
+.team-info h2 { margin: 0; font-size: 1.4rem; }
+.roster-table-container { overflow-x: auto; }
+.roster-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.roster-table th { text-align: left; padding: 0.5rem; background: #e9ecef; color: #495057; font-weight: 600; }
+.roster-table td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #dee2e6; }
+.player-row { transition: background-color 0.2s; }
+.player-row:hover { background-color: #e2e6ea; }
+.name-cell { font-weight: normal; }
 </style>
