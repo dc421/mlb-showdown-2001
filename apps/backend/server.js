@@ -922,9 +922,13 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
         
         const existingRoster = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
         let rosterId;
+        let oldCards = [];
 
         if (existingRoster.rows.length > 0) {
             rosterId = existingRoster.rows[0].roster_id;
+            // Fetch old cards for diffing
+            const oldCardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
+            oldCards = oldCardsRes.rows.map(c => c.card_id);
             await client.query('DELETE FROM roster_cards WHERE roster_id = $1', [rosterId]);
         } else {
             const newRoster = await client.query('INSERT INTO rosters (user_id) VALUES ($1) RETURNING roster_id', [userId]);
@@ -938,6 +942,39 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
                 [rosterId, card.card_id, card.is_starter, card.assignment]
             );
         }
+
+        // --- DRAFT HISTORY LOGGING (If Active Draft Turn) ---
+        const draftStateRes = await client.query('SELECT * FROM draft_state WHERE is_active = true LIMIT 1');
+        if (draftStateRes.rows.length > 0) {
+            const state = draftStateRes.rows[0];
+            const teamRes = await client.query('SELECT team_id FROM teams WHERE user_id = $1', [userId]);
+
+            if (teamRes.rows.length > 0 && teamRes.rows[0].team_id === state.active_team_id) {
+                // It is this user's turn. Log the changes.
+                const newCardIds = cards.map(c => c.card_id);
+                const added = newCardIds.filter(id => !oldCards.includes(id));
+                const dropped = oldCards.filter(id => !newCardIds.includes(id));
+
+                const roundName = state.current_round === 4 ? "Add/Drop 1" : (state.current_round === 5 ? "Add/Drop 2" : `Round ${state.current_round}`);
+
+                for (const id of added) {
+                    await client.query(
+                        `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                         VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
+                        [state.season_name, roundName, state.active_team_id, id, state.current_pick_number]
+                    );
+                }
+                for (const id of dropped) {
+                    await client.query(
+                        `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                         VALUES ($1, $2, $3, $4, 'DROPPED', $5)`,
+                        [state.season_name, roundName, state.active_team_id, id, state.current_pick_number]
+                    );
+                }
+                io.emit('draft-updated');
+            }
+        }
+        // ----------------------------------------------------
         
         await client.query('COMMIT');
         res.status(201).json({ message: 'Roster saved successfully!' });

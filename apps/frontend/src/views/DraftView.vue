@@ -49,6 +49,51 @@ const filteredPlayers = computed(() => {
     }).sort((a, b) => (b.points || 0) - (a.points || 0));
 });
 
+// Helper to compute Net Changes for a set of history items
+function computeNetChanges(items) {
+    const net = [];
+    const added = new Set(); // Stores card_id
+    const dropped = new Set(); // Stores card_id
+    const playerMap = {}; // card_id -> { player_name, team_name, round, pick_number, id }
+
+    // Sort by created_at to process chronological sequence
+    const sorted = [...items].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    sorted.forEach(item => {
+        const id = item.card_id;
+        playerMap[id] = item; // Keep reference to latest metadata
+
+        if (item.action === 'ADDED') {
+            if (dropped.has(id)) {
+                // If previously dropped, adding it back cancels the drop
+                dropped.delete(id);
+            } else {
+                // Otherwise it's a new add
+                added.add(id);
+            }
+        } else if (item.action === 'DROPPED') {
+            if (added.has(id)) {
+                // If previously added, dropping it cancels the add
+                added.delete(id);
+            } else {
+                // Otherwise it's a new drop
+                dropped.add(id);
+            }
+        }
+    });
+
+    // Reconstruct history objects
+    added.forEach(id => {
+        net.push({ ...playerMap[id], action: 'ADDED' });
+    });
+    dropped.forEach(id => {
+        net.push({ ...playerMap[id], action: 'DROPPED' });
+    });
+
+    // Sort again by pick_number (or creation) to keep grouped display tidy
+    return net.sort((a, b) => a.id - b.id);
+}
+
 // Draft Table Generation
 const displayRows = computed(() => {
     // If no active draft data is available (e.g. historical only, no order),
@@ -62,22 +107,13 @@ const displayRows = computed(() => {
     const teamCount = order.length;
 
     // Generate 10 fixed slots for Rounds 1 & 2 (which are DB Rounds 2 & 3)
-    // Round 1 (DB 2): Picks 1-5
-    // Round 2 (DB 3): Picks 6-10
     const totalFixedPicks = teamCount * 2;
 
     for (let i = 1; i <= totalFixedPicks; i++) {
         const teamIndex = (i - 1) % teamCount;
         const teamId = order[teamIndex];
-        // Fetch Team Name from map or raw ID
         const teamName = (draftState.value.teams && draftState.value.teams[teamId]) || `Team ${teamId}`;
-
-        // DB Round Calculation: Round 1 is Picks 1-5, Round 2 is Picks 6-10
-        // DB Round 2 -> UI Round 1
-        // DB Round 3 -> UI Round 2
         const roundNum = i <= teamCount ? "Round 1" : "Round 2";
-
-        // Check if this pick has been made
         const historyItem = draftState.value.history.find(h => h.pick_number === i && h.round !== 'Removal');
 
         rows.push({
@@ -85,32 +121,46 @@ const displayRows = computed(() => {
             round: roundNum,
             pick_number: i,
             team_name: teamName,
-            player_name: historyItem ? historyItem.player_name : '', // Empty if future
+            player_name: historyItem ? historyItem.player_name : '',
             action: historyItem ? historyItem.action : 'PENDING'
         });
     }
 
-    // Append any subsequent history (Add/Drops, etc) that goes beyond the fixed rounds
-    // or if we simply want to show all history that isn't already covered.
-    // However, the fixed rows cover pick_number 1-10.
-    // Add/Drop items usually share pick numbers or just append?
-    // In DB, Add/Drops have `pick_number` corresponding to when they happened.
-    // If the draft goes into Add/Drop (Round 4/5), `pick_number` continues incrementing.
-
-    const additionalHistory = draftState.value.history.filter(h => {
+    // Process Add/Drop Rounds (Round 4+, Pick > 10)
+    // We group history items by their 'pick_number' (which represents a specific turn for a specific team)
+    const addDropItems = draftState.value.history.filter(h => {
         if ((h.action || '').toUpperCase() === 'REMOVED_RANDOM') return false;
-        // Include if pick_number > 10 (Add/Drop rounds)
         return (h.pick_number > totalFixedPicks);
     });
 
-    additionalHistory.forEach(h => {
-        rows.push({
-            id: `hist-${h.id}`,
-            round: h.round, // "Add/Drop 1" etc
-            pick_number: h.pick_number,
-            team_name: h.team_name,
-            player_name: h.player_name,
-            action: h.action
+    const itemsByPick = {};
+    addDropItems.forEach(item => {
+        if (!itemsByPick[item.pick_number]) itemsByPick[item.pick_number] = [];
+        itemsByPick[item.pick_number].push(item);
+    });
+
+    // Iterate through pick numbers in order
+    // Since 'itemsByPick' keys are strings, we sort them numerically
+    const sortedPicks = Object.keys(itemsByPick).map(Number).sort((a, b) => a - b);
+
+    sortedPicks.forEach(pickNum => {
+        const items = itemsByPick[pickNum];
+        // Apply Net Changes logic per turn
+        const netItems = computeNetChanges(items);
+
+        netItems.forEach(h => {
+            let name = h.player_name;
+            if (h.action === 'ADDED') name += ' (Added)';
+            if (h.action === 'DROPPED') name += ' (Dropped)';
+
+            rows.push({
+                id: `hist-${h.id}`,
+                round: h.round,
+                pick_number: h.pick_number,
+                team_name: h.team_name,
+                player_name: name,
+                action: h.action
+            });
         });
     });
 
@@ -235,6 +285,24 @@ function goToRosterBuilder() {
     router.push('/roster-builder');
 }
 
+async function submitRoster() {
+    if (!confirm("Are you sure you want to finalize your roster? Make sure your roster is valid (20 players, 5000pts cap, 4 SPs).")) return;
+    try {
+        const response = await apiClient(`/api/draft/submit-turn`, {
+            method: 'POST',
+            body: JSON.stringify({}) // Empty body implies "use saved roster"
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            alert(data.message);
+        } else {
+            fetchDraftState(); // Refresh state
+        }
+    } catch (error) {
+        console.error("Roster submit error:", error);
+    }
+}
+
 watch(selectedSeason, (newVal, oldVal) => {
     if (newVal !== oldVal) {
         fetchDraftState();
@@ -298,7 +366,10 @@ onUnmounted(() => {
             <div v-else-if="draftState.current_round === 4 || draftState.current_round === 5" class="add-drop-interface">
                 <h3>Finalize Your Roster</h3>
                 <p>You can add and drop as many players as you like.</p>
-                <button @click="goToRosterBuilder" class="builder-btn">Go to Roster Builder</button>
+                <div class="add-drop-buttons">
+                    <button @click="goToRosterBuilder" class="builder-btn">Go to Roster Builder</button>
+                    <button @click="submitRoster" class="submit-roster-btn">Submit Roster</button>
+                </div>
             </div>
         </div>
 
@@ -386,7 +457,9 @@ onUnmounted(() => {
 .player-card-row { display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid #eee; align-items: center; }
 .player-card-row button { background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; border-radius: 4px; }
 
+.add-drop-buttons { display: flex; gap: 1rem; }
 .builder-btn { padding: 1rem; font-size: 1.1rem; background: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px; }
+.submit-roster-btn { padding: 1rem; font-size: 1.1rem; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
 
 /* TABLE STYLES */
 .draft-table-container { margin-bottom: 2rem; }
