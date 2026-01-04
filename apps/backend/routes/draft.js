@@ -302,7 +302,9 @@ router.post('/start', authenticateToken, async (req, res) => {
         }
 
         // 4. Random Removal (5 players per team)
-        const seasonName = "Season " + new Date().getFullYear(); // Or generate dynamically
+        // Format: "M-D-YY Season" e.g., "1-3-26 Season"
+        const d = new Date();
+        const seasonName = `${d.getMonth() + 1}-${d.getDate()}-${d.getFullYear().toString().slice(-2)} Season`;
 
         for (const teamId of draftOrder) {
             const teamRes = await client.query('SELECT user_id FROM teams WHERE team_id = $1', [teamId]);
@@ -423,13 +425,28 @@ router.get('/state', authenticateToken, async (req, res) => {
         const takenRes = await client.query('SELECT card_id FROM roster_cards');
         const takenPlayerIds = takenRes.rows.map(r => r.card_id);
 
+        // Fetch team info for the draft order (to populate future rows)
+        let teamsMap = {};
+        if (state.draft_order && state.draft_order.length > 0) {
+            const teamsRes = await client.query('SELECT team_id, name, city FROM teams WHERE team_id = ANY($1::int[])', [state.draft_order]);
+            teamsRes.rows.forEach(t => {
+                // Construct a display name: "City Name" or just "Name"
+                let displayName = t.name;
+                if (t.city && t.name) displayName = `${t.city} ${t.name}`;
+                else if (t.city) displayName = t.city;
+
+                teamsMap[t.team_id] = displayName || "Unknown Team";
+            });
+        }
+
         res.json({
             ...state,
             history: historyRes.rows,
             randomRemovals: removalRes.rows,
             activeTeam,
             takenPlayerIds,
-            isSeasonOver: seasonOver
+            isSeasonOver: seasonOver,
+            teams: teamsMap
         });
 
     } catch (error) {
