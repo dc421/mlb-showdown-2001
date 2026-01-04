@@ -528,7 +528,7 @@ router.post('/pick', authenticateToken, async (req, res) => {
 
 // SUBMIT ROSTER (Rounds 4 & 5 - The "Add/Drop" Rounds)
 router.post('/submit-turn', authenticateToken, async (req, res) => {
-    const { cards } = req.body;
+    let { cards } = req.body; // 'cards' is now optional
     const userId = req.user.userId;
     const client = await pool.connect();
 
@@ -553,12 +553,23 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: "Invalid round for roster submission." });
         }
 
+        const rosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
+        const rosterId = rosterRes.rows[0].roster_id;
+
+        // --- NEW: If no cards provided, use current roster from DB ---
+        let usingSavedRoster = false;
+        if (!cards || cards.length === 0) {
+            usingSavedRoster = true;
+            const currentRosterRes = await client.query('SELECT card_id, is_starter, assignment FROM roster_cards WHERE roster_id = $1', [rosterId]);
+            cards = currentRosterRes.rows;
+        }
+
         const psRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
         const pointSetId = psRes.rows[0].point_set_id;
 
         const cardIds = cards.map(c => c.card_id);
         const pointsRes = await client.query(
-            `SELECT cp.card_id, cp.control, ppv.points
+            `SELECT cp.card_id, cp.control, cp.fielding_ratings, ppv.points
              FROM cards_player cp
              LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
              WHERE cp.card_id = ANY($2::int[])`,
@@ -567,19 +578,46 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         const cardMap = {};
         pointsRes.rows.forEach(c => cardMap[c.card_id] = c);
 
+        // --- ENHANCED VALIDATION ---
+        // 1. Count check
         if (cards.length !== 20) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: "Roster must have exactly 20 players." });
         }
 
+        // 2. Point Check & SP Check & Lineup Check
         let totalPoints = 0;
+        let spCount = 0;
+        const positionsFilled = new Set();
+
         for (const card of cards) {
             const info = cardMap[card.card_id];
+            if (!info) continue; // Should not happen if DB is consistent
+
+            // Points
             let pts = info.points || 0;
             if (card.assignment === 'BENCH' && info.control === null) {
                 pts = Math.round(pts / 5);
             }
             totalPoints += pts;
+
+            // SP Check
+            // We can trust is_starter flag if it was set correctly, but safer to check assignment
+            // 'PITCHING_STAFF' doesn't distinguish SP/RP.
+            // RosterBuilder uses card.displayPosition ('SP') to count.
+            // Here, we can assume if user saved it, the `is_starter` flag in DB is correct?
+            // Or we check `card.is_starter` from payload?
+            // Let's rely on payload `is_starter` which RosterBuilder sets based on logic.
+            // But if user manipulated payload, we should verify?
+            // For now, let's trust `is_starter` boolean in payload/DB card object.
+            if (card.is_starter) {
+                spCount++;
+            }
+
+            // Lineup Check
+            if (['C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF', 'DH'].includes(card.assignment)) {
+                positionsFilled.add(card.assignment);
+            }
         }
 
         if (totalPoints > 5000) {
@@ -587,50 +625,63 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: `Roster exceeds 5000 points. Total: ${totalPoints}` });
         }
 
-        const rosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
-        const rosterId = rosterRes.rows[0].roster_id;
+        if (spCount !== 4) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: `Roster must have exactly 4 Starting Pitchers. Found: ${spCount}` });
+        }
 
-        const oldCardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
-        const oldCardIds = oldCardsRes.rows.map(c => c.card_id);
-        const newCardIds = cards.map(c => c.card_id);
+        const requiredPositions = ['C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF', 'DH'];
+        const missingPositions = requiredPositions.filter(p => !positionsFilled.has(p));
+        if (missingPositions.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: `Incomplete Lineup. Missing: ${missingPositions.join(', ')}` });
+        }
+        // ---------------------------
 
-        const added = newCardIds.filter(id => !oldCardIds.includes(id));
-        const dropped = oldCardIds.filter(id => !newCardIds.includes(id));
+        // If we are using the saved roster, no need to update or log history (already done by my-roster)
+        if (!usingSavedRoster) {
+            const oldCardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
+            const oldCardIds = oldCardsRes.rows.map(c => c.card_id);
+            const newCardIds = cards.map(c => c.card_id);
 
-        if (added.length > 0) {
-            const availabilityCheck = await client.query(
-                `SELECT card_id FROM roster_cards WHERE card_id = ANY($1::int[]) AND roster_id != $2`,
-                [added, rosterId]
-            );
-            if (availabilityCheck.rows.length > 0) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({ message: `One or more selected players are already owned by another team.` });
+            const added = newCardIds.filter(id => !oldCardIds.includes(id));
+            const dropped = oldCardIds.filter(id => !newCardIds.includes(id));
+
+            if (added.length > 0) {
+                const availabilityCheck = await client.query(
+                    `SELECT card_id FROM roster_cards WHERE card_id = ANY($1::int[]) AND roster_id != $2`,
+                    [added, rosterId]
+                );
+                if (availabilityCheck.rows.length > 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ message: `One or more selected players are already owned by another team.` });
+                }
             }
-        }
 
-        await client.query('DELETE FROM roster_cards WHERE roster_id = $1', [rosterId]);
+            await client.query('DELETE FROM roster_cards WHERE roster_id = $1', [rosterId]);
 
-        for (const card of cards) {
-            await client.query(
-                'INSERT INTO roster_cards (roster_id, card_id, is_starter, assignment) VALUES ($1, $2, $3, $4)',
-                [rosterId, card.card_id, card.is_starter, card.assignment]
-            );
-        }
+            for (const card of cards) {
+                await client.query(
+                    'INSERT INTO roster_cards (roster_id, card_id, is_starter, assignment) VALUES ($1, $2, $3, $4)',
+                    [rosterId, card.card_id, card.is_starter, card.assignment]
+                );
+            }
 
-        const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
-        for (const id of added) {
-            await client.query(
-                `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
-                 VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
-                [state.season_name, roundName, teamId, id, state.current_pick_number]
-            );
-        }
-        for (const id of dropped) {
-            await client.query(
-                `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
-                 VALUES ($1, $2, $3, $4, 'DROPPED', $5)`,
-                [state.season_name, roundName, teamId, id, state.current_pick_number]
-            );
+            const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
+            for (const id of added) {
+                await client.query(
+                    `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                     VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
+                    [state.season_name, roundName, teamId, id, state.current_pick_number]
+                );
+            }
+            for (const id of dropped) {
+                await client.query(
+                    `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                     VALUES ($1, $2, $3, $4, 'DROPPED', $5)`,
+                    [state.season_name, roundName, teamId, id, state.current_pick_number]
+                );
+            }
         }
 
         const newState = await advanceDraftState(client, state);
