@@ -66,12 +66,12 @@ const availablePlayers = computed(() => {
     .map(p => {
         // Classic Mode: Mark ineligible players
         if (rosterType.value === 'classic' && ineligibleIds.value.has(p.card_id)) {
-            return { ...p, isUnavailable: true, unavailabilityReason: 'Ineligible (5+ appearances)' };
+            return { ...p, isUnavailable: true, unavailabilityReason: 'Ineligible' };
         }
         // Mark unavailable players if in draft mode
         if (draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
             if (draftState.value.takenPlayerIds.includes(p.card_id)) {
-                return { ...p, isUnavailable: true };
+                return { ...p, isUnavailable: true, unavailabilityReason: 'Taken' };
             }
         }
         return p;
@@ -170,6 +170,7 @@ const isRosterValid = computed(() => {
 
 // Helper to check if a player is owned by another team
 function isPlayerOwnedByOther(player) {
+    if (rosterType.value === 'classic') return false; // Disable ownership check for classic mode
     return player.owned_by_team_id && player.owned_by_team_id !== authStore.user.team.team_id;
 }
 
@@ -427,6 +428,9 @@ onMounted(async () => {
     <div class="available-players-section panel">
       <div class="panel-header">
         <h2>Available Players</h2>
+        <div class="mode-badge" v-if="rosterType">
+            Editing: {{ rosterType === 'classic' ? 'Classic' : 'League' }} Roster
+        </div>
         <div class="filters">
           <select v-model="authStore.selectedPointSetId" title="Select Point Set">
             <option v-for="set in filteredPointSets" :key="set.point_set_id" :value="set.point_set_id">
@@ -469,7 +473,7 @@ onMounted(async () => {
           </div>
           
           <div class="player-actions">
-            <span v-if="player.isUnavailable" class="owned-label">Owned</span>
+            <span v-if="player.isUnavailable" class="owned-label">{{ player.unavailabilityReason || 'Unavailable' }}</span>
             <span v-else>{{ player.points }} pts</span>
             <button v-if="!player.isUnavailable" @click.stop="addPlayer(player)" class="add-btn">+</button>
           </div>
@@ -563,4 +567,14 @@ onMounted(async () => {
 .owned-label { font-size: 0.8em; color: #dc3545; font-weight: bold; margin-right: 0.5rem; }
 .owned-player-text { color: #888; }
 .owning-team-logo { height: 20px; width: auto; vertical-align: middle; margin-left: 5px; margin-right: 5px; }
+
+.mode-badge {
+    background: #007bff;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    align-self: flex-start;
+}
 </style>

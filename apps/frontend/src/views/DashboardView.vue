@@ -125,19 +125,6 @@ function getGameTypeName(seriesType) {
 }
 
 function handleCreateGame() {
-  // If Classic series is selected, we need to ensure we use the Classic roster.
-  // However, `authStore.myRoster` is currently loaded based on `activeRosterTab`.
-  // Ideally, the game creation logic should pick the right roster ID.
-  // But strictly, you should only be able to create a Classic game if you have a Classic roster.
-  // The current UI loads `myRoster` based on the tab.
-
-  // If the user selects "Classic" series type but is viewing "League" roster,
-  // we should probably warn them or fetch the correct roster ID.
-  // For simplicity, let's assume the user has switched tabs or `createGame` logic is updated.
-  // Wait, `createGame` takes a roster ID. We should probably fetch the Classic roster ID if seriesType is classic.
-  // BUT, to keep it simple and surgical:
-  // Let's enforce that to create a Classic game, you must be in the Classic tab (so `myRoster` is correct).
-
   if (seriesType.value === 'classic' && activeRosterTab.value !== 'classic') {
       alert("Please switch to the 'Classic' roster tab to create a Classic series game.");
       return;
@@ -184,6 +171,13 @@ async function switchRosterTab(tab) {
     activeRosterTab.value = tab;
     // Reload roster for the new tab
     await authStore.fetchMyRoster(tab);
+
+    // Update Series Type Logic based on tab
+    if (tab === 'classic') {
+        seriesType.value = 'classic';
+    } else {
+        seriesType.value = 'exhibition';
+    }
 
     // Determine appropriate point set
     if (tab === 'classic') {
@@ -260,14 +254,16 @@ onUnmounted(() => {
       <!-- COLUMN 1: Roster -->
       <div class="panel roster-panel">
           <div class="roster-header-tabs">
-              <h2>Roster</h2>
               <div class="tabs">
                   <button :class="{ active: activeRosterTab === 'league' }" @click="switchRosterTab('league')">League</button>
                   <button :class="{ active: activeRosterTab === 'classic' }" @click="switchRosterTab('classic')">Classic</button>
               </div>
           </div>
 
-          <div v-if="processedRoster.length === 0">No {{ activeRosterTab }} roster loaded.</div>
+          <div v-if="processedRoster.length === 0" class="empty-roster-message">
+              <p>Your {{ activeRosterTab === 'classic' ? 'Classic' : 'League' }} roster is empty.</p>
+              <button @click="goToRosterBuilder" class="create-roster-btn">Create Roster</button>
+          </div>
           <div v-else class="roster-table-container">
             <table class="roster-table">
                 <thead>
@@ -311,10 +307,14 @@ onUnmounted(() => {
         <div class="new-games-section">
             <h2>New Game</h2>
             <div class="series-options">
-                <label><input type="radio" v-model="seriesType" value="exhibition"> Exhibition</label>
-                <label><input type="radio" v-model="seriesType" value="regular_season"> Regular Season (7 Games)</label>
-                <label><input type="radio" v-model="seriesType" value="playoff"> Playoff (Best of 7)</label>
-                <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
+                <template v-if="activeRosterTab === 'league'">
+                    <label><input type="radio" v-model="seriesType" value="exhibition"> Exhibition</label>
+                    <label><input type="radio" v-model="seriesType" value="regular_season"> Regular Season (7 Games)</label>
+                    <label><input type="radio" v-model="seriesType" value="playoff"> Playoff (Best of 7)</label>
+                </template>
+                <template v-else-if="activeRosterTab === 'classic'">
+                     <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
+                </template>
             </div>
             <button @click="handleCreateGame" :disabled="!authStore.myRoster" class="action-btn">+ Create New Game</button>
             <h3 class="join-header">Open Games to Join</h3>
@@ -423,24 +423,35 @@ onUnmounted(() => {
 .panel h2 { margin-top: 0; margin-bottom: 0; }
 .roster-header-tabs {
     display: flex;
-    justify-content: space-between;
+    justify-content: center; /* Center the tabs */
     align-items: center;
     margin-bottom: 1rem;
     border-bottom: 1px solid #eee;
-    padding-bottom: 0.5rem;
+    padding-bottom: 0; /* Adjusted for tab style */
+}
+.tabs {
+    display: flex;
+    gap: 0; /* Tabs touch */
 }
 .tabs button {
     background: none;
     border: none;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 2rem; /* Bigger padding */
     cursor: pointer;
+    font-size: 1.2rem; /* Larger font */
     font-weight: bold;
     color: #888;
-    border-bottom: 3px solid transparent;
+    border-bottom: 4px solid transparent; /* Thicker active line */
+    transition: all 0.2s;
+}
+.tabs button:hover {
+    color: #555;
+    background-color: #f0f0f0;
 }
 .tabs button.active {
-    color: #333;
+    color: #007bff;
     border-bottom-color: #007bff;
+    background-color: transparent;
 }
 .roster-btn {
   margin-top: 1rem;
@@ -510,6 +521,29 @@ onUnmounted(() => {
   border-bottom: 1px solid #eee;
   text-align: center;
 }
+
+/* Empty Roster Styles */
+.empty-roster-message {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}
+
+.create-roster-btn {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-top: 1rem;
+}
+
+.create-roster-btn:hover {
+    background-color: #0056b3;
+}
+
 
 @media (max-width: 768px) {
   .team-header {
