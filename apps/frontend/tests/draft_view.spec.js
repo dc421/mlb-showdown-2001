@@ -80,13 +80,16 @@ test.describe('Draft View Unified Layout', () => {
 
     // Verify first row content (Round 1, Pick 1, Team 1)
     const firstRow = rows.first();
-    await expect(firstRow).toContainText('Round 1');
+    await expect(firstRow).not.toContainText('Round 1'); // Changed to just "1"
+    const roundCell = firstRow.locator('td').first();
+    await expect(roundCell).toHaveText('1');
     await expect(firstRow).toContainText('1'); // Pick #
     await expect(firstRow).toContainText('My Team');
 
     // Verify last row content (Round 2, Pick 10, Team 5)
     const lastRow = rows.last();
-    await expect(lastRow).toContainText('Round 2');
+    const roundCellLast = lastRow.locator('td').first();
+    await expect(roundCellLast).toHaveText('2');
     await expect(lastRow).toContainText('10'); // Pick #
     await expect(lastRow).toContainText('Team 5');
 

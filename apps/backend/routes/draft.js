@@ -117,17 +117,18 @@ async function calculateDraftOrder(client) {
     const shipW = shipRes.rows[0].winning_team_id;
 
     // Find Neutral Team
-    const participants = [spoonL, spoonW, shipL, shipW];
+    const participants = [spoonL, spoonW, shipL, shipW].map(id => Number(id));
     const allTeamsRes = await client.query('SELECT team_id FROM teams WHERE user_id IS NOT NULL');
-    const neutralTeam = allTeamsRes.rows.find(t => !participants.includes(t.team_id));
+    const allTeamIds = allTeamsRes.rows.map(t => Number(t.team_id));
+    const neutralTeamId = allTeamIds.find(id => !participants.includes(id));
 
-    if (!neutralTeam) {
+    if (!neutralTeamId) {
         // Fallback for testing/dev environments with < 5 teams
         // Just return whatever order we have
         return participants;
     }
 
-    return [spoonL, spoonW, neutralTeam.team_id, shipL, shipW];
+    return [spoonL, spoonW, neutralTeamId, shipL, shipW];
 }
 
 // Helper: Advance Draft State
@@ -245,7 +246,22 @@ router.get('/seasons', authenticateToken, async (req, res) => {
             nameToDate[name] = date;
         }
 
+        // Identify if there is an active season
+        // We can check if any season string does NOT have a date in nameToDate map,
+        // OR check draft_state for is_active = true.
+        // The most reliable way is to query active draft again or assume the one without a date mapping is the new one.
+        // However, we just fetched distinct names.
+
+        // Let's find the active one.
+        const activeRes = await client.query('SELECT season_name FROM draft_state WHERE is_active = true LIMIT 1');
+        let activeSeasonName = null;
+        if (activeRes.rows.length > 0) activeSeasonName = activeRes.rows[0].season_name;
+
         seasons.sort((a, b) => {
+            // Active season always first
+            if (a === activeSeasonName) return -1;
+            if (b === activeSeasonName) return 1;
+
             const dateA = nameToDate[a];
             const dateB = nameToDate[b];
 
@@ -262,7 +278,10 @@ router.get('/seasons', authenticateToken, async (req, res) => {
             return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
         });
 
-        res.json(seasons);
+        // Map active season name to "Live Draft"
+        const displayedSeasons = seasons.map(s => s === activeSeasonName ? "Live Draft" : s);
+
+        res.json(displayedSeasons);
     } catch (error) {
         console.error("Get Draft Seasons Error:", error);
         res.status(500).json({ message: "Error fetching draft seasons." });
@@ -358,7 +377,16 @@ router.post('/start', authenticateToken, async (req, res) => {
 router.get('/state', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
-        const seasonName = req.query.season; // Optional query param
+        let seasonName = req.query.season; // Optional query param
+
+        // Handle "Live Draft" alias from frontend
+        if (seasonName === "Live Draft") {
+             const activeRes = await client.query('SELECT season_name FROM draft_state WHERE is_active = true LIMIT 1');
+             if (activeRes.rows.length > 0) {
+                 seasonName = activeRes.rows[0].season_name;
+             }
+        }
+
         let state = await getDraftState(client, seasonName);
         const seasonOver = await checkSeasonOver(client);
 
@@ -417,8 +445,9 @@ router.get('/state', authenticateToken, async (req, res) => {
 
         // Fetch History
         // Prioritize official display_name from cards_player, then clean name, then raw history name
+        // Team Name priority: Historical (dh.team_name) -> Current (t.name)
         const historyRes = await client.query(
-            `SELECT dh.*, COALESCE(cp.display_name, cp.name, dh.player_name) as player_name, t.city, COALESCE(t.name, dh.team_name) as team_name
+            `SELECT dh.*, COALESCE(cp.display_name, cp.name, dh.player_name) as player_name, t.city, COALESCE(dh.team_name, t.name) as team_name
              FROM draft_history dh
              LEFT JOIN cards_player cp ON dh.card_id = cp.card_id
              LEFT JOIN teams t ON dh.team_id = t.team_id
@@ -428,13 +457,51 @@ router.get('/state', authenticateToken, async (req, res) => {
         );
 
         // Fetch Random Removals (Historical)
-        const removalRes = await client.query(
-            `SELECT rr.player_name, rr.team_name, rr.card_id
-             FROM random_removals rr
-             WHERE rr.season = $1
-             ORDER BY rr.team_name, rr.player_name`,
-            [state.season_name]
-        );
+        // Find correct point set for stats
+        const psRes = await client.query('SELECT point_set_id FROM point_sets WHERE name = $1', [state.season_name]);
+        let pointSetId = null;
+        if (psRes.rows.length > 0) {
+            pointSetId = psRes.rows[0].point_set_id;
+        } else {
+             // Fallback to "Original Pts" if season specific not found
+             const fallbackRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Original Pts'");
+             if (fallbackRes.rows.length > 0) pointSetId = fallbackRes.rows[0].point_set_id;
+        }
+
+        const removalQuery = `
+            SELECT
+                rr.player_name,
+                rr.team_name,
+                rr.card_id,
+                ppv.points,
+                CASE
+                    WHEN cp.control IS NOT NULL THEN (CASE WHEN cp.ip > 3 THEN 'SP' ELSE 'RP' END)
+                    ELSE array_to_string(ARRAY(SELECT jsonb_object_keys(cp.fielding_ratings)), '/')
+                END as position
+            FROM random_removals rr
+            LEFT JOIN cards_player cp ON rr.card_id = cp.card_id
+            LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
+            WHERE rr.season = $1
+            ORDER BY rr.team_name, rr.player_name
+        `;
+
+        const removalRes = await client.query(removalQuery, [state.season_name, pointSetId]);
+
+        // Fix for September 2020: Use 'Fargo' if team name missing or bad lookup
+        // Check if this is the target season
+        if (state.season_name.includes('September 2020')) {
+             removalRes.rows.forEach(row => {
+                 if (!row.team_name || row.team_name.trim() === '') {
+                     row.team_name = 'Fargo';
+                 }
+                 // If the stored team name was an ID or unmapped, logic could go here,
+                 // but user said "revert to Fargo as the team", implying we force it.
+                 // Also ensure it displays properly if the DB had null.
+             });
+
+             // Double check if any rows have null team_name even if not Sept 2020?
+             // User specific request was for Sept 2020.
+        }
 
         let activeTeam = null;
         if (state.active_team_id) {
@@ -450,12 +517,9 @@ router.get('/state', authenticateToken, async (req, res) => {
         if (state.draft_order && state.draft_order.length > 0) {
             const teamsRes = await client.query('SELECT team_id, name, city FROM teams WHERE team_id = ANY($1::int[])', [state.draft_order]);
             teamsRes.rows.forEach(t => {
-                // Construct a display name: "City Name" or just "Name"
-                let displayName = t.name;
-                if (t.city && t.name) displayName = `${t.city} ${t.name}`;
-                else if (t.city) displayName = t.city;
-
-                teamsMap[t.team_id] = displayName || "Unknown Team";
+                // For the draft table, we only want the City (as per requirements).
+                // Fallback to name if city is missing.
+                teamsMap[t.team_id] = t.city || t.name || "Unknown Team";
             });
         }
 
