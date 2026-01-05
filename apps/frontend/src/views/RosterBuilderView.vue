@@ -69,7 +69,7 @@ const availablePlayers = computed(() => {
             return { ...p, isUnavailable: true, unavailabilityReason: 'Ineligible' };
         }
         // Mark unavailable players if in draft mode
-        if (draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
+        if (rosterType.value !== 'classic' && draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
             if (draftState.value.takenPlayerIds.includes(p.card_id)) {
                 return { ...p, isUnavailable: true, unavailabilityReason: 'Taken' };
             }

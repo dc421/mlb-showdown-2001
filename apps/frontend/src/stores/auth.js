@@ -113,6 +113,7 @@ async function fetchMyRoster(type = 'league') {
       myRoster.value = await response.json();
     } catch (error) {
       console.error('Failed to fetch roster:', error);
+      myRoster.value = null;
     }
   }
 
