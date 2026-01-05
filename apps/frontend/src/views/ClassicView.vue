@@ -45,10 +45,12 @@ const bracket = computed(() => {
 
     // Helper to get team details by user ID
     const getTeam = (userId) => {
-        const seed = seeds.find(s => s.user_id === userId);
-        if (seed) return seed; // Return the seeding object which contains name, logo etc. (assuming seeding has it)
-        // If not found in seeding (unlikely for classic participants), look in rosters/participants
-        // For now, rely on seeding array having team info.
+        const seedIndex = seeds.findIndex(s => s.user_id === userId);
+        if (seedIndex !== -1) {
+            // seeds array: 0=5th, 1=4th, 2=3rd, 3=2nd, 4=1st
+            // So seed number is 5 - index.
+            return { ...seeds[seedIndex], seed: 5 - seedIndex };
+        }
         return { name: 'TBD', logo_url: '' };
     };
 
@@ -58,9 +60,6 @@ const bracket = computed(() => {
     const playInWinner = playInWinnerId ? getTeam(playInWinnerId) : null;
 
     // --- SEMI 1 (1 vs Winner of Play-In) ---
-    // If playInWinner is known, we look for series between Seed 1 and that winner.
-    // If not known yet, we can't find the series definitively by ID pair unless created ahead of time.
-    // We search for a series involving Seed 1 that ISN'T against Seed 2 or 3.
     const semi1Series = state.value.series.find(s =>
         (s.home_user_id === seed1?.user_id && s.away_user_id !== seed2?.user_id && s.away_user_id !== seed3?.user_id) ||
         (s.away_user_id === seed1?.user_id && s.home_user_id !== seed2?.user_id && s.home_user_id !== seed3?.user_id)
@@ -74,38 +73,37 @@ const bracket = computed(() => {
     const semi2Winner = semi2WinnerId ? getTeam(semi2WinnerId) : null;
 
     // --- FINAL (Winner Semi 1 vs Winner Semi 2) ---
-    // The final is the series that isn't any of the others.
     const finalSeries = state.value.series.find(s => s !== playInSeries && s !== semi1Series && s !== semi2Series);
 
+    // Explicitly set seeds for TBD checks
+    const t4 = { ...seed4, seed: 4 };
+    const t5 = { ...seed5, seed: 5 };
+    const t1 = { ...seed1, seed: 1 };
+    const t2 = { ...seed2, seed: 2 };
+    const t3 = { ...seed3, seed: 3 };
+
     return {
-        seeds: { 1: seed1, 2: seed2, 3: seed3, 4: seed4, 5: seed5 },
+        seeds: { 1: t1, 2: t2, 3: t3, 4: t4, 5: t5 },
         matchups: {
             playIn: {
-                label: 'Play-In (4 v 5)',
-                series: playInSeries,
-                team1: seed4,
-                team2: seed5,
-                winner: playInWinner
+                team1: t4,
+                team2: t5,
+                series: playInSeries
             },
             semi1: {
-                label: 'Semifinal (1 v 4/5)',
-                series: semi1Series,
-                team1: seed1,
-                team2: playInWinner || { name: 'Winner Play-In' }, // Dynamic placeholder
-                winner: semi1Winner
+                team1: t1,
+                team2: playInWinner || { name: 'Winner 4/5' },
+                series: semi1Series
             },
             semi2: {
-                label: 'Semifinal (2 v 3)',
-                series: semi2Series,
-                team1: seed2,
-                team2: seed3,
-                winner: semi2Winner
+                team1: t2,
+                team2: t3,
+                series: semi2Series
             },
             final: {
-                label: 'Championship',
-                series: finalSeries,
                 team1: semi1Winner || { name: 'Winner Semi 1' },
-                team2: semi2Winner || { name: 'Winner Semi 2' }
+                team2: semi2Winner || { name: 'Winner Semi 2' },
+                series: finalSeries
             }
         }
     };
@@ -147,72 +145,69 @@ onMounted(async () => {
             <!-- BRACKET -->
             <div class="section bracket-section" v-if="bracket">
                 <h2>Tournament Bracket</h2>
-                <div class="bracket-grid">
-                    <!-- Play-In -->
-                    <div class="matchup">
-                        <h3>{{ bracket.matchups.playIn.label }}</h3>
-                        <div class="team-entry">
-                            <img v-if="bracket.matchups.playIn.team1.logo_url" :src="bracket.matchups.playIn.team1.logo_url" class="team-logo-tiny" />
-                            <span class="team-name">{{ bracket.matchups.playIn.team1.name }}</span>
-                        </div>
-                        <div class="team-entry">
-                            <img v-if="bracket.matchups.playIn.team2.logo_url" :src="bracket.matchups.playIn.team2.logo_url" class="team-logo-tiny" />
-                            <span class="team-name">{{ bracket.matchups.playIn.team2.name }}</span>
-                        </div>
-                        <div class="result" v-if="bracket.matchups.playIn.series">
-                            Result: {{ bracket.matchups.playIn.series.score }}
+
+                <div class="bracket-tree">
+                    <!-- Column 1: Play-In -->
+                    <div class="col col-playin">
+                        <div class="matchup-box playin-box">
+                            <div class="team-line border-bottom">
+                                <span class="seed">5</span>
+                                <span class="name">{{ bracket.matchups.playIn.team2.name }}</span>
+                            </div>
+                            <div class="matchup-score" v-if="bracket.matchups.playIn.series">
+                                {{ bracket.matchups.playIn.series.score }}
+                            </div>
+                             <div class="team-line">
+                                <span class="seed">4</span>
+                                <span class="name">{{ bracket.matchups.playIn.team1.name }}</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Semi 1 -->
-                    <div class="matchup">
-                        <h3>{{ bracket.matchups.semi1.label }}</h3>
-                        <div class="team-entry">
-                            <img v-if="bracket.matchups.semi1.team1.logo_url" :src="bracket.matchups.semi1.team1.logo_url" class="team-logo-tiny" />
-                            <span class="team-name">{{ bracket.matchups.semi1.team1.name }}</span>
+                    <!-- Column 2: Semis -->
+                    <div class="col col-semis">
+                        <!-- Semi 1 (Top) -->
+                        <div class="matchup-box semi-box semi-top">
+                             <div class="team-line border-bottom">
+                                <span class="seed">1</span>
+                                <span class="name">{{ bracket.matchups.semi1.team1.name }}</span>
+                            </div>
+                            <div class="matchup-score" v-if="bracket.matchups.semi1.series">
+                                {{ bracket.matchups.semi1.series.score }}
+                            </div>
+                             <div class="team-line">
+                                <span class="seed">{{ bracket.matchups.semi1.team2.seed || '' }}</span>
+                                <span class="name">{{ bracket.matchups.semi1.team2.name }}</span>
+                            </div>
                         </div>
-                        <div class="team-entry">
-                            <img v-if="bracket.matchups.semi1.team2.logo_url" :src="bracket.matchups.semi1.team2.logo_url" class="team-logo-tiny" />
-                            <span class="team-name">{{ bracket.matchups.semi1.team2.name }}</span>
-                        </div>
-                        <div class="result" v-if="bracket.matchups.semi1.series">
-                            Result: {{ bracket.matchups.semi1.series.score }}
+
+                        <!-- Semi 2 (Bottom) -->
+                         <div class="matchup-box semi-box semi-bottom">
+                             <div class="team-line border-bottom">
+                                <span class="seed">3</span>
+                                <span class="name">{{ bracket.matchups.semi2.team2.name }}</span>
+                            </div>
+                            <div class="matchup-score" v-if="bracket.matchups.semi2.series">
+                                {{ bracket.matchups.semi2.series.score }}
+                            </div>
+                             <div class="team-line">
+                                <span class="seed">2</span>
+                                <span class="name">{{ bracket.matchups.semi2.team1.name }}</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Semi 2 -->
-                    <div class="matchup">
-                        <h3>{{ bracket.matchups.semi2.label }}</h3>
-                        <div class="team-entry">
-                            <img v-if="bracket.matchups.semi2.team1.logo_url" :src="bracket.matchups.semi2.team1.logo_url" class="team-logo-tiny" />
-                            <span class="team-name">{{ bracket.matchups.semi2.team1.name }}</span>
+                    <!-- Column 3: Final -->
+                    <div class="col col-final">
+                        <div class="matchup-box final-box">
+                             <img :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-img" alt="Trophy" />
+                             <!-- Display Final Score/Teams if series exists -->
+                             <div v-if="bracket.matchups.final.series" class="final-result">
+                                 <strong>{{ bracket.matchups.final.team1.name }} vs {{ bracket.matchups.final.team2.name }}</strong>
+                                 <div>{{ bracket.matchups.final.series.score }}</div>
+                             </div>
                         </div>
-                        <div class="team-entry">
-                            <img v-if="bracket.matchups.semi2.team2.logo_url" :src="bracket.matchups.semi2.team2.logo_url" class="team-logo-tiny" />
-                            <span class="team-name">{{ bracket.matchups.semi2.team2.name }}</span>
-                        </div>
-                        <div class="result" v-if="bracket.matchups.semi2.series">
-                            Result: {{ bracket.matchups.semi2.series.score }}
-                        </div>
-                    </div>
-
-                    <!-- Final -->
-                    <div class="matchup final">
-                        <img :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-bg" alt="Trophy" />
-                        <div class="matchup-content">
-                            <h3>{{ bracket.matchups.final.label }}</h3>
-                            <div class="team-entry">
-                                <img v-if="bracket.matchups.final.team1.logo_url" :src="bracket.matchups.final.team1.logo_url" class="team-logo-tiny" />
-                                <span class="team-name">{{ bracket.matchups.final.team1.name }}</span>
-                            </div>
-                            <div class="team-entry">
-                                <img v-if="bracket.matchups.final.team2.logo_url" :src="bracket.matchups.final.team2.logo_url" class="team-logo-tiny" />
-                                <span class="team-name">{{ bracket.matchups.final.team2.name }}</span>
-                            </div>
-                            <div class="result" v-if="bracket.matchups.final.series">
-                                Result: {{ bracket.matchups.final.series.score }}
-                            </div>
-                        </div>
+                        <div class="final-label">AREA WINNER</div>
                     </div>
                 </div>
             </div>
@@ -279,73 +274,154 @@ h2 {
     padding-bottom: 0.5rem;
     margin-bottom: 1rem;
 }
-.subtext {
-    font-size: 0.85em;
-    color: #666;
-    margin-left: 0.5rem;
-}
-.bracket-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-}
-.matchup {
-    background: white;
-    padding: 1rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    position: relative; /* Context for trophy positioning */
-    overflow: hidden; /* Keep trophy inside */
-}
-.matchup h3 { margin-top: 0; font-size: 1rem; color: #555; }
-.matchup .result {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px dashed #ccc;
-    color: #28a745;
-    font-weight: bold;
-}
-.final {
-    border-color: #ffd700;
-    background-color: #fff9db;
-    min-height: 120px; /* Ensure enough height for trophy */
+
+/* BRACKET TREE STYLES */
+.bracket-tree {
     display: flex;
+    justify-content: space-between;
+    align-items: stretch; /* Align columns */
+    padding: 2rem 0;
+    overflow-x: auto;
+}
+
+.col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+    position: relative;
+    min-width: 200px;
+}
+
+.col-playin {
+    justify-content: flex-start;
+    padding-top: 50px; /* Align roughly with bottom of Semi 1 */
+    margin-right: 2rem;
+}
+
+.col-semis {
+    justify-content: space-around; /* Distribute Semi 1 and Semi 2 */
+    gap: 4rem;
+    margin-right: 2rem;
+}
+
+.col-final {
+    justify-content: center;
+    align-items: center;
+}
+
+.matchup-box {
+    background: white;
+    border: 2px solid #333;
+    padding: 0;
+    width: 100%;
+    max-width: 250px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+
+.team-line {
+    display: flex;
+    padding: 8px 12px;
+}
+
+.border-bottom {
+    border-bottom: 1px solid #333;
+}
+
+.seed {
+    font-weight: bold;
+    margin-right: 8px;
+    width: 15px;
+}
+
+.name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.matchup-score {
+    text-align: center;
+    font-size: 0.8em;
+    color: #666;
+    background: #f1f1f1;
+    padding: 2px 0;
+}
+
+/* Special alignment for Play-in to look like it feeds 4/5 slot */
+.col-playin {
+    /* We want this centered vertically relative to the "Winner 4/5" slot of Semi 1 */
+    /* This is hard to do perfectly with just flex without fixed heights. */
+    /* We'll use absolute positioning logic or just margin/padding approximations. */
+    /* Given the image: Play-in box is roughly aligned with the GAP between Semi 1 and Semi 2, but feeding Semi 1 bottom. */
+    /* Actually in the image, Play-in is on the left. */
+    justify-content: center;
+    padding-bottom: 150px; /* Push it up slightly to align with Semi 1 bottom half */
+}
+
+/* Semi 1 Top */
+.semi-top {
+    margin-bottom: auto;
+}
+/* Semi 2 Bottom */
+.semi-bottom {
+    margin-top: auto;
+}
+
+.final-box {
+    width: 200px;
+    height: 150px;
+    border: 3px solid #333; /* Thicker border */
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-}
-.final .matchup-content {
+    background-color: #f0f0f0;
     position: relative;
-    z-index: 2; /* Text above trophy */
-    width: 100%;
 }
 
-.trophy-bg {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60%; /* Adjust size as needed */
-    height: auto;
-    opacity: 0.2; /* Watermark effect */
-    z-index: 1; /* Behind text */
-    pointer-events: none;
-}
-
-.team-entry {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.25rem 0;
-}
-.team-logo-tiny {
-    width: 24px;
-    height: 24px;
+.trophy-img {
+    max-width: 80%;
+    max-height: 80%;
     object-fit: contain;
 }
-.team-name {
-    font-weight: bold;
+
+.final-result {
+    position: absolute;
+    bottom: 5px;
+    font-size: 0.8em;
+    text-align: center;
+    background: rgba(255,255,255,0.8);
+    padding: 2px 5px;
+    border-radius: 4px;
 }
 
+.final-label {
+    margin-top: 1rem;
+    font-weight: bold;
+    font-size: 1.2rem;
+    text-align: center;
+}
+
+
+/* CONNECTING LINES - SIMPLIFIED */
+/* It's complex to draw exact connector lines without SVG or heavy CSS absolute positioning. */
+/* We will use pseudo elements to suggest flow. */
+
+/* Play-in connects to Semi 1 Bottom */
+.playin-box::after {
+    content: '';
+    position: absolute;
+    right: -2rem; /* Reach towards next col */
+    top: 50%;
+    width: 2rem;
+    height: 2px;
+    background: #333;
+    display: none; /* Hidden for now unless we can target Semi 1 Bottom specifically */
+}
+
+/* Rosters Styles */
 .locked-message {
     text-align: center;
     padding: 2rem;

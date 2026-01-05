@@ -172,6 +172,11 @@ async function switchRosterTab(tab) {
     // Reload roster for the new tab
     await authStore.fetchMyRoster(tab);
 
+    // If fetchMyRoster failed or returned null (no roster), clear the active cards display
+    if (!authStore.myRoster) {
+        authStore.activeRosterCards = [];
+    }
+
     // Update Series Type Logic based on tab
     if (tab === 'classic') {
         seriesType.value = 'classic';
@@ -433,25 +438,40 @@ onUnmounted(() => {
     display: flex;
     gap: 0; /* Tabs touch */
 }
+.roster-header-tabs {
+    background-color: #fff; /* White background for the tab strip */
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 0; /* Remove margin to connect with panel content */
+    border-radius: 8px 8px 0 0; /* Rounded top corners only */
+    padding: 10px 10px 0 10px; /* Padding for the tabs */
+}
+.tabs {
+    display: flex;
+    gap: 5px; /* Slight gap between tabs */
+}
 .tabs button {
-    background: none;
-    border: none;
-    padding: 0.75rem 2rem; /* Bigger padding */
+    background: #f1f1f1; /* Inactive tab background */
+    border: 1px solid #ddd;
+    border-bottom: none;
+    padding: 0.75rem 2rem;
     cursor: pointer;
-    font-size: 1.2rem; /* Larger font */
+    font-size: 1.1rem;
     font-weight: bold;
-    color: #888;
-    border-bottom: 4px solid transparent; /* Thicker active line */
+    color: #666;
+    border-radius: 8px 8px 0 0; /* Tab shape */
     transition: all 0.2s;
+    margin-bottom: -1px; /* Overlap the bottom border */
 }
 .tabs button:hover {
-    color: #555;
-    background-color: #f0f0f0;
+    background-color: #e9ecef;
+    color: #333;
 }
 .tabs button.active {
-    color: #007bff;
-    border-bottom-color: #007bff;
-    background-color: transparent;
+    background-color: #f9f9f9; /* Match panel background */
+    color: #333; /* Darker text for active */
+    border-bottom: 1px solid #f9f9f9; /* Hide bottom border to merge */
+    border-top: 2px solid #007bff; /* Active indicator on top */
+    z-index: 1; /* Ensure it sits on top of the container border */
 }
 .roster-btn {
   margin-top: 1rem;
