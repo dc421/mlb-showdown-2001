@@ -524,6 +524,9 @@ function findCardId(playerName, cardIdMap) {
 // historicalRosterMap[seasonName][cardId] = teamName
 const historicalRosterMap = {};
 
+// Global map for historical team names: seasonName -> teamId -> teamName
+const seasonTeamNameMap = {};
+
 async function ingestRosters(client, cardIdMap) {
     console.log('Ingesting Rosters...');
     try {
@@ -612,6 +615,15 @@ async function ingestDrafts(client, cardIdMap) {
     }
 
     const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith('RRD') || f === 'Full Draft.csv');
+    // Sort files so we process in order: Full Draft, RRD1, RRD2...
+    files.sort((a, b) => {
+        if (a === 'Full Draft.csv') return -1;
+        if (b === 'Full Draft.csv') return 1;
+        // RRD{N}.csv
+        const numA = parseInt(a.replace('RRD', '').replace('.csv', ''), 10);
+        const numB = parseInt(b.replace('RRD', '').replace('.csv', ''), 10);
+        return numA - numB;
+    });
 
     for (const file of files) {
         const filePath = path.join(DATA_DIR, file);
@@ -629,6 +641,28 @@ async function ingestDrafts(client, cardIdMap) {
                 .on('error', reject);
         });
 
+        // 1. Populate seasonTeamNameMap for this season using the team names in the draft
+        for (const row of results) {
+            const team = row['Team'];
+            if (team && teamIdMap[team]) {
+                const tId = teamIdMap[team];
+
+                if (!seasonTeamNameMap[seasonName]) seasonTeamNameMap[seasonName] = {};
+                seasonTeamNameMap[seasonName][tId] = team;
+
+                // Special handling for Full Draft to seed Early/Mid July
+                if (file === 'Full Draft.csv') {
+                    const s0 = orderedSeasons[0]; // Early July
+                    const s1 = orderedSeasons[1]; // Mid July
+                    if (!seasonTeamNameMap[s0]) seasonTeamNameMap[s0] = {};
+                    seasonTeamNameMap[s0][tId] = team;
+                    if (!seasonTeamNameMap[s1]) seasonTeamNameMap[s1] = {};
+                    seasonTeamNameMap[s1][tId] = team;
+                }
+            }
+        }
+
+        // 2. Process rows
         for (const row of results) {
             const pick = parseInt(row['Pick'], 10) || 0;
             const round = row['Round'] ? row['Round'].trim() : '';
@@ -651,19 +685,30 @@ async function ingestDrafts(client, cardIdMap) {
                 const lostCardId = findCardId(cleanLostPlayer, cardIdMap);
 
                 // Infer Team for Random Removal
-                // Priority: Manual Override -> Previous Season Roster -> Drafting Team -> Unknown
+                // Priority: Previous Season Team Name (via Map) -> Previous Season Roster -> Drafting Team -> Unknown
                 let removalTeam = null;
+                const previousSeason = rrdRemovalSourceMap[fileNameBase];
 
-                // Check Manual Overrides
-                if (manualRemovalOverrides[seasonName] && manualRemovalOverrides[seasonName][cleanLostPlayer]) {
-                    removalTeam = manualRemovalOverrides[seasonName][cleanLostPlayer];
+                // 1. Identify Team ID from Previous Season Roster (gives us Modern Name)
+                let teamIdCandidate = null;
+                if (previousSeason && historicalRosterMap[previousSeason] && historicalRosterMap[previousSeason][lostCardId]) {
+                    const modernName = historicalRosterMap[previousSeason][lostCardId];
+                    teamIdCandidate = teamIdMap[modernName];
                 }
 
-                if (!removalTeam && lostCardId) {
-                    const previousSeason = rrdRemovalSourceMap[fileNameBase];
-                    if (previousSeason && historicalRosterMap[previousSeason] && historicalRosterMap[previousSeason][lostCardId]) {
-                        removalTeam = historicalRosterMap[previousSeason][lostCardId];
-                    }
+                // 2. Get Historical Name for that Team ID in Previous Season
+                if (teamIdCandidate && previousSeason && seasonTeamNameMap[previousSeason] && seasonTeamNameMap[previousSeason][teamIdCandidate]) {
+                    removalTeam = seasonTeamNameMap[previousSeason][teamIdCandidate];
+                }
+
+                // 3. Fallback to Modern Name if historical name not found
+                if (!removalTeam && teamIdCandidate && previousSeason && historicalRosterMap[previousSeason]) {
+                     removalTeam = historicalRosterMap[previousSeason][lostCardId];
+                }
+
+                // 4. Special Case: September 2020 - revert to Fargo if undefined
+                if (seasonName === 'September 2020' && !removalTeam) {
+                    removalTeam = 'Fargo';
                 }
 
                 if (!removalTeam) {
