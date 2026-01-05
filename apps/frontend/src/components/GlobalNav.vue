@@ -1,16 +1,30 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useGameStore } from '@/stores/game';
 import Linescore from '@/components/Linescore.vue';
 import OutsDisplay from '@/components/OutsDisplay.vue';
+import { apiClient } from '@/services/api';
 
 const authStore = useAuthStore();
 const gameStore = useGameStore();
 const route = useRoute();
 const isGamePage = computed(() => route.name === 'game');
 const isDashboardPage = computed(() => route.name === 'dashboard');
+
+onMounted(async () => {
+  // Check draft status on mount
+  if (authStore.token) {
+    try {
+        const res = await apiClient('/api/draft/state');
+        if (res.ok) {
+            const data = await res.json();
+            gameStore.isDraftActive = data.is_active;
+        }
+    } catch (e) { console.error(e); }
+  }
+});
 </script>
 
 <template>
@@ -22,7 +36,7 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
       <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
       <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text">League</RouterLink>
       <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text">Classic</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text">Draft</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
     </div>
     
     <div class="nav-center">
@@ -150,5 +164,18 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
   .nav-center :deep(.linescore-table) {
     min-width: 0;
   }
+}
+
+.active-draft {
+  color: #ffc107 !important; /* Gold/Yellow */
+  font-weight: bold;
+  text-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.8; }
+  50% { opacity: 1; text-shadow: 0 0 10px rgba(255, 193, 7, 0.8); }
+  100% { opacity: 0.8; }
 }
 </style>

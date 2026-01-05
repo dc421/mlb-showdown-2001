@@ -396,6 +396,7 @@ async function resetRolls(gameId) {
   const isOutcomeHidden = ref(false);
   const isSwingResultVisible = ref(false);
   const isStealResultVisible = ref(false);
+  const isDraftActive = ref(false);
 
   async function fetchSnapshots(gameId) {
     const auth = useAuthStore();
@@ -900,6 +901,7 @@ async function resetRolls(gameId) {
     isOutcomeHidden,
     isSwingResultVisible,
     isStealResultVisible,
+    isDraftActive,
     gameEventsToDisplay,
     myTeam,
     pitcherTeam,
