@@ -105,15 +105,6 @@ for (let i = 1; i <= 22; i++) {
     }
 }
 
-// Manual Override Map for known removal errors where historical data is missing or incorrect
-// Season Name -> Player Name -> Correct Team Name
-const manualRemovalOverrides = {
-    'October 2020': {
-        'Alex Rodriguez (TEX)': 'New York',
-        'Lenny Harris': 'Boston'
-    }
-};
-
 const teamIdMap = {
     'Boston': 1,
     'Detroit': 2,
