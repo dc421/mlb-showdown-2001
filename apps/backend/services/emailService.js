@@ -38,8 +38,14 @@ async function sendEmail(to, subject, html) {
         html: html,
     };
 
-    if (process.env.NODE_ENV !== 'production') {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const hasEmailConfig = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
+
+    if (!isProduction || !hasEmailConfig) {
         console.log("--- SIMULATING EMAIL SEND ---");
+        if (!hasEmailConfig && isProduction) {
+            console.log("(Simulation active due to missing email configuration)");
+        }
         console.log(`To: ${mailOptions.to}`);
         console.log(`Subject: ${mailOptions.subject}`);
         console.log(`Content: ${mailOptions.html.substring(0, 100)}...`);
@@ -151,8 +157,44 @@ async function sendStalledDraftNotification(level, team, client) {
     await sendEmail(recipients, subject, html);
 }
 
+// Template: Random Removals Email
+async function sendRandomRemovalsEmail(removalsByTeam, firstPickTeamName, client) {
+    const recipients = await getLeagueEmails(client);
+
+    let removalsHtml = '';
+    // Sort teams alphabetically for display
+    const teamNames = Object.keys(removalsByTeam).sort();
+
+    for (const teamName of teamNames) {
+        const players = removalsByTeam[teamName];
+        removalsHtml += `<h3>${teamName}</h3><ul>`;
+        players.forEach(p => {
+            removalsHtml += `<li>${p}</li>`;
+        });
+        removalsHtml += `</ul>`;
+    }
+
+    const subject = "Random Removals Complete - Draft Started!";
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Random Removals Performed</h2>
+            <p>The following players have been removed from rosters:</p>
+            ${removalsHtml}
+            <hr />
+            <h3>Draft Order Set!</h3>
+            <p><strong>${firstPickTeamName}</strong> has the first pick!</p>
+            <p>
+                <a href="${process.env.FRONTEND_URL}/draft" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Draft Board</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
 module.exports = {
     sendPickConfirmation,
     sendStalledDraftNotification,
-    sendClassicRosterSubmissionEmail
+    sendClassicRosterSubmissionEmail,
+    sendRandomRemovalsEmail
 };
