@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
-const { sendPickConfirmation } = require('../services/emailService');
+const { sendPickConfirmation, sendRandomRemovalsEmail } = require('../services/emailService');
 
 const seasonMap = {
     '7/5/20': 'Early July 2020',
@@ -327,9 +327,13 @@ router.post('/start', authenticateToken, async (req, res) => {
         const d = new Date();
         const seasonName = `${d.getMonth() + 1}-${d.getDate()}-${d.getFullYear().toString().slice(-2)} Season`;
 
+        const removalsByTeam = {}; // Collect data for email
+
         for (const teamId of draftOrder) {
-            const teamRes = await client.query('SELECT user_id FROM teams WHERE team_id = $1', [teamId]);
-            const userId = teamRes.rows[0].user_id;
+            const teamRes = await client.query('SELECT user_id, city, name FROM teams WHERE team_id = $1', [teamId]);
+            const team = teamRes.rows[0];
+            const userId = team.user_id;
+            const teamDisplayName = `${team.city} ${team.name}`;
 
             const rosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [userId]);
             if (rosterRes.rows.length === 0) continue;
@@ -340,6 +344,12 @@ router.post('/start', authenticateToken, async (req, res) => {
 
             cards.sort(() => 0.5 - Math.random());
             const toRemove = cards.slice(0, 5);
+
+            if (toRemove.length > 0) {
+                 const namesRes = await client.query('SELECT display_name, name FROM cards_player WHERE card_id = ANY($1::int[])', [toRemove]);
+                 const playerNames = namesRes.rows.map(r => r.display_name || r.name);
+                 removalsByTeam[teamDisplayName] = playerNames;
+            }
 
             for (const cardId of toRemove) {
                 await client.query('DELETE FROM roster_cards WHERE roster_id = $1 AND card_id = $2', [rosterId, cardId]);
@@ -360,6 +370,20 @@ router.post('/start', authenticateToken, async (req, res) => {
         );
 
         await client.query('COMMIT');
+
+        // --- EMAIL NOTIFICATION ---
+        // Get first team name
+        // Use draftOrder[0] which is the firstTeamId
+        const firstTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [draftOrder[0]]);
+        const ft = firstTeamRes.rows[0];
+        const firstTeamName = `${ft.city} ${ft.name}`;
+
+        try {
+             await sendRandomRemovalsEmail(removalsByTeam, firstTeamName, client);
+        } catch (e) {
+             console.error("Error sending removal email:", e);
+        }
+        // -------------------------
 
         io.emit('draft-updated');
         res.json({ message: "Random removals performed and draft started!" });
