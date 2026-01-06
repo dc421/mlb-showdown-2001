@@ -346,18 +346,28 @@ router.post('/start', authenticateToken, async (req, res) => {
             const toRemove = cards.slice(0, 5);
 
             if (toRemove.length > 0) {
-                 const namesRes = await client.query('SELECT display_name, name FROM cards_player WHERE card_id = ANY($1::int[])', [toRemove]);
-                 const playerNames = namesRes.rows.map(r => r.display_name || r.name);
-                 removalsByTeam[teamDisplayName] = playerNames;
-            }
+                 const namesRes = await client.query('SELECT card_id, display_name, name FROM cards_player WHERE card_id = ANY($1::int[])', [toRemove]);
+                 // Create map for easy lookup by ID
+                 const nameMap = {};
+                 namesRes.rows.forEach(r => {
+                     nameMap[r.card_id] = r.display_name || r.name;
+                 });
 
-            for (const cardId of toRemove) {
-                await client.query('DELETE FROM roster_cards WHERE roster_id = $1 AND card_id = $2', [rosterId, cardId]);
-                await client.query(
-                    `INSERT INTO draft_history (season_name, round, team_id, card_id, action)
-                     VALUES ($1, 'Removal', $2, $3, 'REMOVED_RANDOM')`,
-                    [seasonName, teamId, cardId]
-                );
+                 const playerNames = toRemove.map(id => nameMap[id] || 'Unknown Player');
+                 removalsByTeam[teamDisplayName] = playerNames;
+
+                 // Process removals
+                 for (const cardId of toRemove) {
+                    const playerName = nameMap[cardId] || 'Unknown Player';
+                    await client.query('DELETE FROM roster_cards WHERE roster_id = $1 AND card_id = $2', [rosterId, cardId]);
+
+                    // Insert into random_removals table using City as team_name
+                    await client.query(
+                        `INSERT INTO random_removals (season, player_name, card_id, team_name)
+                         VALUES ($1, $2, $3, $4)`,
+                        [seasonName, playerName, cardId, team.city]
+                    );
+                }
             }
         }
 

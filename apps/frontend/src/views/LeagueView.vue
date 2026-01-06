@@ -63,14 +63,42 @@ function getTeamTotalPoints(roster) {
 
 function padRoster(roster) {
     const padded = [...roster];
+
+    // Identify missing positions
+    const counts = {
+        'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0,
+        'LF': 0, 'CF': 0, 'RF': 0, 'DH': 0,
+        'SP': 0, 'RP': 0
+    };
+
+    padded.forEach(p => {
+        // League rosters often have 'PITCHING_STAFF' as assignment, or explicit positions
+        const pos = p.assignment === 'PITCHING_STAFF' ? (p.displayPosition || p.position) : (p.assignment || p.displayPosition || p.position);
+
+        // Normalize position string
+        if (pos) {
+            if (pos === 'SP' || (p.ip && Number(p.ip) > 3)) counts['SP']++;
+            else if (pos === 'RP' || (p.ip && Number(p.ip) <= 3)) counts['RP']++;
+            else if (counts[pos] !== undefined) counts[pos]++;
+        }
+    });
+
+    const missing = [];
+    ['C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
+        if (counts[pos] === 0) missing.push(pos);
+    });
+    for (let i = 0; i < (4 - counts['SP']); i++) missing.push('SP');
+
     while (padded.length < 20) {
+        const nextMissing = missing.shift() || 'Bench';
         padded.push({
             card_id: `empty-${padded.length}`,
             name: '',
             displayName: '',
-            position: '',
+            position: nextMissing,
+            displayPosition: nextMissing,
             points: '',
-            assignment: '',
+            assignment: nextMissing,
             isEmpty: true
         });
     }

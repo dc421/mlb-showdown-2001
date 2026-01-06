@@ -169,5 +169,8 @@ onMounted(async () => {
 .active-draft {
   color: #ffc107 !important; /* Gold/Yellow */
   font-weight: bold;
+  border: 2px solid #ffc107;
+  padding: 4px 8px !important; /* Adjust padding to fit border */
+  border-radius: 4px;
 }
 </style>

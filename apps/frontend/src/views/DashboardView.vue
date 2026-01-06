@@ -77,13 +77,50 @@ const processedRoster = computed(() => {
         return (b.points || 0) - (a.points || 0);
     });
 
-    // --- NEW: PAD ROSTER ---
+    // --- NEW: PAD ROSTER WITH MISSING POSITIONS ---
+    // Required positions: C, 1B, 2B, SS, 3B, LF, CF, RF, DH, 4x SP, RP
+    // We already sorted the real players.
+    // Let's identify what's missing.
+    const counts = {
+        'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0,
+        'LF': 0, 'CF': 0, 'RF': 0, 'DH': 0,
+        'SP': 0, 'RP': 0
+    };
+
+    roster.forEach(p => {
+        // If assignment is valid, count it.
+        // If assignment is 'PITCHING_STAFF', check displayPosition or ip
+        if (p.assignment === 'PITCHING_STAFF' || p.assignment === 'SP' || p.assignment === 'RP') {
+            const isSP = (p.displayPosition === 'SP') || (p.ip && Number(p.ip) > 3) || (p.assignment === 'SP');
+            if (isSP) counts['SP']++;
+            else counts['RP']++;
+        } else if (p.assignment && counts[p.assignment] !== undefined) {
+            counts[p.assignment]++;
+        } else if (p.displayPosition && counts[p.displayPosition] !== undefined) {
+             counts[p.displayPosition]++;
+        }
+    });
+
+    // Determine missing slots to fill
+    const missing = [];
+    ['C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
+        if (counts[pos] === 0) missing.push(pos);
+    });
+
+    // We need 4 SPs.
+    for (let i = 0; i < (4 - counts['SP']); i++) {
+        missing.push('SP');
+    }
+    // We need at least 1 RP? The validation usually checks roster size.
+    // If we have strict 20 slots, let's just prioritize required fielders + SPs.
+
     while (roster.length < 20) {
+        const nextMissing = missing.shift() || 'Bench';
         roster.push({
             card_id: `empty-${roster.length}`,
             displayName: '',
-            displayPosition: '',
-            assignment: '',
+            displayPosition: nextMissing,
+            assignment: nextMissing,
             points: '',
             isEmpty: true
         });
