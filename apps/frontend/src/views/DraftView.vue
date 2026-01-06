@@ -29,6 +29,7 @@ const leagueRosterIds = ref(new Set());
 
 // Ensure apiUrl is an empty string if VITE_API_URL is not defined
 const apiUrl = import.meta.env.VITE_API_URL || '';
+const takenPlayersMap = ref(new Map()); // card_id -> { logo_url, name }
 
 // --- COMPUTED ---
 const isDraftActive = computed(() => draftState.value.is_active);
@@ -52,11 +53,18 @@ const filteredPlayers = computed(() => {
                 if (!p.fielding_ratings || p.fielding_ratings[filterPosition.value] === undefined) return false;
             }
         }
-        // Exclude drafted players
-        if (draftState.value.takenPlayerIds.includes(p.card_id)) return false;
-
+        // NOTE: We now show taken players, but visually distinguish them
         return true;
-    }).sort((a, b) => (b.points || 0) - (a.points || 0));
+    }).sort((a, b) => {
+        // Sort available players first, then taken players at bottom
+        const aTaken = draftState.value.takenPlayerIds.includes(a.card_id);
+        const bTaken = draftState.value.takenPlayerIds.includes(b.card_id);
+
+        if (aTaken && !bTaken) return 1;
+        if (!aTaken && bTaken) return -1;
+
+        return (b.points || 0) - (a.points || 0);
+    });
 });
 
 // Helper to compute Net Changes for a set of history items
@@ -141,41 +149,32 @@ const displayRows = computed(() => {
         });
     }
 
-    // Process Add/Drop Rounds (Round 4+, Pick > 10)
-    // We group history items by their 'pick_number' (which represents a specific turn for a specific team)
-    const addDropItems = draftState.value.history.filter(h => {
-        if ((h.action || '').toUpperCase() === 'REMOVED_RANDOM') return false;
-        // The backend uses pick_number > 10 for add/drop rounds logic implicitly via round name check?
-        // Actually backend sets round name "Add/Drop 1".
-        return (h.pick_number > 10 || h.round.includes('Add/Drop'));
-    });
+    // Add/Drop Rounds (Rounds 3 & 4 mapping to Backend Add/Drop 1 & 2)
+    // We want to list ALL added/dropped players.
+    // Filter history for these rounds
+    const addDropHistory = draftState.value.history.filter(h =>
+        (h.round && h.round.includes('Add/Drop')) || h.pick_number > 10
+    );
 
-    const itemsByPick = {};
-    addDropItems.forEach(item => {
-        if (!itemsByPick[item.pick_number]) itemsByPick[item.pick_number] = [];
-        itemsByPick[item.pick_number].push(item);
-    });
+    // Sort chronologically/by ID
+    const sortedAddDrop = addDropHistory.sort((a, b) => a.id - b.id);
 
-    const sortedPicks = Object.keys(itemsByPick).map(Number).sort((a, b) => a - b);
+    sortedAddDrop.forEach(h => {
+        let displayRound = h.round;
+        if (h.round === 'Add/Drop 1') displayRound = '3';
+        if (h.round === 'Add/Drop 2') displayRound = '4';
 
-    sortedPicks.forEach(pickNum => {
-        const items = itemsByPick[pickNum];
-        // Apply Net Changes logic per turn
-        const netItems = computeNetChanges(items);
+        let name = h.player_name;
+        if (h.action === 'ADDED') name += ' (Added)';
+        if (h.action === 'DROPPED') name += ' (Dropped)';
 
-        netItems.forEach(h => {
-            let name = h.player_name;
-            if (h.action === 'ADDED') name += ' (Added)';
-            if (h.action === 'DROPPED') name += ' (Dropped)';
-
-            rows.push({
-                id: `hist-${h.id}`,
-                round: h.round,
-                pick_number: h.pick_number,
-                team_name: h.city || h.team_name,
-                player_name: name,
-                action: h.action
-            });
+        rows.push({
+            id: `hist-${h.id}`,
+            round: displayRound,
+            pick_number: h.pick_number, // Can be same for multiple actions
+            team_name: h.city || h.team_name,
+            player_name: name,
+            action: h.action
         });
     });
 
@@ -235,10 +234,19 @@ async function fetchLeagueRosters() {
         if (response.ok) {
             const leagueData = await response.json();
             const ids = new Set();
+            const map = new Map();
+
             leagueData.forEach(team => {
-                team.roster.forEach(p => ids.add(p.card_id));
+                team.roster.forEach(p => {
+                    ids.add(p.card_id);
+                    map.set(p.card_id, {
+                        logo_url: team.logo_url,
+                        name: team.name
+                    });
+                });
             });
             leagueRosterIds.value = ids;
+            takenPlayersMap.value = map;
         }
     } catch (error) {
         console.error("Error fetching league rosters:", error);
@@ -425,10 +433,17 @@ onUnmounted(() => {
                         <div class="player-info-compact">
                             <span class="p-name">{{ player.displayName }}</span>
                             <span class="p-meta">{{ player.points }} pts</span>
-                            <img v-if="leagueRosterIds.has(player.card_id)" :src="`${apiUrl}/images/silver_submarine.png`" class="rostered-icon" title="On League Roster" />
+                            <template v-if="leagueRosterIds.has(player.card_id)">
+                                <img v-if="takenPlayersMap.get(player.card_id)?.logo_url"
+                                     :src="takenPlayersMap.get(player.card_id).logo_url"
+                                     class="rostered-team-icon"
+                                     :title="takenPlayersMap.get(player.card_id).name" />
+                            </template>
                         </div>
-                        <button v-if="!leagueRosterIds.has(player.card_id)" @click="makePick(player)" class="draft-btn">Draft</button>
-                        <button v-else disabled class="draft-btn disabled">Taken</button>
+                        <div class="action-cell">
+                            <button v-if="!leagueRosterIds.has(player.card_id)" @click="makePick(player)" class="draft-btn">Draft</button>
+                            <button v-else disabled class="draft-btn disabled">Taken</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -527,6 +542,8 @@ onUnmounted(() => {
 .waiting-message { margin-bottom: 2rem; padding: 1rem; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; text-align: center; }
 
 .pick-interface h3 { margin-top: 0; }
+/* Restrict width to keep button closer to name on wide screens */
+.pick-interface { max-width: 600px; margin: 0 auto; }
 .search-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
 .search-input { flex-grow: 1; padding: 0.5rem; box-sizing: border-box; }
 .position-select { padding: 0.5rem; }
@@ -545,8 +562,13 @@ onUnmounted(() => {
 .p-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .p-meta { font-size: 0.85rem; color: #666; white-space: nowrap; }
 
-.rostered { background-color: #f9f9f9; color: #999; }
-.rostered-icon { width: 20px; height: 20px; opacity: 0.5; }
+.rostered { background-color: #f0f0f0; color: #aaa; opacity: 0.7; }
+.rostered-team-icon { width: 25px; height: 25px; object-fit: contain; }
+
+.action-cell {
+    flex-shrink: 0;
+    margin-left: auto; /* Push to right, but constrained by flex gap */
+}
 
 .draft-btn {
     background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; border-radius: 4px; font-size: 0.9rem;

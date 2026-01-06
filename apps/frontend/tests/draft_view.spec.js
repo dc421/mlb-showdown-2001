@@ -149,7 +149,8 @@ test.describe('Draft View Unified Layout', () => {
 
     // Verify appended row
     const lastRow = rows.last();
-    await expect(lastRow).toContainText('Add/Drop 1');
+    // Adjusted expectation: 'Add/Drop 1' is now displayed as Round '3'
+    await expect(lastRow).toContainText('3');
     await expect(lastRow).toContainText('New Player');
   });
 });
