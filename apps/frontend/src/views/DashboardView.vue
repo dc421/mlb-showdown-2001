@@ -509,7 +509,6 @@ onUnmounted(() => {
 .tabs button {
     background: #f1f1f1; /* Inactive tab background */
     border: 1px solid #ddd;
-    border-bottom: none;
     padding: 0.75rem 2rem;
     cursor: pointer;
     font-size: 1.1rem;
@@ -661,7 +660,8 @@ onUnmounted(() => {
 
 .roster-table th {
     text-align: left;
-    padding: 0.5rem;
+    padding: 0.4rem;
+    border-top: 5px solid #f9f9f9;
     background: #e9ecef;
     color: #495057;
     font-weight: 600;

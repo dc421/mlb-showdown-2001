@@ -57,7 +57,7 @@ const SHEET_GIDS = {
 const seasonMap = {
     '7/5/20': 'Early July 2020',
     '7/15/20': 'Mid July 2020',
-    '7/20/20': 'Late July 2020',
+    '7/22/20': 'Late July 2020',
     '8/1/20': 'Early August 2020',
     '8/13/20': 'Late August 2020',
     '9/9/20': 'September 2020',
