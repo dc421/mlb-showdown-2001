@@ -169,13 +169,5 @@ onMounted(async () => {
 .active-draft {
   color: #ffc107 !important; /* Gold/Yellow */
   font-weight: bold;
-  text-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { opacity: 0.8; }
-  50% { opacity: 1; text-shadow: 0 0 10px rgba(255, 193, 7, 0.8); }
-  100% { opacity: 0.8; }
 }
 </style>

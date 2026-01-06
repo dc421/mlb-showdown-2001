@@ -25,6 +25,10 @@ const filterPosition = ref('ALL');
 const availableSeasons = ref([]);
 const selectedSeason = ref('');
 const isSeasonOver = ref(false);
+const leagueRosterIds = ref(new Set());
+
+// Ensure apiUrl is an empty string if VITE_API_URL is not defined
+const apiUrl = import.meta.env.VITE_API_URL || '';
 
 // --- COMPUTED ---
 const isDraftActive = computed(() => draftState.value.is_active);
@@ -41,10 +45,16 @@ const filteredPlayers = computed(() => {
             if (!p.name.toLowerCase().includes(query)) return false;
         }
         if (filterPosition.value !== 'ALL') {
-            if (filterPosition.value === 'P' && p.control === null) return false;
+            if (filterPosition.value === 'P') {
+                if (p.control === null) return false;
+            } else {
+                // Check if player has rating for this position
+                if (!p.fielding_ratings || p.fielding_ratings[filterPosition.value] === undefined) return false;
+            }
         }
-        // Exclude taken players
+        // Exclude drafted players
         if (draftState.value.takenPlayerIds.includes(p.card_id)) return false;
+
         return true;
     }).sort((a, b) => (b.points || 0) - (a.points || 0));
 });
@@ -112,66 +122,20 @@ const displayRows = computed(() => {
     for (let i = 1; i <= totalFixedPicks; i++) {
         const teamIndex = (i - 1) % teamCount;
         const teamId = order[teamIndex];
-        // Team Name: Use City Only (extracted from "City Name" or fallback to full)
+
         let teamName = (draftState.value.teams && draftState.value.teams[teamId]) || `Team ${teamId}`;
-        // If teamName is "City Nickname", assume City is first word(s).
-        // But backend sends `${t.city} ${t.name}` or just `${t.city}`.
-        // We want just city.
-        // Ideally backend should send city separately.
-        // But strictly adhering to requirement: "Live draft table we can just use the city".
-        // Let's assume the string is "City Nickname". But finding where city ends is hard without struct.
-        // Wait, historical already uses `h.team_name`.
-        // If I assume `draftState.value.teams[teamId]` comes from backend as `city + name`.
-        // I will do my best to extract City. Or I can assume `draftState.value.teams` can be updated to send object?
-        // No, I should fix display logic.
-        // Actually, the backend sends `teamsMap` with city included.
-        // Let's rely on standard practice or user instruction implies `t.city` is what they want.
-        // The backend `getDraftState` returns `teams` map.
-        // I will just use the string as is for now, but user said "Use City Only".
-        // In the backend I saw `displayName = ${t.city} ${t.name}`.
-        // I'll try to split by space and take first part? No, New York.
-        // I'll use the full string if I can't be sure, OR I can check if I can access city directly.
-        // `draftState.value.teams` is just ID -> String.
-        // Re-reading Step 4: "Change Team Name display to use City Only".
-        // I should have returned the city map from backend.
-        // But since I didn't update backend to return city map separately in `teams`,
-        // I will do a regex guess: remove the last word? (Nickname usually last).
-        // Exception: Red Sox, Blue Jays.
-        // Better: Update backend `teams` map to return object { name: ..., city: ... }?
-        // I'll stick to frontend only changes for this step as planned, but realizing limitation.
-        // Wait, `draftState.value.teams` is built in backend.
-        // Let's check `h.city` in history?
-        // Backend `historyRes` has `t.city`.
-        // So for historical items, I have `h.city`.
-        // For PENDING items (future picks), I rely on `draftState.value.teams`.
-        // I will update this block to use `teams` string, but maybe I should have updated backend to send city.
-        // Actually, user said: "City Only is already applied to historical draft tables".
-        // So for historical items `h.team_name` IS the city?
-        // In backend: `COALESCE(dh.team_name, t.name)`. And `dh.team_name` is historical name.
-        // If historical `team_name` is "Cincinnati", that is city.
-        // So for history items, it's fine.
-        // For FUTURE picks (rows generated here), I use `draftState.value.teams[teamId]`.
-        // I will update the backend in a follow up if needed, but for now I will try to use `teamName`.
-        // Wait, I can try to find a history item for this team to get the city?
-        // No, simpler: "Round 1" -> "1".
 
         const roundNum = i <= teamCount ? "1" : "2";
         const historyItem = draftState.value.history.find(h => h.pick_number === i && h.round !== 'Removal');
 
-        // If we have history item, use its team_name.
-        // The backend query prioritizes historical name (dh.team_name) over current name (t.name).
-        // Using 'historyItem.city' here would override the historical name with the current team's city,
-        // which is incorrect if the team moved (e.g., showing Detroit instead of Cincinnati).
-        // So we stick to 'historyItem.team_name'.
-
-        // For pending picks, we use the `teamName` from the map (which is City + Name).
-        // Limitation: Pending picks show full name, historical show correct historical name.
+        // Use city if available (from history join or backend teams map)
+        const displayTeam = historyItem ? (historyItem.city || historyItem.team_name) : teamName;
 
         rows.push({
             id: `pick-${i}`,
             round: roundNum,
             pick_number: i,
-            team_name: historyItem ? historyItem.team_name : teamName,
+            team_name: displayTeam,
             player_name: historyItem ? historyItem.player_name : '',
             action: historyItem ? historyItem.action : 'PENDING'
         });
@@ -181,7 +145,9 @@ const displayRows = computed(() => {
     // We group history items by their 'pick_number' (which represents a specific turn for a specific team)
     const addDropItems = draftState.value.history.filter(h => {
         if ((h.action || '').toUpperCase() === 'REMOVED_RANDOM') return false;
-        return (h.pick_number > totalFixedPicks);
+        // The backend uses pick_number > 10 for add/drop rounds logic implicitly via round name check?
+        // Actually backend sets round name "Add/Drop 1".
+        return (h.pick_number > 10 || h.round.includes('Add/Drop'));
     });
 
     const itemsByPick = {};
@@ -190,8 +156,6 @@ const displayRows = computed(() => {
         itemsByPick[item.pick_number].push(item);
     });
 
-    // Iterate through pick numbers in order
-    // Since 'itemsByPick' keys are strings, we sort them numerically
     const sortedPicks = Object.keys(itemsByPick).map(Number).sort((a, b) => a - b);
 
     sortedPicks.forEach(pickNum => {
@@ -208,7 +172,7 @@ const displayRows = computed(() => {
                 id: `hist-${h.id}`,
                 round: h.round,
                 pick_number: h.pick_number,
-                team_name: h.team_name,
+                team_name: h.city || h.team_name,
                 player_name: name,
                 action: h.action
             });
@@ -229,21 +193,28 @@ const randomRemovalsByTeam = computed(() => {
     }
 
     // 2. From 'history' (Active/Recent drafts where action is REMOVED_RANDOM)
+    // Note: The backend update ensures 'history' items now have points/position too.
     if (draftState.value.history) {
         const historyRemovals = draftState.value.history.filter(item => (item.action || '').toUpperCase() === 'REMOVED_RANDOM');
         historyRemovals.forEach(h => {
-             const teamName = h.team_name || "Unknown Team";
-             const exists = removals.some(r => r.player_name === h.player_name && r.team_name === teamName);
+             // For removals, backend sends full name.
+             const rawTeamName = h.team_name || "Unknown Team";
+             // Check if already in list (avoid dupes if history overlaps with randomRemovals table)
+             const exists = removals.some(r => r.card_id === h.card_id); // Better to check ID
              if (!exists) {
                  removals.push({
                      player_name: h.player_name,
-                     team_name: teamName
+                     team_name: rawTeamName,
+                     position: h.position,
+                     points: h.points,
+                     card_id: h.card_id
                  });
              }
         });
     }
 
-    // Group by Team
+    // Group by Team Name (Full string from DB, which usually includes City)
+    // This addresses the user issue "shows nicknames instead of cities" by avoiding any stripping of City.
     const groups = {};
     removals.forEach(r => {
         const t = r.team_name || "Unknown Team";
@@ -255,6 +226,25 @@ const randomRemovalsByTeam = computed(() => {
 });
 
 // --- ACTIONS ---
+async function fetchLeagueRosters() {
+    try {
+        if (!authStore.selectedPointSetId) await authStore.fetchPointSets();
+        if (!authStore.selectedPointSetId) return;
+
+        const response = await apiClient(`/api/league?point_set_id=${authStore.selectedPointSetId}`);
+        if (response.ok) {
+            const leagueData = await response.json();
+            const ids = new Set();
+            leagueData.forEach(team => {
+                team.roster.forEach(p => ids.add(p.card_id));
+            });
+            leagueRosterIds.value = ids;
+        }
+    } catch (error) {
+        console.error("Error fetching league rosters:", error);
+    }
+}
+
 async function fetchAvailableSeasons() {
     try {
         const response = await apiClient(`/api/draft/seasons`);
@@ -307,8 +297,9 @@ async function startDraft() {
             const data = await response.json();
             alert(data.message);
         } else {
-            fetchDraftState();
-            fetchAvailableSeasons();
+            await fetchAvailableSeasons();
+            selectedSeason.value = 'Live Draft'; // Redirect to Live Draft page
+            await fetchDraftState();
         }
     } catch (error) {
         console.error("Error starting draft:", error);
@@ -316,6 +307,7 @@ async function startDraft() {
 }
 
 async function makePick(player) {
+    if (leagueRosterIds.value.has(player.card_id)) return; // Double check
     if (!confirm(`Draft ${player.name}?`)) return;
     try {
         const response = await apiClient(`/api/draft/pick`, {
@@ -376,6 +368,7 @@ onMounted(async () => {
     await fetchAvailableSeasons();
     await fetchDraftState();
     fetchAvailablePlayers();
+    fetchLeagueRosters(); // Fetch league rosters to gray out taken players
 
     socket.on('draft-updated', fetchDraftState);
 });
@@ -409,11 +402,33 @@ onUnmounted(() => {
             <!-- PICKING INTERFACE (Rounds 1 & 2) -->
             <div v-if="draftState.current_round === 2 || draftState.current_round === 3" class="pick-interface">
                 <h3>Make Your Pick (Pick #{{ draftState.current_pick_number }})</h3>
-                <input v-model="searchQuery" placeholder="Search Players..." class="search-input" />
+
+                <div class="search-filters">
+                    <input v-model="searchQuery" placeholder="Search Players..." class="search-input" />
+                    <select v-model="filterPosition" class="position-select">
+                        <option value="ALL">All Pos</option>
+                        <option value="C">C</option>
+                        <option value="1B">1B</option>
+                        <option value="2B">2B</option>
+                        <option value="SS">SS</option>
+                        <option value="3B">3B</option>
+                        <option value="LF">LF</option>
+                        <option value="CF">CF</option>
+                        <option value="RF">RF</option>
+                        <option value="DH">DH</option>
+                        <option value="P">P</option>
+                    </select>
+                </div>
+
                 <div class="player-list">
-                    <div v-for="player in filteredPlayers" :key="player.card_id" class="player-card-row">
-                        <span>{{ player.displayName }} ({{ player.points }} pts)</span>
-                        <button @click="makePick(player)">Draft</button>
+                    <div v-for="player in filteredPlayers" :key="player.card_id" class="player-card-row" :class="{ 'rostered': leagueRosterIds.has(player.card_id) }">
+                        <div class="player-info-compact">
+                            <span class="p-name">{{ player.displayName }}</span>
+                            <span class="p-meta">{{ player.points }} pts</span>
+                            <img v-if="leagueRosterIds.has(player.card_id)" :src="`${apiUrl}/images/silver_submarine.png`" class="rostered-icon" title="On League Roster" />
+                        </div>
+                        <button v-if="!leagueRosterIds.has(player.card_id)" @click="makePick(player)" class="draft-btn">Draft</button>
+                        <button v-else disabled class="draft-btn disabled">Taken</button>
                     </div>
                 </div>
             </div>
@@ -449,7 +464,7 @@ onUnmounted(() => {
                         <th>Round</th>
                         <th>Pick #</th>
                         <th>Player Name</th>
-                        <th>Team Name</th>
+                        <th>Team</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -512,10 +527,32 @@ onUnmounted(() => {
 .waiting-message { margin-bottom: 2rem; padding: 1rem; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; text-align: center; }
 
 .pick-interface h3 { margin-top: 0; }
-.search-input { width: 100%; padding: 0.5rem; margin-bottom: 1rem; box-sizing: border-box; }
+.search-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.search-input { flex-grow: 1; padding: 0.5rem; box-sizing: border-box; }
+.position-select { padding: 0.5rem; }
+
+/* COMPACT PLAYER LIST */
 .player-list { height: 300px; overflow-y: auto; border: 1px solid #ccc; background: white; }
-.player-card-row { display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid #eee; align-items: center; }
-.player-card-row button { background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; border-radius: 4px; }
+.player-card-row {
+    display: flex;
+    justify-content: flex-start; /* Change from space-between */
+    gap: 10px; /* Add explicit gap */
+    padding: 0.25rem 0.5rem; /* Reduced padding */
+    border-bottom: 1px solid #eee;
+    align-items: center;
+}
+.player-info-compact { display: flex; align-items: center; gap: 0.5rem; flex-grow: 1; overflow: hidden; }
+.p-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-meta { font-size: 0.85rem; color: #666; white-space: nowrap; }
+
+.rostered { background-color: #f9f9f9; color: #999; }
+.rostered-icon { width: 20px; height: 20px; opacity: 0.5; }
+
+.draft-btn {
+    background: #007bff; color: white; border: none; padding: 0.25rem 0.5rem; cursor: pointer; border-radius: 4px; font-size: 0.9rem;
+    white-space: nowrap;
+}
+.draft-btn.disabled { background: #ccc; cursor: not-allowed; }
 
 .add-drop-buttons { display: flex; gap: 1rem; }
 .builder-btn { padding: 1rem; font-size: 1.1rem; background: #17a2b8; color: white; border: none; cursor: pointer; border-radius: 4px; }

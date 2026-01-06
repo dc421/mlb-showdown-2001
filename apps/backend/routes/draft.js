@@ -467,20 +467,6 @@ router.get('/state', authenticateToken, async (req, res) => {
         // If still no state (no history, no active draft), return empty
         if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver });
 
-        // Fetch History
-        // Prioritize official display_name from cards_player, then clean name, then raw history name
-        // Team Name priority: Historical (dh.team_name) -> Current (t.name)
-        const historyRes = await client.query(
-            `SELECT dh.*, COALESCE(cp.display_name, cp.name, dh.player_name) as player_name, t.city, COALESCE(dh.team_name, t.name) as team_name
-             FROM draft_history dh
-             LEFT JOIN cards_player cp ON dh.card_id = cp.card_id
-             LEFT JOIN teams t ON dh.team_id = t.team_id
-             WHERE dh.season_name = $1
-             ORDER BY dh.pick_number ASC, dh.created_at ASC`,
-            [state.season_name]
-        );
-
-        // Fetch Random Removals (Historical)
         // Find correct point set for stats
         const psRes = await client.query('SELECT point_set_id FROM point_sets WHERE name = $1', [state.season_name]);
         let pointSetId = null;
@@ -492,6 +478,30 @@ router.get('/state', authenticateToken, async (req, res) => {
              if (fallbackRes.rows.length > 0) pointSetId = fallbackRes.rows[0].point_set_id;
         }
 
+        // Fetch History
+        // Prioritize official display_name from cards_player, then clean name, then raw history name
+        // Team Name priority: Historical (dh.team_name) -> Current (t.name)
+        const historyRes = await client.query(
+            `SELECT
+                dh.*,
+                COALESCE(cp.display_name, cp.name, dh.player_name) as player_name,
+                t.city,
+                COALESCE(dh.team_name, t.name) as team_name,
+                ppv.points,
+                CASE
+                    WHEN cp.control IS NOT NULL THEN (CASE WHEN cp.ip > 3 THEN 'SP' ELSE 'RP' END)
+                    ELSE array_to_string(ARRAY(SELECT jsonb_object_keys(cp.fielding_ratings)), '/')
+                END as position
+             FROM draft_history dh
+             LEFT JOIN cards_player cp ON dh.card_id = cp.card_id
+             LEFT JOIN teams t ON dh.team_id = t.team_id
+             LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
+             WHERE dh.season_name = $1
+             ORDER BY dh.pick_number ASC, dh.created_at ASC`,
+            [state.season_name, pointSetId]
+        );
+
+        // Fetch Random Removals (Historical)
         const removalQuery = `
             SELECT
                 rr.player_name,

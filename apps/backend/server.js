@@ -2020,7 +2020,7 @@ app.get('/api/league', authenticateToken, async (req, res) => {
                 ppv.points
             FROM teams t
             JOIN users u ON t.user_id = u.user_id
-            JOIN rosters r ON u.user_id = r.user_id
+            JOIN rosters r ON u.user_id = r.user_id AND r.roster_type = 'league'
             JOIN roster_cards rc ON r.roster_id = rc.roster_id
             JOIN cards_player cp ON rc.card_id = cp.card_id
             LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
