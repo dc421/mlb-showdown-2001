@@ -7,9 +7,6 @@ const authenticateToken = require('../middleware/authenticateToken');
 // GET INELIGIBLE PLAYERS (>= 5 Historical Appearances)
 router.get('/eligibility', authenticateToken, async (req, res) => {
     try {
-        // We only care about player card_ids that have appeared 5 or more times.
-        // We join with cards_player to get names for debugging/display if needed,
-        // but the ID is the critical part for filtering.
         const query = `
             SELECT card_id, COUNT(*) as appearances
             FROM historical_rosters
@@ -31,19 +28,26 @@ router.get('/eligibility', authenticateToken, async (req, res) => {
 router.get('/state', authenticateToken, async (req, res) => {
     try {
         // 1. Seeding: Fetch Wooden Spoon losers
+        // We fetch ALL wooden spoon rounds and sort in JS to ensure date accuracy
         const spoonQuery = `
             SELECT losing_team_id, date
             FROM series_results
             WHERE round = 'Wooden Spoon'
-            ORDER BY date DESC
         `;
         const spoonResult = await pool.query(spoonQuery);
+
+        // Sort by Date DESC (Newest first)
+        const sortedSpoonRows = spoonResult.rows.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return dateB - dateA;
+        });
 
         // Use a Set to get unique most recent losers
         const seeds = [];
         const seenTeams = new Set();
 
-        for (const row of spoonResult.rows) {
+        for (const row of sortedSpoonRows) {
             if (!seenTeams.has(row.losing_team_id) && row.losing_team_id) {
                 seenTeams.add(row.losing_team_id);
                 // Fetch team details
@@ -61,15 +65,9 @@ router.get('/state', authenticateToken, async (req, res) => {
             if (seeds.length >= 5) break; // We only need top 5 seeds
         }
 
-        // 2. Bracket Data: Fetch Classic series results
-        const bracketQuery = `
-            SELECT * FROM series_results
-            WHERE style = 'Classic' OR notes LIKE '%Classic%'
-        `;
-        // Note: The prompt says "Classic series option". We need to ensure when a game is created as "Classic",
-        // the series is marked as such. The current schema has 'series_type'.
-        // Let's assume series_type = 'classic'.
+        // seeds array is now [Seed 5 (Newest), Seed 4, Seed 3, Seed 2, Seed 1 (Oldest)]
 
+        // 2. Bracket Data: Fetch Classic series results
         const classicSeriesQuery = `
             SELECT s.*,
                    ht.city as home_city, ht.name as home_name,
@@ -87,18 +85,12 @@ router.get('/state', authenticateToken, async (req, res) => {
             score: `${s.home_wins}-${s.away_wins}`,
             status: s.status,
             home_user_id: s.series_home_user_id,
-            away_user_id: s.series_away_user_id
+            away_user_id: s.series_away_user_id,
+            winning_team_id: s.home_wins > s.away_wins ? s.home_team_user_id : (s.away_wins > s.home_wins ? s.series_away_user_id : null), // Approx logic, strict check relies on series completion
+            home_team_id: s.home_team_user_id // Note: schema has home_team_user_id on games, series has series_home_user_id
         }));
 
         // 3. Roster Reveal Status
-        const rosterCountQuery = `
-            SELECT COUNT(*) as count
-            FROM rosters r
-            JOIN roster_cards rc ON r.roster_id = rc.roster_id
-            WHERE r.roster_type = 'classic'
-        `;
-        // Wait, a simple count of rosters isn't enough, we need to know if 5 VALID rosters exist.
-        // A valid roster has 20 cards.
         const validRostersQuery = `
             SELECT r.user_id
             FROM rosters r
@@ -113,7 +105,6 @@ router.get('/state', authenticateToken, async (req, res) => {
 
         let rosters = [];
         if (revealed) {
-            // Fetch the rosters
             const rostersQuery = `
                 SELECT
                     u.user_id,
@@ -129,7 +120,6 @@ router.get('/state', authenticateToken, async (req, res) => {
             `;
             const rostersRes = await pool.query(rostersQuery);
 
-            // Group by user
             const rosterMap = {};
             rostersRes.rows.forEach(row => {
                 if (!rosterMap[row.user_id]) {
@@ -144,7 +134,7 @@ router.get('/state', authenticateToken, async (req, res) => {
         }
 
         res.json({
-            seeding: seeds, // Array of { team_id, name } ordered 5th seed to 1st seed (based on spoon recency)
+            seeding: seeds,
             series: seriesData,
             revealed,
             rosters,
