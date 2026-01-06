@@ -121,6 +121,21 @@ function openPlayerCard(player) {
     selectedPlayer.value = player;
 }
 
+function padRoster(roster) {
+    const padded = [...roster];
+    while (padded.length < 20) {
+        padded.push({
+            card_id: `empty-${padded.length}`,
+            player_name: '',
+            display_name: '',
+            assignment: '',
+            points: '',
+            isEmpty: true
+        });
+    }
+    return padded;
+}
+
 onMounted(async () => {
     try {
         const res = await apiClient('/api/classic/state');
@@ -232,7 +247,7 @@ onMounted(async () => {
                                     <tr><th>Pos</th><th>Player</th><th>Pts</th></tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="p in team.players" :key="p.card_id" @click="openPlayerCard(p)">
+                                    <tr v-for="p in padRoster(team.players)" :key="p.card_id" @click="!p.isEmpty && openPlayerCard(p)" :class="{ 'empty-row': p.isEmpty }">
                                         <td>{{ p.assignment }}</td>
                                         <td>{{ p.display_name }}</td>
                                         <td>{{ p.points }}</td>

@@ -25,7 +25,7 @@ const myTeamDisplayName = computed(() => {
 });
 
 const processedRoster = computed(() => {
-    if (!authStore.activeRosterCards || authStore.activeRosterCards.length === 0) return [];
+    if (!authStore.activeRosterCards) return []; // Allow empty array for padding
 
     // Clone logic from LeagueView to match appearance
     const positionOrder = {
@@ -77,11 +77,24 @@ const processedRoster = computed(() => {
         return (b.points || 0) - (a.points || 0);
     });
 
+    // --- NEW: PAD ROSTER ---
+    while (roster.length < 20) {
+        roster.push({
+            card_id: `empty-${roster.length}`,
+            displayName: '',
+            displayPosition: '',
+            assignment: '',
+            points: '',
+            isEmpty: true
+        });
+    }
+
     return roster;
 });
 
 const teamTotalPoints = computed(() => {
-    return processedRoster.value.reduce((sum, player) => sum + (player.points || 0), 0);
+    // Only sum points from real players
+    return processedRoster.value.filter(p => !p.isEmpty).reduce((sum, player) => sum + (player.points || 0), 0);
 });
 
 async function fetchTeamAccolades() {
@@ -265,7 +278,10 @@ onUnmounted(() => {
               </div>
           </div>
 
-          <div v-if="processedRoster.length === 0" class="empty-roster-message">
+          <!-- Empty Check: Only if NO players at all (length 0 before padding, but we pad now).
+               So if only placeholders exist, it's empty.
+               We check if the first element is empty. -->
+          <div v-if="processedRoster.length === 0 || processedRoster[0].isEmpty" class="empty-roster-message">
               <p>Your {{ activeRosterTab === 'classic' ? 'Classic' : 'League' }} roster is empty.</p>
               <button @click="goToRosterBuilder" class="create-roster-btn">Create Roster</button>
           </div>
@@ -279,8 +295,12 @@ onUnmounted(() => {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="player in processedRoster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row">
-                        <td class="pos-cell">{{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}</td>
+                    <tr v-for="player in processedRoster" :key="player.card_id" @click="!player.isEmpty && openPlayerCard(player)" class="player-row" :class="{ 'empty-row': player.isEmpty }">
+                        <td class="pos-cell">
+                            <template v-if="!player.isEmpty">
+                                {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
+                            </template>
+                        </td>
                         <td class="name-cell">{{ player.displayName || player.name }}</td>
                         <td class="points-cell">{{ player.points }}</td>
                     </tr>
@@ -649,6 +669,15 @@ onUnmounted(() => {
 .total-points {
     text-align: right;
     color: #000000;
+}
+
+/* Empty Row Styles */
+.empty-row {
+    pointer-events: none;
+    background-color: #fafafa;
+}
+.empty-row td {
+    height: 1.5rem; /* Ensure minimum height */
 }
 
 /* Modal Styles */

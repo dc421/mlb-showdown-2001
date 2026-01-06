@@ -61,6 +61,22 @@ function getTeamTotalPoints(roster) {
     return roster.reduce((sum, player) => sum + (player.points || 0), 0);
 }
 
+function padRoster(roster) {
+    const padded = [...roster];
+    while (padded.length < 20) {
+        padded.push({
+            card_id: `empty-${padded.length}`,
+            name: '',
+            displayName: '',
+            position: '',
+            points: '',
+            assignment: '',
+            isEmpty: true
+        });
+    }
+    return padded;
+}
+
 onMounted(() => {
     fetchLeagueData();
 });
@@ -137,8 +153,12 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="player in team.roster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row">
-                                <td class="pos-cell">{{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}</td>
+                            <tr v-for="player in padRoster(team.roster)" :key="player.card_id" @click="!player.isEmpty && openPlayerCard(player)" class="player-row" :class="{ 'empty-row': player.isEmpty }">
+                                <td class="pos-cell">
+                                    <template v-if="!player.isEmpty">
+                                        {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
+                                    </template>
+                                </td>
                                 <td class="name-cell">{{ player.displayName || player.name }}</td>
                                 <td class="points-cell">{{ player.points }}</td>
                             </tr>
