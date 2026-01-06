@@ -530,7 +530,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.draft-container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+.draft-container { max-width: 1000px; margin: 0 auto; padding: 1rem; }
 .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .history-controls { display: flex; align-items: center; gap: 0.5rem; }
 .season-select-inline { padding: 0.25rem; font-size: 0.9rem; }
@@ -538,12 +538,12 @@ onUnmounted(() => {
 .start-section { margin-bottom: 2rem; text-align: center; }
 .start-btn { padding: 1rem 2rem; font-size: 1.2rem; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; }
 
-.active-controls { margin-bottom: 2rem; padding: 1rem; background: #f0f8ff; border: 1px solid #b8daff; border-radius: 8px; }
+.active-controls { margin-bottom: 2rem; padding: 1rem; background: #f0f8ff; border: 1px solid #b8daff; border-radius: 8px; max-width: 400px; align-items: center; }
 .waiting-message { margin-bottom: 2rem; padding: 1rem; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; text-align: center; }
 
 .pick-interface h3 { margin-top: 0; }
 /* Restrict width to keep button closer to name on wide screens */
-.pick-interface { max-width: 600px; margin: 0 auto; }
+.pick-interface { max-width: 400px; margin: 0 auto; }
 .search-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
 .search-input { flex-grow: 1; padding: 0.5rem; box-sizing: border-box; }
 .position-select { padding: 0.5rem; }
@@ -582,7 +582,7 @@ onUnmounted(() => {
 
 /* TABLE STYLES */
 .draft-table-container { margin-bottom: 2rem; }
-.draft-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.draft-table { max-width: 700px; border-collapse: collapse; table-layout: fixed; }
 .draft-table th, .draft-table td { border: 1px solid #ddd; padding: 0.25rem 0.5rem; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-table th { background-color: #f2f2f2; }
 .draft-table th:nth-child(1) { width: 15%; }
@@ -593,7 +593,7 @@ onUnmounted(() => {
 /* REMOVALS STYLES */
 .removals-section { margin-top: 2rem; }
 .teams-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
-.team-block { background: #f9f9f9; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.team-block { max-width: 280px; background: #f9f9f9; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .team-header { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; margin-bottom: 0rem; }
 .team-info h2 { margin: 0; font-size: 1.4rem; }
 .roster-table-container { overflow-x: auto; }
