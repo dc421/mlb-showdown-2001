@@ -183,9 +183,7 @@ onMounted(() => {
                         <tbody>
                             <tr v-for="player in padRoster(team.roster)" :key="player.card_id" @click="!player.isEmpty && openPlayerCard(player)" class="player-row" :class="{ 'empty-row': player.isEmpty }">
                                 <td class="pos-cell">
-                                    <template v-if="!player.isEmpty">
-                                        {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
-                                    </template>
+                                    {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
                                 </td>
                                 <td class="name-cell">{{ player.displayName || player.name }}</td>
                                 <td class="points-cell">{{ player.points }}</td>
