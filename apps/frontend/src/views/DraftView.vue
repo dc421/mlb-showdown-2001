@@ -463,7 +463,7 @@ onUnmounted(() => {
         </div>
 
         <!-- START BUTTON (If Season Over) -->
-        <div v-if="!isDraftActive && isSeasonOver && !hasRandomRemovals" class="start-section">
+        <div v-if="!isDraftActive && isSeasonOver" class="start-section">
             <p>The season is over. You can now perform random removals to start the draft.</p>
             <button @click="startDraft" class="start-btn">Perform Random Removals</button>
         </div>
