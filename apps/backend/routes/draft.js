@@ -677,7 +677,7 @@ router.post('/pick', authenticateToken, async (req, res) => {
             [rosterId, playerId, isStarter, assignment]
         );
 
-        const roundName = state.current_round === 2 ? "Round 1" : "Round 2";
+        const roundName = state.current_round === 2 ? "1" : "2";
         await client.query(
             `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
              VALUES ($1, $2, $3, $4, 'ADDED', $5)`,

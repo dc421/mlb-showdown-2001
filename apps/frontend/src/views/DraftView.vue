@@ -4,9 +4,13 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
+import PlayerCard from '@/components/PlayerCard.vue';
+import { getLastName } from '@/utils/playerUtils';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const selectedCard = ref(null);
+
 const draftState = ref({
     is_active: false,
     current_round: 0,
@@ -39,6 +43,10 @@ const isMyTurn = computed(() => {
     return authStore.user.team.team_id === draftState.value.active_team_id;
 });
 
+const hasRandomRemovals = computed(() => {
+    return draftState.value.randomRemovals && draftState.value.randomRemovals.length > 0;
+});
+
 const filteredPlayers = computed(() => {
     return availablePlayers.value.filter(p => {
         if (searchQuery.value) {
@@ -63,54 +71,26 @@ const filteredPlayers = computed(() => {
         if (aTaken && !bTaken) return 1;
         if (!aTaken && bTaken) return -1;
 
-        return (b.points || 0) - (a.points || 0);
+        // Sort by Points (Desc)
+        const pointsDiff = (b.points || 0) - (a.points || 0);
+        if (pointsDiff !== 0) return pointsDiff;
+
+        // Then by Last Name (Asc)
+        const nameA = getLastName(a.displayName).toLowerCase();
+        const nameB = getLastName(b.displayName).toLowerCase();
+        const lastNameDiff = nameA.localeCompare(nameB);
+        if (lastNameDiff !== 0) return lastNameDiff;
+
+        // Then by First Name (Asc)
+        const firstA = a.displayName.split(' ')[0].toLowerCase();
+        const firstB = b.displayName.split(' ')[0].toLowerCase();
+        const firstNameDiff = firstA.localeCompare(firstB);
+        if (firstNameDiff !== 0) return firstNameDiff;
+
+        // Finally by Full Name (Asc)
+        return a.displayName.localeCompare(b.displayName);
     });
 });
-
-// Helper to compute Net Changes for a set of history items
-function computeNetChanges(items) {
-    const net = [];
-    const added = new Set(); // Stores card_id
-    const dropped = new Set(); // Stores card_id
-    const playerMap = {}; // card_id -> { player_name, team_name, round, pick_number, id }
-
-    // Sort by created_at to process chronological sequence
-    const sorted = [...items].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-    sorted.forEach(item => {
-        const id = item.card_id;
-        playerMap[id] = item; // Keep reference to latest metadata
-
-        if (item.action === 'ADDED') {
-            if (dropped.has(id)) {
-                // If previously dropped, adding it back cancels the drop
-                dropped.delete(id);
-            } else {
-                // Otherwise it's a new add
-                added.add(id);
-            }
-        } else if (item.action === 'DROPPED') {
-            if (added.has(id)) {
-                // If previously added, dropping it cancels the add
-                added.delete(id);
-            } else {
-                // Otherwise it's a new drop
-                dropped.add(id);
-            }
-        }
-    });
-
-    // Reconstruct history objects
-    added.forEach(id => {
-        net.push({ ...playerMap[id], action: 'ADDED' });
-    });
-    dropped.forEach(id => {
-        net.push({ ...playerMap[id], action: 'DROPPED' });
-    });
-
-    // Sort again by pick_number (or creation) to keep grouped display tidy
-    return net.sort((a, b) => a.id - b.id);
-}
 
 // Draft Table Generation
 const displayRows = computed(() => {
@@ -124,59 +104,69 @@ const displayRows = computed(() => {
     const order = draftState.value.draft_order;
     const teamCount = order.length;
 
-    // Generate 10 fixed slots for Rounds 1 & 2 (which are DB Rounds 2 & 3)
-    const totalFixedPicks = teamCount * 2;
+    // Generate 20 slots for 4 rounds (Round 1, 2, Add/Drop 1, Add/Drop 2)
+    // Assuming 5 teams, that's 20 picks.
+    const totalPicks = teamCount * 4;
 
-    for (let i = 1; i <= totalFixedPicks; i++) {
+    for (let i = 1; i <= totalPicks; i++) {
         const teamIndex = (i - 1) % teamCount;
         const teamId = order[teamIndex];
 
         let teamName = (draftState.value.teams && draftState.value.teams[teamId]) || `Team ${teamId}`;
 
-        const roundNum = i <= teamCount ? "1" : "2";
-        const historyItem = draftState.value.history.find(h => h.pick_number === i && h.round !== 'Removal');
+        // Determine Round Name
+        let roundNum = "";
+        let isAddDrop = false;
+        if (i <= teamCount) {
+            roundNum = "1";
+        } else if (i <= teamCount * 2) {
+            roundNum = "2";
+        } else if (i <= teamCount * 3) {
+            roundNum = "Add/Drop 1";
+            isAddDrop = true;
+        } else {
+            roundNum = "Add/Drop 2";
+            isAddDrop = true;
+        }
 
-        // Use city if available (from history join or backend teams map)
-        const displayTeam = historyItem ? (historyItem.city || historyItem.team_name) : teamName;
+        const historyItems = draftState.value.history.filter(h => h.pick_number === i && h.round !== 'Removal');
 
-        rows.push({
-            id: `pick-${i}`,
-            round: roundNum,
-            pick_number: i,
-            team_name: displayTeam,
-            player_name: historyItem ? historyItem.player_name : '',
-            action: historyItem ? historyItem.action : 'PENDING'
-        });
+        if (historyItems.length > 0) {
+            // Render existing history items
+            historyItems.sort((a, b) => a.id - b.id).forEach(h => {
+                 // Display Round normalization
+                 let displayRound = h.round;
+                 if (h.round === 'Round 1') displayRound = '1';
+                 if (h.round === 'Round 2') displayRound = '2';
+                 // Keep "Add/Drop 1" and "Add/Drop 2" as is
+
+                 let name = h.player_name;
+                 if (isAddDrop) {
+                    if (h.action === 'ADDED') name += ' (Added)';
+                    if (h.action === 'DROPPED') name += ' (Dropped)';
+                 }
+
+                 rows.push({
+                     id: `hist-${h.id}`,
+                     round: displayRound,
+                     pick_number: i,
+                     team_name: h.city || h.team_name,
+                     player_name: name,
+                     action: h.action
+                 });
+            });
+        } else {
+            // Render placeholder
+            rows.push({
+                id: `pick-${i}`,
+                round: roundNum,
+                pick_number: i,
+                team_name: teamName, // Use the scheduled team name
+                player_name: '',
+                action: 'PENDING'
+            });
+        }
     }
-
-    // Add/Drop Rounds (Rounds 3 & 4 mapping to Backend Add/Drop 1 & 2)
-    // We want to list ALL added/dropped players.
-    // Filter history for these rounds
-    const addDropHistory = draftState.value.history.filter(h =>
-        (h.round && h.round.includes('Add/Drop')) || h.pick_number > 10
-    );
-
-    // Sort chronologically/by ID
-    const sortedAddDrop = addDropHistory.sort((a, b) => a.id - b.id);
-
-    sortedAddDrop.forEach(h => {
-        let displayRound = h.round;
-        if (h.round === 'Add/Drop 1') displayRound = '3';
-        if (h.round === 'Add/Drop 2') displayRound = '4';
-
-        let name = h.player_name;
-        if (h.action === 'ADDED') name += ' (Added)';
-        if (h.action === 'DROPPED') name += ' (Dropped)';
-
-        rows.push({
-            id: `hist-${h.id}`,
-            round: displayRound,
-            pick_number: h.pick_number, // Can be same for multiple actions
-            team_name: h.city || h.team_name,
-            player_name: name,
-            action: h.action
-        });
-    });
 
     return rows;
 });
@@ -388,6 +378,11 @@ onUnmounted(() => {
 </script>
 
 <template>
+    <!-- Modal for viewing player cards -->
+    <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
+        <div @click.stop><PlayerCard :player="selectedCard" /></div>
+    </div>
+
     <div class="draft-container">
 
         <!-- HEADER / SEASON SELECT -->
@@ -433,6 +428,9 @@ onUnmounted(() => {
                         <div class="player-info-compact">
                             <span class="p-name">{{ player.displayName }}</span>
                             <span class="p-meta">{{ player.points }} pts</span>
+                            <span class="view-icon" @click.stop="selectedCard = player" title="View Card">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            </span>
                             <template v-if="leagueRosterIds.has(player.card_id)">
                                 <img v-if="takenPlayersMap.get(player.card_id)?.logo_url"
                                      :src="takenPlayersMap.get(player.card_id).logo_url"
@@ -465,7 +463,7 @@ onUnmounted(() => {
         </div>
 
         <!-- START BUTTON (If Season Over) -->
-        <div v-if="!isDraftActive && isSeasonOver" class="start-section">
+        <div v-if="!isDraftActive && isSeasonOver && !hasRandomRemovals" class="start-section">
             <p>The season is over. You can now perform random removals to start the draft.</p>
             <button @click="startDraft" class="start-btn">Perform Random Removals</button>
         </div>
@@ -562,6 +560,9 @@ onUnmounted(() => {
 .p-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .p-meta { font-size: 0.85rem; color: #666; white-space: nowrap; }
 
+.view-icon { cursor: pointer; color: #6c757d; display: flex; align-items: center; }
+.view-icon:hover { color: #007bff; }
+
 .rostered { background-color: #f0f0f0; color: #aaa; opacity: 0.7; }
 .rostered-team-icon { width: 25px; height: 25px; object-fit: contain; }
 
@@ -603,4 +604,7 @@ onUnmounted(() => {
 .player-row { transition: background-color 0.2s; }
 .player-row:hover { background-color: #e2e6ea; }
 .name-cell { font-weight: normal; }
+
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+
 </style>
