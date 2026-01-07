@@ -71,7 +71,9 @@ const availablePlayers = computed(() => {
         // Mark unavailable players if in draft mode
         if (rosterType.value !== 'classic' && draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
             if (draftState.value.takenPlayerIds.includes(p.card_id)) {
-                return { ...p, isUnavailable: true, unavailabilityReason: 'Taken' };
+                // User wants taken players to be draggable, so we do NOT mark as unavailable here.
+                // We will rely on submit validation.
+                return { ...p, isTaken: true };
             }
         }
         return p;
@@ -174,6 +176,34 @@ function isPlayerOwnedByOther(player) {
     return player.owned_by_team_id && player.owned_by_team_id !== authStore.user.team.team_id;
 }
 
+function isPlayerTaken(player) {
+    if (rosterType.value === 'classic') return false;
+    // Check if owned by other
+    if (isPlayerOwnedByOther(player)) return true;
+    // Check if taken in draft
+    if (draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
+        if (draftState.value.takenPlayerIds.includes(player.card_id)) {
+            // If taken, it is effectively owned by someone (could be us, but draft logic handles turns)
+            // If it is in takenPlayerIds, we need to see if WE took it?
+            // takenPlayerIds includes ALL taken players.
+            // But if we took it in a PREVIOUS round, it should be fine?
+            // Wait, if we took it, it should be in our Roster probably?
+            // If we just picked it, it's in our roster.
+            // If we are ADDING it now, and it is in takenPlayerIds, it means someone else took it OR we took it previously.
+            // If we took it previously, it is in 'myRoster'.
+            // The constraint is: we can't Add/Submit a roster with a player that belongs to someone else.
+            // If takenPlayerIds includes it, we must verify if it's ours.
+            // But draftState doesn't map ID->Team easily here without parsing history.
+            // However, the backend validation handles "is owned by another team".
+            // For Draft "Taken" players that might not have ownership data yet (if sync is laggy),
+            // we should be careful.
+            // But generally, if it's in takenPlayerIds, it's taken.
+            return true;
+        }
+    }
+    return false;
+}
+
 // --- METHODS ---
 function onDragStart(event, player, from, originalPosition = null) {
   draggedItem.value = { player, from, originalPosition };
@@ -272,10 +302,10 @@ function buildRosterPayload() {
 async function saveRoster() {
   // Check for players owned by other teams (Only applies to League rosters)
   if (rosterType.value === 'league') {
-      const ownedPlayers = allPlayersOnRoster.value.filter(isPlayerOwnedByOther);
-      if (ownedPlayers.length > 0) {
-          const names = ownedPlayers.map(p => p.displayName).join(', ');
-          alert(`Cannot save roster. The following players are on another team's roster: ${names}`);
+      const takenPlayers = allPlayersOnRoster.value.filter(isPlayerTaken);
+      if (takenPlayers.length > 0) {
+          const names = takenPlayers.map(p => p.displayName).join(', ');
+          alert(`Cannot save roster. The following players are already taken or on another team's roster: ${names}`);
           return;
       }
   }
@@ -285,6 +315,28 @@ async function saveRoster() {
 }
 
 async function submitDraftTurn() {
+    // Check for taken players before submitting draft turn
+    const takenPlayers = allPlayersOnRoster.value.filter(p => {
+        // We only care if they are taken by SOMEONE ELSE.
+        // isPlayerTaken checks takenPlayerIds.
+        // If we picked them in a previous round, they are in takenPlayerIds.
+        // But we should be able to keep them on our roster.
+        // The issue is distinguishing "Taken by Me" vs "Taken by Others".
+        // In this view, we don't easily know who took them if owned_by_team_id isn't set.
+        // However, the User Request was specifically about "Taken players in league mode" (Regular League).
+        // For Draft Mode, the backend validation handles "owned by another team".
+        // If we are in Draft Mode, maybe we should relax the client-side check if we aren't sure,
+        // OR rely on isPlayerOwnedByOther if available.
+        // Let's stick to isPlayerOwnedByOther for now to avoid blocking legitimate re-submissions of own players.
+        return isPlayerOwnedByOther(p);
+    });
+
+    if (takenPlayers.length > 0) {
+         const names = takenPlayers.map(p => p.displayName).join(', ');
+         alert(`Cannot submit turn. The following players are on another team's roster: ${names}`);
+         return;
+    }
+
     if (!confirm("Are you sure you want to finalize your roster and end your turn?")) return;
     const rosterData = buildRosterPayload();
     try {

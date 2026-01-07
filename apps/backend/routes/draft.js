@@ -512,6 +512,51 @@ router.get('/state', authenticateToken, async (req, res) => {
         );
 
         // Fetch Random Removals (Historical)
+        // Correctly Map Season to Point Set
+        function mapSeasonToPointSet(seasonStr) {
+            // seasonStr format: "M-D-YY Season" e.g., "10-22-20 Season"
+            if (!seasonStr) return "Original Pts";
+
+            const match = seasonStr.match(/^(\d{1,2})-(\d{1,2})-(\d{2}) Season$/);
+            if (!match) return "Original Pts";
+
+            const month = parseInt(match[1]);
+            const day = parseInt(match[2]);
+            const yearVal = parseInt(match[3]);
+            // Assume 20xx
+            const year = 2000 + yearVal;
+            const date = new Date(year, month - 1, day);
+            const cutoff = new Date(2020, 9, 22); // Oct 22, 2020
+
+            if (date < cutoff) return "Original Pts";
+
+            // Map >= Cutoff
+            // Format M/D[/YY] Season
+            // Rule derived from user input:
+            // 2020-2024: M/D Season
+            // 2025+: M/D/YY Season (e.g. 2/28/25 Season)
+            // Exception? "12/23 Season" is 2022. "2/28 Season" is 2024.
+            // "2/28/25 Season" is 2025.
+
+            if (year >= 2025) {
+                return `${month}/${day}/${yearVal} Season`;
+            } else {
+                return `${month}/${day} Season`;
+            }
+        }
+
+        const targetPointSetName = mapSeasonToPointSet(state.season_name);
+
+        // Fetch all point sets to find the ID
+        const allPsRes = await client.query('SELECT point_set_id, name FROM point_sets');
+        const pointSetMap = {};
+        allPsRes.rows.forEach(ps => pointSetMap[ps.name] = ps.point_set_id);
+
+        let targetPointSetId = pointSetMap[targetPointSetName];
+        if (!targetPointSetId) {
+            targetPointSetId = pointSetMap["Original Pts"];
+        }
+
         const removalQuery = `
             SELECT
                 rr.player_name,
@@ -529,7 +574,7 @@ router.get('/state', authenticateToken, async (req, res) => {
             ORDER BY rr.team_name, rr.player_name
         `;
 
-        const removalRes = await client.query(removalQuery, [state.season_name, pointSetId]);
+        const removalRes = await client.query(removalQuery, [state.season_name, targetPointSetId]);
 
         // Fix for September 2020: Use 'Fargo' if team name missing or bad lookup
         // Check if this is the target season
