@@ -297,7 +297,6 @@ async function startDraft() {
         } else {
             await fetchAvailableSeasons();
             selectedSeason.value = 'Live Draft'; // Redirect to Live Draft page
-            await fetchDraftState();
         }
     } catch (error) {
         console.error("Error starting draft:", error);
@@ -463,7 +462,7 @@ onUnmounted(() => {
         </div>
 
         <!-- START BUTTON (If Season Over) -->
-        <div v-if="!isDraftActive && isSeasonOver" class="start-section">
+        <div v-else-if="!isDraftActive && isSeasonOver" class="start-section">
             <p>The season is over. You can now perform random removals to start the draft.</p>
             <button @click="startDraft" class="start-btn">Perform Random Removals</button>
         </div>
