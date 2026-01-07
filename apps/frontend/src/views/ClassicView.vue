@@ -44,7 +44,7 @@ const bracket = computed(() => {
             // seeds array: 0=5th, 1=4th, 2=3rd, 3=2nd, 4=1st
             return { ...seeds[seedIndex], seed: 5 - seedIndex };
         }
-        return { name: 'TBD', logo_url: '' };
+        return { name: 'TBD', city: 'TBD', logo_url: '' };
     };
 
     // Helper to determine the winner of a series
@@ -106,7 +106,7 @@ const bracket = computed(() => {
             },
             semi1: {
                 team1: t1,
-                team2: playInWinner || { name: 'Winner 4/5', isPlaceholder: true },
+                team2: playInWinner || { isPlaceholder: true },
                 series: semi1Series
             },
             semi2: {
@@ -115,8 +115,8 @@ const bracket = computed(() => {
                 series: semi2Series
             },
             final: {
-                team1: semi1Winner || { name: 'Winner Semi 1', isPlaceholder: true },
-                team2: semi2Winner || { name: 'Winner Semi 2', isPlaceholder: true },
+                team1: semi1Winner || { isPlaceholder: true },
+                team2: semi2Winner || { isPlaceholder: true },
                 series: finalSeries,
                 winner: finalWinner
             }
@@ -180,10 +180,14 @@ onMounted(async () => {
                     <div class="bracket-column col-playin">
                         <div class="matchup-wrapper centered-matchup">
                             <div class="team-line top-team">
-                                <span class="seed">4</span> <span class="name">{{ bracket.seeds[4].name }}</span>
+                                <span class="seed">4</span>
+                                <img v-if="bracket.seeds[4].logo_url" :src="bracket.seeds[4].logo_url" class="team-logo" />
+                                <span class="name">{{ bracket.seeds[4].city }}</span>
                             </div>
                             <div class="team-line bottom-team">
-                                <span class="seed">5</span> <span class="name">{{ bracket.seeds[5].name }}</span>
+                                <span class="seed">5</span>
+                                <img v-if="bracket.seeds[5].logo_url" :src="bracket.seeds[5].logo_url" class="team-logo" />
+                                <span class="name">{{ bracket.seeds[5].city }}</span>
                             </div>
                             <!-- Connector -->
                             <div class="bracket-connector">
@@ -199,11 +203,14 @@ onMounted(async () => {
                         <!-- Top Semi: Seed 1 vs Winner 4/5 -->
                         <div class="matchup-wrapper top-semi">
                             <div class="team-line top-team">
-                                <span class="seed">1</span> <span class="name">{{ bracket.seeds[1].name }}</span>
+                                <span class="seed">1</span>
+                                <img v-if="bracket.seeds[1].logo_url" :src="bracket.seeds[1].logo_url" class="team-logo" />
+                                <span class="name">{{ bracket.seeds[1].city }}</span>
                             </div>
                             <div class="team-line bottom-team placeholder-line">
                                 <span class="seed" v-if="!bracket.matchups.semi1.team2.isPlaceholder && bracket.matchups.semi1.team2.seed">{{ bracket.matchups.semi1.team2.seed }}</span>
-                                <span class="name" v-if="!bracket.matchups.semi1.team2.isPlaceholder">{{ bracket.matchups.semi1.team2.name }}</span>
+                                <img v-if="!bracket.matchups.semi1.team2.isPlaceholder && bracket.matchups.semi1.team2.logo_url" :src="bracket.matchups.semi1.team2.logo_url" class="team-logo" />
+                                <span class="name" v-if="!bracket.matchups.semi1.team2.isPlaceholder">{{ bracket.matchups.semi1.team2.city }}</span>
                             </div>
                             <!-- Connector -->
                             <div class="bracket-connector">
@@ -216,10 +223,14 @@ onMounted(async () => {
                         <!-- Bottom Semi: Seed 2 vs Seed 3 -->
                         <div class="matchup-wrapper bottom-semi">
                             <div class="team-line top-team">
-                                <span class="seed">2</span> <span class="name">{{ bracket.seeds[2].name }}</span>
+                                <span class="seed">2</span>
+                                <img v-if="bracket.seeds[2].logo_url" :src="bracket.seeds[2].logo_url" class="team-logo" />
+                                <span class="name">{{ bracket.seeds[2].city }}</span>
                             </div>
                             <div class="team-line bottom-team">
-                                <span class="seed">3</span> <span class="name">{{ bracket.seeds[3].name }}</span>
+                                <span class="seed">3</span>
+                                <img v-if="bracket.seeds[3].logo_url" :src="bracket.seeds[3].logo_url" class="team-logo" />
+                                <span class="name">{{ bracket.seeds[3].city }}</span>
                             </div>
                             <!-- Connector -->
                             <div class="bracket-connector">
@@ -237,12 +248,14 @@ onMounted(async () => {
                              <img :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-img" alt="Classic Champions" />
                         </div>
 
-                        <div class="matchup-wrapper centered-matchup">
+                        <div class="matchup-wrapper centered-matchup finals-matchup">
                             <div class="team-line top-team">
-                                <span class="name">{{ bracket.matchups.final.team1.name }}</span>
+                                <img v-if="!bracket.matchups.final.team1.isPlaceholder && bracket.matchups.final.team1.logo_url" :src="bracket.matchups.final.team1.logo_url" class="team-logo" />
+                                <span class="name" v-if="!bracket.matchups.final.team1.isPlaceholder">{{ bracket.matchups.final.team1.city }}</span>
                             </div>
                             <div class="team-line bottom-team">
-                                <span class="name">{{ bracket.matchups.final.team2.name }}</span>
+                                <img v-if="!bracket.matchups.final.team2.isPlaceholder && bracket.matchups.final.team2.logo_url" :src="bracket.matchups.final.team2.logo_url" class="team-logo" />
+                                <span class="name" v-if="!bracket.matchups.final.team2.isPlaceholder">{{ bracket.matchups.final.team2.city }}</span>
                             </div>
                             <!-- Connector -->
                             <div class="bracket-connector">
@@ -257,7 +270,8 @@ onMounted(async () => {
                     <div class="bracket-column col-champ">
                         <div class="matchup-wrapper centered-matchup champ-wrapper">
                             <div class="team-line champ-line">
-                                <span class="name" v-if="bracket.matchups.final.winner">{{ bracket.matchups.final.winner.name }}</span>
+                                <img v-if="bracket.matchups.final.winner && bracket.matchups.final.winner.logo_url" :src="bracket.matchups.final.winner.logo_url" class="team-logo" />
+                                <span class="name" v-if="bracket.matchups.final.winner">{{ bracket.matchups.final.winner.city }}</span>
                                 <span class="name" v-else></span>
                             </div>
                         </div>
@@ -341,25 +355,22 @@ h2 {
     display: flex;
     flex-direction: column;
     position: relative;
-    width: 25%; /* 4 columns = 25% each approximately */
+    width: 25%;
+    justify-content: flex-start; /* Reset flex spacing */
 }
 
 /* Alignments */
 .col-playin {
-    justify-content: center; /* Center the 4/5 match vertically relative to the semi inputs? No, needs to align with Semis. */
-    padding-top: 50px; /* Push down slightly if needed, or rely on alignment. */
-    /* To align 4/5 output with the Semis "Placeholder", we need precise spacing.
-       Easier to just justify-center the playin, and align the Semi 1 properly.
-    */
-    justify-content: flex-start;
-    padding-top: 140px; /* Rough alignment for Top Semi Bottom Slot */
+    padding-top: 75px;
 }
-.col-semis {
-    justify-content: space-around;
+.col-semis .top-semi {
+    margin-top: 50px;
+}
+.col-semis .bottom-semi {
+    margin-top: 100px; /* Gap between top and bottom */
 }
 .col-finals {
-    justify-content: center;
-    position: relative;
+    padding-top: 75px;
 }
 .col-champ {
     justify-content: center;
@@ -369,7 +380,7 @@ h2 {
 /* --- MATCHUP WRAPPERS & LINES --- */
 .matchup-wrapper {
     position: relative;
-    width: 180px;
+    width: 220px; /* Increased slightly for logos */
     margin: 0 auto;
 }
 
@@ -387,6 +398,13 @@ h2 {
 }
 .team-line.bottom-team {
     margin-bottom: 0;
+}
+
+.team-logo {
+    height: 25px;
+    width: auto;
+    margin-right: 8px;
+    margin-bottom: 2px;
 }
 
 .seed {
@@ -413,15 +431,6 @@ h2 {
     border-bottom: 2px solid #000;
 }
 
-/* Specific adjustment for Top Semi Wrapper since top line is at Y=0 and bottom line is at Y=50 */
-/* .team-line is height 30. marginBottom 20. Total height from top of top to bottom of bottom = 30 + 20 + 30 = 80? */
-/* Wait, borders are at the BOTTOM of the element. */
-/* Top Team: height 30. Border is at Y=30. */
-/* Gap: 20px. */
-/* Bottom Team: height 30. Border is at Y=80 (30+20+30). */
-/* So connector should go from Y=30 to Y=80. */
-/* Top: 30px (height of top team). Height: 50px (20 gap + 30 height of bottom). */
-
 .matchup-wrapper .bracket-connector {
     top: 30px; /* Matches height of .team-line */
     height: 50px; /* 20px margin + 30px height of next line */
@@ -436,6 +445,26 @@ h2 {
     width: 20px;
     height: 2px;
     background: #000;
+}
+
+/* Finals Column Styles */
+.col-finals .matchup-wrapper {
+    /* Special final wrapper */
+}
+.col-finals .team-line.top-team {
+    margin-bottom: 150px; /* Big gap for trophy */
+}
+.col-finals .bracket-connector {
+    /* Stretch connector */
+    height: 180px; /* 150 gap + 30 next line */
+    /* top: 30px is default */
+}
+.col-finals .bracket-connector::after {
+    /* Horizontal line position. Midpoint of 210 height (30+150+30) is 105.
+       Connector starts at 30. Diff is 75.
+       75 / 180 = 41.666%
+    */
+    top: 41.7%;
 }
 
 /* Champ Column Connector (none needed on right) */
@@ -463,6 +492,33 @@ h2 {
     align-items: center;
     pointer-events: none;
 }
+/* Center trophy inside the final matchup gap specifically? */
+/* The .trophy-container is in col-finals.
+   We want it vertically aligned with the gap.
+   The gap center is at Y = 75 (padding) + 30 (top line) + 75 (half gap) = 180px from top of column?
+   Let's check alignment.
+   Col Finals padding-top: 75px.
+   Top Line ends at 75 + 30 = 105px.
+   Gap is 150px. Center of gap is 105 + 75 = 180px.
+   Trophy container is absolute centered in col-finals (height of col is 100%?).
+   Actually bracket-column height is 100% of flex container.
+   If flex container min-height is 500px, top: 50% is 250px.
+   180 vs 250.
+   Better to put trophy inside the finals matchup-wrapper.
+*/
+.trophy-container {
+    top: 50%;
+    left: 50%;
+    /* But relative to what? .col-finals is relative. */
+    /* If we move it into .matchup-wrapper, it works better. */
+    /* Let's try that next time if needed, but for now CSS in file stays as previous unless I change HTML. */
+    /* I kept it in col-finals in HTML. */
+    /* Let's adjust top to align with the gap visually. */
+    /* Top line is at 75px. Gap center is 180px. */
+    top: 180px;
+    transform: translate(-50%, -50%);
+}
+
 .trophy-img {
     max-width: 100%;
     max-height: 100%;
