@@ -48,35 +48,50 @@ async function getDraftState(client, seasonName = null) {
 // Helper to check if season is over
 async function checkSeasonOver(client) {
     try {
-        const latestRes = await client.query(`
-            SELECT season_name
+        // 1. Find the LATEST completed season (one that has both Spoon and Ship)
+        // We look for seasons that have 'Wooden Spoon' AND 'Golden Spaceship' records.
+        // We can find all seasons that have both, then pick the most recent one (by date/created_at).
+        // Since we don't have a direct "seasons" table with dates easily joinable here without complexity,
+        // we can fetch the distinct seasons with Spoon/Ship and then order them.
+
+        const completedSeasonsRes = await client.query(`
+            SELECT season_name, MAX(date) as last_date
             FROM series_results
-            ORDER BY date DESC, created_at DESC
+            WHERE round IN ('Wooden Spoon', 'Golden Spaceship')
+            GROUP BY season_name
+            HAVING COUNT(DISTINCT round) >= 2
+            ORDER BY last_date DESC
             LIMIT 1
         `);
 
-        if (latestRes.rows.length === 0) return false;
-
-        const latestSeason = latestRes.rows[0].season_name;
-
-        const spoonRes = await client.query(`
-            SELECT 1
-            FROM series_results
-            WHERE round = 'Wooden Spoon' AND season_name = $1
-            LIMIT 1
-        `, [latestSeason]);
-
-        const shipRes = await client.query(`
-            SELECT 1
-            FROM series_results
-            WHERE round = 'Golden Spaceship' AND season_name = $1
-            LIMIT 1
-        `, [latestSeason]);
-
-        if (spoonRes.rows.length > 0 && shipRes.rows.length > 0) {
-            return true;
+        if (completedSeasonsRes.rows.length === 0) {
+            // No season has ever finished
+            return false;
         }
-        return false;
+
+        const lastCompletedSeason = completedSeasonsRes.rows[0].season_name;
+
+        // 2. Check for any unplayed games (winning_team_id IS NULL)
+        // that belong to a DIFFERENT (future) season.
+        // If we find any unplayed games for a season that is NOT lastCompletedSeason,
+        // then the *next* season has already started (schedule generated), so we should NOT show the draft button.
+
+        const futureUnplayedRes = await client.query(`
+            SELECT 1
+            FROM series_results
+            WHERE winning_team_id IS NULL
+              AND season_name != $1
+            LIMIT 1
+        `, [lastCompletedSeason]);
+
+        if (futureUnplayedRes.rows.length > 0) {
+            // Future games exist, so the "gap" between seasons is over.
+            return false;
+        }
+
+        // If we are here, a season has finished, and no NEW season schedule exists.
+        return true;
+
     } catch (e) {
         console.warn("Check Season Over Error:", e);
         return false;
