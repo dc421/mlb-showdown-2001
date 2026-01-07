@@ -68,8 +68,8 @@ const filteredPlayers = computed(() => {
         const aTaken = draftState.value.takenPlayerIds.includes(a.card_id);
         const bTaken = draftState.value.takenPlayerIds.includes(b.card_id);
 
-        if (aTaken && !bTaken) return 1;
-        if (!aTaken && bTaken) return -1;
+        //if (aTaken && !bTaken) return 1;
+        //if (!aTaken && bTaken) return -1;
 
         // Sort by Points (Desc)
         const pointsDiff = (b.points || 0) - (a.points || 0);

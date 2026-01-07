@@ -613,7 +613,7 @@ router.get('/state', authenticateToken, async (req, res) => {
             activeTeam = tRes.rows[0];
         }
 
-        const takenRes = await client.query('SELECT card_id FROM roster_cards');
+        const takenRes = await client.query('SELECT card_id FROM roster_cards where roster_id in (select roster_id from rosters where roster_type=\'league\')');
         const takenPlayerIds = takenRes.rows.map(r => r.card_id);
 
         // Fetch team info for the draft order (to populate future rows)
