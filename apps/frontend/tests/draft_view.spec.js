@@ -216,4 +216,60 @@ test.describe('Draft View Unified Layout', () => {
     await expect(startButton).toBeVisible();
     await expect(startButton).toHaveText('Perform Random Removals');
   });
+
+  test('should HIDE Start Season button when draft is active (even if season is over)', async ({ page }) => {
+    // This reproduces the "Active but button visible" bug state
+    await page.route('**/api/auth/user', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ userId: 1, team: { team_id: 1, name: "My Team" } })
+      });
+    });
+
+    await page.route('**/api/draft/seasons', async route => {
+      await route.fulfill({ status: 200, body: JSON.stringify(['8/4/25 Season']) });
+    });
+
+    await page.route('**/api/draft/state**', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            season_name: '8/4/25 Season',
+            is_active: true, // ACTIVE
+            current_round: 1,
+            current_pick_number: 1,
+            active_team_id: 1,
+            history: [],
+            randomRemovals: [],
+            takenPlayerIds: [],
+            isSeasonOver: true, // OVER (e.g. gap between seasons)
+            teams: {}
+          })
+        });
+    });
+
+    await page.route('**/api/point-sets', async route => {
+         await route.fulfill({ status: 200, body: JSON.stringify([]) });
+    });
+    await page.route('**/api/players**', async route => {
+         await route.fulfill({ status: 200, body: JSON.stringify([]) });
+    });
+
+    await page.goto('http://localhost:5173/');
+    await page.evaluate(() => {
+        localStorage.setItem('token', 'fake-token');
+        localStorage.setItem('user', JSON.stringify({ userId: 1, team: { team_id: 1 } }));
+    });
+
+    await page.goto('http://localhost:5173/draft');
+
+    // 3. Verify Button is HIDDEN
+    const startButton = page.locator('button.start-btn');
+    await expect(startButton).not.toBeVisible();
+
+    // Verify Controls ARE visible
+    await expect(page.locator('.active-controls')).toBeVisible();
+  });
 });
