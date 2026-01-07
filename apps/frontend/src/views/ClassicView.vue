@@ -106,7 +106,7 @@ const bracket = computed(() => {
             },
             semi1: {
                 team1: t1,
-                team2: playInWinner || { name: 'Winner 4/5' },
+                team2: playInWinner || { name: 'Winner 4/5', isPlaceholder: true },
                 series: semi1Series
             },
             semi2: {
@@ -115,8 +115,8 @@ const bracket = computed(() => {
                 series: semi2Series
             },
             final: {
-                team1: semi1Winner || { name: 'Winner Semi 1' },
-                team2: semi2Winner || { name: 'Winner Semi 2' },
+                team1: semi1Winner || { name: 'Winner Semi 1', isPlaceholder: true },
+                team2: semi2Winner || { name: 'Winner Semi 2', isPlaceholder: true },
                 series: finalSeries,
                 winner: finalWinner
             }
@@ -172,89 +172,93 @@ onMounted(async () => {
         <div v-if="loading">Loading...</div>
 
         <div v-else>
-            <!-- TREE BRACKET -->
+            <!-- NEW 4-COLUMN BRACKET -->
             <div class="section bracket-section" v-if="bracket">
-                <!-- Left Column: Matchups -->
-                <div class="bracket-tree">
+                <div class="bracket-container">
 
-                    <!-- LEFT COLUMN -->
-                    <div class="left-column">
-
-                        <!-- Top Group: Seed 1 & 4/5 Matchup -->
-                        <div class="bracket-group top-group">
-                            <!-- Seed 1 Line -->
-                            <div class="matchup-row seed-1-row">
-                                <div class="team-box-single">
-                                    <span class="seed">1</span>
-                                    <span class="name">{{ bracket.seeds[1].name }}</span>
-                                </div>
-                                <div class="connector-elbow-down"></div>
+                    <!-- COLUMN 1: Play-In (4 vs 5) -->
+                    <div class="bracket-column col-playin">
+                        <div class="matchup-wrapper centered-matchup">
+                            <div class="team-line top-team">
+                                <span class="seed">4</span> <span class="name">{{ bracket.seeds[4].name }}</span>
                             </div>
-
-                            <!-- 4 vs 5 Bracket -->
-                            <div class="matchup-row seed-45-row">
-                                <div class="mini-bracket-wrapper">
-                                    <div class="team-box-pair top-team">
-                                        <span class="seed">4</span>
-                                        <span class="name">{{ bracket.seeds[4].name }}</span>
-                                    </div>
-                                    <div class="bracket-connector-45">
-                                        <div class="score-label" v-if="bracket.matchups.playIn.series">
-                                            {{ bracket.matchups.playIn.series.score }}
-                                        </div>
-                                    </div>
-                                    <div class="team-box-pair bottom-team">
-                                        <span class="seed">5</span>
-                                        <span class="name">{{ bracket.seeds[5].name }}</span>
-                                    </div>
+                            <div class="team-line bottom-team">
+                                <span class="seed">5</span> <span class="name">{{ bracket.seeds[5].name }}</span>
+                            </div>
+                            <!-- Connector -->
+                            <div class="bracket-connector">
+                                <div class="score-label" v-if="bracket.matchups.playIn.series">
+                                    {{ bracket.matchups.playIn.series.score }}
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Semi 1 Score Label (Between 1 and 4/5) -->
-                         <div class="semi1-score" v-if="bracket.matchups.semi1.series">
-                            {{ bracket.matchups.semi1.series.score }}
-                        </div>
-
-                        <!-- Bottom Group: Seed 2 & 3 Matchup -->
-                        <div class="bracket-group bottom-group">
-                            <div class="mini-bracket-wrapper standard-bracket">
-                                <div class="team-box-pair top-team">
-                                    <span class="seed">2</span>
-                                    <span class="name">{{ bracket.seeds[2].name }}</span>
-                                </div>
-                                <div class="bracket-connector-23">
-                                     <div class="score-label" v-if="bracket.matchups.semi2.series">
-                                        {{ bracket.matchups.semi2.series.score }}
-                                    </div>
-                                </div>
-                                <div class="team-box-pair bottom-team">
-                                    <span class="seed">3</span>
-                                    <span class="name">{{ bracket.seeds[3].name }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- CENTER COLUMN: Trophy & Finals Connectors -->
-                    <div class="center-column">
-                         <div class="trophy-box">
-                             <img :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-img" alt="Showdown Classic Champions" />
                         </div>
                     </div>
 
-                    <!-- RIGHT COLUMN: Winner -->
-                    <div class="right-column">
-                        <div class="winner-line">
-                            <span class="winner-label">Winner</span>
-                            <div class="winner-box">
-                                <div class="winner-name" v-if="bracket.matchups.final.winner">
-                                    {{ bracket.matchups.final.winner.name }}
+                    <!-- COLUMN 2: Semifinals -->
+                    <div class="bracket-column col-semis">
+                        <!-- Top Semi: Seed 1 vs Winner 4/5 -->
+                        <div class="matchup-wrapper top-semi">
+                            <div class="team-line top-team">
+                                <span class="seed">1</span> <span class="name">{{ bracket.seeds[1].name }}</span>
+                            </div>
+                            <div class="team-line bottom-team placeholder-line">
+                                <span class="seed" v-if="!bracket.matchups.semi1.team2.isPlaceholder && bracket.matchups.semi1.team2.seed">{{ bracket.matchups.semi1.team2.seed }}</span>
+                                <span class="name" v-if="!bracket.matchups.semi1.team2.isPlaceholder">{{ bracket.matchups.semi1.team2.name }}</span>
+                            </div>
+                            <!-- Connector -->
+                            <div class="bracket-connector">
+                                 <div class="score-label" v-if="bracket.matchups.semi1.series">
+                                    {{ bracket.matchups.semi1.series.score }}
                                 </div>
-                                <div class="winner-score" v-if="bracket.matchups.final.series">
+                            </div>
+                        </div>
+
+                        <!-- Bottom Semi: Seed 2 vs Seed 3 -->
+                        <div class="matchup-wrapper bottom-semi">
+                            <div class="team-line top-team">
+                                <span class="seed">2</span> <span class="name">{{ bracket.seeds[2].name }}</span>
+                            </div>
+                            <div class="team-line bottom-team">
+                                <span class="seed">3</span> <span class="name">{{ bracket.seeds[3].name }}</span>
+                            </div>
+                            <!-- Connector -->
+                            <div class="bracket-connector">
+                                <div class="score-label" v-if="bracket.matchups.semi2.series">
+                                    {{ bracket.matchups.semi2.series.score }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 3: Finals -->
+                    <div class="bracket-column col-finals">
+                        <!-- Trophy Background -->
+                         <div class="trophy-container">
+                             <img :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-img" alt="Classic Champions" />
+                        </div>
+
+                        <div class="matchup-wrapper centered-matchup">
+                            <div class="team-line top-team">
+                                <span class="name">{{ bracket.matchups.final.team1.name }}</span>
+                            </div>
+                            <div class="team-line bottom-team">
+                                <span class="name">{{ bracket.matchups.final.team2.name }}</span>
+                            </div>
+                            <!-- Connector -->
+                            <div class="bracket-connector">
+                                <div class="score-label" v-if="bracket.matchups.final.series">
                                     {{ bracket.matchups.final.series.score }}
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 4: Champion -->
+                    <div class="bracket-column col-champ">
+                        <div class="matchup-wrapper centered-matchup champ-wrapper">
+                            <div class="team-line champ-line">
+                                <span class="name" v-if="bracket.matchups.final.winner">{{ bracket.matchups.final.winner.name }}</span>
+                                <span class="name" v-else></span>
                             </div>
                         </div>
                     </div>
@@ -307,7 +311,7 @@ onMounted(async () => {
 
 <style scoped>
 .classic-container {
-    max-width: 1100px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
 }
@@ -323,234 +327,162 @@ h2 {
     margin-bottom: 1rem;
 }
 
-/* --- BRACKET STYLES --- */
-.bracket-tree {
+/* --- FLEX BRACKET LAYOUT --- */
+.bracket-container {
     display: flex;
+    flex-direction: row;
     justify-content: space-between;
-    align-items: center;
-    position: relative;
+    align-items: stretch;
+    min-height: 500px;
     padding: 20px 0;
-    height: 700px;
 }
 
-.left-column {
-    position: relative;
-    height: 100%;
-    width: 350px;
-}
-
-/* Common Box Styles */
-.team-box-single, .team-box-pair {
-    width: 250px;
-    height: 40px;
-    background: #f4f6f9;
-    border-bottom: 2px solid #000;
+.bracket-column {
     display: flex;
-    align-items: center;
-    padding-left: 10px;
-    font-family: serif;
+    flex-direction: column;
     position: relative;
-    z-index: 2;
+    width: 25%; /* 4 columns = 25% each approximately */
 }
-.seed {
-    font-weight: bold;
-    margin-right: 10px;
-    width: 20px;
+
+/* Alignments */
+.col-playin {
+    justify-content: center; /* Center the 4/5 match vertically relative to the semi inputs? No, needs to align with Semis. */
+    padding-top: 50px; /* Push down slightly if needed, or rely on alignment. */
+    /* To align 4/5 output with the Semis "Placeholder", we need precise spacing.
+       Easier to just justify-center the playin, and align the Semi 1 properly.
+    */
+    justify-content: flex-start;
+    padding-top: 140px; /* Rough alignment for Top Semi Bottom Slot */
 }
-.name {
-    font-weight: bold;
+.col-semis {
+    justify-content: space-around;
+}
+.col-finals {
+    justify-content: center;
+    position: relative;
+}
+.col-champ {
+    justify-content: center;
+}
+
+
+/* --- MATCHUP WRAPPERS & LINES --- */
+.matchup-wrapper {
+    position: relative;
+    width: 180px;
+    margin: 0 auto;
+}
+
+.team-line {
+    border-bottom: 2px solid #000;
+    padding-bottom: 2px;
+    margin-bottom: 20px;
+    height: 30px;
+    display: flex;
+    align-items: flex-end;
     font-size: 1.1em;
-}
-
-/* POSITIONING */
-
-/* Seed 1 (Top Left) */
-.seed-1-row {
-    position: absolute;
-    top: 50px;
-    left: 0;
-}
-/* Seed 1 Connector: Goes Right then Down */
-.connector-elbow-down {
-    position: absolute;
-    left: 250px;
-    top: 40px;
-    width: 30px;
-    height: 70px;
-    border-top: 2px solid #000;
-    border-right: 2px solid #000;
-}
-
-/* Seed 4 & 5 (Middle Left) */
-.seed-45-row {
-    position: absolute;
-    top: 220px;
-    left: 0;
-}
-.mini-bracket-wrapper {
-    position: relative;
-}
-.team-box-pair.top-team {
-    margin-bottom: 40px;
-}
-.team-box-pair.bottom-team {
-    margin-top: 0;
-}
-/* Bracket Connector for 4/5 */
-.bracket-connector-45 {
-    position: absolute;
-    left: 250px;
-    top: 40px;
-    height: 40px;
-    width: 30px;
-    border-right: 2px solid #000;
-    border-top: 2px solid #000;
-    border-bottom: 2px solid #000;
-}
-
-/* Joiner Line for Semi 1 (Meeting point of 1 and 4/5) */
-.seed-45-row::after {
-    content: '';
-    position: absolute;
-    left: 280px;
-    top: -100px; /* Meeting point Y=160. 4/5 center is 260. 260-100=160. */
-    height: 140px; /* From 160 down to 300? No. */
-    /* Seed 1 ends at Y=160 (50+40+70). */
-    /* 4/5 Center is Y=260 (220+40). */
-    /* We need line from 260 UP to 160. Height 100. */
-    top: -60px; /* relative to 220... wait. */
-    /* Row is at 220. Box is 40. Center is 40. */
-    /* 220+40 = 260. */
-    /* Y=160 is 220-60. */
-    /* So top: -60px. Height: 100px. */
-    border-left: 2px solid #000;
-    height: 100px;
-}
-
-/* Semi 1 Score Label */
-.semi1-score {
-    position: absolute;
-    left: 290px;
-    top: 150px; /* Near the connector meeting point */
-    font-size: 0.8em;
     font-weight: bold;
+    position: relative;
+    white-space: nowrap;
+}
+.team-line.bottom-team {
+    margin-bottom: 0;
 }
 
-/* Seed 2 & 3 (Bottom Left) */
-.bottom-group {
-    position: absolute;
-    top: 500px;
-    left: 0;
+.seed {
+    margin-right: 8px;
+    font-size: 0.9em;
 }
-.bracket-connector-23 {
+
+/* Placeholder line (for the empty slot where 4/5 winner goes) */
+.placeholder-line {
+    border-bottom: 2px solid #000; /* Keep the line visible so it connects */
+}
+
+
+/* --- BRACKET CONNECTORS --- */
+/* The "Fork" connecting two teams to the next round */
+.bracket-connector {
     position: absolute;
-    left: 250px;
-    top: 40px;
-    height: 40px;
-    width: 30px;
+    right: -20px; /* Extend to the right */
+    top: 30px; /* Start at the bottom of the top team line */
+    bottom: 0; /* End at the bottom of the bottom team line */
+    width: 20px;
     border-right: 2px solid #000;
     border-top: 2px solid #000;
     border-bottom: 2px solid #000;
 }
-/* 2/3 Output Line */
-.bottom-group::after {
+
+/* Specific adjustment for Top Semi Wrapper since top line is at Y=0 and bottom line is at Y=50 */
+/* .team-line is height 30. marginBottom 20. Total height from top of top to bottom of bottom = 30 + 20 + 30 = 80? */
+/* Wait, borders are at the BOTTOM of the element. */
+/* Top Team: height 30. Border is at Y=30. */
+/* Gap: 20px. */
+/* Bottom Team: height 30. Border is at Y=80 (30+20+30). */
+/* So connector should go from Y=30 to Y=80. */
+/* Top: 30px (height of top team). Height: 50px (20 gap + 30 height of bottom). */
+
+.matchup-wrapper .bracket-connector {
+    top: 30px; /* Matches height of .team-line */
+    height: 50px; /* 20px margin + 30px height of next line */
+    bottom: auto;
+}
+/* Horizontal line extending from the connector to the next column */
+.bracket-connector::after {
     content: '';
     position: absolute;
-    left: 280px;
-    top: 60px;
-    width: 40px;
+    right: -20px; /* Extend further right */
+    top: 50%;
+    width: 20px;
     height: 2px;
     background: #000;
 }
 
-/* CENTER COLUMN */
-.center-column {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
+/* Champ Column Connector (none needed on right) */
+.col-champ .bracket-connector {
+    display: none;
 }
-.trophy-box {
-    width: 300px;
-    height: 300px;
+.champ-line {
+    margin-bottom: 0;
+    justify-content: center;
+}
+
+
+/* --- TROPHY --- */
+.trophy-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 250px;
+    height: 250px;
+    z-index: 0; /* Behind text */
+    opacity: 1;
     display: flex;
     justify-content: center;
     align-items: center;
-    border: 1px solid #eee;
+    pointer-events: none;
 }
 .trophy-img {
     max-width: 100%;
+    max-height: 100%;
+}
+/* Ensure text sits above trophy */
+.col-finals .matchup-wrapper {
+    z-index: 1;
 }
 
-/* Connectors to Final */
-/* Top Half (1 vs 4/5) Result */
-.left-column::after {
-    content: '';
-    position: absolute;
-    left: 280px;
-    top: 160px;
-    width: 100px;
-    height: 2px;
-    background: #000;
-}
-/* Bottom Half (2 vs 3) Result */
-.left-column::before {
-    content: '';
-    position: absolute;
-    left: 280px;
-    top: 560px;
-    width: 100px;
-    height: 2px;
-    background: #000;
-}
-
-.right-column {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 250px;
-    position: relative;
-}
-/* Final Bracket Joiner */
-.right-column::before {
-    content: '';
-    position: absolute;
-    left: -20px;
-    top: 160px;
-    bottom: 140px;
-    width: 2px;
-    background: #000;
-}
-/* Winner Line */
-.winner-line {
-    margin-left: 20px;
-    text-align: center;
-}
-.winner-label {
-    font-weight: bold;
-    font-size: 1.5em;
-    font-family: serif;
-    display: block;
-    margin-bottom: 10px;
-    border-bottom: 2px solid #000;
-}
-.winner-name {
-    font-weight: bold;
-    font-size: 1.2em;
-}
-.winner-score {
-    font-size: 0.9em;
-    color: #666;
-}
-
+/* --- SCORE LABELS --- */
 .score-label {
     position: absolute;
-    right: -30px;
-    top: 10px;
+    right: -40px; /* Beyond the horizontal extension */
+    top: 50%;
+    transform: translateY(-50%);
+    background: #fff;
+    padding: 2px 4px;
     font-size: 0.8em;
     font-weight: bold;
+    z-index: 2;
 }
 
 </style>
