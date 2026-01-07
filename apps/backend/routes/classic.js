@@ -51,13 +51,15 @@ router.get('/state', authenticateToken, async (req, res) => {
             if (!seenTeams.has(row.losing_team_id) && row.losing_team_id) {
                 seenTeams.add(row.losing_team_id);
                 // Fetch team details
-                const teamRes = await pool.query('SELECT name, city, user_id FROM teams WHERE team_id = $1', [row.losing_team_id]);
+                const teamRes = await pool.query('SELECT name, city, user_id, logo_url FROM teams WHERE team_id = $1', [row.losing_team_id]);
                 if (teamRes.rows.length > 0) {
                     const t = teamRes.rows[0];
                     seeds.push({
                         team_id: row.losing_team_id,
                         user_id: t.user_id,
                         name: `${t.city} ${t.name}`,
+                        city: t.city,
+                        logo_url: t.logo_url,
                         lastSpoonDate: row.date
                     });
                 }
