@@ -79,7 +79,7 @@ async function checkSeasonOver(client) {
         const futureUnplayedRes = await client.query(`
             SELECT 1
             FROM series_results
-            WHERE winning_team_id IS NULL
+            WHERE winning_score IS NULL
               AND season_name != $1
             LIMIT 1
         `, [lastCompletedSeason]);
