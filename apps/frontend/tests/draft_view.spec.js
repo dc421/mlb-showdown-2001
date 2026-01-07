@@ -74,23 +74,23 @@ test.describe('Draft View Unified Layout', () => {
     const table = page.locator('.draft-table');
     await expect(table).toBeVisible();
 
-    // Should have header + 10 rows
+    // Should have header + 20 rows (4 rounds * 5 teams)
     const rows = table.locator('tbody tr');
-    await expect(rows).toHaveCount(10);
+    await expect(rows).toHaveCount(20);
 
     // Verify first row content (Round 1, Pick 1, Team 1)
     const firstRow = rows.first();
-    await expect(firstRow).not.toContainText('Round 1'); // Changed to just "1"
     const roundCell = firstRow.locator('td').first();
     await expect(roundCell).toHaveText('1');
     await expect(firstRow).toContainText('1'); // Pick #
     await expect(firstRow).toContainText('My Team');
 
-    // Verify last row content (Round 2, Pick 10, Team 5)
+    // Verify last row content (Add/Drop 2, Pick 20, Team 5)
+    // Round 4 is "Add/Drop 2"
     const lastRow = rows.last();
     const roundCellLast = lastRow.locator('td').first();
-    await expect(roundCellLast).toHaveText('2');
-    await expect(lastRow).toContainText('10'); // Pick #
+    await expect(roundCellLast).toHaveText('Add/Drop 2');
+    await expect(lastRow).toContainText('20'); // Pick #
     await expect(lastRow).toContainText('Team 5');
 
     // Check Picking Interface (Since it is my turn)
@@ -143,14 +143,77 @@ test.describe('Draft View Unified Layout', () => {
     });
     await page.goto('http://localhost:5173/draft');
 
-    // Table should have 10 fixed rows + 1 history row
+    // Table should have 20 rows
     const rows = page.locator('.draft-table tbody tr');
-    await expect(rows).toHaveCount(11);
+    await expect(rows).toHaveCount(20);
 
-    // Verify appended row
-    const lastRow = rows.last();
-    // Adjusted expectation: 'Add/Drop 1' is now displayed as Round '3'
-    await expect(lastRow).toContainText('3');
-    await expect(lastRow).toContainText('New Player');
+    // Verify pick #11 (index 10)
+    // Add/Drop 1 corresponds to picks 11-15 in a 5 team league.
+    const pickRow = rows.nth(10);
+
+    // Adjusted expectation: 'Add/Drop 1'
+    await expect(pickRow).toContainText('Add/Drop 1');
+    await expect(pickRow).toContainText('New Player');
+    await expect(pickRow).toContainText('11');
+  });
+
+  test('should show Start Season button when season is over, even if removals exist', async ({ page }) => {
+    // 1. Mock API responses
+    await page.route('**/api/auth/user', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ userId: 1, team: { team_id: 1, name: "My Team" } })
+      });
+    });
+
+    await page.route('**/api/draft/seasons', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(['Old Season'])
+      });
+    });
+
+    await page.route('**/api/draft/state**', async route => {
+        // Mock inactive draft state (historical)
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            season_name: 'Old Season',
+            is_active: false,
+            current_round: 0,
+            current_pick_number: 1,
+            active_team_id: null,
+            history: [],
+            randomRemovals: [{ player_name: 'Guy', team_name: 'Team' }], // Removals EXIST
+            takenPlayerIds: [],
+            isSeasonOver: true, // Season IS over
+            teams: {}
+          })
+        });
+    });
+
+    await page.route('**/api/point-sets', async route => {
+         await route.fulfill({ status: 200, body: JSON.stringify([]) });
+    });
+    await page.route('**/api/players**', async route => {
+         await route.fulfill({ status: 200, body: JSON.stringify([]) });
+    });
+
+    // 2. Navigate to draft page
+    await page.goto('http://localhost:5173/');
+    await page.evaluate(() => {
+        localStorage.setItem('token', 'fake-token');
+        localStorage.setItem('user', JSON.stringify({ userId: 1, team: { team_id: 1 } }));
+    });
+
+    await page.goto('http://localhost:5173/draft');
+
+    // 3. Verify Button Visibility
+    const startButton = page.locator('button.start-btn');
+    await expect(startButton).toBeVisible();
+    await expect(startButton).toHaveText('Perform Random Removals');
   });
 });
