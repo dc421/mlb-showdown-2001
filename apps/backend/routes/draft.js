@@ -33,15 +33,37 @@ const seasonMap = {
 
 // Helper: Map Season Name (DB format) to Point Set Name
 function mapSeasonToPointSet(seasonStr) {
-    // seasonStr format: "M-D-YY Season" e.g., "10-22-20 Season"
     if (!seasonStr) return "Original Pts";
 
-    const match = seasonStr.match(/^(\d{1,2})-(\d{1,2})-(\d{2}) Season$/);
-    if (!match) return "Original Pts";
+    let month, day, yearVal;
 
-    const month = parseInt(match[1]);
-    const day = parseInt(match[2]);
-    const yearVal = parseInt(match[3]);
+    // 1. Try "M-D-YY Season" format (e.g. "10-22-20 Season")
+    const match = seasonStr.match(/^(\d{1,2})-(\d{1,2})-(\d{2}) Season$/);
+
+    if (match) {
+        month = parseInt(match[1]);
+        day = parseInt(match[2]);
+        yearVal = parseInt(match[3]);
+    } else {
+        // 2. Try to find in seasonMap (Reverse lookup: Name -> DateStr)
+        // seasonMap format: '7/5/20': 'Early July 2020'
+        const dateKey = Object.keys(seasonMap).find(key => seasonMap[key] === seasonStr);
+
+        if (dateKey) {
+            // dateKey format: M/D/YY
+            const parts = dateKey.split('/');
+            if (parts.length === 3) {
+                month = parseInt(parts[0]);
+                day = parseInt(parts[1]);
+                yearVal = parseInt(parts[2]);
+            } else {
+                return "Original Pts";
+            }
+        } else {
+            return "Original Pts";
+        }
+    }
+
     // Assume 20xx
     const year = 2000 + yearVal;
     const date = new Date(year, month - 1, day);
