@@ -1,0 +1,22 @@
+
+> frontend@0.0.0 dev
+> vite --port 5173 --port 5173
+
+
+  VITE v7.2.6  ready in 750 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  Vue DevTools: Open http://localhost:5173/__devtools__/ as a separate window
+  ➜  Vue DevTools: Press Alt(⌥)+Shift(⇧)+D in App to toggle the Vue DevTools
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+11:42:16 PM [vite] (client) hmr update /src/views/ClassicView.vue, /src/views/ClassicView.vue?vue&type=style&index=0&scoped=ac3b6d72&lang.css
+11:47:43 PM [vite] (client) hmr update /src/views/ClassicView.vue, /src/views/ClassicView.vue?vue&type=style&index=0&scoped=ac3b6d72&lang.css
+12:02:41 AM [vite] (client) hmr update /src/views/ClassicView.vue, /src/views/ClassicView.vue?vue&type=style&index=0&scoped=ac3b6d72&lang.css
