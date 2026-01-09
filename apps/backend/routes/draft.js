@@ -878,6 +878,8 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         // ---------------------------
 
         // If we are using the saved roster, no need to update or log history (already done by my-roster)
+        const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
+        let loggedHistory = false;
         if (!usingSavedRoster) {
             const oldCardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
             const oldCardIds = oldCardsRes.rows.map(c => c.card_id);
@@ -911,21 +913,35 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
                 );
             }
 
-            const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
-            for (const id of added) {
-                await client.query(
-                    `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
-                     VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
-                    [state.season_name, roundName, teamId, id, state.current_pick_number]
-                );
+            if (added.length > 0 || dropped.length > 0) {
+                loggedHistory = true;
+                for (const id of added) {
+                    await client.query(
+                        `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                         VALUES ($1, $2, $3, $4, 'ADDED', $5)`,
+                        [state.season_name, roundName, teamId, id, state.current_pick_number]
+                    );
+                }
+                for (const id of dropped) {
+                    await client.query(
+                        `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
+                         VALUES ($1, $2, $3, $4, 'DROPPED', $5)`,
+                        [state.season_name, roundName, teamId, id, state.current_pick_number]
+                    );
+                }
             }
-            for (const id of dropped) {
-                await client.query(
-                    `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
-                     VALUES ($1, $2, $3, $4, 'DROPPED', $5)`,
-                    [state.season_name, roundName, teamId, id, state.current_pick_number]
-                );
-            }
+        }
+
+        if (!loggedHistory) {
+            // Explicitly fetch team info for history
+            const teamInfoRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [teamId]);
+            const teamName = teamInfoRes.rows[0] ? `${teamInfoRes.rows[0].city} ${teamInfoRes.rows[0].name}` : null;
+
+            await client.query(
+                `INSERT INTO draft_history (season_name, round, team_id, action, pick_number, player_name, team_name)
+                 VALUES ($1, $2, $3, 'ROSTER_CONFIRMED', $4, 'Roster Confirmed', $5)`,
+                [state.season_name, roundName, teamId, state.current_pick_number, teamName]
+            );
         }
 
         const newState = await advanceDraftState(client, state);
