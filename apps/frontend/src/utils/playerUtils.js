@@ -78,3 +78,44 @@ export function formatNameShort(name) {
 
     return `${firstInitial}.${lastName}`;
 }
+
+/**
+ * Sorts a roster array by Position (SP, RP, C, 1B, 2B, SS, 3B, LF, CF, RF, DH, B)
+ * and then by Points (Descending).
+ * Handles both real players and empty slot objects.
+ */
+export function sortRoster(roster) {
+    const positionOrder = {
+        'SP': 1, 'RP': 2, 'C': 3, '1B': 4, '2B': 5, 'SS': 6, '3B': 7,
+        'LF': 8, 'CF': 9, 'RF': 10, 'DH': 11, 'B': 12, 'BENCH': 12
+    };
+
+    // Return a new sorted array to avoid mutating the original
+    return [...roster].sort((a, b) => {
+        const getSortPos = (p) => {
+            let pos = p.assignment || p.displayPosition || p.position;
+            if (pos === 'PITCHING_STAFF') {
+                 pos = p.displayPosition || p.position;
+            }
+            // Normalize for sorting map
+            if (pos === 'BENCH') return 'B';
+            return pos;
+        };
+
+        const posA = getSortPos(a);
+        const posB = getSortPos(b);
+
+        const rankA = positionOrder[posA] || 99;
+        const rankB = positionOrder[posB] || 99;
+
+        if (rankA !== rankB) {
+            return rankA - rankB;
+        }
+
+        const pointsA = Number(a.points) || 0;
+        const pointsB = Number(b.points) || 0;
+
+        // Descending order for points
+        return pointsB - pointsA;
+    });
+}

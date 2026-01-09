@@ -6,6 +6,7 @@ import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
 import GameScorecard from '@/components/GameScorecard.vue';
 import PlayerCard from '@/components/PlayerCard.vue';
+import { sortRoster } from '@/utils/playerUtils';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -27,12 +28,6 @@ const myTeamDisplayName = computed(() => {
 const processedRoster = computed(() => {
     if (!authStore.activeRosterCards) return []; // Allow empty array for padding
 
-    // Clone logic from LeagueView to match appearance
-    const positionOrder = {
-        'SP': 1, 'RP': 2, 'C': 3, '1B': 4, '2B': 5, 'SS': 6, '3B': 7,
-        'LF': 8, 'CF': 9, 'RF': 10, 'DH': 11, 'B': 12
-    };
-
     // Deep copy to avoid mutating store state directly if it were mutable
     let roster = JSON.parse(JSON.stringify(authStore.activeRosterCards));
 
@@ -53,28 +48,6 @@ const processedRoster = computed(() => {
             p.assignment = 'B';
             if (p.points) p.points = Math.round(p.points / 5);
         }
-    });
-
-    roster.sort((a, b) => {
-        const getSortPos = (p) => {
-            if (p.assignment === 'B') return 'B';
-            if (p.assignment === 'PITCHING_STAFF') {
-                return p.displayPosition; // SP or RP
-            }
-            return p.assignment || p.displayPosition;
-        };
-
-        const posA = getSortPos(a);
-        const posB = getSortPos(b);
-
-        const rankA = positionOrder[posA] || 99;
-        const rankB = positionOrder[posB] || 99;
-
-        if (rankA !== rankB) {
-            return rankA - rankB;
-        }
-
-        return (b.points || 0) - (a.points || 0);
     });
 
     // --- NEW: PAD ROSTER WITH MISSING POSITIONS ---
@@ -126,7 +99,7 @@ const processedRoster = computed(() => {
         });
     }
 
-    return roster;
+    return sortRoster(roster);
 });
 
 const teamTotalPoints = computed(() => {
@@ -334,9 +307,7 @@ onUnmounted(() => {
                 <tbody>
                     <tr v-for="player in processedRoster" :key="player.card_id" @click="!player.isEmpty && openPlayerCard(player)" class="player-row" :class="{ 'empty-row': player.isEmpty }">
                         <td class="pos-cell">
-                            <template v-if="!player.isEmpty">
                                 {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
-                            </template>
                         </td>
                         <td class="name-cell">{{ player.displayName || player.name }}</td>
                         <td class="points-cell">{{ player.points }}</td>

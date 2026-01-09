@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import { sortRoster } from '@/utils/playerUtils';
 
 const authStore = useAuthStore();
 const leagueData = ref([]);
@@ -102,7 +103,8 @@ function padRoster(roster) {
             isEmpty: true
         });
     }
-    return padded;
+
+    return sortRoster(padded);
 }
 
 onMounted(() => {
