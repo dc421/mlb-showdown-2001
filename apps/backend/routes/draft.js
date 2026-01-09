@@ -684,7 +684,13 @@ router.post('/pick', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: "Invalid round for single pick." });
         }
 
-        const ownedCheck = await client.query('SELECT 1 FROM roster_cards WHERE card_id = $1', [playerId]);
+        const ownedCheck = await client.query(
+            `SELECT 1
+             FROM roster_cards rc
+             JOIN rosters r ON rc.roster_id = r.roster_id
+             WHERE rc.card_id = $1 AND r.roster_type = 'league'`,
+            [playerId]
+        );
         if (ownedCheck.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: "Player is already on a roster." });
@@ -882,7 +888,12 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
 
             if (added.length > 0) {
                 const availabilityCheck = await client.query(
-                    `SELECT card_id FROM roster_cards WHERE card_id = ANY($1::int[]) AND roster_id != $2`,
+                    `SELECT rc.card_id
+                     FROM roster_cards rc
+                     JOIN rosters r ON rc.roster_id = r.roster_id
+                     WHERE rc.card_id = ANY($1::int[])
+                       AND rc.roster_id != $2
+                       AND r.roster_type = 'league'`,
                     [added, rosterId]
                 );
                 if (availabilityCheck.rows.length > 0) {
