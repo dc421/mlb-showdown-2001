@@ -211,6 +211,11 @@ const randomRemovalsByTeam = computed(() => {
         groups[t].push(r);
     });
 
+    // Sort players within each team by points descending
+    for (const team in groups) {
+        groups[team].sort((a, b) => (b.points || 0) - (a.points || 0));
+    }
+
     return groups;
 });
 
@@ -462,7 +467,7 @@ onUnmounted(() => {
         </div>
 
         <!-- START BUTTON (If Season Over) -->
-        <div v-else-if="!isDraftActive && isSeasonOver" class="start-section">
+        <div v-else-if="!isDraftActive && isSeasonOver && !hasRandomRemovals && (!selectedSeason || selectedSeason === 'Live Draft' || parseInt(selectedSeason.split('-')[2] || '0') >= 25 || selectedSeason.includes('2025'))" class="start-section">
             <p>The season is over. You can now perform random removals to start the draft.</p>
             <button @click="startDraft" class="start-btn">Perform Random Removals</button>
         </div>

@@ -555,6 +555,18 @@ router.get('/state', authenticateToken, async (req, res) => {
         allPsRes.rows.forEach(ps => pointSetMap[ps.name] = ps.point_set_id);
 
         let pointSetId = pointSetMap[targetPointSetName];
+
+        // --- NEW: Live Draft Override ---
+        // If it's the active draft or explicitly "Live Draft", default to Upcoming Season if mapped set not found OR if we want to force it.
+        // We prefer "Upcoming Season" for the live draft experience unless the season name maps perfectly.
+        // mapSeasonToPointSet for "Live Draft" (passed as seasonName sometimes) returns "Original Pts", which is wrong for 2025.
+        // Also if state.is_active is true, we are likely in the "Upcoming Season" context.
+        if (state.is_active || seasonName === 'Live Draft') {
+             if (pointSetMap['Upcoming Season']) {
+                 pointSetId = pointSetMap['Upcoming Season'];
+             }
+        }
+
         if (!pointSetId) {
             pointSetId = pointSetMap["Original Pts"];
         }
