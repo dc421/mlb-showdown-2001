@@ -542,7 +542,7 @@ onMounted(async () => {
             <button v-if="draftState && draftState.is_active && (draftState.current_round === 4 || draftState.current_round === 5) && authStore.user.team.team_id === draftState.active_team_id"
                     @click="submitDraftTurn"
                     class="draft-submit-btn">
-                Finalize Draft Turn
+                Submit Roster
             </button>
             <button v-else @click="saveRoster">Save Roster</button>
         </div>

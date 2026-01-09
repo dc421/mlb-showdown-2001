@@ -386,7 +386,7 @@ onUnmounted(() => {
 
         <!-- HEADER / SEASON SELECT -->
         <div class="history-header">
-            <h2>Draft History</h2>
+            <h2>Offseason Draft</h2>
             <div class="history-controls">
                 <select v-if="availableSeasons.length > 0" v-model="selectedSeason" class="season-select-inline">
                     <option v-for="season in availableSeasons" :key="season" :value="season">
@@ -447,10 +447,10 @@ onUnmounted(() => {
 
             <!-- ADD/DROP INTERFACE (Rounds 3 & 4) -->
             <div v-else-if="draftState.current_round === 4 || draftState.current_round === 5" class="add-drop-interface">
-                <h3>Finalize Your Roster</h3>
+                <h3>Add/Drop</h3>
                 <p>You can add and drop as many players as you like.</p>
                 <div class="add-drop-buttons">
-                    <button @click="goToRosterBuilder" class="builder-btn">Go to Roster Builder</button>
+                    <button @click="goToRosterBuilder" class="builder-btn">Edit Roster</button>
                     <button @click="submitRoster" class="submit-roster-btn">Submit Roster</button>
                 </div>
             </div>
@@ -541,6 +541,7 @@ onUnmounted(() => {
 .pick-interface h3 { margin-top: 0; }
 /* Restrict width to keep button closer to name on wide screens */
 .pick-interface { max-width: 400px; margin: 0 auto; }
+.add-drop-interface h3 { margin-top: 0; }
 .search-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
 .search-input { flex-grow: 1; padding: 0.5rem; box-sizing: border-box; }
 .position-select { padding: 0.5rem; }

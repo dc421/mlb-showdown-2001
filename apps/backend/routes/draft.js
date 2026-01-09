@@ -843,7 +843,7 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             // Let's rely on payload `is_starter` which RosterBuilder sets based on logic.
             // But if user manipulated payload, we should verify?
             // For now, let's trust `is_starter` boolean in payload/DB card object.
-            if (card.is_starter) {
+            if (card.is_starter && card.assignment === 'PITCHING_STAFF') {
                 spCount++;
             }
 
