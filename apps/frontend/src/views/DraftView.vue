@@ -29,6 +29,7 @@ const filterPosition = ref('ALL');
 const availableSeasons = ref([]);
 const selectedSeason = ref('');
 const isSeasonOver = ref(false);
+const globalDraftActive = ref(false);
 const leagueRosterIds = ref(new Set());
 
 // Ensure apiUrl is an empty string if VITE_API_URL is not defined
@@ -277,6 +278,7 @@ async function fetchDraftState() {
             const data = await response.json();
             draftState.value = data;
             isSeasonOver.value = data.isSeasonOver;
+            globalDraftActive.value = data.globalDraftActive;
 
             // If we have a state and no season selected in dropdown (e.g. initial load), set it
             if (data.season_name && !selectedSeason.value) {
@@ -467,7 +469,7 @@ onUnmounted(() => {
         </div>
 
         <!-- START BUTTON (If Season Over) -->
-        <div v-else-if="!isDraftActive && isSeasonOver && (!selectedSeason || selectedSeason === 'Live Draft' || parseInt(selectedSeason.split('-')[2] || '0') >= 25 || selectedSeason.includes('2025'))" class="start-section">
+        <div v-else-if="!globalDraftActive && isSeasonOver" class="start-section">
             <p>The season is over. You can now perform random removals to start the draft.</p>
             <button @click="startDraft" class="start-btn">Perform Random Removals</button>
         </div>
