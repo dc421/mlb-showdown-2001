@@ -3,85 +3,50 @@ const router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
 const { sendPickConfirmation, sendRandomRemovalsEmail } = require('../services/emailService');
-
-const seasonMap = {
-    '7/5/20': 'Early July 2020',
-    '7/15/20': 'Mid July 2020',
-    '7/20/20': 'Late July 2020',
-    '8/1/20': 'Early August 2020',
-    '8/13/20': 'Late August 2020',
-    '9/9/20': 'September 2020',
-    '10/1/20': 'October 2020',
-    '10/22/20': 'November 2020',
-    '11/22/20': 'December 2020',
-    '12/27/20': 'January 2021',
-    '2/7/21': 'March 2021',
-    '3/15/21': 'April 2021',
-    '4/18/21': 'May 2021',
-    '5/26/21': 'Summer 2021',
-    '8/15/21': 'Fall 2021',
-    '12/24/21': 'Winter 2022',
-    '4/2/22': 'Summer 2022',
-    '12/23/22': 'Winter 2023',
-    '4/1/23': 'Summer 2023',
-    '7/4/23': 'Fall 2023',
-    '2/28/24': 'Spring 2024',
-    '8/18/24': 'Fall 2024',
-    '2/28/25': 'Spring 2025',
-    '8/4/25': 'Fall 2025'
-};
+const { getSeasonName, sortSeasons, seasonMap } = require('../utils/seasonUtils');
+const { rolloverPointSets, snapshotRosters, generateSchedule } = require('../services/seasonRolloverService');
 
 // Helper: Map Season Name (DB format) to Point Set Name
 function mapSeasonToPointSet(seasonStr) {
     if (!seasonStr) return "Original Pts";
 
-    let month, day, yearVal;
+    // Use utils seasonMap for legacy
+    const dateKey = Object.keys(seasonMap).find(key => seasonMap[key] === seasonStr);
 
-    // 1. Try "M-D-YY Season" format (e.g. "10-22-20 Season")
+    if (dateKey) {
+         // Existing legacy logic...
+         const parts = dateKey.split('/');
+         if (parts.length === 3) {
+             const m = parseInt(parts[0]);
+             const d = parseInt(parts[1]);
+             const y = 2000 + parseInt(parts[2]);
+             const date = new Date(y, m - 1, d);
+             if (date < new Date(2020, 9, 22)) return "Original Pts";
+         }
+    }
+
+    // New format: Winter 2026 -> Winter 2026
+    if (seasonStr.match(/^(Winter|Spring|Summer|Fall)\s+\d{4}$/)) {
+        return seasonStr;
+    }
+
+    // M-D-YY Season format
     const match = seasonStr.match(/^(\d{1,2})-(\d{1,2})-(\d{2}) Season$/);
-
     if (match) {
-        month = parseInt(match[1]);
-        day = parseInt(match[2]);
-        yearVal = parseInt(match[3]);
-    } else {
-        // 2. Try to find in seasonMap (Reverse lookup: Name -> DateStr)
-        // seasonMap format: '7/5/20': 'Early July 2020'
-        const dateKey = Object.keys(seasonMap).find(key => seasonMap[key] === seasonStr);
+        const month = parseInt(match[1]);
+        const day = parseInt(match[2]);
+        const yearVal = parseInt(match[3]);
+        const year = 2000 + yearVal;
 
-        if (dateKey) {
-            // dateKey format: M/D/YY
-            const parts = dateKey.split('/');
-            if (parts.length === 3) {
-                month = parseInt(parts[0]);
-                day = parseInt(parts[1]);
-                yearVal = parseInt(parts[2]);
-            } else {
-                return "Original Pts";
-            }
+        // Same logic as before for >= 2025
+        if (year >= 2025) {
+            return `${month}/${day}/${yearVal} Season`;
         } else {
-            return "Original Pts";
+            return `${month}/${day} Season`;
         }
     }
 
-    // Assume 20xx
-    const year = 2000 + yearVal;
-    const date = new Date(year, month - 1, day);
-    const cutoff = new Date(2020, 9, 22); // Oct 22, 2020
-
-    if (date < cutoff) return "Original Pts";
-
-    // Map >= Cutoff
-    // Format M/D[/YY] Season
-    // Rule derived from user input:
-    // 2020-2024: M/D Season
-    // 2025+: M/D/YY Season (e.g. 2/28/25 Season)
-
-    if (year >= 2025) {
-        return `${month}/${day}/${yearVal} Season`;
-    } else {
-        return `${month}/${day} Season`;
-    }
+    return "Original Pts";
 }
 
 // Helper to get the active draft state
@@ -201,7 +166,7 @@ async function calculateDraftOrder(client) {
 
 // Helper: Advance Draft State
 async function advanceDraftState(client, currentState) {
-    let { current_round, current_pick_number, draft_order, id } = currentState;
+    let { current_round, current_pick_number, draft_order, id, season_name } = currentState;
     const order = draft_order;
     const numTeams = order.length;
 
@@ -220,8 +185,19 @@ async function advanceDraftState(client, currentState) {
         // Draft Complete!
         isActive = false;
         nextTeamId = null;
-        // Trigger Schedule Generation here? Or explicitly calling it.
-        await generateSchedule(client, order);
+
+        // --- NEW SEASON ROLLOVER LOGIC ---
+        // 1. Generate empty schedule in series_results (marks season as "started/active")
+        await generateSchedule(client, season_name, order);
+
+        // 2. Snapshot current rosters to historical_rosters
+        await snapshotRosters(client, season_name);
+
+        // 3. Rollover point sets (calculate new points)
+        // Ensure this happens AFTER snapshot because it relies on the snapshot being present in historical_rosters
+        await rolloverPointSets(client, season_name);
+        // ---------------------------------
+
     } else {
         // Get next team
         const index = (current_pick_number - 1) % numTeams;
@@ -237,64 +213,6 @@ async function advanceDraftState(client, currentState) {
     );
 
     return { current_round, current_pick_number, active_team_id: nextTeamId, is_active: isActive };
-}
-
-async function generateSchedule(client, teamIds) {
-    // Generate Round Robin Schedule: Each team plays every other team once.
-    // teamIds has 5 teams. 5 * 4 / 2 = 10 series total.
-
-    // Series Type: 'regular_season'
-
-    // We need to fetch the user_ids for these teams
-    const teamsRes = await client.query('SELECT team_id, user_id FROM teams WHERE team_id = ANY($1::int[])', [teamIds]);
-    const teamMap = {};
-    teamsRes.rows.forEach(t => teamMap[t.team_id] = t.user_id);
-
-    const matchups = [];
-    for (let i = 0; i < teamIds.length; i++) {
-        for (let j = i + 1; j < teamIds.length; j++) {
-            matchups.push({ home: teamIds[i], away: teamIds[j] });
-        }
-    }
-
-    // Create Series
-    for (const matchup of matchups) {
-        const homeUserId = teamMap[matchup.home];
-        const awayUserId = teamMap[matchup.away];
-
-        const seriesRes = await client.query(
-            `INSERT INTO series (series_type, series_home_user_id, series_away_user_id)
-             VALUES ('regular_season', $1, $2) RETURNING id`,
-            [homeUserId, awayUserId]
-        );
-        const seriesId = seriesRes.rows[0].id;
-
-        const useDh = true;
-
-        // We need roster_ids.
-        const homeRosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [homeUserId]);
-        const awayRosterRes = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1', [awayUserId]);
-
-        if (homeRosterRes.rows.length === 0 || awayRosterRes.rows.length === 0) continue;
-
-        const homeRosterId = homeRosterRes.rows[0].roster_id;
-        const awayRosterId = awayRosterRes.rows[0].roster_id;
-
-        const league = 'AL';
-
-        const gameRes = await client.query(
-            `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh)
-             VALUES ('lineups', $1, 1, $2, $3) RETURNING game_id`,
-            [seriesId, homeUserId, useDh]
-        );
-        const gameId = gameRes.rows[0].game_id;
-
-        await client.query(
-            `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation)
-             VALUES ($1, $2, $3, 'home', $4), ($1, $5, $6, 'away', $4)`,
-            [gameId, homeUserId, homeRosterId, league, awayUserId, awayRosterId]
-        );
-    }
 }
 
 // GET AVAILABLE SEASONS
@@ -325,29 +243,21 @@ router.get('/seasons', authenticateToken, async (req, res) => {
         let activeSeasonName = null;
         if (activeRes.rows.length > 0) activeSeasonName = activeRes.rows[0].season_name;
 
-        seasons.sort((a, b) => {
-            // Active season always first
-            if (a === activeSeasonName) return -1;
-            if (b === activeSeasonName) return 1;
+        // Use shared sorting utility
+        const sortedSeasons = sortSeasons(seasons);
 
-            const dateA = nameToDate[a];
-            const dateB = nameToDate[b];
-
-            if (dateA && dateB) {
-                // Parse date strings MM/DD/YY
-                const dA = new Date(dateA);
-                const dB = new Date(dateB);
-                return dB - dA; // Descending (Newest first)
+        // Ensure active season is top (sortSeasons sorts by date descending, active is usually newest, but explicit check matches prior behavior)
+        const seasonsToReturn = sortedSeasons;
+        if (activeSeasonName) {
+            const idx = seasonsToReturn.indexOf(activeSeasonName);
+            if (idx > 0) {
+                seasonsToReturn.splice(idx, 1);
+                seasonsToReturn.unshift(activeSeasonName);
             }
-            if (dateA) return -1; // A has date, B doesn't -> A first
-            if (dateB) return 1;  // B has date, A doesn't -> B first
-
-            // Fallback to alphabetical if neither has a date
-            return b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' });
-        });
+        }
 
         // Map active season name to "Live Draft"
-        const displayedSeasons = seasons.map(s => s === activeSeasonName ? "Live Draft" : s);
+        const displayedSeasons = seasonsToReturn.map(s => s === activeSeasonName ? "Live Draft" : s);
 
         res.json(displayedSeasons);
     } catch (error) {
@@ -391,9 +301,8 @@ router.post('/start', authenticateToken, async (req, res) => {
         }
 
         // 4. Random Removal (5 players per team)
-        // Format: "M-D-YY Season" e.g., "1-3-26 Season"
-        const d = new Date();
-        const seasonName = `${d.getMonth() + 1}-${d.getDate()}-${d.getFullYear().toString().slice(-2)} Season`;
+        // Format: "Winter 2026" etc. (Automated based on date)
+        const seasonName = getSeasonName(new Date());
 
         const removalsByTeam = {}; // Collect data for email
 
