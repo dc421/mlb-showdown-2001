@@ -1971,7 +1971,7 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
             FROM cards_player cp
             LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
             LEFT JOIN roster_cards rc ON cp.card_id = rc.card_id
-            LEFT JOIN rosters r ON rc.roster_id = r.roster_id
+            LEFT JOIN rosters r ON rc.roster_id = r.roster_id AND r.roster_type = 'league'
             LEFT JOIN users u ON r.user_id = u.user_id
             LEFT JOIN teams t ON u.team_id = t.team_id
             ORDER BY cp.display_name;
@@ -1988,7 +1988,7 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
             FROM cards_player cp
             LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
             LEFT JOIN roster_cards rc ON cp.card_id = rc.card_id
-            LEFT JOIN rosters r ON rc.roster_id = r.roster_id
+            LEFT JOIN rosters r ON rc.roster_id = r.roster_id AND r.roster_type = 'league'
             LEFT JOIN users u ON r.user_id = u.user_id
             LEFT JOIN teams t ON u.team_id = t.team_id
             ORDER BY cp.display_name, cp.card_id;

@@ -91,7 +91,7 @@ function padRoster(roster) {
     for (let i = 0; i < (4 - counts['SP']); i++) missing.push('SP');
 
     while (padded.length < 20) {
-        const nextMissing = missing.shift() || 'Bench';
+        const nextMissing = missing.shift() || 'B';
         padded.push({
             card_id: `empty-${padded.length}`,
             name: '',

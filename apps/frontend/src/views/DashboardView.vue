@@ -88,7 +88,7 @@ const processedRoster = computed(() => {
     // If we have strict 20 slots, let's just prioritize required fielders + SPs.
 
     while (roster.length < 20) {
-        const nextMissing = missing.shift() || 'Bench';
+        const nextMissing = missing.shift() || 'B';
         roster.push({
             card_id: `empty-${roster.length}`,
             displayName: '',
