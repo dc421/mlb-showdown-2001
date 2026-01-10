@@ -47,6 +47,14 @@ async function generateSchedule(client, seasonName, teamIds) {
 
     if (!teamIds || teamIds.length < 2) return;
 
+    // Fetch team cities
+    const teamRes = await client.query(
+        `SELECT team_id, city FROM teams WHERE team_id = ANY($1)`,
+        [teamIds]
+    );
+    const teamCityMap = {};
+    teamRes.rows.forEach(r => teamCityMap[r.team_id] = r.city);
+
     const matchups = [];
     for (let i = 0; i < teamIds.length; i++) {
         for (let j = i + 1; j < teamIds.length; j++) {
@@ -58,9 +66,9 @@ async function generateSchedule(client, seasonName, teamIds) {
 
     for (const m of matchups) {
         await client.query(
-            `INSERT INTO series_results (season_name, round, date, winning_team_id, losing_team_id, winning_score, losing_score)
-             VALUES ($1, 'Regular Season', $2, $3, $4, NULL, NULL)`,
-            [seasonName, today, m.home, m.away]
+            `INSERT INTO series_results (season_name, round, date, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score)
+             VALUES ($1, 'Regular Season', $2, $3, $4, $5, $6, NULL, NULL)`,
+            [seasonName, today, m.home, m.away, teamCityMap[m.home], teamCityMap[m.away]]
         );
     }
 }
