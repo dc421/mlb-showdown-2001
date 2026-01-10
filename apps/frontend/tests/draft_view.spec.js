@@ -36,6 +36,7 @@ test.describe('Draft View Unified Layout', () => {
             randomRemovals: [],
             takenPlayerIds: [],
             isSeasonOver: false,
+            globalDraftActive: true,
             teams: {
                 1: 'My Team',
                 2: 'Team 2',
@@ -118,6 +119,7 @@ test.describe('Draft View Unified Layout', () => {
             randomRemovals: [],
             takenPlayerIds: [],
             isSeasonOver: false,
+            globalDraftActive: true,
             teams: { 1: 'My Team' }
           })
         });
@@ -190,6 +192,7 @@ test.describe('Draft View Unified Layout', () => {
             randomRemovals: [{ player_name: 'Guy', team_name: 'Team' }], // Removals EXIST
             takenPlayerIds: [],
             isSeasonOver: true, // Season IS over
+            globalDraftActive: false,
             teams: {}
           })
         });
@@ -245,6 +248,7 @@ test.describe('Draft View Unified Layout', () => {
             randomRemovals: [],
             takenPlayerIds: [],
             isSeasonOver: true, // OVER (e.g. gap between seasons)
+            globalDraftActive: true,
             teams: {}
           })
         });
@@ -271,5 +275,59 @@ test.describe('Draft View Unified Layout', () => {
 
     // Verify Controls ARE visible
     await expect(page.locator('.active-controls')).toBeVisible();
+  });
+
+  test('should HIDE Start Season button when viewing historical season if a global draft is active', async ({ page }) => {
+    // 1. Mock API responses
+    await page.route('**/api/auth/user', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ userId: 1, team: { team_id: 1, name: "My Team" } })
+      });
+    });
+
+    await page.route('**/api/draft/seasons', async route => {
+      await route.fulfill({ status: 200, body: JSON.stringify(['Old Season']) });
+    });
+
+    await page.route('**/api/draft/state**', async route => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            season_name: 'Old Season',
+            is_active: false, // HISTORICAL / NOT ACTIVE for this season
+            current_round: 0,
+            current_pick_number: 1,
+            active_team_id: null,
+            history: [],
+            randomRemovals: [],
+            takenPlayerIds: [],
+            isSeasonOver: true, // Season IS over
+            globalDraftActive: true, // BUT another draft is active
+            teams: {}
+          })
+        });
+    });
+
+    await page.route('**/api/point-sets', async route => {
+         await route.fulfill({ status: 200, body: JSON.stringify([]) });
+    });
+    await page.route('**/api/players**', async route => {
+         await route.fulfill({ status: 200, body: JSON.stringify([]) });
+    });
+
+    await page.goto('http://localhost:5173/');
+    await page.evaluate(() => {
+        localStorage.setItem('token', 'fake-token');
+        localStorage.setItem('user', JSON.stringify({ userId: 1, team: { team_id: 1 } }));
+    });
+
+    await page.goto('http://localhost:5173/draft');
+
+    // 3. Verify Button is HIDDEN
+    const startButton = page.locator('button.start-btn');
+    await expect(startButton).not.toBeVisible();
   });
 });

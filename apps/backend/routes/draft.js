@@ -401,6 +401,10 @@ router.get('/state', authenticateToken, async (req, res) => {
         let state = await getDraftState(client, seasonName);
         const seasonOver = await checkSeasonOver(client);
 
+        // Check for ANY active draft globally
+        const globalActiveRes = await client.query('SELECT 1 FROM draft_state WHERE is_active = true LIMIT 1');
+        const globalDraftActive = globalActiveRes.rows.length > 0;
+
         // Fallback to finding state from history if not found in draft_state
         if (!state) {
             let targetSeason = seasonName;
@@ -452,7 +456,7 @@ router.get('/state', authenticateToken, async (req, res) => {
         }
 
         // If still no state (no history, no active draft), return empty
-        if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver });
+        if (!state) return res.json({ isActive: false, isSeasonOver: seasonOver, globalDraftActive });
 
         // Find correct point set for stats
         // 1. Map the season name from draft state/history (e.g. "1-7-25 Season") to Point Set format (e.g. "1/7/25 Season")
@@ -567,7 +571,8 @@ router.get('/state', authenticateToken, async (req, res) => {
             activeTeam,
             takenPlayerIds,
             isSeasonOver: seasonOver,
-            teams: teamsMap
+            teams: teamsMap,
+            globalDraftActive
         });
 
     } catch (error) {
