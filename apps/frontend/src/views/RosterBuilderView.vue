@@ -512,7 +512,7 @@ onMounted(async () => {
           @dragstart="!player.isUnavailable && onDragStart($event, player, 'available')">
           
           <div class="player-info">
-            <span class="player-name" :class="{ 'owned-player-text': isPlayerOwnedByOther(player), 'long-name': player.displayName.length > 20 }">
+            <span class="player-name" :class="{ 'owned-player-text': isPlayerOwnedByOther(player), 'long-name': player.displayName.length > 18 }">
                 {{ player.displayName }} ({{ player.displayPosition }})
             </span>
             <img v-if="isPlayerOwnedByOther(player)" :src="player.owned_by_team_logo" class="owning-team-logo" :title="player.owned_by_team_name" />
@@ -618,7 +618,7 @@ onMounted(async () => {
 .unavailable { opacity: 0.5; cursor: not-allowed; background-color: #eee; }
 .owned-label { font-size: 0.8em; color: #dc3545; font-weight: bold; margin-right: 0.5rem; }
 .owned-player-text { color: #888; }
-.long-name { font-size: 0.85em; letter-spacing: -0.5px; }
+.long-name { font-size: 0.95em; letter-spacing: -0.5px; }
 .owning-team-logo { height: 20px; width: auto; vertical-align: middle; margin-left: 5px; margin-right: 5px; }
 
 .mode-badge {
