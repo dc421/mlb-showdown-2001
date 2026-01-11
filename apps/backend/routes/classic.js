@@ -149,4 +149,84 @@ router.get('/state', authenticateToken, async (req, res) => {
     }
 });
 
+// SUBMIT MANUAL RESULT
+router.post('/result', authenticateToken, async (req, res) => {
+    const { winnerId, loserId, winningScore, losingScore, round } = req.body;
+
+    // Basic validation
+    if (!winnerId || !loserId || winningScore === undefined || losingScore === undefined || !round) {
+        return res.status(400).json({ message: 'Missing required fields.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Determine Season Name (Use latest existing one or default to 'Classic')
+        const seasonQuery = `
+            SELECT season_name
+            FROM series_results
+            WHERE season_name IS NOT NULL
+            ORDER BY date DESC
+            LIMIT 1
+        `;
+        const seasonRes = await client.query(seasonQuery);
+        const seasonName = seasonRes.rows.length > 0 ? seasonRes.rows[0].season_name : 'Classic';
+
+        // 2. Fetch Team Names for History
+        const teamQuery = `SELECT team_id, user_id, name, city FROM teams WHERE user_id IN ($1, $2)`;
+        const teamsRes = await client.query(teamQuery, [winnerId, loserId]);
+
+        const winner = teamsRes.rows.find(t => t.user_id === winnerId);
+        const loser = teamsRes.rows.find(t => t.user_id === loserId);
+
+        if (!winner || !loser) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'One or both teams not found.' });
+        }
+
+        const winningTeamName = `${winner.city} ${winner.name}`;
+        const losingTeamName = `${loser.city} ${loser.name}`;
+
+        // 3. Insert into series_results (History/Trophies)
+        await client.query(`
+            INSERT INTO series_results (
+                date, season_name, style, round,
+                winning_team_name, losing_team_name,
+                winning_team_id, losing_team_id,
+                winning_score, losing_score
+            ) VALUES (
+                NOW(), $1, 'Classic', $2,
+                $3, $4,
+                $5, $6,
+                $7, $8
+            )
+        `, [seasonName, round, winningTeamName, losingTeamName, winner.team_id, loser.team_id, winningScore, losingScore]);
+
+        // 4. Insert into series (Bracket Visualization)
+        // We need to map "Home" and "Away" based on the inputs or standard logic.
+        // For simple result entry, we can assume the inputs are agnostic, but the bracket expects specific home/away IDs.
+        // We will just set them. The bracket component looks for a match between the two IDs regardless of order.
+        await client.query(`
+            INSERT INTO series (
+                series_type, series_home_user_id, series_away_user_id,
+                home_wins, away_wins, status
+            ) VALUES (
+                'classic', $1, $2,
+                $3, $4, 'completed'
+            )
+        `, [winnerId, loserId, winningScore, losingScore]);
+
+        await client.query('COMMIT');
+        res.json({ message: 'Result recorded successfully.' });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error submitting classic result:', error);
+        res.status(500).json({ message: 'Server error recording result.' });
+    } finally {
+        client.release();
+    }
+});
+
 module.exports = router;

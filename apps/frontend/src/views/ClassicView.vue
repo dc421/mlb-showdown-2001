@@ -113,6 +113,62 @@ const bracket = computed(() => {
     };
 });
 
+// Manual Result Entry State
+const resultModalOpen = ref(false);
+const activeMatchup = ref(null);
+const resultForm = ref({
+    winnerId: null,
+    winningScore: 4,
+    losingScore: 0
+});
+
+function openResultModal(matchup, roundName) {
+    activeMatchup.value = { ...matchup, roundName };
+    resultForm.value = {
+        winnerId: matchup.team1.user_id, // Default to Team 1
+        winningScore: 4,
+        losingScore: 0
+    };
+    resultModalOpen.value = true;
+}
+
+async function submitResult() {
+    if (!activeMatchup.value || !resultForm.value.winnerId) return;
+
+    const winnerId = resultForm.value.winnerId;
+    const team1Id = activeMatchup.value.team1.user_id;
+    const team2Id = activeMatchup.value.team2.user_id;
+    const loserId = winnerId === team1Id ? team2Id : team1Id;
+
+    const payload = {
+        winnerId,
+        loserId,
+        winningScore: resultForm.value.winningScore,
+        losingScore: resultForm.value.losingScore,
+        round: activeMatchup.value.roundName
+    };
+
+    try {
+        const res = await apiClient('/api/classic/result', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            resultModalOpen.value = false;
+            // Reload state
+            const stateRes = await apiClient('/api/classic/state');
+            if (stateRes.ok) {
+                state.value = await stateRes.json();
+            }
+        } else {
+            alert("Failed to submit result.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error submitting result.");
+    }
+}
+
 function toggleRoster(userId) {
     if (expandedRosterUserId.value === userId) expandedRosterUserId.value = null;
     else expandedRosterUserId.value = userId;
@@ -200,6 +256,11 @@ onMounted(async () => {
                         <div class="score-label" v-if="bracket.matchups.playIn.series">
                             {{ bracket.matchups.playIn.series.score }}
                         </div>
+                        <button class="enter-result-btn"
+                            v-if="!bracket.matchups.playIn.series && bracket.matchups.playIn.team1.user_id && bracket.matchups.playIn.team2.user_id"
+                            @click="openResultModal(bracket.matchups.playIn, 'Play-In')">
+                            +
+                        </button>
                     </div>
 
 
@@ -228,6 +289,11 @@ onMounted(async () => {
                          <div class="score-label" v-if="bracket.matchups.semi1.series">
                             {{ bracket.matchups.semi1.series.score }}
                         </div>
+                         <button class="enter-result-btn"
+                            v-if="!bracket.matchups.semi1.series && bracket.matchups.semi1.team1.user_id && bracket.matchups.semi1.team2.user_id"
+                            @click="openResultModal(bracket.matchups.semi1, 'Semi-Final')">
+                            +
+                        </button>
                     </div>
 
 
@@ -255,6 +321,11 @@ onMounted(async () => {
                         <div class="score-label" v-if="bracket.matchups.semi2.series">
                             {{ bracket.matchups.semi2.series.score }}
                         </div>
+                        <button class="enter-result-btn"
+                            v-if="!bracket.matchups.semi2.series && bracket.matchups.semi2.team1.user_id && bracket.matchups.semi2.team2.user_id"
+                            @click="openResultModal(bracket.matchups.semi2, 'Semi-Final')">
+                            +
+                        </button>
                     </div>
 
 
@@ -282,6 +353,11 @@ onMounted(async () => {
                         <div class="score-label" v-if="bracket.matchups.final.series">
                             {{ bracket.matchups.final.series.score }}
                         </div>
+                        <button class="enter-result-btn"
+                            v-if="!bracket.matchups.final.series && bracket.matchups.final.team1.user_id && bracket.matchups.final.team2.user_id"
+                            @click="openResultModal(bracket.matchups.final, 'Silver Submarine')">
+                            +
+                        </button>
                     </div>
 
 
@@ -330,6 +406,43 @@ onMounted(async () => {
             </div>
         </div>
 
+        <!-- Result Entry Modal -->
+        <div v-if="resultModalOpen" class="modal-overlay" @click="resultModalOpen = false">
+            <div class="modal-content result-modal" @click.stop>
+                <button class="close-btn" @click="resultModalOpen = false">×</button>
+                <h2>Enter Result: {{ activeMatchup.roundName }}</h2>
+
+                <div class="result-form">
+                    <div class="team-option">
+                        <label>
+                            <input type="radio" v-model="resultForm.winnerId" :value="activeMatchup.team1.user_id">
+                            <span class="team-name-radio">{{ activeMatchup.team1.city }}</span>
+                        </label>
+                    </div>
+                    <div class="vs">vs</div>
+                    <div class="team-option">
+                        <label>
+                            <input type="radio" v-model="resultForm.winnerId" :value="activeMatchup.team2.user_id">
+                             <span class="team-name-radio">{{ activeMatchup.team2.city }}</span>
+                        </label>
+                    </div>
+
+                    <div class="score-inputs">
+                        <div class="score-group">
+                            <label>Wins</label>
+                            <input type="number" v-model="resultForm.winningScore" min="1" max="4">
+                        </div>
+                         <div class="score-group">
+                            <label>Losses</label>
+                            <input type="number" v-model="resultForm.losingScore" min="0" max="3">
+                        </div>
+                    </div>
+
+                    <button class="submit-btn" @click="submitResult">Submit</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Player Card Modal -->
         <div v-if="selectedPlayer" class="modal-overlay" @click="selectedPlayer = null">
             <div class="modal-content" @click.stop>
@@ -341,6 +454,76 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.enter-result-btn {
+    position: absolute;
+    right: -25px; /* Sit to the right of the arm */
+    top: 50%;
+    transform: translateY(-50%);
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 10;
+}
+.enter-result-btn:hover {
+    background: #0056b3;
+}
+
+.result-modal {
+    width: 400px;
+    padding: 30px;
+    text-align: center;
+}
+.result-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+.team-option {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+.team-name-radio {
+    margin-left: 8px;
+}
+.score-inputs {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 10px;
+}
+.score-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.score-group input {
+    width: 50px;
+    text-align: center;
+    padding: 5px;
+    font-size: 1.1em;
+}
+.submit-btn {
+    background: #28a745;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    font-size: 1.1em;
+    cursor: pointer;
+    margin-top: 10px;
+}
+.submit-btn:hover {
+    background: #218838;
+}
+
 .classic-container {
     max-width: 1200px;
     margin: 0 auto;
