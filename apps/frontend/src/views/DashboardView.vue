@@ -11,7 +11,7 @@ import { sortRoster } from '@/utils/playerUtils';
 const authStore = useAuthStore();
 const router = useRouter();
 const seriesType = ref('exhibition'); // Default to exhibition
-const teamAccolades = ref({ spaceships: [], spoons: [] });
+const teamAccolades = ref({ spaceships: [], spoons: [], submarines: [] });
 const selectedPlayer = ref(null);
 const activeRosterTab = ref('league'); // 'league' or 'classic'
 
@@ -273,6 +273,14 @@ onUnmounted(() => {
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Wooden Spoon" />
+             </div>
+          </div>
+          <div v-if="teamAccolades.submarines && teamAccolades.submarines.length > 0" class="accolade-row">
+             <div v-for="(accolade, index) in teamAccolades.submarines" :key="accolade.season_name + index" class="accolade-item">
+               <img :src="`${apiUrl}/images/silver_submarine.png`"
+                   :title="accolade.season_name"
+                   class="accolade-icon"
+                   alt="Silver Submarine" />
              </div>
           </div>
       </div>

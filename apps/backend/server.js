@@ -4041,13 +4041,21 @@ app.get('/api/teams/:teamId/accolades', authenticateToken, async (req, res) => {
             WHERE losing_team_id = $1 AND round = 'Wooden Spoon'
             ORDER BY date DESC
         `;
+        const submarineQuery = `
+            SELECT season_name, date
+            FROM series_results
+            WHERE winning_team_id = $1 AND round = 'Silver Submarine'
+            ORDER BY date DESC
+        `;
 
         const spaceships = await pool.query(spaceshipQuery, [teamId]);
         const spoons = await pool.query(spoonQuery, [teamId]);
+        const submarines = await pool.query(submarineQuery, [teamId]);
 
         res.json({
             spaceships: spaceships.rows, // Array of { season_name, date }
-            spoons: spoons.rows // Array of { season_name, date }
+            spoons: spoons.rows, // Array of { season_name, date }
+            submarines: submarines.rows // Array of { season_name, date }
         });
     } catch (error) {
         console.error('Error fetching team accolades:', error);
