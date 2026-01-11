@@ -34,7 +34,7 @@ const isLongName = computed(() => {
   const nameLen = props.player.displayName ? props.player.displayName.length : 0;
   const posLen = props.player.displayPosition ? props.player.displayPosition.length : 0;
   // (Name + Position + 3 chars for " ()") > 20
-  return (nameLen + posLen + 3) > 20;
+  return (nameLen + posLen + 3) > 30;
 });
 
 function handleAction() {
@@ -100,11 +100,11 @@ function handleAction() {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem;
+    padding: 0.4rem;
     cursor: grab;
     border-bottom: 1px solid #eee;
     background: white;
-    min-height: 42px; /* Ensure consistency */
+    min-height: 36px; /* Ensure consistency */
     box-sizing: border-box;
 }
 
@@ -129,11 +129,11 @@ function handleAction() {
 }
 
 .player-name {
-    /* Default font size implied */
+    font-size: 1em;
 }
 
 .long-name {
-    font-size: 0.85em;
+    font-size: 0.95em;
     letter-spacing: -0.5px;
 }
 

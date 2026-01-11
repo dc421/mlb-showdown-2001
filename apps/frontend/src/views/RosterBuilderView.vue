@@ -515,7 +515,6 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="staff-panel">
-                <h3>Pitching Staff ({{ roster.pitchingStaff.length }})</h3>
                 <div class="staff-area">
                   <strong>Starting Pitchers ({{ startingPitchersOnRoster.length }}/4):</strong>
                   <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'pitchingStaff')">
@@ -543,8 +542,7 @@ onMounted(async () => {
                         @dragstart="onDragStart($event, p, 'pitchingStaff')"
                       />
                   </div>
-                </div>
-                <h3>Bench ({{ benchPlayers.length }})</h3>
+                <strong>Bench ({{ benchPlayers.length }})</strong>
                 <div class="bench-area drop-zone" @dragover.prevent @drop="onDrop($event, 'bench')">
                     <RosterPlayerRow
                       v-for="p in benchPlayers"
@@ -557,6 +555,7 @@ onMounted(async () => {
                       @dragstart="onDragStart($event, p, 'bench')"
                     />
                 </div>
+                </div>
             </div>
         </div>
     </div>
@@ -566,8 +565,8 @@ onMounted(async () => {
 <style scoped>
 .builder-container {
     display: flex;
-    gap: 1rem;
-    padding: 1rem;
+    gap: .5rem;
+    padding: .5rem;
     height: calc(100vh - 50px);
     box-sizing: border-box;
     overflow-x: auto; /* Enable horizontal scroll if needed */
@@ -601,7 +600,7 @@ onMounted(async () => {
     width: 400px;
     flex-shrink: 0;
     background: #f4f6f8;
-    padding: 1rem;
+    padding: 0.75rem;
     border-radius: 8px;
     display: flex;
     flex-direction: column;
@@ -610,10 +609,10 @@ onMounted(async () => {
 
 .panel-header { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
 .search-input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
-.filters { display: flex; gap: 0.5rem; }
+.filters { display: flex; gap: 0.75rem; }
 .player-list { flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; background: white; border-radius: 4px; }
 
-.roster-header { display: flex; gap: 1rem; align-items: center; background: #e9ecef; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;}
+.roster-header { display: flex; gap: 1rem; align-items: center; background: #e9ecef; padding: .5rem; border-radius: 8px; margin-bottom: 1rem;}
 .roster-stats { font-weight: bold; text-align: center; white-space: nowrap; display: flex; gap: 1rem; }
 
 .lineup-grid-positions { display: flex; flex-direction: column; gap: 0.25rem; }
@@ -645,7 +644,7 @@ onMounted(async () => {
 .bench-area {
     border: 1px dashed #ccc;
     border-radius: 4px;
-    padding: 0.5rem;
+    padding: 0rem;
     display: flex;
     flex-direction: column;
     gap: 0; /* Rows have padding */
