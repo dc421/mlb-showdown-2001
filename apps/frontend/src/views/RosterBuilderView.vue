@@ -480,9 +480,6 @@ onMounted(async () => {
     <div class="available-players-section panel">
       <div class="panel-header">
         <h2>Available Players</h2>
-        <div class="mode-badge" v-if="rosterType">
-            Editing: {{ rosterType === 'classic' ? 'Classic' : 'League' }} Roster
-        </div>
         <div class="filters">
           <select v-model="authStore.selectedPointSetId" title="Select Point Set">
             <option v-for="set in filteredPointSets" :key="set.point_set_id" :value="set.point_set_id">
@@ -515,7 +512,7 @@ onMounted(async () => {
           @dragstart="!player.isUnavailable && onDragStart($event, player, 'available')">
           
           <div class="player-info">
-            <span class="player-name" :class="{ 'owned-player-text': isPlayerOwnedByOther(player) }">
+            <span class="player-name" :class="{ 'owned-player-text': isPlayerOwnedByOther(player), 'long-name': player.displayName.length > 20 }">
                 {{ player.displayName }} ({{ player.displayPosition }})
             </span>
             <img v-if="isPlayerOwnedByOther(player)" :src="player.owned_by_team_logo" class="owning-team-logo" :title="player.owned_by_team_name" />
@@ -535,6 +532,9 @@ onMounted(async () => {
     
     <div class="roster-section">
         <div class="roster-header">
+            <div class="mode-badge" v-if="rosterType">
+                Editing: {{ rosterType === 'classic' ? 'Classic' : 'League' }} Roster
+            </div>
             <div class="roster-stats">
                 <span>Players: {{ playerCount }} / 20</span>
                 <span :class="{ 'over-limit': totalPoints > 5000 }">Points: {{ totalPoints }} / 5000</span>
@@ -605,11 +605,11 @@ onMounted(async () => {
 .roster-stats { font-weight: bold; text-align: center; white-space: nowrap; display: flex; gap: 1rem; }
 .roster-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; flex-grow: 1; overflow-y: auto; }
 .lineup-panel, .staff-panel { background: #f4f6f8; padding: 1rem; border-radius: 8px; display: flex; flex-direction: column; }
-.lineup-grid-positions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
-.lineup-position { padding: 0.5rem; border: 1px dashed #ccc; border-radius: 4px; min-height: 50px; font-size: 0.9em; }
+.lineup-grid-positions { display: flex; flex-direction: column; gap: 0.25rem; }
+.lineup-position { display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0.5rem; border: 1px dashed #ccc; border-radius: 4px; min-height: 35px; font-size: 0.9em; }
 .staff-area { flex-grow: 1; display: flex; flex-direction: column; gap: 0.5rem; }
-.bench-area { border: 1px dashed #ccc; border-radius: 4px; padding: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-content: flex-start; min-height: 50px; }
-.player-chip { background-color: #dee2e6; padding: 0.25rem 0.5rem; border-radius: 12px; cursor: pointer; font-size: 0.85em; }
+.bench-area { border: 1px dashed #ccc; border-radius: 4px; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem; align-content: flex-start; min-height: 50px; }
+.player-chip { background-color: #dee2e6; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
 .player-chip:hover { background-color: #ffdddd; }
 .player-chip small { color: #495057; }
 .over-limit { color: #dc3545; }
@@ -618,6 +618,7 @@ onMounted(async () => {
 .unavailable { opacity: 0.5; cursor: not-allowed; background-color: #eee; }
 .owned-label { font-size: 0.8em; color: #dc3545; font-weight: bold; margin-right: 0.5rem; }
 .owned-player-text { color: #888; }
+.long-name { font-size: 0.85em; letter-spacing: -0.5px; }
 .owning-team-logo { height: 20px; width: auto; vertical-align: middle; margin-left: 5px; margin-right: 5px; }
 
 .mode-badge {
@@ -627,6 +628,6 @@ onMounted(async () => {
     border-radius: 4px;
     font-size: 0.9rem;
     font-weight: bold;
-    align-self: flex-start;
+    white-space: nowrap;
 }
 </style>
