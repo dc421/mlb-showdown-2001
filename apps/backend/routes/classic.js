@@ -24,52 +24,79 @@ router.get('/eligibility', authenticateToken, async (req, res) => {
     }
 });
 
+// GET LIST OF CLASSICS
+router.get('/list', authenticateToken, async (req, res) => {
+    try {
+        const query = `SELECT id, name, description, is_active FROM classics ORDER BY created_at DESC`;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error fetching classic list:', error);
+        res.status(500).json({ message: 'Server error fetching classic list.' });
+    }
+});
+
 // GET CLASSIC STATE (Bracket, Seeding, Rosters)
 router.get('/state', authenticateToken, async (req, res) => {
+    const { classicId } = req.query;
+
     try {
-        // 1. Seeding: Fetch Wooden Spoon losers
-        // We fetch ALL wooden spoon rounds and sort in JS to ensure date accuracy
-        const spoonQuery = `
-            SELECT losing_team_id, date
-            FROM series_results
-            WHERE round = 'Wooden Spoon'
-        `;
-        const spoonResult = await pool.query(spoonQuery);
-
-        // Sort by Date DESC (Newest first)
-        const sortedSpoonRows = spoonResult.rows.sort((a, b) => {
-            const dateA = new Date(a.date);
-            const dateB = new Date(b.date);
-            return dateB - dateA;
-        });
-
-        // Use a Set to get unique most recent losers
-        const seeds = [];
-        const seenTeams = new Set();
-
-        for (const row of sortedSpoonRows) {
-            if (!seenTeams.has(row.losing_team_id) && row.losing_team_id) {
-                seenTeams.add(row.losing_team_id);
-                // Fetch team details
-                const teamRes = await pool.query('SELECT name, city, user_id, logo_url FROM teams WHERE team_id = $1', [row.losing_team_id]);
-                if (teamRes.rows.length > 0) {
-                    const t = teamRes.rows[0];
-                    seeds.push({
-                        team_id: row.losing_team_id,
-                        user_id: t.user_id,
-                        name: `${t.city} ${t.name}`,
-                        city: t.city,
-                        logo_url: t.logo_url,
-                        lastSpoonDate: row.date
-                    });
-                }
-            }
-            if (seeds.length >= 5) break; // We only need top 5 seeds
+        // 0. Resolve Classic ID
+        let classic;
+        if (classicId) {
+            const cRes = await pool.query(`SELECT * FROM classics WHERE id = $1`, [classicId]);
+            classic = cRes.rows[0];
+        } else {
+            const cRes = await pool.query(`SELECT * FROM classics WHERE is_active = true LIMIT 1`);
+            classic = cRes.rows[0];
         }
 
-        // seeds array is now [Seed 5 (Newest), Seed 4, Seed 3, Seed 2, Seed 1 (Oldest)]
+        if (!classic) {
+            return res.status(404).json({ message: 'Classic not found' });
+        }
 
-        // 2. Bracket Data: Fetch Classic series results
+        // 1. Seeding
+        let seeds = [];
+        if (classic.seeding && Array.isArray(classic.seeding) && classic.seeding.length > 0) {
+            seeds = classic.seeding;
+        } else {
+            // Dynamic Seeding (Wooden Spoon Logic)
+            const spoonQuery = `
+                SELECT losing_team_id, date
+                FROM series_results
+                WHERE round = 'Wooden Spoon'
+            `;
+            const spoonResult = await pool.query(spoonQuery);
+
+            const sortedSpoonRows = spoonResult.rows.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateB - dateA;
+            });
+
+            const seenTeams = new Set();
+
+            for (const row of sortedSpoonRows) {
+                if (!seenTeams.has(row.losing_team_id) && row.losing_team_id) {
+                    seenTeams.add(row.losing_team_id);
+                    const teamRes = await pool.query('SELECT name, city, user_id, logo_url FROM teams WHERE team_id = $1', [row.losing_team_id]);
+                    if (teamRes.rows.length > 0) {
+                        const t = teamRes.rows[0];
+                        seeds.push({
+                            team_id: row.losing_team_id,
+                            user_id: t.user_id,
+                            name: `${t.city} ${t.name}`,
+                            city: t.city,
+                            logo_url: t.logo_url,
+                            lastSpoonDate: row.date
+                        });
+                    }
+                }
+                if (seeds.length >= 5) break;
+            }
+        }
+
+        // 2. Bracket Data
         const classicSeriesQuery = `
             SELECT s.*,
                    ht.city as home_city, ht.name as home_name,
@@ -77,9 +104,9 @@ router.get('/state', authenticateToken, async (req, res) => {
             FROM series s
             JOIN teams ht ON s.series_home_user_id = ht.user_id
             LEFT JOIN teams at ON s.series_away_user_id = at.user_id
-            WHERE s.series_type = 'classic'
+            WHERE s.series_type = 'classic' AND s.classic_id = $1
         `;
-        const bracketResult = await pool.query(classicSeriesQuery);
+        const bracketResult = await pool.query(classicSeriesQuery, [classic.id]);
         const seriesData = bracketResult.rows.map(s => ({
             id: s.id,
             home: `${s.home_city} ${s.home_name}`,
@@ -88,20 +115,20 @@ router.get('/state', authenticateToken, async (req, res) => {
             status: s.status,
             home_user_id: s.series_home_user_id,
             away_user_id: s.series_away_user_id,
-            winning_team_id: s.home_wins > s.away_wins ? s.home_team_user_id : (s.away_wins > s.home_wins ? s.series_away_user_id : null), // Approx logic, strict check relies on series completion
-            home_team_id: s.home_team_user_id // Note: schema has home_team_user_id on games, series has series_home_user_id
+            winning_team_id: s.home_wins > s.away_wins ? s.home_team_user_id : (s.away_wins > s.home_wins ? s.series_away_user_id : null),
+            home_team_id: s.home_team_user_id
         }));
 
-        // 3. Roster Reveal Status
+        // 3. Roster Reveal Status & Rosters
         const validRostersQuery = `
             SELECT r.user_id
             FROM rosters r
             JOIN roster_cards rc ON r.roster_id = rc.roster_id
-            WHERE r.roster_type = 'classic'
+            WHERE r.roster_type = 'classic' AND r.classic_id = $1
             GROUP BY r.roster_id
             HAVING COUNT(rc.card_id) = 20
         `;
-        const validRostersRes = await pool.query(validRostersQuery);
+        const validRostersRes = await pool.query(validRostersQuery, [classic.id]);
         const readyCount = validRostersRes.rowCount;
         const revealed = readyCount >= 5;
 
@@ -118,9 +145,9 @@ router.get('/state', authenticateToken, async (req, res) => {
                 JOIN teams t ON u.team_id = t.team_id
                 JOIN roster_cards rc ON r.roster_id = rc.roster_id
                 JOIN cards_player cp ON rc.card_id = cp.card_id
-                WHERE r.roster_type = 'classic'
+                WHERE r.roster_type = 'classic' AND r.classic_id = $1
             `;
-            const rostersRes = await pool.query(rostersQuery);
+            const rostersRes = await pool.query(rostersQuery, [classic.id]);
 
             const rosterMap = {};
             rostersRes.rows.forEach(row => {
@@ -136,6 +163,12 @@ router.get('/state', authenticateToken, async (req, res) => {
         }
 
         res.json({
+            classic: {
+                id: classic.id,
+                name: classic.name,
+                description: classic.description,
+                is_active: classic.is_active
+            },
             seeding: seeds,
             series: seriesData,
             revealed,
@@ -153,7 +186,6 @@ router.get('/state', authenticateToken, async (req, res) => {
 router.post('/result', authenticateToken, async (req, res) => {
     const { winnerId, loserId, winningScore, losingScore, round } = req.body;
 
-    // Basic validation
     if (!winnerId || !loserId || winningScore === undefined || losingScore === undefined || !round) {
         return res.status(400).json({ message: 'Missing required fields.' });
     }
@@ -162,7 +194,15 @@ router.post('/result', authenticateToken, async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Determine Season Name (Use latest existing one or default to 'Classic')
+        // 0. Get Active Classic ID
+        const classicRes = await client.query(`SELECT id FROM classics WHERE is_active = true LIMIT 1`);
+        if (classicRes.rows.length === 0) {
+             await client.query('ROLLBACK');
+             return res.status(400).json({ message: 'No active classic found.' });
+        }
+        const classicId = classicRes.rows[0].id;
+
+        // 1. Determine Season Name
         const seasonQuery = `
             SELECT season_name
             FROM series_results
@@ -173,7 +213,7 @@ router.post('/result', authenticateToken, async (req, res) => {
         const seasonRes = await client.query(seasonQuery);
         const seasonName = seasonRes.rows.length > 0 ? seasonRes.rows[0].season_name : 'Classic';
 
-        // 2. Fetch Team Names for History
+        // 2. Fetch Team Names
         const teamQuery = `SELECT team_id, user_id, name, city FROM teams WHERE user_id IN ($1, $2)`;
         const teamsRes = await client.query(teamQuery, [winnerId, loserId]);
 
@@ -188,7 +228,7 @@ router.post('/result', authenticateToken, async (req, res) => {
         const winningTeamName = `${winner.city} ${winner.name}`;
         const losingTeamName = `${loser.city} ${loser.name}`;
 
-        // 3. Insert into series_results (History/Trophies)
+        // 3. Insert into series_results
         await client.query(`
             INSERT INTO series_results (
                 date, season_name, style, round,
@@ -203,19 +243,16 @@ router.post('/result', authenticateToken, async (req, res) => {
             )
         `, [seasonName, round, winningTeamName, losingTeamName, winner.team_id, loser.team_id, winningScore, losingScore]);
 
-        // 4. Insert into series (Bracket Visualization)
-        // We need to map "Home" and "Away" based on the inputs or standard logic.
-        // For simple result entry, we can assume the inputs are agnostic, but the bracket expects specific home/away IDs.
-        // We will just set them. The bracket component looks for a match between the two IDs regardless of order.
+        // 4. Insert into series
         await client.query(`
             INSERT INTO series (
                 series_type, series_home_user_id, series_away_user_id,
-                home_wins, away_wins, status
+                home_wins, away_wins, status, classic_id
             ) VALUES (
                 'classic', $1, $2,
-                $3, $4, 'completed'
+                $3, $4, 'completed', $5
             )
-        `, [winnerId, loserId, winningScore, losingScore]);
+        `, [winnerId, loserId, winningScore, losingScore, classicId]);
 
         await client.query('COMMIT');
         res.json({ message: 'Result recorded successfully.' });

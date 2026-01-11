@@ -890,7 +890,22 @@ app.get('/api/my-roster', authenticateToken, async (req, res) => {
     const rosterType = type || 'league'; // Default to 'league'
 
     try {
-        const rosterResult = await pool.query('SELECT roster_id, user_id, roster_type FROM rosters WHERE user_id = $1 AND roster_type = $2', [userId, rosterType]);
+        let queryText = 'SELECT roster_id, user_id, roster_type, classic_id FROM rosters WHERE user_id = $1 AND roster_type = $2';
+        let queryParams = [userId, rosterType];
+
+        if (rosterType === 'classic') {
+            const activeClassicRes = await pool.query(`SELECT id FROM classics WHERE is_active = true LIMIT 1`);
+            if (activeClassicRes.rows.length > 0) {
+                const classicId = activeClassicRes.rows[0].id;
+                queryText += ' AND classic_id = $3';
+                queryParams.push(classicId);
+            } else {
+                 // No active classic? Return null immediately as "My Roster" implies active context.
+                 return res.json(null);
+            }
+        }
+
+        const rosterResult = await pool.query(queryText, queryParams);
         if (rosterResult.rows.length === 0) {
             return res.json(null);
         }
@@ -925,8 +940,27 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+
+        let classicId = null;
+        if (rosterType === 'classic') {
+             const activeClassicRes = await client.query(`SELECT id FROM classics WHERE is_active = true LIMIT 1`);
+             if (activeClassicRes.rows.length === 0) {
+                 await client.query('ROLLBACK');
+                 return res.status(400).json({ message: 'No active Classic found to submit a roster for.' });
+             }
+             classicId = activeClassicRes.rows[0].id;
+        }
         
-        const existingRoster = await client.query('SELECT roster_id FROM rosters WHERE user_id = $1 AND roster_type = $2', [userId, rosterType]);
+        // Revised lookup for existing roster
+        let existingRosterQuery = 'SELECT roster_id FROM rosters WHERE user_id = $1 AND roster_type = $2';
+        let existingRosterParams = [userId, rosterType];
+
+        if (rosterType === 'classic') {
+            existingRosterQuery += ' AND classic_id = $3';
+            existingRosterParams.push(classicId);
+        }
+
+        const existingRoster = await client.query(existingRosterQuery, existingRosterParams);
         let rosterId;
         let oldCards = [];
 
@@ -937,8 +971,20 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
             oldCards = oldCardsRes.rows.map(c => c.card_id);
             await client.query('DELETE FROM roster_cards WHERE roster_id = $1', [rosterId]);
         } else {
-            const newRoster = await client.query('INSERT INTO rosters (user_id, roster_type) VALUES ($1, $2) RETURNING roster_id', [userId, rosterType]);
-            rosterId = newRoster.rows[0].roster_id;
+            // New Roster Insertion
+            if (rosterType === 'classic') {
+                const newRoster = await client.query(
+                    'INSERT INTO rosters (user_id, roster_type, classic_id) VALUES ($1, $2, $3) RETURNING roster_id',
+                    [userId, rosterType, classicId]
+                );
+                rosterId = newRoster.rows[0].roster_id;
+            } else {
+                const newRoster = await client.query(
+                    'INSERT INTO rosters (user_id, roster_type) VALUES ($1, $2) RETURNING roster_id',
+                    [userId, rosterType]
+                );
+                rosterId = newRoster.rows[0].roster_id;
+            }
         }
 
         // Insert the new set of cards with their specific assignments
