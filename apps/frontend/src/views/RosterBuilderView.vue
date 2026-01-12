@@ -628,7 +628,7 @@ onMounted(async () => {
     padding: 0.5rem;
     border: 1px dashed #ccc;
     border-radius: 4px;
-    min-height: 42px; /* Match row height */
+    min-height: 36px; /* Match row height */
     box-sizing: border-box;
     background: white;
     color: #888;
@@ -649,7 +649,7 @@ onMounted(async () => {
     flex-direction: column;
     gap: 0; /* Rows have padding */
     align-content: flex-start;
-    min-height: 50px;
+    min-height: 36px;
     background: white;
 }
 
