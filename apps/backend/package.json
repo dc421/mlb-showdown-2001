@@ -8,7 +8,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "migrate:create": "node-pg-migrate -r dotenv/config create",
-    "migrate:up": "node-pg-migrate -r dotenv/config up",
+    "migrate:up": "node fix_migrations_sequence.js && node-pg-migrate -r dotenv/config up",
     "import:points": "node import-points.js",
     "import:all-points": "node import-all-points.js",
     "update:names": "node update-display-names.js",
