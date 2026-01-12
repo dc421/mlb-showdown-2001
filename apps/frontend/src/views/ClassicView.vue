@@ -1,12 +1,16 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
 const loading = ref(true);
+const classicsList = ref([]);
+const selectedClassicId = ref(null);
+
 const state = ref({
+    classic: null,
     seeding: [],
     series: [],
     revealed: false,
@@ -123,6 +127,7 @@ const resultForm = ref({
 });
 
 function openResultModal(matchup, roundName) {
+    if (state.value.classic && !state.value.classic.is_active) return; // Read-only for past classics
     activeMatchup.value = { ...matchup, roundName };
     resultForm.value = {
         winnerId: matchup.team1.user_id, // Default to Team 1
@@ -156,10 +161,7 @@ async function submitResult() {
         if (res.ok) {
             resultModalOpen.value = false;
             // Reload state
-            const stateRes = await apiClient('/api/classic/state');
-            if (stateRes.ok) {
-                state.value = await stateRes.json();
-            }
+            loadState();
         } else {
             alert("Failed to submit result.");
         }
@@ -193,23 +195,93 @@ function padRoster(roster) {
     return padded;
 }
 
-onMounted(async () => {
+async function loadClassicsList() {
     try {
-        const res = await apiClient('/api/classic/state');
+        const res = await apiClient('/api/classic/list');
+        if (res.ok) {
+            classicsList.value = await res.json();
+        }
+    } catch (e) {
+        console.error("Failed to load classics list", e);
+    }
+}
+
+async function loadState() {
+    loading.value = true;
+    try {
+        let url = '/api/classic/state';
+        if (selectedClassicId.value) {
+            url += `?classicId=${selectedClassicId.value}`;
+        }
+        const res = await apiClient(url);
         if (res.ok) {
             state.value = await res.json();
+
+            // Sync selection if not set (initial load)
+            // We temporarily pause the watcher logic via check below, but easier to just check current value
+            if (state.value.classic && selectedClassicId.value !== state.value.classic.id) {
+                 selectedClassicId.value = state.value.classic.id;
+            }
         }
     } catch (e) {
         console.error("Failed to load classic state", e);
     } finally {
         loading.value = false;
     }
+}
+
+watch(selectedClassicId, (newId, oldId) => {
+    // If the new ID matches what's already in state (from initial load), don't reload.
+    if (state.value.classic && newId === state.value.classic.id) {
+        return;
+    }
+    if (newId && newId !== oldId) {
+        loadState();
+    }
+});
+
+onMounted(async () => {
+    await loadClassicsList();
+    // Initially load with no ID (defaults to active), then set ID which triggers watch -> double fetch.
+    // FIX: Don't call loadState here if we are about to set selectedClassicId from the list.
+    // Instead, determine the initial ID from the list and set it, letting the watcher handle the fetch.
+
+    // Actually, safer pattern:
+    // 1. Load list.
+    // 2. Determine default ID.
+    // 3. Set selectedClassicId.
+    // 4. Let watcher trigger loadState OR call loadState explicitly if watcher is suppressed.
+
+    // Current flow:
+    // loadState() called in onMounted -> fetches /state -> gets Classic object -> sets selectedClassicId
+    // Watcher sees selectedClassicId change -> calls loadState() again.
+
+    // Better flow:
+    // Just call loadState once. Inside loadState, we set selectedClassicId.
+    // We need to make sure the watcher doesn't re-fire if the ID matches state.classic.id.
+    // OR just use a flag.
+
+    await loadState();
 });
 </script>
 
 <template>
     <div class="classic-container">
-        <h1>Showdown Classic</h1>
+        <div class="header-section">
+            <div class="title-row">
+                <h1>Showdown Classic</h1>
+                <div class="classic-selector" v-if="classicsList.length > 0">
+                    <select v-model="selectedClassicId">
+                        <option v-for="c in classicsList" :key="c.id" :value="c.id">
+                            {{ c.name }}
+                        </option>
+                    </select>
+                </div>
+            </div>
+            <div v-if="state.classic" class="classic-description">
+                <p>{{ state.classic.description }}</p>
+            </div>
+        </div>
 
         <div v-if="loading">Loading...</div>
 
@@ -257,7 +329,7 @@ onMounted(async () => {
                             {{ bracket.matchups.playIn.series.score }}
                         </div>
                         <button class="enter-result-btn"
-                            v-if="!bracket.matchups.playIn.series && bracket.matchups.playIn.team1.user_id && bracket.matchups.playIn.team2.user_id"
+                            v-if="!bracket.matchups.playIn.series && bracket.matchups.playIn.team1.user_id && bracket.matchups.playIn.team2.user_id && state.classic && state.classic.is_active"
                             @click="openResultModal(bracket.matchups.playIn, 'Play-In')">
                             +
                         </button>
@@ -290,7 +362,7 @@ onMounted(async () => {
                             {{ bracket.matchups.semi1.series.score }}
                         </div>
                          <button class="enter-result-btn"
-                            v-if="!bracket.matchups.semi1.series && bracket.matchups.semi1.team1.user_id && bracket.matchups.semi1.team2.user_id"
+                            v-if="!bracket.matchups.semi1.series && bracket.matchups.semi1.team1.user_id && bracket.matchups.semi1.team2.user_id && state.classic && state.classic.is_active"
                             @click="openResultModal(bracket.matchups.semi1, 'Semi-Final')">
                             +
                         </button>
@@ -322,7 +394,7 @@ onMounted(async () => {
                             {{ bracket.matchups.semi2.series.score }}
                         </div>
                         <button class="enter-result-btn"
-                            v-if="!bracket.matchups.semi2.series && bracket.matchups.semi2.team1.user_id && bracket.matchups.semi2.team2.user_id"
+                            v-if="!bracket.matchups.semi2.series && bracket.matchups.semi2.team1.user_id && bracket.matchups.semi2.team2.user_id && state.classic && state.classic.is_active"
                             @click="openResultModal(bracket.matchups.semi2, 'Semi-Final')">
                             +
                         </button>
@@ -354,7 +426,7 @@ onMounted(async () => {
                             {{ bracket.matchups.final.series.score }}
                         </div>
                         <button class="enter-result-btn"
-                            v-if="!bracket.matchups.final.series && bracket.matchups.final.team1.user_id && bracket.matchups.final.team2.user_id"
+                            v-if="!bracket.matchups.final.series && bracket.matchups.final.team1.user_id && bracket.matchups.final.team2.user_id && state.classic && state.classic.is_active"
                             @click="openResultModal(bracket.matchups.final, 'Silver Submarine')">
                             +
                         </button>
@@ -454,6 +526,31 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.header-section {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+}
+.title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.classic-selector select {
+    font-size: 1.2rem;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+.classic-description {
+    margin-top: 10px;
+    font-style: italic;
+    color: #666;
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 4px;
+}
+
 .enter-result-btn {
     position: absolute;
     right: -25px; /* Sit to the right of the arm */
