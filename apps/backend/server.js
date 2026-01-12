@@ -13,6 +13,7 @@ const authenticateToken = require('./middleware/authenticateToken');
 const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange } = require('./gameLogic');
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
+const { verifyConnection } = require('./services/emailService');
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
 
@@ -4226,6 +4227,9 @@ async function startServer() {
 
     // Start Cron Jobs
     startDraftMonitor();
+
+    // Verify Email Connection
+    verifyConnection();
 
     server.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);

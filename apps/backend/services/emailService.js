@@ -6,11 +6,35 @@ const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
     secure: process.env.EMAIL_PORT == 465, // true for 465, false for other ports
+    family: 4, // Force IPv4 to prevent IPv6 connection issues on some platforms
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 5000, // 5 seconds
+    socketTimeout: 10000, // 10 seconds
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
 });
+
+// Verification Function
+async function verifyConnection() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const hasEmailConfig = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
+
+    if (!isProduction || !hasEmailConfig) {
+        console.log("--- Email Service: Verification Skipped (Dev/Missing Config) ---");
+        return;
+    }
+
+    try {
+        await transporter.verify();
+        console.log("✅ Email Service: SMTP Connection Established Successfully");
+    } catch (error) {
+        console.error("❌ Email Service: Connection Failed!");
+        console.error(error);
+        // We do NOT exit the process here, as the app should still run even if email is broken.
+    }
+}
 
 // Helper: Get all user emails
 async function getLeagueEmails(client) {
@@ -196,5 +220,6 @@ module.exports = {
     sendPickConfirmation,
     sendStalledDraftNotification,
     sendClassicRosterSubmissionEmail,
-    sendRandomRemovalsEmail
+    sendRandomRemovalsEmail,
+    verifyConnection
 };
