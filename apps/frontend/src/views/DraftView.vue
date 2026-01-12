@@ -605,7 +605,7 @@ onUnmounted(() => {
 .team-header { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; margin-bottom: 0rem; }
 .team-info h2 { margin: 0; font-size: 1.4rem; }
 .roster-table-container { overflow-x: auto; }
-.roster-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.roster-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .roster-table th { text-align: left; padding: 0.5rem; background: #e9ecef; color: #495057; font-weight: 600; }
 .roster-table td { padding: 0.25rem 0.5rem; border-bottom: 1px solid #dee2e6; }
 .player-row { transition: background-color 0.2s; }
