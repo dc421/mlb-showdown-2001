@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useGameStore } from '@/stores/game';
@@ -12,6 +12,16 @@ const gameStore = useGameStore();
 const route = useRoute();
 const isGamePage = computed(() => route.name === 'game');
 const isDashboardPage = computed(() => route.name === 'dashboard');
+
+const isMenuOpen = ref(false);
+
+const toggleMenu = () => {
+  isMenuOpen.value = !isMenuOpen.value;
+};
+
+const closeMenu = () => {
+    isMenuOpen.value = false;
+};
 
 onMounted(async () => {
   // Check draft status on mount
@@ -30,7 +40,7 @@ onMounted(async () => {
 <template>
   <nav class="global-nav" :class="{ 'game-page-active': isGamePage, 'dashboard-page': isDashboardPage }">
     <div class="nav-left">
-      <RouterLink to="/dashboard">
+      <RouterLink to="/dashboard" @click="closeMenu">
         <img v-if="authStore.user?.team" :src="authStore.user.team.logo_url" alt="Team Logo" class="nav-team-logo" />
       </RouterLink>
       <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
@@ -48,7 +58,25 @@ onMounted(async () => {
     </div>
 
     <div class="nav-right">
-      <button class="logout-button" @click="authStore.logout()">Logout</button>
+      <!-- Desktop Logout -->
+      <button class="logout-button desktop-logout" @click="authStore.logout()">Logout</button>
+
+      <!-- Mobile Menu Toggle -->
+      <button class="menu-toggle" @click="toggleMenu">
+        <!-- SVG Menu Icon -->
+        <svg v-if="!isMenuOpen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-menu"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <!-- SVG X Icon -->
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+
+    <!-- Mobile Dropdown Menu -->
+    <div v-if="isMenuOpen" class="mobile-menu">
+      <RouterLink to="/dashboard" @click="closeMenu" class="mobile-link">Dashboard</RouterLink>
+      <RouterLink to="/league" @click="closeMenu" class="mobile-link">League</RouterLink>
+      <RouterLink to="/classic" @click="closeMenu" class="mobile-link">Classic</RouterLink>
+      <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
+      <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
     </div>
   </nav>
 </template>
@@ -117,12 +145,25 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
+/* Mobile Menu Styles */
+.menu-toggle {
+  display: none; /* Hidden on desktop */
+  background: none !important;
+  padding: 0;
+  margin: 0;
+}
+
+.mobile-menu {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .global-nav {
     padding: 0.5rem;
     gap: 0.5rem; /* Reduced gap for tighter fit */
     max-height: unset; /* Allow mobile nav to grow if needed */
     overflow-y: visible;
+    flex-wrap: wrap; /* Allow wrapping for the dropdown */
   }
 
   .nav-left {
@@ -154,7 +195,6 @@ onMounted(async () => {
     display: none;
   }
 
-
   /* Ensure the outs are visible against the dark background */
   .nav-center :deep(.outs-display) {
     background-color: transparent; /* Or whatever matches the nav */
@@ -163,6 +203,43 @@ onMounted(async () => {
 
   .nav-center :deep(.linescore-table) {
     min-width: 0;
+  }
+
+  /* Mobile Menu Implementation */
+  .menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .desktop-logout {
+    display: none;
+  }
+
+  .mobile-menu {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    background-color: #2b3035; /* Slightly darker than nav */
+    padding: 1rem;
+    gap: 1rem;
+    border-top: 1px solid #495057;
+    order: 4; /* Force to bottom of flex container */
+  }
+
+  .mobile-link {
+    padding: 0.5rem;
+    border-radius: 4px;
+    text-align: center;
+  }
+
+  .mobile-link:hover {
+    background-color: #495057;
+  }
+
+  .mobile-logout {
+    width: 100%;
+    margin-top: 0.5rem;
   }
 }
 
