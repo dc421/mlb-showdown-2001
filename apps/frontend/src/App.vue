@@ -16,7 +16,7 @@ const authStore = useAuthStore();
 
 <style>
   .app-wrapper {
-    background-color: #343a40;
+    background-color: white;
   }
   /* Global styles for the entire application */
   body {

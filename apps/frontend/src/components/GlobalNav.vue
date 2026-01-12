@@ -220,17 +220,16 @@ onMounted(async () => {
     display: flex;
     flex-direction: column;
     width: 100%;
-    background-color: #2b3035; /* Slightly darker than nav */
-    padding: 1rem;
-    gap: 1rem;
-    border-top: 1px solid #495057;
+    background-color: #343a40; /* Slightly darker than nav */
+    padding: 0rem;
+    gap: 0rem;
     order: 4; /* Force to bottom of flex container */
   }
 
   .mobile-link {
     padding: 0.5rem;
     border-radius: 4px;
-    text-align: center;
+    text-align: left;
   }
 
   .mobile-link:hover {
