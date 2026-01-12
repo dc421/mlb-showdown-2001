@@ -260,27 +260,45 @@ onUnmounted(() => {
       </div>
       <div class="accolades">
           <div v-if="teamAccolades.spaceships.length > 0" class="accolade-row">
-            <div v-for="(accolade, index) in teamAccolades.spaceships" :key="accolade.season_name + index" class="accolade-item">
+            <div v-for="(accolade, index) in teamAccolades.spaceships" :key="accolade.season_name + index" class="accolade-item desktop-only">
               <img :src="`${apiUrl}/images/golden_spaceship.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Golden Spaceship" />
             </div>
+            <div class="accolade-item mobile-only">
+              <img :src="`${apiUrl}/images/golden_spaceship.png`"
+                   class="accolade-icon"
+                   alt="Golden Spaceship" />
+              <span class="accolade-count">: {{ teamAccolades.spaceships.length }}</span>
+            </div>
           </div>
           <div v-if="teamAccolades.spoons.length > 0" class="accolade-row">
-             <div v-for="(accolade, index) in teamAccolades.spoons" :key="accolade.season_name + index" class="accolade-item">
+             <div v-for="(accolade, index) in teamAccolades.spoons" :key="accolade.season_name + index" class="accolade-item desktop-only">
                <img :src="`${apiUrl}/images/wooden_spoon.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Wooden Spoon" />
              </div>
+             <div class="accolade-item mobile-only">
+               <img :src="`${apiUrl}/images/wooden_spoon.png`"
+                   class="accolade-icon"
+                   alt="Wooden Spoon" />
+               <span class="accolade-count">: {{ teamAccolades.spoons.length }}</span>
+             </div>
           </div>
           <div v-if="teamAccolades.submarines && teamAccolades.submarines.length > 0" class="accolade-row">
-             <div v-for="(accolade, index) in teamAccolades.submarines" :key="accolade.season_name + index" class="accolade-item">
+             <div v-for="(accolade, index) in teamAccolades.submarines" :key="accolade.season_name + index" class="accolade-item desktop-only">
                <img :src="`${apiUrl}/images/silver_submarine.png`"
                    :title="accolade.season_name"
                    class="accolade-icon"
                    alt="Silver Submarine" />
+             </div>
+             <div class="accolade-item mobile-only">
+               <img :src="`${apiUrl}/images/silver_submarine.png`"
+                   class="accolade-icon"
+                   alt="Silver Submarine" />
+               <span class="accolade-count">: {{ teamAccolades.submarines.length }}</span>
              </div>
           </div>
       </div>
@@ -599,6 +617,16 @@ onUnmounted(() => {
     background-color: #0056b3;
 }
 
+.accolade-count {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-left: 0.5rem;
+    align-self: center;
+}
+
+.accolade-item.mobile-only {
+    width: auto;
+}
 
 @media (max-width: 768px) {
   .team-header {
@@ -608,9 +636,16 @@ onUnmounted(() => {
   .team-info h1 {
     font-size: 2rem;
   }
+  .accolades {
+      margin-left: 0;
+      align-items: center;
+      margin-top: 1rem;
+  }
+  .desktop-only { display: none !important; }
 }
 
 @media (min-width: 769px) {
+  .mobile-only { display: none !important; }
   .dashboard-container {
     padding-top: 2rem;
   }
