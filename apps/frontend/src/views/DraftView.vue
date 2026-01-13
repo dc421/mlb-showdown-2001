@@ -36,6 +36,8 @@ const leagueRosterIds = ref(new Set());
 const apiUrl = import.meta.env.VITE_API_URL || '';
 const takenPlayersMap = ref(new Map()); // card_id -> { logo_url, name }
 
+const isSubmitting = ref(false);
+
 // --- COMPUTED ---
 const isDraftActive = computed(() => draftState.value.is_active);
 
@@ -312,7 +314,10 @@ async function startDraft() {
 
 async function makePick(player) {
     if (leagueRosterIds.value.has(player.card_id)) return; // Double check
+    if (isSubmitting.value) return; // Prevent double submission
     if (!confirm(`Draft ${player.name}?`)) return;
+
+    isSubmitting.value = true;
     try {
         const response = await apiClient(`/api/draft/pick`, {
             method: 'POST',
@@ -326,6 +331,8 @@ async function makePick(player) {
         }
     } catch (error) {
         console.error("Pick error:", error);
+    } finally {
+        isSubmitting.value = false;
     }
 }
 
@@ -338,7 +345,10 @@ function goToRosterBuilder() {
 }
 
 async function submitRoster() {
+    if (isSubmitting.value) return;
     if (!confirm("Are you sure you want to finalize your roster? Make sure your roster is valid (20 players, 5000pts cap, 4 SPs).")) return;
+
+    isSubmitting.value = true;
     try {
         const response = await apiClient(`/api/draft/submit-turn`, {
             method: 'POST',
@@ -352,6 +362,8 @@ async function submitRoster() {
         }
     } catch (error) {
         console.error("Roster submit error:", error);
+    } finally {
+        isSubmitting.value = false;
     }
 }
 
@@ -445,7 +457,7 @@ onUnmounted(() => {
                             </template>
                         </div>
                         <div class="action-cell">
-                            <button v-if="!leagueRosterIds.has(player.card_id)" @click="makePick(player)" class="draft-btn">Draft</button>
+                            <button v-if="!leagueRosterIds.has(player.card_id)" @click="makePick(player)" class="draft-btn" :disabled="isSubmitting">Draft</button>
                             <button v-else disabled class="draft-btn disabled">Taken</button>
                         </div>
                     </div>
@@ -458,7 +470,9 @@ onUnmounted(() => {
                 <p>You can add and drop as many players as you like.</p>
                 <div class="add-drop-buttons">
                     <button @click="goToRosterBuilder" class="builder-btn">Edit Roster</button>
-                    <button @click="submitRoster" class="submit-roster-btn">Submit Roster</button>
+                    <button @click="submitRoster" class="submit-roster-btn" :disabled="isSubmitting">
+                        {{ isSubmitting ? 'Submitting...' : 'Submit Roster' }}
+                    </button>
                 </div>
             </div>
         </div>

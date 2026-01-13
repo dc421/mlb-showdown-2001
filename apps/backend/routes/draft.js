@@ -630,11 +630,22 @@ router.post('/pick', authenticateToken, async (req, res) => {
         const assignment = card.control !== null ? 'PITCHING_STAFF' : 'BENCH';
         const isStarter = card.control !== null && card.ip > 3;
 
-        await client.query(
-            `INSERT INTO roster_cards (roster_id, card_id, is_starter, assignment)
-             VALUES ($1, $2, $3, $4)`,
-            [rosterId, playerId, isStarter, assignment]
-        );
+        try {
+            await client.query(
+                `INSERT INTO roster_cards (roster_id, card_id, is_starter, assignment)
+                 VALUES ($1, $2, $3, $4)`,
+                [rosterId, playerId, isStarter, assignment]
+            );
+        } catch (e) {
+            // Check for unique violation (duplicate pick race condition)
+            if (e.code === '23505' && e.constraint === 'roster_cards_pkey') {
+                console.warn(`Duplicate pick detected for card ${playerId}. Handling gracefully.`);
+                await client.query('ROLLBACK');
+                const currentState = await getDraftState(client);
+                return res.json(currentState);
+            }
+            throw e;
+        }
 
         const roundName = state.current_round === 2 ? "1" : "2";
         await client.query(
