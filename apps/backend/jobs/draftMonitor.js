@@ -45,7 +45,7 @@ async function checkStalledDrafts() {
             const team = teamRes.rows[0];
             const teamName = { name: `${team.city} ${team.name}` };
 
-            console.log(`Sending Level ${newLevel} notification to ${teamName.name}`);
+            console.log(`Broadcasting Level ${newLevel} notification about ${teamName.name} to the league`);
 
             await sendStalledDraftNotification(newLevel, teamName, client);
 
