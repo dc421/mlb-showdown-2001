@@ -2,19 +2,31 @@ const nodemailer = require('nodemailer');
 const { pool } = require('../db');
 
 // Configure transporter
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_PORT == 465, // true for 465, false for other ports
+const isGmail = (process.env.EMAIL_HOST || '').trim().toLowerCase() === 'smtp.gmail.com';
+const transportConfig = {
     family: 4, // Force IPv4 to prevent IPv6 connection issues on some platforms
     connectionTimeout: 60000, // 60 seconds
     greetingTimeout: 30000, // 30 seconds
     socketTimeout: 60000, // 60 seconds
+    debug: process.env.EMAIL_DEBUG === 'true', // Enable debug output if configured
+    logger: process.env.EMAIL_DEBUG === 'true', // Log to console if configured
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
-});
+};
+
+if (isGmail || process.env.EMAIL_SERVICE === 'Gmail') {
+    console.log('Detected Gmail configuration - enforcing service: "Gmail" (Port 465/SSL)');
+    transportConfig.service = 'Gmail';
+    // service: 'Gmail' automatically sets host, port (465), and secure (true)
+} else {
+    transportConfig.host = process.env.EMAIL_HOST;
+    transportConfig.port = process.env.EMAIL_PORT;
+    transportConfig.secure = process.env.EMAIL_PORT == 465; // true for 465, false for other ports
+}
+
+const transporter = nodemailer.createTransport(transportConfig);
 
 // Verification Function
 async function verifyConnection() {
