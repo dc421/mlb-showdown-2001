@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool, io } = require('../server'); // Import io
 const authenticateToken = require('../middleware/authenticateToken');
+const { verifyConnection } = require('../services/emailService');
 
 // Middleware to check if the user is a superuser (optional, for dev routes)
 const isSuperuser = (req, res, next) => {
@@ -14,6 +15,18 @@ const isSuperuser = (req, res, next) => {
 
 router.use(authenticateToken);
 router.use(isSuperuser);
+
+// POST to trigger email connection test
+router.post('/test-email', async (req, res) => {
+    try {
+        console.log("--- Manual Email Connection Test Triggered ---");
+        await verifyConnection();
+        res.status(200).json({ message: "Email connection test initiated. Check server logs for results." });
+    } catch (error) {
+        console.error("Error triggering email test:", error);
+        res.status(500).json({ message: "Error triggering email test." });
+    }
+});
 
 // GET all snapshots for a game
 router.get('/games/:gameId/snapshots', async (req, res) => {
