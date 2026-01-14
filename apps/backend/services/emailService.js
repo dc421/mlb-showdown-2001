@@ -130,7 +130,6 @@ async function verifyConnection() {
     if (process.env.BREVO_API_KEY) {
         console.log("✅ Email Service: BREVO_API_KEY detected. Switching to HTTP API mode.");
         console.log("   (Skipping SMTP verification as it is blocked on this environment)");
-        await sendStartupEmail();
         return; // Skip SMTP checks
     }
 
@@ -157,7 +156,6 @@ async function verifyConnection() {
     try {
         await transporter.verify();
         console.log("✅ Email Service: SMTP Connection Established Successfully");
-        await sendStartupEmail();
     } catch (error) {
         console.error(`❌ Email Service: Connection Failed on initial configuration! Error: ${error.message}`);
 
@@ -178,7 +176,6 @@ async function verifyConnection() {
                 transporter = nodemailer.createTransport(newConfig);
                 await transporter.verify();
                 console.log("✅ Email Service: SMTP Connection Established Successfully (Fallback Configuration)");
-                await sendStartupEmail();
             } catch (fallbackError) {
                 console.error("❌ Email Service: Fallback Connection Failed!");
                 console.error(fallbackError);
@@ -187,22 +184,6 @@ async function verifyConnection() {
         } else {
              console.error(error);
         }
-    }
-}
-
-async function sendStartupEmail() {
-     // Temporary: Send test email to team 3
-    try {
-        const userRes = await pool.query('SELECT email FROM users WHERE team_id = 3');
-        if (userRes.rows.length > 0) {
-            const email = userRes.rows[0].email;
-            console.log(`Sending startup verification email to team 3 (${email})...`);
-            await sendEmail(email, 'SMTP Verification Test', '<p>The email service has successfully connected on startup.</p>');
-        } else {
-            console.log('No user found for team_id 3 to send verification email.');
-        }
-    } catch (err) {
-        console.error('Error sending startup verification email:', err);
     }
 }
 
