@@ -1,6 +1,5 @@
 const nodemailer = require('nodemailer');
 const dns = require('dns').promises;
-const https = require('https');
 const { pool } = require('../db');
 
 // Helper to create transport config
@@ -56,83 +55,9 @@ function getTransportConfig(overridePort = null) {
 // Initial transporter setup
 let transporter = nodemailer.createTransport(getTransportConfig());
 
-// NEW: Brevo (formerly Sendinblue) HTTP API Transport
-async function sendViaBrevo(to, subject, html) {
-    return new Promise((resolve, reject) => {
-        const apiKey = process.env.BREVO_API_KEY;
-        if (!apiKey) {
-            return reject(new Error('Missing BREVO_API_KEY'));
-        }
-
-        // Brevo requires sender info. We default to EMAIL_USER if available.
-        const senderEmail = process.env.EMAIL_USER;
-        const senderName = "League Commissioner";
-
-        if (!senderEmail) {
-             return reject(new Error('Missing EMAIL_USER (needed for sender address in Brevo)'));
-        }
-
-        const toAddresses = Array.isArray(to) ? to : [to];
-        const recipients = toAddresses.map(email => ({ email }));
-
-        const data = JSON.stringify({
-            sender: { email: senderEmail, name: senderName },
-            to: recipients,
-            subject: subject,
-            htmlContent: html
-        });
-
-        const options = {
-            hostname: 'api.brevo.com',
-            port: 443,
-            path: '/v3/smtp/email',
-            method: 'POST',
-            headers: {
-                'api-key': apiKey,
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(data)
-            }
-        };
-
-        const req = https.request(options, (res) => {
-            let body = '';
-            res.on('data', (chunk) => body += chunk);
-            res.on('end', () => {
-                if (res.statusCode >= 200 && res.statusCode < 300) {
-                    try {
-                        const parsed = JSON.parse(body);
-                        resolve(parsed); // Returns { messageId: '...' }
-                    } catch (e) {
-                         // Fallback if response isn't JSON
-                        resolve({ messageId: 'unknown-brevo-id', raw: body });
-                    }
-                } else {
-                    reject(new Error(`Brevo API Error (${res.statusCode}): ${body}`));
-                }
-            });
-        });
-
-        req.on('error', (e) => {
-            reject(e);
-        });
-
-        req.write(data);
-        req.end();
-    });
-}
-
-
 // Verification Function
 async function verifyConnection() {
     const isProduction = process.env.NODE_ENV === 'production';
-
-    // Check for Brevo API Key
-    if (process.env.BREVO_API_KEY) {
-        console.log("✅ Email Service: BREVO_API_KEY detected. Switching to HTTP API mode.");
-        console.log("   (Skipping SMTP verification as it is blocked on this environment)");
-        return; // Skip SMTP checks
-    }
-
     const hasEmailConfig = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
 
     if (!isProduction || !hasEmailConfig) {
@@ -224,25 +149,14 @@ async function sendEmail(to, subject, html) {
         return;
     }
 
+    const mailOptions = {
+        from: `"League Commissioner" <${process.env.EMAIL_USER}>`,
+        to: Array.isArray(to) ? to.join(', ') : to,
+        subject: subject,
+        html: html,
+    };
+
     const isProduction = process.env.NODE_ENV === 'production';
-
-    // Priority: API if available
-    if (process.env.BREVO_API_KEY) {
-         try {
-            console.log(`Sending email via Brevo API to ${Array.isArray(to) ? to.join(', ') : to}`);
-            const result = await sendViaBrevo(to, subject, html);
-            console.log("Message sent via Brevo:", result.messageId || 'Success');
-            return;
-        } catch (error) {
-            console.error("Error sending email via Brevo:", error.message);
-            // We could fall back to SMTP here, but if BREVO is set, it likely means SMTP is blocked.
-            // Let's fallback only if explicitly requested, otherwise fail.
-            // For now, let's log and try SMTP as a desperate backup?
-            // No, the user goal is to avoid timeouts. SMTP will timeout.
-            return;
-        }
-    }
-
     const hasEmailConfig = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
 
     if (!isProduction || !hasEmailConfig) {
@@ -250,20 +164,11 @@ async function sendEmail(to, subject, html) {
         if (!hasEmailConfig && isProduction) {
             console.log("(Simulation active due to missing email configuration)");
         }
-
-        const recipients = Array.isArray(to) ? to.join(', ') : to;
-        console.log(`To: ${recipients}`);
-        console.log(`Subject: ${subject}`);
-        console.log(`Content: ${html.substring(0, 100)}...`);
+        console.log(`To: ${mailOptions.to}`);
+        console.log(`Subject: ${mailOptions.subject}`);
+        console.log(`Content: ${mailOptions.html.substring(0, 100)}...`);
         return;
     }
-
-    const mailOptions = {
-        from: `"League Commissioner" <${process.env.EMAIL_USER}>`,
-        to: Array.isArray(to) ? to.join(', ') : to,
-        subject: subject,
-        html: html,
-    };
 
     try {
         const info = await transporter.sendMail(mailOptions);
