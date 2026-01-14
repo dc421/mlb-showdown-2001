@@ -41,6 +41,21 @@ async function verifyConnection() {
     try {
         await transporter.verify();
         console.log("✅ Email Service: SMTP Connection Established Successfully");
+
+        // Temporary: Send test email to team 3
+        try {
+            const userRes = await pool.query('SELECT email FROM users WHERE team_id = 3');
+            if (userRes.rows.length > 0) {
+                const email = userRes.rows[0].email;
+                console.log(`Sending startup verification email to team 3 (${email})...`);
+                await sendEmail(email, 'SMTP Verification Test', '<p>The email service has successfully connected on startup.</p>');
+            } else {
+                console.log('No user found for team_id 3 to send verification email.');
+            }
+        } catch (err) {
+            console.error('Error sending startup verification email:', err);
+        }
+
     } catch (error) {
         console.error("❌ Email Service: Connection Failed!");
         console.error(error);
