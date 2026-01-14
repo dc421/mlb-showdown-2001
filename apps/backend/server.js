@@ -1261,7 +1261,6 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
 // GET ALL AVAILABLE TEAMS FOR REGISTRATION
 app.get('/api/available-teams', async (req, res) => {
   try {
-    console.log('4. Backend received request for /api/available-teams.');
     const availableTeamsQuery = await pool.query("SELECT team_id, city, name, display_format FROM teams WHERE user_id IS NULL");
     const availableTeams = availableTeamsQuery.rows.map(team => {
         const format = team.display_format || '{city} {name}';

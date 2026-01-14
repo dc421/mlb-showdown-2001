@@ -728,7 +728,7 @@ onUnmounted(() => {
     background-color: #fafafa;
 }
 .empty-row td {
-    height: 1.5rem; /* Ensure minimum height */
+    height: 1rem; /* Ensure minimum height */
 }
 
 /* Modal Styles */
