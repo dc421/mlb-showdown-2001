@@ -16,14 +16,25 @@ const transportConfig = {
     },
 };
 
-if (isGmail || process.env.EMAIL_SERVICE === 'Gmail') {
-    console.log('Detected Gmail configuration - enforcing service: "Gmail" (Port 465/SSL)');
+// Improved configuration logic that allows explicit ports for Gmail
+const isGmailService = process.env.EMAIL_SERVICE === 'Gmail';
+const isGmailConfig = isGmail || isGmailService;
+const explicitPort = process.env.EMAIL_PORT;
+
+if (isGmailConfig && !explicitPort) {
+    console.log('Detected Gmail configuration (No Port) - using service: "Gmail" (Port 465/SSL)');
     transportConfig.service = 'Gmail';
-    // service: 'Gmail' automatically sets host, port (465), and secure (true)
 } else {
     transportConfig.host = process.env.EMAIL_HOST;
-    transportConfig.port = process.env.EMAIL_PORT;
-    transportConfig.secure = process.env.EMAIL_PORT == 465; // true for 465, false for other ports
+    if (isGmailConfig && !transportConfig.host) {
+        transportConfig.host = 'smtp.gmail.com';
+    }
+
+    transportConfig.port = explicitPort ? parseInt(explicitPort) : 587; // Default to 587 if not set
+    transportConfig.secure = transportConfig.port === 465; // true for 465, false for other ports (587, 2525)
+
+    // Log configuration (excluding credentials)
+    console.log(`Configuring Email: Host=${transportConfig.host || '(Service default)'}, Port=${transportConfig.port}, Secure=${transportConfig.secure}`);
 }
 
 const transporter = nodemailer.createTransport(transportConfig);
