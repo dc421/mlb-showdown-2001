@@ -1,43 +1,51 @@
 const nodemailer = require('nodemailer');
 const { pool } = require('../db');
 
-// Configure transporter
-const isGmail = (process.env.EMAIL_HOST || '').trim().toLowerCase() === 'smtp.gmail.com';
-const transportConfig = {
-    family: 4, // Force IPv4 to prevent IPv6 connection issues on some platforms
-    connectionTimeout: 60000, // 60 seconds
-    greetingTimeout: 30000, // 30 seconds
-    socketTimeout: 60000, // 60 seconds
-    debug: process.env.EMAIL_DEBUG === 'true', // Enable debug output if configured
-    logger: process.env.EMAIL_DEBUG === 'true', // Log to console if configured
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-};
+// Helper to create transport config
+function getTransportConfig(overridePort = null) {
+    const isGmail = (process.env.EMAIL_HOST || '').trim().toLowerCase() === 'smtp.gmail.com';
 
-// Improved configuration logic that allows explicit ports for Gmail
-const isGmailService = process.env.EMAIL_SERVICE === 'Gmail';
-const isGmailConfig = isGmail || isGmailService;
-const explicitPort = process.env.EMAIL_PORT;
+    const baseConfig = {
+        family: 4, // Force IPv4 to prevent IPv6 connection issues on some platforms
+        connectionTimeout: 60000, // 60 seconds
+        greetingTimeout: 30000, // 30 seconds
+        socketTimeout: 60000, // 60 seconds
+        debug: process.env.EMAIL_DEBUG === 'true', // Enable debug output if configured
+        logger: process.env.EMAIL_DEBUG === 'true', // Log to console if configured
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+    };
 
-if (isGmailConfig && !explicitPort) {
-    console.log('Detected Gmail configuration (No Port) - using service: "Gmail" (Port 465/SSL)');
-    transportConfig.service = 'Gmail';
-} else {
-    transportConfig.host = process.env.EMAIL_HOST;
-    if (isGmailConfig && !transportConfig.host) {
-        transportConfig.host = 'smtp.gmail.com';
+    // Improved configuration logic that allows explicit ports for Gmail
+    const isGmailService = process.env.EMAIL_SERVICE === 'Gmail';
+    const isGmailConfig = isGmail || isGmailService;
+    // Use overridePort if provided, otherwise use env var, otherwise default
+    // We treat 'overridePort' as a number if passed, or use the env var
+    const explicitPort = overridePort !== null ? overridePort : process.env.EMAIL_PORT;
+
+    if (isGmailConfig && !explicitPort) {
+        console.log('Detected Gmail configuration (No Port) - using service: "Gmail" (Port 465/SSL)');
+        baseConfig.service = 'Gmail';
+    } else {
+        baseConfig.host = process.env.EMAIL_HOST;
+        if (isGmailConfig && !baseConfig.host) {
+            baseConfig.host = 'smtp.gmail.com';
+        }
+
+        baseConfig.port = explicitPort ? parseInt(explicitPort) : 587; // Default to 587 if not set
+        baseConfig.secure = baseConfig.port === 465; // true for 465, false for other ports (587, 2525)
+
+        // Log configuration (excluding credentials)
+        console.log(`Configuring Email: Host=${baseConfig.host || '(Service default)'}, Port=${baseConfig.port}, Secure=${baseConfig.secure}`);
     }
 
-    transportConfig.port = explicitPort ? parseInt(explicitPort) : 587; // Default to 587 if not set
-    transportConfig.secure = transportConfig.port === 465; // true for 465, false for other ports (587, 2525)
-
-    // Log configuration (excluding credentials)
-    console.log(`Configuring Email: Host=${transportConfig.host || '(Service default)'}, Port=${transportConfig.port}, Secure=${transportConfig.secure}`);
+    return baseConfig;
 }
 
-const transporter = nodemailer.createTransport(transportConfig);
+// Initial transporter setup
+let transporter = nodemailer.createTransport(getTransportConfig());
 
 // Verification Function
 async function verifyConnection() {
@@ -52,25 +60,48 @@ async function verifyConnection() {
     try {
         await transporter.verify();
         console.log("✅ Email Service: SMTP Connection Established Successfully");
-
-        // Temporary: Send test email to team 3
-        try {
-            const userRes = await pool.query('SELECT email FROM users WHERE team_id = 3');
-            if (userRes.rows.length > 0) {
-                const email = userRes.rows[0].email;
-                console.log(`Sending startup verification email to team 3 (${email})...`);
-                await sendEmail(email, 'SMTP Verification Test', '<p>The email service has successfully connected on startup.</p>');
-            } else {
-                console.log('No user found for team_id 3 to send verification email.');
-            }
-        } catch (err) {
-            console.error('Error sending startup verification email:', err);
-        }
-
+        await sendStartupEmail();
     } catch (error) {
-        console.error("❌ Email Service: Connection Failed!");
-        console.error(error);
-        // We do NOT exit the process here, as the app should still run even if email is broken.
+        console.error(`❌ Email Service: Connection Failed on initial port! Error: ${error.message}`);
+
+        // Fallback Logic: If we are on 587 and failed, try 465
+        const currentPort = transporter.options.port;
+        // Check both the explicit port in options AND the default if it wasn't set in options (though our config sets it)
+        const effectivePort = currentPort || 587;
+
+        if (effectivePort === 587) {
+            console.log("⚠️  Attempting fallback to Port 465 (SSL)...");
+            try {
+                // Reconfigure for 465
+                const newConfig = getTransportConfig(465);
+                transporter = nodemailer.createTransport(newConfig);
+                await transporter.verify();
+                console.log("✅ Email Service: SMTP Connection Established Successfully (Fallback: Port 465)");
+                await sendStartupEmail();
+            } catch (fallbackError) {
+                console.error("❌ Email Service: Fallback Connection Failed!");
+                console.error(fallbackError);
+                // We do NOT exit the process here, as the app should still run even if email is broken.
+            }
+        } else {
+             console.error(error);
+        }
+    }
+}
+
+async function sendStartupEmail() {
+     // Temporary: Send test email to team 3
+    try {
+        const userRes = await pool.query('SELECT email FROM users WHERE team_id = 3');
+        if (userRes.rows.length > 0) {
+            const email = userRes.rows[0].email;
+            console.log(`Sending startup verification email to team 3 (${email})...`);
+            await sendEmail(email, 'SMTP Verification Test', '<p>The email service has successfully connected on startup.</p>');
+        } else {
+            console.log('No user found for team_id 3 to send verification email.');
+        }
+    } catch (err) {
+        console.error('Error sending startup verification email:', err);
     }
 }
 
