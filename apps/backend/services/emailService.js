@@ -130,6 +130,7 @@ async function verifyConnection() {
     if (process.env.BREVO_API_KEY) {
         console.log("✅ Email Service: BREVO_API_KEY detected. Switching to HTTP API mode.");
         console.log("   (Skipping SMTP verification as it is blocked on this environment)");
+        await sendStartupEmail();
         return; // Skip SMTP checks
     }
 
