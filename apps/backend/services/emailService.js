@@ -1,9 +1,11 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns').promises;
 const { pool } = require('../db');
 
 // Helper to create transport config
 function getTransportConfig(overridePort = null) {
-    const isGmail = (process.env.EMAIL_HOST || '').trim().toLowerCase() === 'smtp.gmail.com';
+    const isGmailHost = (process.env.EMAIL_HOST || '').trim().toLowerCase() === 'smtp.gmail.com';
+    const isGmailService = process.env.EMAIL_SERVICE === 'Gmail';
 
     const baseConfig = {
         family: 4, // Force IPv4 to prevent IPv6 connection issues on some platforms
@@ -18,19 +20,25 @@ function getTransportConfig(overridePort = null) {
         },
     };
 
-    // Improved configuration logic that allows explicit ports for Gmail
-    const isGmailService = process.env.EMAIL_SERVICE === 'Gmail';
-    const isGmailConfig = isGmail || isGmailService;
-    // Use overridePort if provided, otherwise use env var, otherwise default
-    // We treat 'overridePort' as a number if passed, or use the env var
+    // Use overridePort if provided, otherwise use env var
     const explicitPort = overridePort !== null ? overridePort : process.env.EMAIL_PORT;
 
-    if (isGmailConfig && !explicitPort) {
-        console.log('Detected Gmail configuration (No Port) - using service: "Gmail" (Port 465/SSL)');
+    // Improved configuration logic:
+    // If it is Gmail, and we are either explicitly asking for 465 (fallback) or have no preference,
+    // we use the 'Gmail' service preset which is generally more robust for Nodemailer+Gmail.
+    // We also use it if the user explicitly set EMAIL_SERVICE=Gmail.
+    // We AVOID it if the user explicitly requested port 587 (STARTTLS) to respect their config,
+    // unless this is a fallback attempt (overridePort is set).
+    const shouldUseGmailService = (isGmailHost || isGmailService) &&
+                                  (!explicitPort || parseInt(explicitPort) === 465 || (overridePort !== null));
+
+    if (shouldUseGmailService) {
+        console.log('Detected Gmail configuration - using service: "Gmail" (Port 465/SSL)');
         baseConfig.service = 'Gmail';
+        // Note: 'service' option sets host, port, and secure automatically.
     } else {
         baseConfig.host = process.env.EMAIL_HOST;
-        if (isGmailConfig && !baseConfig.host) {
+        if (isGmailHost && !baseConfig.host) {
             baseConfig.host = 'smtp.gmail.com';
         }
 
@@ -57,26 +65,43 @@ async function verifyConnection() {
         return;
     }
 
+    // 1. DNS Resolution Check
+    if (process.env.EMAIL_HOST) {
+        try {
+            console.log(`Attempting DNS resolution for ${process.env.EMAIL_HOST}...`);
+            const addresses = await dns.resolve4(process.env.EMAIL_HOST);
+            console.log(`✅ DNS Resolution Success: ${process.env.EMAIL_HOST} -> ${addresses.join(', ')}`);
+        } catch (dnsErr) {
+            console.error(`❌ DNS Resolution Failed for ${process.env.EMAIL_HOST}:`, dnsErr.message);
+            console.log("Proceeding with connection attempt anyway...");
+        }
+    }
+
+    // 2. SMTP Connection Check
     try {
         await transporter.verify();
         console.log("✅ Email Service: SMTP Connection Established Successfully");
         await sendStartupEmail();
     } catch (error) {
-        console.error(`❌ Email Service: Connection Failed on initial port! Error: ${error.message}`);
+        console.error(`❌ Email Service: Connection Failed on initial configuration! Error: ${error.message}`);
 
-        // Fallback Logic: If we are on 587 and failed, try 465
+        // Fallback Logic
+        // If we haven't already tried the 'Gmail' service preset (implied by port 465), try it now.
+        // Even if we aren't using Gmail, we can try to switch ports if we were on 587.
+
         const currentPort = transporter.options.port;
-        // Check both the explicit port in options AND the default if it wasn't set in options (though our config sets it)
-        const effectivePort = currentPort || 587;
+        // Check if we should fallback.
+        // If we are on Gmail and failed, we force the 'Gmail' service preset (Port 465)
+        const isGmail = (process.env.EMAIL_HOST || '').includes('gmail');
 
-        if (effectivePort === 587) {
-            console.log("⚠️  Attempting fallback to Port 465 (SSL)...");
+        if (isGmail || (currentPort && parseInt(currentPort) === 587)) {
+            console.log("⚠️  Attempting fallback configuration (Gmail Service / Port 465)...");
             try {
-                // Reconfigure for 465
+                // Passing 465 to getTransportConfig triggers the 'Gmail' service preset logic
                 const newConfig = getTransportConfig(465);
                 transporter = nodemailer.createTransport(newConfig);
                 await transporter.verify();
-                console.log("✅ Email Service: SMTP Connection Established Successfully (Fallback: Port 465)");
+                console.log("✅ Email Service: SMTP Connection Established Successfully (Fallback Configuration)");
                 await sendStartupEmail();
             } catch (fallbackError) {
                 console.error("❌ Email Service: Fallback Connection Failed!");
