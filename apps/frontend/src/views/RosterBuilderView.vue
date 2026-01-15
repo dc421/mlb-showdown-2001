@@ -43,6 +43,27 @@ function isPlayerEligibleForPosition(player, position) {
     return playerPositions.includes(position);
 }
 
+function sortPlayers(a, b) {
+    // Sort by Points (Desc)
+    const pointsDiff = (b.points || 0) - (a.points || 0);
+    if (pointsDiff !== 0) return pointsDiff;
+
+    // Then by Last Name (Asc)
+    const nameA = getLastName(a.displayName).toLowerCase();
+    const nameB = getLastName(b.displayName).toLowerCase();
+    const lastNameDiff = nameA.localeCompare(nameB);
+    if (lastNameDiff !== 0) return lastNameDiff;
+
+    // Then by First Name (Asc)
+    const firstA = a.displayName.split(' ')[0].toLowerCase();
+    const firstB = b.displayName.split(' ')[0].toLowerCase();
+    const firstNameDiff = firstA.localeCompare(firstB);
+    if (firstNameDiff !== 0) return firstNameDiff;
+
+    // Finally by Full Name (Asc)
+    return a.displayName.localeCompare(b.displayName);
+}
+
 // --- COMPUTED PROPERTIES ---
 const filteredPointSets = computed(() => {
   if (rosterType.value === 'classic') {
@@ -65,7 +86,7 @@ const allPlayersOnRoster = computed(() => [
     ...roster.value.bench
 ]);
 const playerCount = computed(() => allPlayersOnRoster.value.length);
-const benchPlayers = computed(() => roster.value.bench);
+const benchPlayers = computed(() => [...roster.value.bench].sort(sortPlayers));
 const totalPoints = computed(() => {
   return allPlayersOnRoster.value.reduce((sum, player) => {
     // A player is on the bench if they are in the benchPlayers array.
@@ -75,8 +96,8 @@ const totalPoints = computed(() => {
   }, 0);
 });
 const lineupPlayers = computed(() => Object.values(roster.value.lineup).filter(p => p));
-const startingPitchersOnRoster = computed(() => roster.value.pitchingStaff.filter(p => p.displayPosition === 'SP'));
-const bullpenOnRoster = computed(() => roster.value.pitchingStaff.filter(p => p.displayPosition === 'RP'));
+const startingPitchersOnRoster = computed(() => roster.value.pitchingStaff.filter(p => p.displayPosition === 'SP').sort(sortPlayers));
+const bullpenOnRoster = computed(() => roster.value.pitchingStaff.filter(p => p.displayPosition === 'RP').sort(sortPlayers));
 
 const starterPlayerIds = computed(() => {
     const lineupIds = lineupPlayers.value.map(p => p.card_id);
@@ -129,26 +150,7 @@ const availablePlayers = computed(() => {
         }
         return playerPositions.includes(filterPosition.value);
     })
-    .sort((a, b) => {
-        // Sort by Points (Desc)
-        const pointsDiff = (b.points || 0) - (a.points || 0);
-        if (pointsDiff !== 0) return pointsDiff;
-
-        // Then by Last Name (Asc)
-        const nameA = getLastName(a.displayName).toLowerCase();
-        const nameB = getLastName(b.displayName).toLowerCase();
-        const lastNameDiff = nameA.localeCompare(nameB);
-        if (lastNameDiff !== 0) return lastNameDiff;
-
-        // Then by First Name (Asc)
-        const firstA = a.displayName.split(' ')[0].toLowerCase();
-        const firstB = b.displayName.split(' ')[0].toLowerCase();
-        const firstNameDiff = firstA.localeCompare(firstB);
-        if (firstNameDiff !== 0) return firstNameDiff;
-
-        // Finally by Full Name (Asc)
-        return a.displayName.localeCompare(b.displayName);
-    });
+    .sort(sortPlayers);
 });
 
 const isRosterValid = computed(() => {
