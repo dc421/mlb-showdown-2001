@@ -117,6 +117,15 @@ const bracket = computed(() => {
     };
 });
 
+const getWins = (series, teamId) => {
+    if (!series || !teamId) return '';
+    const homeWins = parseInt(series.score.split('-')[0] || 0);
+    const awayWins = parseInt(series.score.split('-')[1] || 0);
+    if (series.home_user_id === teamId) return homeWins;
+    if (series.away_user_id === teamId) return awayWins;
+    return '';
+};
+
 // Manual Result Entry State
 const resultModalOpen = ref(false);
 const activeMatchup = ref(null);
@@ -242,25 +251,6 @@ watch(selectedClassicId, (newId, oldId) => {
 
 onMounted(async () => {
     await loadClassicsList();
-    // Initially load with no ID (defaults to active), then set ID which triggers watch -> double fetch.
-    // FIX: Don't call loadState here if we are about to set selectedClassicId from the list.
-    // Instead, determine the initial ID from the list and set it, letting the watcher handle the fetch.
-
-    // Actually, safer pattern:
-    // 1. Load list.
-    // 2. Determine default ID.
-    // 3. Set selectedClassicId.
-    // 4. Let watcher trigger loadState OR call loadState explicitly if watcher is suppressed.
-
-    // Current flow:
-    // loadState() called in onMounted -> fetches /state -> gets Classic object -> sets selectedClassicId
-    // Watcher sees selectedClassicId change -> calls loadState() again.
-
-    // Better flow:
-    // Just call loadState once. Inside loadState, we set selectedClassicId.
-    // We need to make sure the watcher doesn't re-fire if the ID matches state.classic.id.
-    // OR just use a flag.
-
     await loadState();
 });
 </script>
@@ -312,6 +302,11 @@ onMounted(async () => {
                         <span class="name">{{ bracket.seeds[4].city }}</span>
                     </div>
                     <div class="bracket-line" style="top: 80px; left: 0px; width: 200px;"></div>
+                    <!-- Score for top team -->
+                    <span v-if="bracket.matchups.playIn.series" class="line-score" style="top: 65px; left: 190px;">
+                        {{ getWins(bracket.matchups.playIn.series, bracket.matchups.playIn.team1.user_id) }}
+                    </span>
+
 
                     <!-- Bottom Team -->
                     <div class="text-container" style="top: 110px; left: 0px;">
@@ -320,20 +315,22 @@ onMounted(async () => {
                         <span class="name">{{ bracket.seeds[5].city }}</span>
                     </div>
                     <div class="bracket-line" style="top: 140px; left: 0px; width: 200px;"></div>
+                    <!-- Score for bottom team -->
+                    <span v-if="bracket.matchups.playIn.series" class="line-score" style="top: 125px; left: 190px;">
+                        {{ getWins(bracket.matchups.playIn.series, bracket.matchups.playIn.team2.user_id) }}
+                    </span>
 
                     <!-- Connector (210 to 270) -->
                     <div class="connector-vertical" style="top: 80px; left: 200px; height: 60px;"></div>
                     <!-- Horizontal Arm (at 240) -->
-                    <div class="connector-arm" style="top: 110px; left: 200px; width: 50px;">
-                        <div class="score-label" v-if="bracket.matchups.playIn.series">
-                            {{ bracket.matchups.playIn.series.score }}
-                        </div>
-                        <button class="enter-result-btn"
-                            v-if="!bracket.matchups.playIn.series && bracket.matchups.playIn.team1.user_id && bracket.matchups.playIn.team2.user_id && state.classic && state.classic.is_active"
-                            @click="openResultModal(bracket.matchups.playIn, 'Play-In')">
-                            +
-                        </button>
-                    </div>
+                    <div class="connector-arm" style="top: 110px; left: 200px; width: 50px;"></div>
+
+                    <!-- Plus Button (Left of connector) -->
+                    <button class="enter-result-btn" style="top: 110px; left: 175px;"
+                        v-if="!bracket.matchups.playIn.series && bracket.matchups.playIn.team1.user_id && bracket.matchups.playIn.team2.user_id && state.classic && state.classic.is_active"
+                        @click="openResultModal(bracket.matchups.playIn, 'Play-In')">
+                        +
+                    </button>
 
 
                     <!-- SEMI 1 (1 vs Winner 4/5) -->
@@ -344,6 +341,10 @@ onMounted(async () => {
                         <span class="name">{{ bracket.seeds[1].city }}</span>
                     </div>
                     <div class="bracket-line" style="top: 30px; left: 250px; width: 200px;"></div>
+                    <!-- Score for top team -->
+                    <span v-if="bracket.matchups.semi1.series" class="line-score" style="top: 15px; left: 440px;">
+                        {{ getWins(bracket.matchups.semi1.series, bracket.matchups.semi1.team1.user_id) }}
+                    </span>
 
                     <!-- Bottom Team (Winner Play-In) -->
                     <div class="text-container" style="top: 80px; left: 250px;">
@@ -353,20 +354,22 @@ onMounted(async () => {
                     </div>
                     <!-- This line connects to Play-In output at 240 -->
                     <div class="bracket-line" style="top: 110px; left: 250px; width: 200px;"></div>
+                    <!-- Score for bottom team -->
+                    <span v-if="bracket.matchups.semi1.series" class="line-score" style="top: 95px; left: 440px;">
+                        {{ getWins(bracket.matchups.semi1.series, bracket.matchups.semi1.team2.user_id) }}
+                    </span>
 
                     <!-- Connector (160 to 240) -->
                     <div class="connector-vertical" style="top: 30px; left: 450px; height: 80px;"></div>
                     <!-- Horizontal Arm (at 200) -->
-                    <div class="connector-arm" style="top: 70px; left: 450px; width: 50px;">
-                         <div class="score-label" v-if="bracket.matchups.semi1.series">
-                            {{ bracket.matchups.semi1.series.score }}
-                        </div>
-                         <button class="enter-result-btn"
-                            v-if="!bracket.matchups.semi1.series && bracket.matchups.semi1.team1.user_id && bracket.matchups.semi1.team2.user_id && state.classic && state.classic.is_active"
-                            @click="openResultModal(bracket.matchups.semi1, 'Semi-Final')">
-                            +
-                        </button>
-                    </div>
+                    <div class="connector-arm" style="top: 70px; left: 450px; width: 50px;"></div>
+
+                    <!-- Plus Button (Left of connector) -->
+                    <button class="enter-result-btn" style="top: 70px; left: 425px;"
+                        v-if="!bracket.matchups.semi1.series && bracket.matchups.semi1.team1.user_id && bracket.matchups.semi1.team2.user_id && state.classic && state.classic.is_active"
+                        @click="openResultModal(bracket.matchups.semi1, 'Semi-Final')">
+                        +
+                    </button>
 
 
                     <!-- SEMI 2 (2 vs 3) -->
@@ -377,6 +380,10 @@ onMounted(async () => {
                         <span class="name">{{ bracket.seeds[2].city }}</span>
                     </div>
                     <div class="bracket-line" style="top: 230px; left: 250px; width: 200px;"></div>
+                     <!-- Score for top team -->
+                    <span v-if="bracket.matchups.semi2.series" class="line-score" style="top: 215px; left: 440px;">
+                        {{ getWins(bracket.matchups.semi2.series, bracket.matchups.semi2.team1.user_id) }}
+                    </span>
 
                     <!-- Bottom Team -->
                     <div class="text-container" style="top: 280px; left: 250px;">
@@ -385,20 +392,22 @@ onMounted(async () => {
                         <span class="name">{{ bracket.seeds[3].city }}</span>
                     </div>
                     <div class="bracket-line" style="top: 310px; left: 250px; width: 200px;"></div>
+                    <!-- Score for bottom team -->
+                    <span v-if="bracket.matchups.semi2.series" class="line-score" style="top: 295px; left: 440px;">
+                        {{ getWins(bracket.matchups.semi2.series, bracket.matchups.semi2.team2.user_id) }}
+                    </span>
 
                     <!-- Connector (360 to 440) -->
                     <div class="connector-vertical" style="top: 230px; left: 450px; height: 80px;"></div>
                     <!-- Horizontal Arm (at 400) -->
-                    <div class="connector-arm" style="top: 270px; left: 450px; width: 50px;">
-                        <div class="score-label" v-if="bracket.matchups.semi2.series">
-                            {{ bracket.matchups.semi2.series.score }}
-                        </div>
-                        <button class="enter-result-btn"
-                            v-if="!bracket.matchups.semi2.series && bracket.matchups.semi2.team1.user_id && bracket.matchups.semi2.team2.user_id && state.classic && state.classic.is_active"
-                            @click="openResultModal(bracket.matchups.semi2, 'Semi-Final')">
-                            +
-                        </button>
-                    </div>
+                    <div class="connector-arm" style="top: 270px; left: 450px; width: 50px;"></div>
+
+                    <!-- Plus Button (Left of connector) -->
+                    <button class="enter-result-btn" style="top: 270px; left: 425px;"
+                        v-if="!bracket.matchups.semi2.series && bracket.matchups.semi2.team1.user_id && bracket.matchups.semi2.team2.user_id && state.classic && state.classic.is_active"
+                        @click="openResultModal(bracket.matchups.semi2, 'Semi-Final')">
+                        +
+                    </button>
 
 
                     <!-- FINALS -->
@@ -409,6 +418,10 @@ onMounted(async () => {
                     </div>
                     <!-- Connects to Semi 1 output at 200 -->
                     <div class="bracket-line" style="top: 70px; left: 500px; width: 200px;"></div>
+                    <!-- Score for top team -->
+                    <span v-if="bracket.matchups.final.series" class="line-score" style="top: 55px; left: 690px;">
+                        {{ getWins(bracket.matchups.final.series, bracket.matchups.final.team1.user_id) }}
+                    </span>
 
                     <!-- Bottom Team (Winner Semi 2) -->
                     <div class="text-container" style="top: 240px; left: 500px;">
@@ -417,20 +430,22 @@ onMounted(async () => {
                     </div>
                     <!-- Connects to Semi 2 output at 400 -->
                     <div class="bracket-line" style="top: 270px; left: 500px; width: 200px;"></div>
+                    <!-- Score for bottom team -->
+                    <span v-if="bracket.matchups.final.series" class="line-score" style="top: 255px; left: 690px;">
+                        {{ getWins(bracket.matchups.final.series, bracket.matchups.final.team2.user_id) }}
+                    </span>
 
                     <!-- Connector (200 to 400) -->
                     <div class="connector-vertical" style="top: 70px; left: 700px; height: 200px;"></div>
                     <!-- Horizontal Arm (at 300) -->
-                    <div class="connector-arm" style="top: 170px; left: 700px; width: 50px;">
-                        <div class="score-label" v-if="bracket.matchups.final.series">
-                            {{ bracket.matchups.final.series.score }}
-                        </div>
-                        <button class="enter-result-btn"
-                            v-if="!bracket.matchups.final.series && bracket.matchups.final.team1.user_id && bracket.matchups.final.team2.user_id && state.classic && state.classic.is_active"
-                            @click="openResultModal(bracket.matchups.final, 'Silver Submarine')">
-                            +
-                        </button>
-                    </div>
+                    <div class="connector-arm" style="top: 170px; left: 700px; width: 50px;"></div>
+
+                    <!-- Plus Button (Left of connector) -->
+                     <button class="enter-result-btn" style="top: 170px; left: 675px;"
+                        v-if="!bracket.matchups.final.series && bracket.matchups.final.team1.user_id && bracket.matchups.final.team2.user_id && state.classic && state.classic.is_active"
+                        @click="openResultModal(bracket.matchups.final, 'Silver Submarine')">
+                        +
+                    </button>
 
 
                     <!-- CHAMPION -->
@@ -553,9 +568,7 @@ onMounted(async () => {
 
 .enter-result-btn {
     position: absolute;
-    right: -25px; /* Sit to the right of the arm */
-    top: 50%;
-    transform: translateY(-50%);
+    transform: translate(-50%, -50%);
     background: #007bff;
     color: white;
     border: none;
@@ -570,6 +583,16 @@ onMounted(async () => {
 }
 .enter-result-btn:hover {
     background: #0056b3;
+}
+
+.line-score {
+    position: absolute;
+    background: #fff;
+    padding: 0 4px;
+    font-weight: bold;
+    font-size: 1.1em;
+    z-index: 5;
+    /* Ensure it sits above the line */
 }
 
 .result-modal {
