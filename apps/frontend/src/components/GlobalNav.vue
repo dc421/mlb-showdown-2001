@@ -45,8 +45,8 @@ onMounted(async () => {
       </RouterLink>
       <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
       <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text">League</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text">Classic</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text active-classic">Classic</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text">Draft</RouterLink>
     </div>
     
     <div class="nav-center">
@@ -74,8 +74,8 @@ onMounted(async () => {
     <div v-if="isMenuOpen" class="mobile-menu">
       <RouterLink to="/dashboard" @click="closeMenu" class="mobile-link">Dashboard</RouterLink>
       <RouterLink to="/league" @click="closeMenu" class="mobile-link">League</RouterLink>
-      <RouterLink to="/classic" @click="closeMenu" class="mobile-link">Classic</RouterLink>
-      <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
+      <RouterLink to="/classic" @click="closeMenu" class="mobile-link active-classic">Classic</RouterLink>
+      <RouterLink to="/draft" @click="closeMenu" class="mobile-link">Draft</RouterLink>
       <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
     </div>
   </nav>
@@ -246,6 +246,14 @@ onMounted(async () => {
   color: #ffc107 !important; /* Gold/Yellow */
   font-weight: bold;
   border: 2px solid #ffc107;
+  padding: 4px 8px !important; /* Adjust padding to fit border */
+  border-radius: 4px;
+}
+
+.active-classic {
+  color: #20c997 !important; /* Teal */
+  font-weight: bold;
+  border: 2px solid #20c997;
   padding: 4px 8px !important; /* Adjust padding to fit border */
   border-radius: 4px;
 }
