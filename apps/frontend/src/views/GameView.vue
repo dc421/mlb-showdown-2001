@@ -2362,8 +2362,10 @@ function handleVisibilityChange() {
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
-                      <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-icon tired" title="Tired"></span>
-                      <span v-else-if="p.pitchedYesterday && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Pitched in previous game"></span>
+                      <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-indicators">
+                          <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
+                      </span>
+                      <span v-else-if="p.isBufferUsed && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
                   </li>
               </ul>
           </div>
@@ -2445,8 +2447,10 @@ function handleVisibilityChange() {
               <ul>
                   <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
                           <span @click.stop="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
-                          <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-icon tired" title="Tired"></span>
-                          <span v-else-if="p.pitchedYesterday && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Pitched in previous game"></span>
+                          <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-indicators">
+                              <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
+                          </span>
+                          <span v-else-if="p.isBufferUsed && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
                   </li>
               </ul>
           </div>
@@ -2752,6 +2756,11 @@ function handleVisibilityChange() {
 .is-sub-target .tired-indicator {
     color: white; /* Make tired indicator visible on dark backgrounds */
 }
+.status-indicators {
+    display: flex;
+    gap: 3px;
+    margin-left: 5px;
+}
 .status-icon {
     display: inline-block;
     width: 10px;
@@ -2766,6 +2775,7 @@ function handleVisibilityChange() {
 .status-icon.used {
     background-color: transparent;
     border: 2px solid #000;
+    margin-left: 5px;
 }
 .is-sub-in-candidate:hover {
     background-color: #e9ecef;
