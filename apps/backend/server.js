@@ -550,93 +550,92 @@ async function initializePitcherFatigue(gameId, client) {
 
     const finalPitcherStats = {};
 
+    // 1. Fetch all previous games in the series in chronological order
+    const prevGamesResult = await client.query(
+        'SELECT game_id, game_in_series FROM games WHERE series_id = $1 AND game_in_series < $2 ORDER BY game_in_series ASC',
+        [series_id, game_in_series]
+    );
+    const prevGames = prevGamesResult.rows;
+
+    // 2. Fetch all pitchers on the rosters (IP <= 3) to track their fatigue state
     const participants = await client.query('SELECT user_id, roster_id FROM game_participants WHERE game_id = $1', [gameId]);
+    const allRelievers = [];
 
     for (const participant of participants.rows) {
         const rosterCardsResult = await client.query(
-            `SELECT cp.* FROM cards_player cp JOIN roster_cards rc ON cp.card_id = rc.card_id WHERE rc.roster_id = $1 AND cp.ip IS NOT NULL AND cp.ip <= 3`,
+            `SELECT cp.card_id, cp.ip FROM cards_player cp JOIN roster_cards rc ON cp.card_id = rc.card_id WHERE rc.roster_id = $1 AND cp.ip IS NOT NULL AND cp.ip <= 3`,
             [participant.roster_id]
         );
-        const relievers = rosterCardsResult.rows;
+        allRelievers.push(...rosterCardsResult.rows);
+    }
 
-        const prevGameNumber = game_in_series - 1;
-        const prevTwoGameNumber = game_in_series - 2;
+    // 3. Initialize tracking map: { card_id: cumulativeFatigue }
+    const pitcherFatigueScore = {};
+    allRelievers.forEach(r => {
+        pitcherFatigueScore[r.card_id] = 0;
+    });
 
-        const prevGameResult = await client.query('SELECT game_id FROM games WHERE series_id = $1 AND game_in_series = $2', [series_id, prevGameNumber]);
-        if (prevGameResult.rows.length === 0) continue;
-        const prevGameId = prevGameResult.rows[0].game_id;
+    // 4. Iterate through history
+    for (const prevGame of prevGames) {
+        // Get the final state of the previous game
+        const stateResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [prevGame.game_id]);
+        const finalState = stateResult.rows.length > 0 ? stateResult.rows[0].state_data : null;
 
-        let prevTwoGameId = null;
-        if (prevTwoGameNumber > 0) {
-            const prevTwoGameResult = await client.query('SELECT game_id FROM games WHERE series_id = $1 AND game_in_series = $2', [series_id, prevTwoGameNumber]);
-            if (prevTwoGameResult.rows.length > 0) {
-                prevTwoGameId = prevTwoGameResult.rows[0].game_id;
+        if (!finalState) continue; // Should not happen for completed games
+
+        const stats = finalState.pitcherStats || {};
+
+        // Process game event for each reliever
+        allRelievers.forEach(reliever => {
+            const pid = reliever.card_id;
+            const pStats = stats[pid];
+
+            // Did they pitch?
+            const pitchedInnings = (pStats && pStats.innings_pitched) ? pStats.innings_pitched.length : 0;
+            const facedBatters = (pStats && pStats.batters_faced > 0);
+
+            if (pitchedInnings > 0 || facedBatters) {
+                // If they faced batters but 0 innings recorded (e.g. 0.1 IP), treat as 1 fatigue point?
+                // The prompt example uses whole innings. Usually length of innings_pitched array is the count.
+                // If they came in and got 0 outs but faced batters, usually that's 0 IP effectively for fatigue in simple rules,
+                // but let's stick to innings_pitched length which is robust.
+                // If innings_pitched is empty but they faced batters, let's add 1 to be safe (min 1 fatigue for appearance).
+                const fatigueToAdd = Math.max(pitchedInnings, (facedBatters ? 1 : 0));
+                pitcherFatigueScore[pid] = (pitcherFatigueScore[pid] || 0) + fatigueToAdd;
+            } else {
+                // Did not pitch -> Recovery
+                pitcherFatigueScore[pid] = Math.max(0, (pitcherFatigueScore[pid] || 0) - 1);
             }
-        }
+        });
 
-        // Fetch only the last state of the previous game to check final stats
-        const prevGameStatesResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [prevGameId]);
-        const lastPrevGameState = prevGameStatesResult.rows.length > 0 ? prevGameStatesResult.rows[0].state_data : null;
-
-        let lastPrevTwoGameState = null;
-        if (prevTwoGameId) {
-             const prevTwoGameStatesResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [prevTwoGameId]);
-             lastPrevTwoGameState = prevTwoGameStatesResult.rows.length > 0 ? prevTwoGameStatesResult.rows[0].state_data : null;
-        }
-
-        for (const reliever of relievers) {
-            let isTired = false;
-            let pitchedInPrevGame = false;
-
-            // Check if they pitched in the previous game (Yesterday)
-            if (lastPrevGameState) {
-                const prevGameStats = lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id];
-                pitchedInPrevGame = prevGameStats && (prevGameStats.batters_faced > 0 || (prevGameStats.innings_pitched && prevGameStats.innings_pitched.length > 0));
-            }
-
-            if (lastPrevTwoGameState && lastPrevGameState) {
-                // Check if they pitched in both of the last two games
-                // We check the pitcherStats object in the final state of each game.
-                const prevTwoGameStats = lastPrevTwoGameState.pitcherStats && lastPrevTwoGameState.pitcherStats[reliever.card_id];
-                const pitchedInPrevTwoGame = prevTwoGameStats && (prevTwoGameStats.batters_faced > 0 || (prevTwoGameStats.innings_pitched && prevTwoGameStats.innings_pitched.length > 0));
-
-                if (pitchedInPrevGame && pitchedInPrevTwoGame) {
-                    isTired = true;
-                }
-            }
-
-            if (!isTired && lastPrevGameState) {
-                // Check if they exceeded their fatigue threshold in the previous game alone.
-                // We use the final stats from the last game.
-                const stats = (lastPrevGameState.pitcherStats && lastPrevGameState.pitcherStats[reliever.card_id]) || { runs: 0, innings_pitched: [] };
-
-                // FIX: Use innings_pitched.length instead of undefined .ip property
-                const ipRecorded = stats.innings_pitched ? stats.innings_pitched.length : 0;
-                const fatigueThreshold = reliever.ip - Math.floor(stats.runs / 3);
-
-                // FIX: A reliever is considered tired if they pitched while tired (flagged during game)
-                if (ipRecorded > fatigueThreshold) {
-                    if (stats.pitchedWhileTired) {
-                        isTired = true;
-                    }
-                }
-            }
-
-            let statsEntry = finalPitcherStats[reliever.card_id] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
-
-            if (isTired) {
-                statsEntry.fatigue_modifier = -reliever.ip;
-            }
-
-            if (pitchedInPrevGame) {
-                statsEntry.pitchedYesterday = true;
-            }
-
-            if (isTired || pitchedInPrevGame) {
-                finalPitcherStats[reliever.card_id] = statsEntry;
-            }
+        // Process Travel Day (After Game 2 and After Game 5)
+        // This happens AFTER the game logic above.
+        if (prevGame.game_in_series === 2 || prevGame.game_in_series === 5) {
+            allRelievers.forEach(reliever => {
+                const pid = reliever.card_id;
+                pitcherFatigueScore[pid] = Math.max(0, (pitcherFatigueScore[pid] || 0) - 1);
+            });
         }
     }
+
+    // 5. Calculate Final Modifiers for Current Game
+    allRelievers.forEach(reliever => {
+        const pid = reliever.card_id;
+        const score = pitcherFatigueScore[pid] || 0;
+        const allowedBuffer = Math.max(0, reliever.ip - 1);
+
+        const penalty = Math.max(0, score - allowedBuffer);
+        const isBufferUsed = (score > 0 && penalty === 0);
+
+        if (penalty > 0 || isBufferUsed) {
+            finalPitcherStats[pid] = {
+                runs: 0,
+                innings_pitched: [],
+                fatigue_modifier: -penalty,
+                isBufferUsed: isBufferUsed
+            };
+        }
+    });
 
     return finalPitcherStats;
 }
