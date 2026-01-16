@@ -441,7 +441,7 @@ onMounted(async () => {
 
 
                     <!-- CHAMPION -->
-                    <div class="text-container text-centered" style="top: 140px; left: 750px; width: 200px;">
+                    <div class="text-container text-centered" style="top: 140px; left: 725px; width: 200px;">
                         <img v-if="bracket.matchups.final.winner && bracket.matchups.final.winner.logo_url" :src="bracket.matchups.final.winner.logo_url" class="team-logo" />
                         <span class="name" v-if="bracket.matchups.final.winner">{{ bracket.matchups.final.winner.city }}</span>
                         <span class="name" v-else></span>
@@ -579,7 +579,10 @@ onMounted(async () => {
 
 .score {
     margin-left: auto;
+    margin-right: 5px;
     flex-shrink: 0;
+    font-size: 1.2rem;
+    color: #d61c0f;
 }
 
 .result-modal {
