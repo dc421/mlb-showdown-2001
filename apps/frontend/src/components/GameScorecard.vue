@@ -197,13 +197,18 @@ const batterDisplay = computed(() => {
       </div>
 
       <!-- Row 3 (Active Game) or Row 2 (PreGame) -->
-      <div class="line-3" v-if="game.status === 'in_progress' && gameState">
+      <div class="line-3" v-if="(game.status === 'in_progress' && gameState) || (isPreGame && game.opponent)">
         <div class="left">
-            {{ batterDisplay }}
+            {{ (game.status === 'in_progress' && gameState) ? batterDisplay : '' }}
         </div>
         <div class="right score-display">
-            <span :class="{ 'bold-team': gameState.isTopInning }">{{ awayTeamAbbr }} {{ gameState.awayScore }}</span>,
-            <span :class="{ 'bold-team': !gameState.isTopInning }">{{ homeTeamAbbr }} {{ gameState.homeScore }}</span>
+            <template v-if="game.status === 'in_progress' && gameState">
+                <span :class="{ 'bold-team': gameState.isTopInning }">{{ awayTeamAbbr }} {{ gameState.awayScore }}</span>,
+                <span :class="{ 'bold-team': !gameState.isTopInning }">{{ homeTeamAbbr }} {{ gameState.homeScore }}</span>
+            </template>
+            <template v-else>
+                <span>{{ awayTeamAbbr }} vs {{ homeTeamAbbr }}</span>
+            </template>
         </div>
       </div>
       <div class="line-2" v-else-if="game.opponent">
