@@ -380,6 +380,9 @@ onUnmounted(() => {
 
         <div class="new-games-section">
             <h2>New Game</h2>
+            <button @click="handleCreateGame" :disabled="!authStore.myRoster || (activeRosterTab === 'league' && isDraftActive)" class="action-btn">
+                {{ (activeRosterTab === 'league' && isDraftActive) ? 'Draft in Progress' : '+ Create New Game' }}
+            </button>
             <div class="series-options">
                 <template v-if="activeRosterTab === 'league'">
                     <label><input type="radio" v-model="seriesType" value="exhibition" :disabled="isDraftActive"> Exhibition</label>
@@ -390,9 +393,6 @@ onUnmounted(() => {
                      <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
                 </template>
             </div>
-            <button @click="handleCreateGame" :disabled="!authStore.myRoster || (activeRosterTab === 'league' && isDraftActive)" class="action-btn">
-                {{ (activeRosterTab === 'league' && isDraftActive) ? 'Draft in Progress' : '+ Create New Game' }}
-            </button>
             <h3 class="join-header">Open Games to Join</h3>
             <ul v-if="gamesToJoin.length > 0" class="game-list">
               <li v-for="game in gamesToJoin" :key="game.game_id">
