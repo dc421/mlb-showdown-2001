@@ -300,12 +300,11 @@ onMounted(async () => {
                         <span class="seed">4</span>
                         <img v-if="bracket.seeds[4].logo_url" :src="bracket.seeds[4].logo_url" class="team-logo" />
                         <span class="name">{{ bracket.seeds[4].city }}</span>
+                        <span v-if="bracket.matchups.playIn.series" class="score">
+                            {{ getWins(bracket.matchups.playIn.series, bracket.matchups.playIn.team1.user_id) }}
+                        </span>
                     </div>
                     <div class="bracket-line" style="top: 80px; left: 0px; width: 200px;"></div>
-                    <!-- Score for top team -->
-                    <span v-if="bracket.matchups.playIn.series" class="line-score" style="top: 65px; left: 190px;">
-                        {{ getWins(bracket.matchups.playIn.series, bracket.matchups.playIn.team1.user_id) }}
-                    </span>
 
 
                     <!-- Bottom Team -->
@@ -313,12 +312,11 @@ onMounted(async () => {
                         <span class="seed">5</span>
                         <img v-if="bracket.seeds[5].logo_url" :src="bracket.seeds[5].logo_url" class="team-logo" />
                         <span class="name">{{ bracket.seeds[5].city }}</span>
+                        <span v-if="bracket.matchups.playIn.series" class="score">
+                            {{ getWins(bracket.matchups.playIn.series, bracket.matchups.playIn.team2.user_id) }}
+                        </span>
                     </div>
                     <div class="bracket-line" style="top: 140px; left: 0px; width: 200px;"></div>
-                    <!-- Score for bottom team -->
-                    <span v-if="bracket.matchups.playIn.series" class="line-score" style="top: 125px; left: 190px;">
-                        {{ getWins(bracket.matchups.playIn.series, bracket.matchups.playIn.team2.user_id) }}
-                    </span>
 
                     <!-- Connector (210 to 270) -->
                     <div class="connector-vertical" style="top: 80px; left: 200px; height: 60px;"></div>
@@ -339,25 +337,23 @@ onMounted(async () => {
                         <span class="seed">1</span>
                         <img v-if="bracket.seeds[1].logo_url" :src="bracket.seeds[1].logo_url" class="team-logo" />
                         <span class="name">{{ bracket.seeds[1].city }}</span>
+                        <span v-if="bracket.matchups.semi1.series" class="score">
+                            {{ getWins(bracket.matchups.semi1.series, bracket.matchups.semi1.team1.user_id) }}
+                        </span>
                     </div>
                     <div class="bracket-line" style="top: 30px; left: 250px; width: 200px;"></div>
-                    <!-- Score for top team -->
-                    <span v-if="bracket.matchups.semi1.series" class="line-score" style="top: 15px; left: 440px;">
-                        {{ getWins(bracket.matchups.semi1.series, bracket.matchups.semi1.team1.user_id) }}
-                    </span>
 
                     <!-- Bottom Team (Winner Play-In) -->
                     <div class="text-container" style="top: 80px; left: 250px;">
                          <span class="seed" v-if="!bracket.matchups.semi1.team2.isPlaceholder && bracket.matchups.semi1.team2.seed">{{ bracket.matchups.semi1.team2.seed }}</span>
                         <img v-if="!bracket.matchups.semi1.team2.isPlaceholder && bracket.matchups.semi1.team2.logo_url" :src="bracket.matchups.semi1.team2.logo_url" class="team-logo" />
                         <span class="name" v-if="!bracket.matchups.semi1.team2.isPlaceholder">{{ bracket.matchups.semi1.team2.city }}</span>
+                        <span v-if="bracket.matchups.semi1.series" class="score">
+                            {{ getWins(bracket.matchups.semi1.series, bracket.matchups.semi1.team2.user_id) }}
+                        </span>
                     </div>
                     <!-- This line connects to Play-In output at 240 -->
                     <div class="bracket-line" style="top: 110px; left: 250px; width: 200px;"></div>
-                    <!-- Score for bottom team -->
-                    <span v-if="bracket.matchups.semi1.series" class="line-score" style="top: 95px; left: 440px;">
-                        {{ getWins(bracket.matchups.semi1.series, bracket.matchups.semi1.team2.user_id) }}
-                    </span>
 
                     <!-- Connector (160 to 240) -->
                     <div class="connector-vertical" style="top: 30px; left: 450px; height: 80px;"></div>
@@ -378,24 +374,22 @@ onMounted(async () => {
                         <span class="seed">2</span>
                         <img v-if="bracket.seeds[2].logo_url" :src="bracket.seeds[2].logo_url" class="team-logo" />
                         <span class="name">{{ bracket.seeds[2].city }}</span>
+                        <span v-if="bracket.matchups.semi2.series" class="score">
+                            {{ getWins(bracket.matchups.semi2.series, bracket.matchups.semi2.team1.user_id) }}
+                        </span>
                     </div>
                     <div class="bracket-line" style="top: 230px; left: 250px; width: 200px;"></div>
-                     <!-- Score for top team -->
-                    <span v-if="bracket.matchups.semi2.series" class="line-score" style="top: 215px; left: 440px;">
-                        {{ getWins(bracket.matchups.semi2.series, bracket.matchups.semi2.team1.user_id) }}
-                    </span>
 
                     <!-- Bottom Team -->
                     <div class="text-container" style="top: 280px; left: 250px;">
                         <span class="seed">3</span>
                         <img v-if="bracket.seeds[3].logo_url" :src="bracket.seeds[3].logo_url" class="team-logo" />
                         <span class="name">{{ bracket.seeds[3].city }}</span>
+                        <span v-if="bracket.matchups.semi2.series" class="score">
+                            {{ getWins(bracket.matchups.semi2.series, bracket.matchups.semi2.team2.user_id) }}
+                        </span>
                     </div>
                     <div class="bracket-line" style="top: 310px; left: 250px; width: 200px;"></div>
-                    <!-- Score for bottom team -->
-                    <span v-if="bracket.matchups.semi2.series" class="line-score" style="top: 295px; left: 440px;">
-                        {{ getWins(bracket.matchups.semi2.series, bracket.matchups.semi2.team2.user_id) }}
-                    </span>
 
                     <!-- Connector (360 to 440) -->
                     <div class="connector-vertical" style="top: 230px; left: 450px; height: 80px;"></div>
@@ -415,25 +409,23 @@ onMounted(async () => {
                     <div class="text-container" style="top: 40px; left: 500px;">
                          <img v-if="!bracket.matchups.final.team1.isPlaceholder && bracket.matchups.final.team1.logo_url" :src="bracket.matchups.final.team1.logo_url" class="team-logo" />
                         <span class="name" v-if="!bracket.matchups.final.team1.isPlaceholder">{{ bracket.matchups.final.team1.city }}</span>
+                        <span v-if="bracket.matchups.final.series" class="score">
+                            {{ getWins(bracket.matchups.final.series, bracket.matchups.final.team1.user_id) }}
+                        </span>
                     </div>
                     <!-- Connects to Semi 1 output at 200 -->
                     <div class="bracket-line" style="top: 70px; left: 500px; width: 200px;"></div>
-                    <!-- Score for top team -->
-                    <span v-if="bracket.matchups.final.series" class="line-score" style="top: 55px; left: 690px;">
-                        {{ getWins(bracket.matchups.final.series, bracket.matchups.final.team1.user_id) }}
-                    </span>
 
                     <!-- Bottom Team (Winner Semi 2) -->
                     <div class="text-container" style="top: 240px; left: 500px;">
                          <img v-if="!bracket.matchups.final.team2.isPlaceholder && bracket.matchups.final.team2.logo_url" :src="bracket.matchups.final.team2.logo_url" class="team-logo" />
                         <span class="name" v-if="!bracket.matchups.final.team2.isPlaceholder">{{ bracket.matchups.final.team2.city }}</span>
+                        <span v-if="bracket.matchups.final.series" class="score">
+                            {{ getWins(bracket.matchups.final.series, bracket.matchups.final.team2.user_id) }}
+                        </span>
                     </div>
                     <!-- Connects to Semi 2 output at 400 -->
                     <div class="bracket-line" style="top: 270px; left: 500px; width: 200px;"></div>
-                    <!-- Score for bottom team -->
-                    <span v-if="bracket.matchups.final.series" class="line-score" style="top: 255px; left: 690px;">
-                        {{ getWins(bracket.matchups.final.series, bracket.matchups.final.team2.user_id) }}
-                    </span>
 
                     <!-- Connector (200 to 400) -->
                     <div class="connector-vertical" style="top: 70px; left: 700px; height: 200px;"></div>
@@ -585,14 +577,9 @@ onMounted(async () => {
     background: #0056b3;
 }
 
-.line-score {
-    position: absolute;
-    background: #fff;
-    padding: 0 4px;
-    font-weight: bold;
-    font-size: 1.1em;
-    z-index: 5;
-    /* Ensure it sits above the line */
+.score {
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .result-modal {
