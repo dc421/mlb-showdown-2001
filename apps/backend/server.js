@@ -593,6 +593,8 @@ async function initializePitcherFatigue(gameId, client) {
             // Did they pitch?
             const pitchedInnings = (pStats && pStats.innings_pitched) ? pStats.innings_pitched.length : 0;
             const facedBatters = (pStats && pStats.batters_faced > 0);
+            const runs = (pStats && pStats.runs) || 0;
+            const pitchedWhileTired = (pStats && pStats.pitchedWhileTired) || false;
 
             if (pitchedInnings > 0 || facedBatters) {
                 // If they faced batters but 0 innings recorded (e.g. 0.1 IP), treat as 1 fatigue point?
@@ -600,7 +602,8 @@ async function initializePitcherFatigue(gameId, client) {
                 // If they came in and got 0 outs but faced batters, usually that's 0 IP effectively for fatigue in simple rules,
                 // but let's stick to innings_pitched length which is robust.
                 // If innings_pitched is empty but they faced batters, let's add 1 to be safe (min 1 fatigue for appearance).
-                const fatigueToAdd = Math.max(pitchedInnings, (facedBatters ? 1 : 0));
+                const runPenalty = pitchedWhileTired ? Math.floor(runs / 3) : 0;
+                const fatigueToAdd = Math.max(pitchedInnings, (facedBatters ? 1 : 0)) + runPenalty;
                 pitcherFatigueScore[pid] = (pitcherFatigueScore[pid] || 0) + fatigueToAdd;
             } else {
                 // Did not pitch -> Recovery
@@ -2703,8 +2706,27 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
     processPlayers([batter, pitcher]);
     
     // --- Pitcher Fatigue Logic ---
-    // The fatigue calculation is now handled in the `/next-hitter` endpoint.
-    // We just need to retrieve the effectiveControl for the current at-bat.
+    // Ensure the current inning is recorded for the pitcher stats immediately upon throwing a pitch.
+    // This handles cases where a reliever enters mid-inning and solves the "Missing Inning" bug.
+    if (pitcher && pitcher.card_id > 0) {
+        if (!currentState.pitcherStats) {
+            currentState.pitcherStats = {};
+        }
+        const pid = pitcher.card_id;
+        let stats = currentState.pitcherStats[pid] || { runs: 0, innings_pitched: [], fatigue_modifier: 0, batters_faced: 0 };
+
+        // Initialize if missing
+        if (!stats.innings_pitched) stats.innings_pitched = [];
+        if (stats.batters_faced === undefined) stats.batters_faced = 0;
+
+        // Add current inning if not present
+        if (!stats.innings_pitched.includes(currentState.inning)) {
+            stats.innings_pitched.push(currentState.inning);
+        }
+        currentState.pitcherStats[pid] = stats;
+    }
+
+    // Retrieve the effectiveControl for the current at-bat.
     const effectiveControl = getEffectiveControl(pitcher, currentState.pitcherStats, currentState.inning);
 
      let finalState = { ...currentState };
