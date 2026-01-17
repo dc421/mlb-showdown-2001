@@ -2492,19 +2492,29 @@ async function getAndProcessGameData(gameId, dbClient) {
             if (player.ip <= 3) { // It's a reliever
                 const stats = pitcherStats ? pitcherStats[player.card_id] : null;
 
-                if (stats?.pitchedYesterday) {
-                    player.pitchedYesterday = true;
-                }
+                if (stats) {
+                    if (stats.pitchedYesterday) player.pitchedYesterday = true;
+                    if (stats.isBufferUsed) player.isBufferUsed = true;
 
-                if (stats?.fatigue_modifier && stats.fatigue_modifier < 0) {
-                    player.fatigueStatus = 'tired';
-                } else {
+                    // Calculate total penalty (incorporating pre-game and in-game)
                     const effectiveControl = getEffectiveControl(player, pitcherStats, inning);
-                    if (effectiveControl < player.control) {
-                         player.fatigueStatus = 'tired';
+                    const totalPenalty = Math.max(0, player.control - effectiveControl);
+
+                    // The stored fatigue_modifier is the pre-game state.
+                    // We want to show the WORST case of pre-game vs current calculated penalty.
+                    // (Usually getEffectiveControl covers it, but edge cases where it returns 0 for tired pitchers exist).
+                    const basePenalty = Math.abs(stats.fatigue_modifier || 0);
+                    const finalPenalty = Math.max(totalPenalty, basePenalty);
+
+                    if (finalPenalty > 0) {
+                        player.fatigueStatus = 'tired';
+                        player.fatigue_modifier = -finalPenalty;
                     } else {
-                         player.fatigueStatus = 'rested';
+                        player.fatigueStatus = 'rested';
+                        player.fatigue_modifier = 0;
                     }
+                } else {
+                    player.fatigueStatus = 'rested';
                 }
             }
         });
