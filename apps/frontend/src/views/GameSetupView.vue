@@ -62,6 +62,13 @@ async function submitSetup() {
 onMounted(async () => {
   await gameStore.fetchGameSetup(gameId);
 
+  // If the game status is anything other than 'pending' (e.g. 'lineups', 'in_progress'),
+  // it means setup is already complete. Redirect immediately.
+  if (gameStore.setupState?.status && gameStore.setupState.status !== 'pending') {
+    router.push(`/game/${gameId}/lineup`);
+    return;
+  }
+
   if (gameStore.setupState?.homeTeamUserId) {
     homeTeamUserId.value = gameStore.setupState.homeTeamUserId;
     if (gameStore.setupState.useDh !== null) {
