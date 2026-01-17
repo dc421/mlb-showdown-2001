@@ -2758,13 +2758,13 @@ function handleVisibilityChange() {
 }
 .status-indicators {
     display: flex;
-    gap: 3px;
-    margin-left: 5px;
+    gap: 2px;
+    margin-left: -3px;
 }
 .status-icon {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     flex-shrink: 0;
 }
@@ -2774,8 +2774,8 @@ function handleVisibilityChange() {
 }
 .status-icon.used {
     background-color: transparent;
-    border: 2px solid #000;
-    margin-left: 5px;
+    border: 2px solid #dc3545;
+    margin-left: -3px;
 }
 .is-sub-in-candidate:hover {
     background-color: #e9ecef;

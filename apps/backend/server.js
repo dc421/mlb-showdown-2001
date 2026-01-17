@@ -717,44 +717,27 @@ async function handleSeriesProgression(gameId, client, finalState) {
     let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
 
     const participantsResult = await client.query('SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1', [gameId]);
-
-    // --- ROBUST IDENTIFICATION LOGIC ---
-    // 1. Identify the Series Away Participant (The one who is NOT the series creator/home user)
-    const seriesAwayParticipant = participantsResult.rows.find(p => Number(p.user_id) !== Number(series_home_user_id));
-
-    if (!seriesAwayParticipant) {
-        console.error(`[handleSeriesProgression] CRITICAL: Could not identify series away participant. Series Home: ${series_home_user_id}, Participants: ${JSON.stringify(participantsResult.rows)}`);
-        return;
-    }
-    const seriesAwayUserId = seriesAwayParticipant.user_id;
-
-    // 2. Identify the Game Away Participant (The one who is NOT the game home user)
-    const gameAwayParticipant = participantsResult.rows.find(p => Number(p.user_id) !== Number(game_home_user_id));
-
-    if (!gameAwayParticipant) {
-        console.error(`[handleSeriesProgression] CRITICAL: Could not identify game away participant. Game Home: ${game_home_user_id}, Participants: ${JSON.stringify(participantsResult.rows)}`);
-        return;
-    }
+    const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== game_home_user_id);
     const gameAwayUserId = gameAwayParticipant.user_id;
 
-    // 3. Update series away user if it's the first game and not set yet
+    // 2. Update series away user if it's the first game and not set yet
     if (!series_away_user_id) {
-        await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [seriesAwayUserId, series_id]);
-        series_away_user_id = seriesAwayUserId; // Update local copy
+        await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [gameAwayUserId, series_id]);
+        series_away_user_id = gameAwayUserId; // Update local copy
     }
 
-    // 4. Robustly determine winner and update series score
+    // 3. Robustly determine winner and update series score
     const gameWinnerId = finalState.winningTeam === 'home' ? game_home_user_id : gameAwayUserId;
 
-    if (Number(gameWinnerId) === Number(series_home_user_id)) {
+    if (gameWinnerId === series_home_user_id) {
         await client.query('UPDATE series SET home_wins = home_wins + 1 WHERE id = $1', [series_id]);
         home_wins++;
-    } else if (Number(gameWinnerId) === Number(series_away_user_id)) {
+    } else if (gameWinnerId === series_away_user_id) {
         await client.query('UPDATE series SET away_wins = away_wins + 1 WHERE id = $1', [series_id]);
         away_wins++;
     }
 
-    // 5. Check if the series is over
+    // 4. Check if the series is over
     let isSeriesOver = false;
     if (series_type === 'playoff' && (home_wins >= 4 || away_wins >= 4)) {
         isSeriesOver = true;
@@ -769,12 +752,10 @@ async function handleSeriesProgression(gameId, client, finalState) {
         return;
     }
 
-    // 6. If not over, create the next game in the series
+    // 5. If not over, create the next game in the series
     const nextGameNumber = game_in_series + 1;
-    // Games 1, 2, 6, 7: Series Home is Game Home
-    // Games 3, 4, 5: Series Away is Game Home
     const nextHomeUserId = [3, 4, 5].includes(nextGameNumber) ? series_away_user_id : series_home_user_id;
-    const nextAwayUserId = Number(nextHomeUserId) === Number(series_home_user_id) ? series_away_user_id : series_home_user_id;
+    const nextAwayUserId = nextHomeUserId === series_home_user_id ? series_away_user_id : series_home_user_id;
 
     const lastGameSettings = await client.query('SELECT use_dh FROM games WHERE game_id = $1', [gameId]);
     let useDhForNextGame = lastGameSettings.rows[0].use_dh;
@@ -798,22 +779,16 @@ async function handleSeriesProgression(gameId, client, finalState) {
     );
     const newGameId = newGameResult.rows[0].game_id;
 
-    // Use robust comparison for participant finding
-    const nextHomeParticipantData = participantsResult.rows.find(p => Number(p.user_id) === Number(nextHomeUserId));
-    const nextAwayParticipantData = participantsResult.rows.find(p => Number(p.user_id) === Number(nextAwayUserId));
-
-    if (!nextHomeParticipantData || !nextAwayParticipantData) {
-         console.error(`[handleSeriesProgression] Could not find participant data for next game creation.`);
-         return;
-    }
+    const homePlayerInfo = participantsResult.rows.find(p => p.user_id === nextHomeUserId);
+    const awayPlayerInfo = participantsResult.rows.find(p => p.user_id === nextAwayUserId);
 
     await client.query(
         `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, 'home', $4)`,
-        [newGameId, nextHomeUserId, nextHomeParticipantData.roster_id, nextHomeParticipantData.league_designation]
+        [newGameId, nextHomeUserId, homePlayerInfo.roster_id, homePlayerInfo.league_designation]
     );
     await client.query(
         `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation) VALUES ($1, $2, $3, 'away', $4)`,
-        [newGameId, nextAwayUserId, nextAwayParticipantData.roster_id, nextAwayParticipantData.league_designation]
+        [newGameId, nextAwayUserId, awayPlayerInfo.roster_id, awayPlayerInfo.league_designation]
     );
 
     io.emit('games-updated'); // Notify all clients to refresh their dashboards
@@ -1944,7 +1919,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
     const processedGames = [];
     for (const game of gamesResult.rows) {
         const participantsResult = await pool.query(
-            `SELECT u.user_id, t.city, t.name, t.abbreviation, t.display_format
+            `SELECT u.user_id, t.city, t.name, t.abbreviation, t.display_format, gp.home_or_away
              FROM game_participants gp 
              JOIN users u ON gp.user_id = u.user_id 
              JOIN teams t ON u.team_id = t.team_id 
@@ -1959,10 +1934,16 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         const homeUserId = Number(game.home_team_user_id);
 
         for (const p of participantsResult.rows) {
-            if (Number(p.user_id) === homeUserId) {
+            if (p.home_or_away === 'home') {
                 home_team_abbr = p.abbreviation;
-            } else {
+            } else if (p.home_or_away === 'away') {
                 away_team_abbr = p.abbreviation;
+            } else {
+                 if (Number(p.user_id) === homeUserId) {
+                    home_team_abbr = p.abbreviation;
+                } else {
+                    away_team_abbr = p.abbreviation;
+                }
             }
 
             if (Number(p.user_id) !== userId) {
