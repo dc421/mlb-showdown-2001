@@ -10,11 +10,13 @@ const { rolloverPointSets, snapshotRosters, generateSchedule } = require('../ser
 function mapSeasonToPointSet(seasonStr) {
     if (!seasonStr) return "Original Pts";
 
-    // Use utils seasonMap for legacy
+    // Reverse lookup in seasonMap (Name -> Date Key)
+    // seasonMap has format { '8/4/25': 'Fall 2025' }
+    // We want to map 'Fall 2025' -> '8/4/25 Season'
     const dateKey = Object.keys(seasonMap).find(key => seasonMap[key] === seasonStr);
 
     if (dateKey) {
-         // Existing legacy logic...
+         // Check for legacy "Original Pts" cutoff (Pre-Oct 22, 2020)
          const parts = dateKey.split('/');
          if (parts.length === 3) {
              const m = parseInt(parts[0]);
@@ -23,6 +25,8 @@ function mapSeasonToPointSet(seasonStr) {
              const date = new Date(y, m - 1, d);
              if (date < new Date(2020, 9, 22)) return "Original Pts";
          }
+         // If newer, use the date key as the point set name (e.g. "8/4/25 Season")
+         return `${dateKey} Season`;
     }
 
     // New format: Winter 2026 -> Winter 2026
@@ -89,25 +93,28 @@ async function checkSeasonOver(client) {
 
         const lastCompletedSeason = completedSeasonsRes.rows[0].season_name;
 
-        // 2. Check for any unplayed games (winning_team_id IS NULL)
-        // that belong to a DIFFERENT (future) season.
-        // If we find any unplayed games for a season that is NOT lastCompletedSeason,
-        // then the *next* season has already started (schedule generated), so we should NOT show the draft button.
+        // 2. Check for ANY games (played or unplayed) that belong to a DIFFERENT (future) season.
+        // If the "Latest" season known to the system is NOT the "Last Completed" season,
+        // then a new season is active (or partially active), so we should NOT show the draft button.
+        // We find the latest season by Date.
 
-        const futureUnplayedRes = await client.query(`
-            SELECT 1
+        const latestSeasonRes = await client.query(`
+            SELECT season_name
             FROM series_results
-            WHERE winning_score IS NULL
-              AND season_name != $1
+            ORDER BY date DESC
             LIMIT 1
-        `, [lastCompletedSeason]);
+        `);
 
-        if (futureUnplayedRes.rows.length > 0) {
-            // Future games exist, so the "gap" between seasons is over.
-            return false;
+        if (latestSeasonRes.rows.length > 0) {
+            const latestSeason = latestSeasonRes.rows[0].season_name;
+            if (latestSeason !== lastCompletedSeason) {
+                // A newer season exists (it has games, even if finished regular season, it lacks the final awards).
+                return false;
+            }
         }
 
-        // If we are here, a season has finished, and no NEW season schedule exists.
+        // If we are here, the latest known season IS the last completed season.
+        // So we are in the off-season.
         return true;
 
     } catch (e) {
@@ -556,11 +563,14 @@ router.get('/state', authenticateToken, async (req, res) => {
         // Fetch team info for the draft order (to populate future rows)
         let teamsMap = {};
         if (state.draft_order && state.draft_order.length > 0) {
-            const teamsRes = await client.query('SELECT team_id, name, city FROM teams WHERE team_id = ANY($1::int[])', [state.draft_order]);
+            const teamsRes = await client.query('SELECT team_id, name, city, logo_url FROM teams WHERE team_id = ANY($1::int[])', [state.draft_order]);
             teamsRes.rows.forEach(t => {
                 // For the draft table, we only want the City (as per requirements).
                 // Fallback to name if city is missing.
-                teamsMap[t.team_id] = t.city || t.name || "Unknown Team";
+                teamsMap[t.team_id] = {
+                    name: t.city || t.name || "Unknown Team",
+                    logo_url: t.logo_url
+                };
             });
         }
 
