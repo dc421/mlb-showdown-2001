@@ -115,7 +115,9 @@ const displayRows = computed(() => {
         const teamIndex = (i - 1) % teamCount;
         const teamId = order[teamIndex];
 
-        let teamName = (draftState.value.teams && draftState.value.teams[teamId]) || `Team ${teamId}`;
+        const teamObj = (draftState.value.teams && draftState.value.teams[teamId]);
+        let teamName = teamObj ? teamObj.name : `Team ${teamId}`;
+        let teamLogo = teamObj ? teamObj.logo_url : null;
 
         // Determine Round Name
         let roundNum = "";
@@ -136,7 +138,15 @@ const displayRows = computed(() => {
 
         if (historyItems.length > 0) {
             // Render existing history items
-            historyItems.sort((a, b) => a.id - b.id).forEach(h => {
+            // Sort: DROPPED first, then ADDED. (DROPPED < ADDED alphabetically false, so reverse or custom)
+            // Or explicit: DROPPED=0, ADDED=1
+            historyItems.sort((a, b) => {
+                const actionOrder = { 'DROPPED': 0, 'ADDED': 1, 'ROSTER_CONFIRMED': 2 };
+                const aVal = actionOrder[a.action] !== undefined ? actionOrder[a.action] : 99;
+                const bVal = actionOrder[b.action] !== undefined ? actionOrder[b.action] : 99;
+                if (aVal !== bVal) return aVal - bVal;
+                return a.id - b.id;
+            }).forEach(h => {
                  // Display Round normalization
                  let displayRound = h.round;
                  if (h.round === 'Round 1') displayRound = '1';
@@ -144,9 +154,14 @@ const displayRows = computed(() => {
                  // Keep "Add/Drop 1" and "Add/Drop 2" as is
 
                  let name = h.player_name;
+                 // Append position if available
+                 if (h.position) {
+                     name += ` (${h.position})`;
+                 }
+
                  if (isAddDrop) {
-                    if (h.action === 'ADDED') name += ' (Added)';
-                    if (h.action === 'DROPPED') name += ' (Dropped)';
+                    if (h.action === 'ADDED') name = `ADD: ${name}`;
+                    else if (h.action === 'DROPPED') name = `DROP: ${name}`;
                  }
 
                  rows.push({
@@ -155,7 +170,9 @@ const displayRows = computed(() => {
                      pick_number: i,
                      team_name: h.city || h.team_name,
                      player_name: name,
-                     action: h.action
+                     action: h.action,
+                     // Only show logo if not a DROP
+                     team_logo: (h.action === 'DROPPED') ? null : teamLogo
                  });
             });
         } else {
@@ -165,6 +182,7 @@ const displayRows = computed(() => {
                 round: roundNum,
                 pick_number: i,
                 team_name: teamName, // Use the scheduled team name
+                team_logo: teamLogo,
                 player_name: '',
                 action: 'PENDING'
             });
@@ -503,7 +521,12 @@ onUnmounted(() => {
                 <tbody>
                     <tr v-for="item in displayRows" :key="item.id || item.pick_number">
                         <td>{{ item.round }}</td>
-                        <td>{{ item.pick_number || '-' }}</td>
+                        <td class="pick-cell">
+                            <div class="pick-content">
+                                <span>{{ item.pick_number || '-' }}</span>
+                                <img v-if="item.team_logo" :src="item.team_logo" class="table-team-logo" />
+                            </div>
+                        </td>
                         <td>{{ item.player_name }}</td>
                         <td>{{ item.team_name }}</td>
                     </tr>
@@ -625,6 +648,10 @@ onUnmounted(() => {
 .player-row { transition: background-color 0.2s; }
 .player-row:hover { background-color: #e2e6ea; }
 .name-cell { font-weight: normal; }
+
+.pick-cell { }
+.pick-content { display: flex; align-items: center; gap: 8px; }
+.table-team-logo { width: 24px; height: 24px; object-fit: contain; }
 
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 
