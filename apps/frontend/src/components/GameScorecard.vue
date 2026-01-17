@@ -92,10 +92,19 @@ const statusText = computed(() => {
     return 'In Progress';
   }
   if (text === 'Waiting for opponent') {
-    return 'Waiting for opponent...';
+    return `Waiting for opponent... (${getSeriesTypeDisplay(props.game.series_type)})`;
   }
   return text;
 });
+
+function getSeriesTypeDisplay(type) {
+    switch (type) {
+        case 'regular_season': return 'Regular Season';
+        case 'playoff': return 'Playoff';
+        case 'classic': return 'Classic';
+        default: return 'Exhibition';
+    }
+}
 
 const isWin = computed(() => {
     if (props.game.status !== 'completed' || !gameState.value) return false;
@@ -178,7 +187,7 @@ const batterDisplay = computed(() => {
           <span v-if="game.opponent">
             {{ gameHeaderText }}
           </span>
-          <span v-else-if="isPreGame">Waiting for opponent...</span>
+          <span v-else-if="isPreGame">Waiting for opponent... ({{ getSeriesTypeDisplay(game.series_type) }})</span>
         </div>
         <div class="top-right" v-if="game.status === 'in_progress' && gameState">
           <span>{{ outsText }}</span>

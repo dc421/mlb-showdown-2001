@@ -1919,7 +1919,7 @@ app.get('/api/games', authenticateToken, async (req, res) => {
     const processedGames = [];
     for (const game of gamesResult.rows) {
         const participantsResult = await pool.query(
-            `SELECT u.user_id, t.city, t.name, t.abbreviation, t.display_format
+            `SELECT u.user_id, t.city, t.name, t.abbreviation, t.display_format, gp.home_or_away
              FROM game_participants gp 
              JOIN users u ON gp.user_id = u.user_id 
              JOIN teams t ON u.team_id = t.team_id 
@@ -1934,10 +1934,16 @@ app.get('/api/games', authenticateToken, async (req, res) => {
         const homeUserId = Number(game.home_team_user_id);
 
         for (const p of participantsResult.rows) {
-            if (Number(p.user_id) === homeUserId) {
+            if (p.home_or_away === 'home') {
                 home_team_abbr = p.abbreviation;
-            } else {
+            } else if (p.home_or_away === 'away') {
                 away_team_abbr = p.abbreviation;
+            } else {
+                 if (Number(p.user_id) === homeUserId) {
+                    home_team_abbr = p.abbreviation;
+                } else {
+                    away_team_abbr = p.abbreviation;
+                }
             }
 
             if (Number(p.user_id) !== userId) {
