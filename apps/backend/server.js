@@ -2253,7 +2253,7 @@ app.get('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
   try {
     // 1. Get game info, including the declared home team
     const gameQuery = await pool.query(
-      'SELECT setup_rolls, home_team_user_id, use_dh FROM games WHERE game_id = $1',
+      'SELECT setup_rolls, home_team_user_id, use_dh, status FROM games WHERE game_id = $1',
       [gameId]
     );
 
@@ -2294,6 +2294,7 @@ app.get('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
         rolls: gameQuery.rows[0]?.setup_rolls || {},
         homeTeamUserId: gameQuery.rows[0]?.home_team_user_id || null,
         useDh: gameQuery.rows[0]?.use_dh,
+        status: gameQuery.rows[0]?.status,
         participants: participants
     });
 
