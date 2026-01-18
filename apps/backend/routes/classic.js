@@ -148,8 +148,13 @@ router.get('/state', authenticateToken, async (req, res) => {
                     u.user_id,
                     t.city, t.name as team_name,
                     cp.name as player_name, cp.display_name, ppv.points,
+                    cp.card_id, cp.image_url,
                     rc.assignment,
-                    cp.position, cp.ip
+                    CASE
+                        WHEN cp.control IS NOT NULL THEN (CASE WHEN cp.ip > 3 THEN 'SP' ELSE 'RP' END)
+                        ELSE array_to_string(ARRAY(SELECT jsonb_object_keys(cp.fielding_ratings)), '/')
+                    END as position,
+                    cp.ip
                 FROM rosters r
                 JOIN users u ON r.user_id = u.user_id
                 JOIN teams t ON u.team_id = t.team_id
