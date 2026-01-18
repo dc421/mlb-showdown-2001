@@ -750,6 +750,11 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (isTransitioningToNextHitter.value) return false;
   if (!gameStore.gameState) return false;
 
+  // NEW: If the game is over and ended on a non-batter action (like a steal), do not hide.
+  if (gameStore.game?.status === 'completed' && !gameStore.gameState.currentAtBat?.batterAction) {
+      return false;
+  }
+
   // NEW: Scenario 0: Always hide the outcome while awaiting the double play roll or throw roll result.
   if (showRollForDoublePlayButton.value || showDefensiveRollForThrowButton.value && !showThrowRollResult.value) {
     return true;
@@ -997,7 +1002,15 @@ const showThrowRollResult = computed(() => {
   return true;
 });
 
+const isGameEndingSteal = computed(() => {
+    if (!gameStore.gameState) return false;
+    const isStealFinish = (!!gameStore.gameState.lastStealResult || !!gameStore.gameState.throwRollResult) && !gameStore.gameState.currentAtBat?.batterAction;
+    return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
+});
+
 const showAutoThrowResult = computed(() => {
+    if (isGameEndingSteal.value) return true;
+
     if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult ||
     (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext && gameStore.gameState?.currentAtBat.pitcherAction !== 'intentional_walk') || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
         return false;
@@ -1540,8 +1553,8 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  if ((!(isGameOver.value && gameStore.displayGameState.outs === 3) || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value))
-   ) {
+  const basicVisibility = (isGameOver.value && gameStore.displayGameState.outs === 3) && (isSwingResultVisible.value || isGameEndingSteal.value);
+  if (!basicVisibility || (!showAutoThrowResult.value && gameStore.gameState.throwRollResult) || (showRollForDoublePlayButton.value && !showThrowRollResult.value)) {
     return null;
   }
   const homeTeam = gameStore.teams.home;
@@ -1577,7 +1590,8 @@ const finalScoreMessage = computed(() => {
 });
 
 const seriesScoreMessage = computed(() => {
-  if ((!(isGameOver.value && gameStore.displayGameState.outs === 3) || !isSwingResultVisible.value || !showAutoThrowResult.value && gameStore.gameState.throwRollResult || (showRollForDoublePlayButton.value && !showThrowRollResult.value))) {
+  const basicVisibility = (isGameOver.value && gameStore.displayGameState.outs === 3) && (isSwingResultVisible.value || isGameEndingSteal.value);
+  if (!basicVisibility || (!showAutoThrowResult.value && gameStore.gameState.throwRollResult) || (showRollForDoublePlayButton.value && !showThrowRollResult.value)) {
     return null;
   }
 
@@ -1656,7 +1670,7 @@ function proceedToNextGame() {
 
 const showSetLineupForNextGameButton = computed(() => {
   return isGameOver.value && nextGameId.value && !gameStore.nextLineupIsSet
-   && isSwingResultVisible.value && !(!showAutoThrowResult.value && gameStore.gameState?.throwRollResult)
+   && (isSwingResultVisible.value || isGameEndingSteal.value) && !(!showAutoThrowResult.value && gameStore.gameState?.throwRollResult)
    ;
 });
 
