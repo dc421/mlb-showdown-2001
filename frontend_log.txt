@@ -1,0 +1,15 @@
+Port 5173 is in use, trying another one...
+
+  VITE v7.2.6  ready in 1030 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://192.168.0.2:5174/
+  ➜  Vue DevTools: Open http://localhost:5174/__devtools__/ as a separate window
+  ➜  Vue DevTools: Press Alt(⌥)+Shift(⇧)+D in App to toggle the Vue DevTools
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
+
+[1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m

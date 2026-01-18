@@ -15,6 +15,7 @@ const isDashboardPage = computed(() => route.name === 'dashboard');
 
 const isMenuOpen = ref(false);
 const isTeamsMenuOpen = ref(false); // For desktop dropdown
+const isMobileTeamsExpanded = ref(false); // For mobile toggle
 const teamsList = ref([]);
 
 const toggleMenu = () => {
@@ -33,24 +34,12 @@ const closeTeamsMenu = () => {
   isTeamsMenuOpen.value = false;
 }
 
+const toggleMobileTeams = () => {
+    isMobileTeamsExpanded.value = !isMobileTeamsExpanded.value;
+}
+
 async function fetchTeams() {
     try {
-        const response = await apiClient('/api/available-teams'); // Or another endpoint to get all teams with ID
-        if (response.ok) {
-            const data = await response.json();
-            // Filter out teams that are not claimed (optional, based on requirement. User said "the five team names", likely the active ones)
-            // But available-teams endpoint specifically returns *unclaimed* teams.
-            // We need an endpoint for ALL teams.
-            // Let's use /api/league which returns rosters, or create a simple one.
-            // Actually, let's use /api/available-teams but we need a new endpoint really.
-            // Wait, /api/available-teams returns "user_id IS NULL".
-            // Let's use /api/league (standings) logic or create a lightweight endpoint.
-            // For now, let's assume we can fetch all teams.
-            // I'll create a lightweight fetch in onMounted if available-teams isn't right.
-        }
-
-        // Let's just use the /api/league endpoint logic on frontend or add a dedicated endpoint?
-        // Simpler: Fetch /api/league (standings) and extract teams.
         const leagueRes = await apiClient('/api/league?point_set_id=1'); // ID doesn't matter for team list
         if (leagueRes.ok) {
             const leagueData = await leagueRes.json();
@@ -89,8 +78,8 @@ onMounted(async () => {
       <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text">League</RouterLink>
 
       <!-- Teams Dropdown (Desktop) -->
-      <div v-if="!isGamePage" class="teams-dropdown-container" @mouseleave="closeTeamsMenu">
-          <span class="dashboard-link-text teams-link" @click="toggleTeamsMenu" @mouseover="isTeamsMenuOpen = true">
+      <div v-if="!isGamePage" class="teams-dropdown-container" @mouseenter="isTeamsMenuOpen = true" @mouseleave="closeTeamsMenu">
+          <span class="dashboard-link-text teams-link" @click="toggleTeamsMenu">
               Teams
           </span>
           <div v-if="isTeamsMenuOpen" class="teams-dropdown-menu">
@@ -130,19 +119,26 @@ onMounted(async () => {
     <div v-if="isMenuOpen" class="mobile-menu">
       <RouterLink to="/dashboard" @click="closeMenu" class="mobile-link">Dashboard</RouterLink>
       <RouterLink to="/league" @click="closeMenu" class="mobile-link">League</RouterLink>
-      <!-- Mobile Teams List (Expanded) -->
+
+      <!-- Mobile Teams List (Toggleable) -->
       <div class="mobile-teams-section">
-          <div class="mobile-link-header">Teams</div>
-          <RouterLink
-            v-for="team in teamsList"
-            :key="team.team_id"
-            :to="`/teams/${team.team_id}`"
-            class="mobile-link indented"
-            @click="closeMenu"
-          >
-              {{ team.name }}
-          </RouterLink>
+          <div class="mobile-link-header" @click="toggleMobileTeams">
+              Teams
+              <span class="toggle-icon">{{ isMobileTeamsExpanded ? '▲' : '▼' }}</span>
+          </div>
+          <div v-if="isMobileTeamsExpanded" class="mobile-teams-list">
+              <RouterLink
+                v-for="team in teamsList"
+                :key="team.team_id"
+                :to="`/teams/${team.team_id}`"
+                class="mobile-link indented"
+                @click="closeMenu"
+              >
+                  {{ team.name }}
+              </RouterLink>
+          </div>
       </div>
+
       <RouterLink to="/classic" @click="closeMenu" class="mobile-link active-classic">Classic</RouterLink>
       <RouterLink to="/draft" @click="closeMenu" class="mobile-link">Draft</RouterLink>
       <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
@@ -336,6 +332,23 @@ onMounted(async () => {
       font-size: 0.9rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+  }
+
+  .mobile-link-header:hover {
+      background-color: #495057;
+  }
+
+  .toggle-icon {
+      font-size: 0.8rem;
+  }
+
+  .mobile-teams-list {
+      display: flex;
+      flex-direction: column;
   }
 
   .mobile-link:hover {
