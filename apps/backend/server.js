@@ -807,6 +807,7 @@ app.use('/api/dev', require('./routes/dev'));
 app.use('/api/draft', require('./routes/draft'));
 app.use('/api/league', require('./routes/league'));
 app.use('/api/classic', require('./routes/classic'));
+app.use('/api/teams', require('./routes/teams'));
 
 // USER REGISTRATION (Updated for Teams)
 app.post('/api/register', async (req, res) => {

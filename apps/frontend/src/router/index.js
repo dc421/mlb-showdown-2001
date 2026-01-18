@@ -3,16 +3,17 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
-import RosterBuilderView from '../views/RosterBuilderView.vue' // <-- IMPORT NEW VIEW
-import GameView from '../views/GameView.vue' // <-- IMPORT NEW VIEW
+import RosterBuilderView from '../views/RosterBuilderView.vue'
+import GameView from '../views/GameView.vue'
 import SetLineupView from '../views/SetLineupView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import GameSetupView from '../views/GameSetupView.vue';
-import DevToolView from '../views/DevToolView.vue' // <-- ADD THIS
+import DevToolView from '../views/DevToolView.vue'
 import LeagueView from '../views/LeagueView.vue'
 import DraftView from '../views/DraftView.vue'
 import OfficialRulesView from '../views/OfficialRulesView.vue'
 import ClassicView from '../views/ClassicView.vue'
+import TeamPageView from '../views/TeamPageView.vue' // <-- IMPORT NEW VIEW
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -57,7 +58,12 @@ const router = createRouter({
       component: ClassicView,
       meta: { requiresAuth: true }
     },
-    // ADD THIS NEW DYNAMIC ROUTE
+    {
+      path: '/teams/:teamId', // <-- NEW ROUTE
+      name: 'team-page',
+      component: TeamPageView,
+      meta: { requiresAuth: true }
+    },
     {
       path: '/game/:id',
       name: 'game',
@@ -89,7 +95,6 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      // Redirect root to dashboard if logged in, otherwise to login
       path: '/',
       redirect: () => {
         const auth = useAuthStore();
@@ -99,14 +104,11 @@ const router = createRouter({
   ]
 })
 
-// Navigation Guard
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore();
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    // If a route requires auth and the user isn't logged in, redirect to login
     next('/login');
   } else {
-    // Otherwise, allow navigation
     next();
   }
 });
