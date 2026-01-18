@@ -100,7 +100,25 @@ const displayRows = computed(() => {
     // If no active draft data is available (e.g. historical only, no order),
     // fallback to just showing history.
     if (!draftState.value.draft_order || draftState.value.draft_order.length === 0) {
-        return draftState.value.history.filter(item => (item.action || '').toUpperCase() !== 'REMOVED_RANDOM');
+        return draftState.value.history
+            .filter(item => (item.action || '').toUpperCase() !== 'REMOVED_RANDOM')
+            .map(h => {
+                let name = h.player_name;
+                if (h.position) name += ` (${h.position})`;
+                if (h.action === 'ADDED' && (h.round === 'Add/Drop 1' || h.round === 'Add/Drop 2')) name = `ADD: ${name}`;
+                if (h.action === 'DROPPED') name = `DROP: ${name}`;
+
+                return {
+                    id: `hist-${h.id}`,
+                    round: h.round,
+                    pick_number: h.pick_number,
+                    team_name: h.team_name,
+                    player_name: name,
+                    action: h.action,
+                    // Show logo if available and action is not DROPPED
+                    team_logo: (h.action === 'DROPPED') ? null : h.logo_url
+                };
+            });
     }
 
     const rows = [];
