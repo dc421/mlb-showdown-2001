@@ -3,55 +3,8 @@ const router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
 const { sendPickConfirmation, sendRandomRemovalsEmail } = require('../services/emailService');
-const { getSeasonName, sortSeasons, seasonMap } = require('../utils/seasonUtils');
+const { getSeasonName, sortSeasons, seasonMap, mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { rolloverPointSets, snapshotRosters, generateSchedule } = require('../services/seasonRolloverService');
-
-// Helper: Map Season Name (DB format) to Point Set Name
-function mapSeasonToPointSet(seasonStr) {
-    if (!seasonStr) return "Original Pts";
-
-    // Reverse lookup in seasonMap (Name -> Date Key)
-    // seasonMap has format { '8/4/25': 'Fall 2025' }
-    // We want to map 'Fall 2025' -> '8/4/25 Season'
-    const dateKey = Object.keys(seasonMap).find(key => seasonMap[key] === seasonStr);
-
-    if (dateKey) {
-         // Check for legacy "Original Pts" cutoff (Pre-Oct 22, 2020)
-         const parts = dateKey.split('/');
-         if (parts.length === 3) {
-             const m = parseInt(parts[0]);
-             const d = parseInt(parts[1]);
-             const y = 2000 + parseInt(parts[2]);
-             const date = new Date(y, m - 1, d);
-             if (date < new Date(2020, 9, 22)) return "Original Pts";
-         }
-         // If newer, use the date key as the point set name (e.g. "8/4/25 Season")
-         return `${dateKey} Season`;
-    }
-
-    // New format: Winter 2026 -> Winter 2026
-    if (seasonStr.match(/^(Winter|Spring|Summer|Fall)\s+\d{4}$/)) {
-        return seasonStr;
-    }
-
-    // M-D-YY Season format
-    const match = seasonStr.match(/^(\d{1,2})-(\d{1,2})-(\d{2}) Season$/);
-    if (match) {
-        const month = parseInt(match[1]);
-        const day = parseInt(match[2]);
-        const yearVal = parseInt(match[3]);
-        const year = 2000 + yearVal;
-
-        // Same logic as before for >= 2025
-        if (year >= 2025) {
-            return `${month}/${day}/${yearVal} Season`;
-        } else {
-            return `${month}/${day} Season`;
-        }
-    }
-
-    return "Original Pts";
-}
 
 // Helper to get the active draft state
 async function getDraftState(client, seasonName = null) {
@@ -475,6 +428,11 @@ router.get('/state', authenticateToken, async (req, res) => {
         allPsRes.rows.forEach(ps => pointSetMap[ps.name] = ps.point_set_id);
 
         let pointSetId = pointSetMap[targetPointSetName];
+        // FALLBACK: If mapSeasonToPointSet didn't find it, try the season name directly
+        // e.g. "Fall 2025" -> mapSeason returns "8/4/25 Season", but point_sets might have "Fall 2025" directly if it's new.
+        if (!pointSetId && pointSetMap[state.season_name]) {
+            pointSetId = pointSetMap[state.season_name];
+        }
 
         // --- NEW: Live Draft Override ---
         // If it's the active draft or explicitly "Live Draft", default to Upcoming Season if mapped set not found OR if we want to force it.
@@ -499,6 +457,7 @@ router.get('/state', authenticateToken, async (req, res) => {
                 dh.*,
                 COALESCE(cp.display_name, cp.name, dh.player_name) as player_name,
                 t.city,
+                t.logo_url,
                 COALESCE(dh.team_name, t.name) as team_name,
                 ppv.points,
                 CASE
