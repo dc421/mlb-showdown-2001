@@ -456,7 +456,7 @@ onMounted(async () => {
             <div class="section rosters-section">
                 <h2>Classic Rosters</h2>
                 <div v-if="!state.revealed" class="locked-message">
-                    <p>Rosters are hidden until all 5 teams have submitted a valid Classic roster.</p>
+                    <p>Rosters are hidden until you submit your roster, or all 5 teams have submitted.</p>
                     <p>Current Status: <strong>{{ state.readyCount }} / 5</strong> Ready</p>
                 </div>
 
