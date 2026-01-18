@@ -1,0 +1,24 @@
+
+> showdown-monorepo@1.0.0 dev:backend
+> npm run dev --workspace=backend
+
+
+> backend@1.0.0 dev
+> node server.js
+
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+Configuring Email: Host=(Service default), Port=587, Secure=false
+Attempting to connect to database...
+❌ DATABASE CONNECTION FAILED:
+AggregateError [ECONNREFUSED]:
+    at /app/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async startServer (/app/apps/backend/server.js:4262:5)
+npm error Lifecycle script `dev` failed with error:
+npm error code 1
+npm error path /app/apps/backend
+npm error workspace backend@1.0.0
+npm error location /app/apps/backend
+npm error command failed
+npm error command sh -c node server.js
