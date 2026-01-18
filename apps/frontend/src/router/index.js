@@ -13,7 +13,8 @@ import LeagueView from '../views/LeagueView.vue'
 import DraftView from '../views/DraftView.vue'
 import OfficialRulesView from '../views/OfficialRulesView.vue'
 import ClassicView from '../views/ClassicView.vue'
-import TeamPageView from '../views/TeamPageView.vue' // <-- IMPORT NEW VIEW
+import TeamPageView from '../views/TeamPageView.vue'
+import TeamSeasonView from '../views/TeamSeasonView.vue' // <-- IMPORT NEW VIEW
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -59,9 +60,15 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/teams/:teamId', // <-- NEW ROUTE
+      path: '/teams/:teamId',
       name: 'team-page',
       component: TeamPageView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/teams/:teamId/seasons/:seasonName', // <-- NEW ROUTE
+      name: 'team-season-page',
+      component: TeamSeasonView,
       meta: { requiresAuth: true }
     },
     {
