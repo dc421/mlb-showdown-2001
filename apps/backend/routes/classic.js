@@ -139,21 +139,26 @@ router.get('/state', authenticateToken, async (req, res) => {
 
         let rosters = [];
         if (revealed && submittedUserIds.length > 0) {
+            // Get Original Pts ID
+            const psRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Original Pts'");
+            const pointSetId = psRes.rows[0] ? psRes.rows[0].point_set_id : null;
+
             const rostersQuery = `
                 SELECT
                     u.user_id,
                     t.city, t.name as team_name,
-                    cp.name as player_name, cp.display_name, cp.points,
+                    cp.name as player_name, cp.display_name, ppv.points,
                     rc.assignment
                 FROM rosters r
                 JOIN users u ON r.user_id = u.user_id
                 JOIN teams t ON u.team_id = t.team_id
                 JOIN roster_cards rc ON r.roster_id = rc.roster_id
                 JOIN cards_player cp ON rc.card_id = cp.card_id
+                LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $3
                 WHERE r.roster_type = 'classic' AND r.classic_id = $1
                 AND r.user_id = ANY($2)
             `;
-            const rostersRes = await pool.query(rostersQuery, [classic.id, submittedUserIds]);
+            const rostersRes = await pool.query(rostersQuery, [classic.id, submittedUserIds, pointSetId]);
 
             const rosterMap = {};
             rostersRes.rows.forEach(row => {
