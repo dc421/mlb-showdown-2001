@@ -130,10 +130,15 @@ router.get('/state', authenticateToken, async (req, res) => {
         `;
         const validRostersRes = await pool.query(validRostersQuery, [classic.id]);
         const readyCount = validRostersRes.rowCount;
-        const revealed = readyCount >= 5;
+
+        const submittedUserIds = validRostersRes.rows.map(r => r.user_id);
+        const currentUserId = Number(req.user.userId);
+        const userHasSubmitted = submittedUserIds.some(id => Number(id) === currentUserId);
+
+        const revealed = readyCount >= 5 || userHasSubmitted;
 
         let rosters = [];
-        if (revealed) {
+        if (revealed && submittedUserIds.length > 0) {
             const rostersQuery = `
                 SELECT
                     u.user_id,
@@ -146,8 +151,9 @@ router.get('/state', authenticateToken, async (req, res) => {
                 JOIN roster_cards rc ON r.roster_id = rc.roster_id
                 JOIN cards_player cp ON rc.card_id = cp.card_id
                 WHERE r.roster_type = 'classic' AND r.classic_id = $1
+                AND r.user_id = ANY($2)
             `;
-            const rostersRes = await pool.query(rostersQuery, [classic.id]);
+            const rostersRes = await pool.query(rostersQuery, [classic.id, submittedUserIds]);
 
             const rosterMap = {};
             rostersRes.rows.forEach(row => {
