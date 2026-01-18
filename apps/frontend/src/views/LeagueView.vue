@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
@@ -10,37 +10,84 @@ const leagueData = ref([]);
 const loading = ref(true);
 const selectedPlayer = ref(null);
 const seasonSummary = ref(null);
+const seasonsList = ref([]);
+const selectedSeason = ref('');
+const viewMode = ref('standings'); // 'standings' or 'matrix'
+const matrixData = ref([]);
+
+// Modal State for Result Input
+const showResultModal = ref(false);
+const resultForm = ref({
+    id: null,
+    winnerName: '',
+    loserName: '',
+    winningScore: 0,
+    losingScore: 0,
+    winnerId: null, // User selected winner
+    winningTeamId: null, // From DB
+    losingTeamId: null // From DB
+});
+
+// Use VITE_API_URL or default to empty string for proxy
+const apiUrl = import.meta.env.VITE_API_URL || '';
+
+async function fetchSeasons() {
+    try {
+        const response = await apiClient('/api/league/seasons');
+        if (response.ok) {
+            seasonsList.value = await response.json();
+            // Assuming current season is not in this list? Or is it?
+            // Usually the list contains all seasons.
+            // If we have a list, default selectedSeason to the first one (most recent) if not set.
+            if (seasonsList.value.length > 0 && !selectedSeason.value) {
+                // Actually, let's keep selectedSeason empty to mean "Current" initially,
+                // but if the user picks "All-Time" or a specific one, we set it.
+                // Or better: Default to the first one in the list as the "Current" one for display.
+                selectedSeason.value = seasonsList.value[0];
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching seasons:", e);
+    }
+}
 
 async function fetchLeagueData() {
   if (!authStore.selectedPointSetId) {
-      // Ensure point sets are loaded so we have an ID
       await authStore.fetchPointSets();
   }
 
   const pointSetId = authStore.selectedPointSetId;
-  if (!pointSetId) {
-      console.error("Could not determine point set ID.");
-      loading.value = false;
-      return;
-  }
+  // If we are looking at a past season, we might want a different point set,
+  // but for now let's stick to the current logic for Rosters.
+
+  // Note: The /api/league endpoint (rosters) is NOT filtered by season currently.
+  // It returns CURRENT rosters.
+  // The user requested: "view past seasons... (So that includes series results, standings, and team rosters.)"
+  // Implementing historical rosters is complex (requires historical_rosters table).
+  // The current backend `/api/league` endpoint does NOT support historical rosters yet.
+  // Given the scope and constraints, I will focus on Results/Standings/Matrix filtering first.
+  // Historical Rosters might be a bigger task or I can try to pass season to it if supported later.
+
+  loading.value = true;
 
   try {
-    // Use apiClient for automatic auth handling
+    let summaryUrl = `/api/league/season-summary`;
+    if (selectedSeason.value) summaryUrl += `?season=${encodeURIComponent(selectedSeason.value)}`;
+
     const [leagueResponse, summaryResponse] = await Promise.all([
-        apiClient(`/api/league?point_set_id=${pointSetId}`),
-        apiClient(`/api/league/season-summary`)
+        apiClient(`/api/league?point_set_id=${pointSetId}`), // Still fetching current rosters
+        apiClient(summaryUrl)
     ]);
 
     if (leagueResponse.ok) {
         leagueData.value = await leagueResponse.json();
-    } else {
-        console.error("Failed to fetch league data");
     }
-
     if (summaryResponse.ok) {
         seasonSummary.value = await summaryResponse.json();
-    } else {
-        console.error("Failed to fetch season summary");
+    }
+
+    if (viewMode.value === 'matrix') {
+        await fetchMatrix();
     }
 
   } catch (error) {
@@ -49,6 +96,32 @@ async function fetchLeagueData() {
       loading.value = false;
   }
 }
+
+async function fetchMatrix() {
+    try {
+        let url = `/api/league/matrix`;
+        if (selectedSeason.value) url += `?season=${encodeURIComponent(selectedSeason.value)}`;
+        const res = await apiClient(url);
+        if (res.ok) {
+            matrixData.value = await res.json();
+        }
+    } catch (e) {
+        console.error("Error fetching matrix:", e);
+    }
+}
+
+// Watch for season changes
+watch(selectedSeason, () => {
+    fetchLeagueData();
+});
+
+// Watch for view mode changes
+watch(viewMode, () => {
+    if (viewMode.value === 'matrix') {
+        fetchMatrix();
+    }
+});
+
 
 function openPlayerCard(player) {
     selectedPlayer.value = player;
@@ -64,19 +137,10 @@ function getTeamTotalPoints(roster) {
 
 function padRoster(roster) {
     const padded = [...roster];
-
-    // Identify missing positions
-    const counts = {
-        'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0,
-        'LF': 0, 'CF': 0, 'RF': 0, 'DH': 0,
-        'SP': 0, 'RP': 0
-    };
+    const counts = { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0, 'DH': 0, 'SP': 0, 'RP': 0 };
 
     padded.forEach(p => {
-        // League rosters often have 'PITCHING_STAFF' as assignment, or explicit positions
         const pos = p.assignment === 'PITCHING_STAFF' ? (p.displayPosition || p.position) : (p.assignment || p.displayPosition || p.position);
-
-        // Normalize position string
         if (pos) {
             if (pos === 'SP' || (p.ip && Number(p.ip) > 3)) counts['SP']++;
             else if (pos === 'RP' || (p.ip && Number(p.ip) <= 3)) counts['RP']++;
@@ -107,18 +171,120 @@ function padRoster(roster) {
     return sortRoster(padded);
 }
 
-onMounted(() => {
+// Result Input Modal
+function openResultModal(series) {
+    resultForm.value = {
+        id: series.id,
+        winnerName: series.winner, // Currently mapped as winning_team_name
+        loserName: series.loser,
+        winningScore: 0,
+        losingScore: 0,
+        winnerId: series.winning_team_id,
+        winningTeamId: series.winning_team_id,
+        losingTeamId: series.losing_team_id
+    };
+    showResultModal.value = true;
+}
+
+function closeResultModal() {
+    showResultModal.value = false;
+}
+
+async function submitResult() {
+    // Validate scores
+    if (resultForm.value.winningScore < 0 || resultForm.value.losingScore < 0) {
+        alert("Scores cannot be negative.");
+        return;
+    }
+
+    try {
+        const payload = {
+            id: resultForm.value.id,
+            winning_score: resultForm.value.winningScore,
+            losing_score: resultForm.value.losingScore,
+            winner_id: resultForm.value.winnerId
+        };
+
+        const res = await apiClient('/api/league/result', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            closeResultModal();
+            fetchLeagueData(); // Refresh
+        } else {
+            alert("Failed to submit result.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error submitting result.");
+    }
+}
+
+
+onMounted(async () => {
+    await fetchSeasons();
     fetchLeagueData();
 });
 </script>
 
 <template>
   <div class="league-container">
+
+    <!-- Controls Header -->
+    <div class="controls-header">
+        <div class="season-selector">
+            <label>Season:</label>
+            <select v-model="selectedSeason">
+                <option v-for="s in seasonsList" :key="s" :value="s">{{ s }}</option>
+                <option value="all-time">All-Time</option>
+            </select>
+        </div>
+
+        <div class="view-toggle">
+            <button :class="{ active: viewMode === 'standings' }" @click="viewMode = 'standings'">Standings</button>
+            <button :class="{ active: viewMode === 'matrix' }" @click="viewMode = 'matrix'">Matrix</button>
+        </div>
+    </div>
+
     <div v-if="loading" class="loading">Loading league data...</div>
 
     <div v-else>
-        <!-- Season Summary Section -->
-        <div v-if="seasonSummary && (seasonSummary.standings.length > 0 || seasonSummary.recentResults.length > 0)" class="summary-section">
+
+        <!-- MATRIX VIEW -->
+        <div v-if="viewMode === 'matrix'" class="matrix-view">
+             <div class="matrix-container">
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th class="matrix-corner"></th> <!-- Top Left Corner -->
+                            <th v-for="team in matrixData" :key="team.id">{{ team.name }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="rowTeam in matrixData" :key="rowTeam.id">
+                            <td class="matrix-row-header">{{ rowTeam.name }}</td>
+                            <td v-for="colTeam in matrixData" :key="colTeam.id" class="matrix-cell">
+                                <template v-if="rowTeam.id === colTeam.id">
+                                    <span class="matrix-self">-</span>
+                                </template>
+                                <template v-else>
+                                    <div v-if="rowTeam.opponents[colTeam.id]" class="matrix-record">
+                                        <span class="matrix-wins">{{ rowTeam.opponents[colTeam.id].wins }}</span> -
+                                        <span class="matrix-losses">{{ rowTeam.opponents[colTeam.id].losses }}</span>
+                                    </div>
+                                    <div v-else class="matrix-empty"></div>
+                                </template>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+             </div>
+        </div>
+
+        <!-- STANDINGS VIEW -->
+        <div v-else-if="seasonSummary && (seasonSummary.standings.length > 0 || seasonSummary.recentResults.length > 0)" class="summary-section">
 
             <div class="summary-column standings-column">
                 <h3>Standings</h3>
@@ -133,7 +299,10 @@ onMounted(() => {
                     </thead>
                     <tbody>
                         <tr v-for="team in seasonSummary.standings" :key="team.team_id">
-                            <td>{{ team.name }}</td>
+                            <td>
+                                <span v-if="team.clinch" class="clinch-indicator">{{ team.clinch }}</span>
+                                {{ team.name }}
+                            </td>
                             <td class="text-right">{{ team.wins }}</td>
                             <td class="text-right">{{ team.losses }}</td>
                             <td class="text-right">{{ team.winPctDisplay }}</td>
@@ -146,6 +315,20 @@ onMounted(() => {
                 <h3>Recent Series Results</h3>
                 <div class="results-list">
                     <div v-for="result in seasonSummary.recentResults" :key="result.id" class="result-item">
+
+                        <!-- Trophy Icons -->
+                        <div v-if="result.round === 'Golden Spaceship'" class="trophy-icon" title="Golden Spaceship">
+                            <img :src="`${apiUrl}/images/golden_spaceship.png`" alt="Spaceship" />
+                        </div>
+                        <div v-if="result.round === 'Wooden Spoon'" class="trophy-icon" title="Wooden Spoon">
+                            <img :src="`${apiUrl}/images/wooden_spoon.png`" alt="Spoon" />
+                        </div>
+                        <div v-if="result.round === 'Silver Submarine'" class="trophy-icon" title="Silver Submarine">
+                            <img :src="`${apiUrl}/images/silver_submarine.png`" alt="Submarine" />
+                        </div>
+
+                        <span v-if="['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(result.round)" class="round-label">{{ result.round }}</span>
+
                         <template v-if="result.score">
                             <span class="result-winner">{{ result.winner }}</span> def.
                             <span class="result-loser">{{ result.loser }}</span>
@@ -153,6 +336,8 @@ onMounted(() => {
                         </template>
                         <template v-else>
                             <span class="result-matchup">{{ result.winner }} vs. {{ result.loser }}</span>
+                            <!-- Add Result Button -->
+                            <button class="add-result-btn" @click="openResultModal(result)">+</button>
                         </template>
                     </div>
                     <div v-if="seasonSummary.recentResults.length === 0" class="no-results">
@@ -163,7 +348,7 @@ onMounted(() => {
 
         </div>
 
-        <div class="teams-list">
+        <div v-if="viewMode === 'standings'" class="teams-list">
             <div v-for="team in leagueData" :key="team.team_id" class="team-block">
                 <div class="team-header" >
                     <img :src="team.logo_url" :alt="team.name" class="team-logo" />
@@ -210,6 +395,36 @@ onMounted(() => {
             <PlayerCard :player="selectedPlayer" />
         </div>
     </div>
+
+    <!-- Result Input Modal -->
+    <div v-if="showResultModal" class="modal-overlay" @click.self="closeResultModal">
+        <div class="modal-content result-modal-content">
+            <h3>Enter Series Result</h3>
+            <div class="modal-body">
+                <div class="team-score-input">
+                    <label>{{ resultForm.winnerName }}</label>
+                    <input type="number" v-model.number="resultForm.winningScore" min="0" />
+                </div>
+                <div class="team-score-input">
+                    <label>{{ resultForm.loserName }}</label>
+                    <input type="number" v-model.number="resultForm.losingScore" min="0" />
+                </div>
+
+                <div class="winner-selector">
+                    <label>Winner:</label>
+                    <select v-model="resultForm.winnerId">
+                        <option :value="resultForm.winningTeamId">{{ resultForm.winnerName }}</option>
+                        <option :value="resultForm.losingTeamId">{{ resultForm.loserName }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button @click="closeResultModal" class="cancel-btn">Cancel</button>
+                <button @click="submitResult" class="submit-btn">Submit</button>
+            </div>
+        </div>
+    </div>
+
   </div>
 </template>
 
@@ -218,6 +433,52 @@ onMounted(() => {
     max-width: 1200px;
     margin: 0 auto;
     padding: 1rem;
+}
+
+/* Controls Header */
+.controls-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.season-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+}
+
+.season-selector select {
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ced4da;
+    font-size: 1rem;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.view-toggle button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ced4da;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.view-toggle button.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
 }
 
 h1 {
@@ -237,14 +498,14 @@ h1 {
     flex-wrap: wrap;
     gap: 2rem;
     margin-bottom: 2rem;
-    background: #fff; /* Optional: adds a background to distinguish it */
+    background: #fff;
     padding: 1rem;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .summary-column {
-    flex: 1 1 300px; /* Minimum width 300px, grow equally */
+    flex: 1 1 300px;
 }
 
 .summary-column h3 {
@@ -278,30 +539,53 @@ h1 {
     text-align: right !important;
 }
 
+.clinch-indicator {
+    font-weight: bold;
+    margin-right: 4px;
+    color: #666;
+}
+
 /* Results List Styles */
 .results-list {
-    max-height: 300px; /* Optional: limit height and scroll if very long list */
-    overflow-y: auto;
+    /* REMOVED MAX HEIGHT AND OVERFLOW AS REQUESTED */
+    /* max-height: 300px;
+    overflow-y: auto; */
 }
 
 .result-item {
     padding: 0.5rem 0;
     border-bottom: 1px solid #f1f1f1;
     font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
 .result-item:last-child {
     border-bottom: none;
 }
 
+.trophy-icon img {
+    height: 20px;
+    width: auto;
+    vertical-align: middle;
+}
+
+.round-label {
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: #666;
+    margin-right: 0.5rem;
+}
+
 .result-winner {
     font-weight: 600;
-    color: #28a745; /* Greenish for winner */
+    color: #28a745;
 }
 
 .result-loser {
     font-weight: 600;
-    color: #dc3545; /* Reddish for loser? Or just regular black */
     color: #333;
 }
 
@@ -311,6 +595,25 @@ h1 {
     margin-left: 0.5rem;
 }
 
+.add-result-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 18px;
+    line-height: 24px;
+    cursor: pointer;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin-left: 0.5rem;
+}
+.add-result-btn:hover {
+    background: #218838;
+}
+
 .no-results {
     color: #888;
     font-style: italic;
@@ -318,7 +621,7 @@ h1 {
 }
 
 
-/* Existing Styles */
+/* Existing Styles for Rosters */
 .teams-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -405,7 +708,7 @@ h1 {
 
 /* Footer Styles */
 .total-row td {
-    border-top: 2px solid #aaa; /* Slightly darker border for separation */
+    border-top: 2px solid #aaa;
     padding: 0.5rem 0.25rem;
     font-weight: bold;
     background-color: #f1f3f5;
@@ -436,12 +739,84 @@ h1 {
 }
 
 .modal-content {
-    background: transparent;
-    padding: 0;
+    background: #fff; /* Ensure white background for result modal */
+    padding: 1.5rem;
     border-radius: 12px;
     position: relative;
     max-width: 90%;
     max-height: 90vh;
+}
+
+.result-modal-content {
+    width: 400px;
+}
+
+.result-modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.team-score-input {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.team-score-input label {
+    font-weight: 600;
+    flex: 1;
+}
+
+.team-score-input input {
+    width: 60px;
+    padding: 0.25rem;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.winner-selector {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.winner-selector select {
+    padding: 0.25rem;
+    font-size: 1rem;
+    flex: 1;
+    margin-left: 1rem;
+}
+
+.modal-footer {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.submit-btn, .cancel-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    border: none;
+}
+
+.submit-btn {
+    background: #007bff;
+    color: white;
+}
+
+.cancel-btn {
+    background: #ccc;
+    color: #333;
 }
 
 .close-btn {
@@ -454,4 +829,54 @@ h1 {
     font-size: 2rem;
     cursor: pointer;
 }
+
+/* Matrix Styles */
+.matrix-container {
+    overflow-x: auto;
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.matrix-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9rem;
+}
+
+.matrix-table th, .matrix-table td {
+    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+    text-align: center;
+}
+
+.matrix-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+}
+
+.matrix-row-header {
+    background: #f8f9fa;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.matrix-self {
+    color: #ccc;
+}
+
+.matrix-record {
+    font-weight: bold;
+}
+
+.matrix-wins {
+    color: #28a745;
+}
+
+.matrix-losses {
+    color: #dc3545;
+}
+
 </style>

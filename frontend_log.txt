@@ -1,9 +1,13 @@
 
+> showdown-monorepo@1.0.0 dev:frontend
+> npm run dev --workspace=frontend
+
+
 > frontend@0.0.0 dev
-> vite --port 5173 --port 5173
+> vite --port 5173
 
 
-  VITE v7.2.6  ready in 750 ms
+  VITE v7.2.6  ready in 1141 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
@@ -17,6 +21,5 @@
 
 [1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
 
-11:42:16 PM [vite] (client) hmr update /src/views/ClassicView.vue, /src/views/ClassicView.vue?vue&type=style&index=0&scoped=ac3b6d72&lang.css
-11:47:43 PM [vite] (client) hmr update /src/views/ClassicView.vue, /src/views/ClassicView.vue?vue&type=style&index=0&scoped=ac3b6d72&lang.css
-12:02:41 AM [vite] (client) hmr update /src/views/ClassicView.vue, /src/views/ClassicView.vue?vue&type=style&index=0&scoped=ac3b6d72&lang.css
+7:44:23 PM [vite] (client) hmr update /src/views/LeagueView.vue
+7:44:31 PM [vite] (client) hmr update /src/views/LeagueView.vue?vue&type=style&index=0&scoped=d7087aab&lang.css
