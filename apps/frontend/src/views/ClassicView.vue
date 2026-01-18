@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import { sortRoster } from '@/utils/playerUtils';
 
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
@@ -17,7 +18,6 @@ const state = ref({
     rosters: [],
     readyCount: 0
 });
-const expandedRosterUserId = ref(null);
 const selectedPlayer = ref(null);
 
 // Bracket Computation
@@ -180,28 +180,73 @@ async function submitResult() {
     }
 }
 
-function toggleRoster(userId) {
-    if (expandedRosterUserId.value === userId) expandedRosterUserId.value = null;
-    else expandedRosterUserId.value = userId;
-}
-
 function openPlayerCard(player) {
     selectedPlayer.value = player;
 }
 
+function getTeamTotalPoints(roster) {
+    return roster.reduce((sum, player) => sum + (player.points || 0), 0);
+}
+
 function padRoster(roster) {
     const padded = [...roster];
+
+    // Identify missing positions
+    const counts = {
+        'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0,
+        'LF': 0, 'CF': 0, 'RF': 0, 'DH': 0,
+        'SP': 0, 'RP': 0
+    };
+
+    padded.forEach(p => {
+        // Use assignment if available, fallback to displayPosition or raw position
+        // Backend now returns p.position and p.ip
+        let pos = p.assignment;
+
+        // If assignment is "PITCHING_STAFF" or generic, we try to deduce from raw position/stats
+        // But for Classic, users assign "SP", "RP", "C", etc directly usually.
+        // However, if assignment is missing or weird, we fallback.
+        if (p.assignment === 'PITCHING_STAFF' || !p.assignment) {
+             if (p.ip && Number(p.ip) > 3) pos = 'SP';
+             else if (p.ip) pos = 'RP';
+             else pos = p.position;
+        }
+
+        // Normalize position string for counting
+        if (pos) {
+            // Handle multi-positions like "LF/RF" if they exist, but usually assignment is specific
+            if (pos === 'SP' || (p.assignment === 'SP')) counts['SP']++;
+            else if (pos === 'RP' || (p.assignment === 'RP')) counts['RP']++;
+            else if (counts[pos] !== undefined) counts[pos]++;
+            // If the user assigned 'LF' to a 'LF-RF' player, assignment is 'LF', so counts['LF']++
+        }
+    });
+
+    const missing = [];
+    ['C', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
+        if (counts[pos] === 0) missing.push(pos);
+    });
+    for (let i = 0; i < (4 - counts['SP']); i++) missing.push('SP');
+
     while (padded.length < 20) {
+        const nextMissing = missing.shift() || 'B';
         padded.push({
             card_id: `empty-${padded.length}`,
             player_name: '',
             display_name: '',
-            assignment: '',
+            assignment: nextMissing,
             points: '',
             isEmpty: true
         });
     }
-    return padded;
+
+    return sortRoster(padded);
+}
+
+function getTeamDetails(userId) {
+    if (!state.value.seeding) return {};
+    const seed = state.value.seeding.find(s => s.user_id === userId);
+    return seed || {};
 }
 
 async function loadClassicsList() {
@@ -227,7 +272,6 @@ async function loadState() {
             state.value = await res.json();
 
             // Sync selection if not set (initial load)
-            // We temporarily pause the watcher logic via check below, but easier to just check current value
             if (state.value.classic && selectedClassicId.value !== state.value.classic.id) {
                  selectedClassicId.value = state.value.classic.id;
             }
@@ -452,7 +496,7 @@ onMounted(async () => {
                 </div>
             </div>
 
-            <!-- ROSTERS (Unchanged) -->
+            <!-- ROSTERS -->
             <div class="section rosters-section">
                 <h2>Classic Rosters</h2>
                 <div v-if="!state.revealed" class="locked-message">
@@ -460,24 +504,37 @@ onMounted(async () => {
                     <p>Current Status: <strong>{{ state.readyCount }} / 5</strong> Ready</p>
                 </div>
 
-                <div v-else class="roster-list">
-                    <div v-for="team in state.rosters" :key="team.team" class="team-roster-card">
-                        <div class="team-roster-header" @click="toggleRoster(team.team)">
-                            <h3>{{ team.team }}</h3>
-                            <span>{{ expandedRosterUserId === team.team ? '▲' : '▼' }}</span>
+                <div v-else class="teams-list">
+                    <div v-for="roster in state.rosters" :key="roster.user_id" class="team-block">
+                        <div class="team-header">
+                            <img v-if="getTeamDetails(roster.user_id).logo_url" :src="getTeamDetails(roster.user_id).logo_url" class="team-logo-roster" />
+                            <div class="team-info">
+                                <h2>{{ roster.team }}</h2>
+                            </div>
                         </div>
-                        <div v-if="expandedRosterUserId === team.team" class="team-roster-content">
-                            <table>
+
+                        <div class="roster-table-container">
+                            <table class="roster-table">
                                 <thead>
-                                    <tr><th>Pos</th><th>Player</th><th>Pts</th></tr>
+                                    <tr>
+                                        <th class="header-pos">Pos</th>
+                                        <th class="header-player">Player</th>
+                                        <th class="header-points">Points</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="p in padRoster(team.players)" :key="p.card_id" @click="!p.isEmpty && openPlayerCard(p)" :class="{ 'empty-row': p.isEmpty }">
-                                        <td>{{ p.assignment }}</td>
-                                        <td>{{ p.display_name }}</td>
-                                        <td>{{ p.points }}</td>
+                                    <tr v-for="p in padRoster(roster.players)" :key="p.card_id" @click="!p.isEmpty && openPlayerCard(p)" class="player-row" :class="{ 'empty-row': p.isEmpty }">
+                                        <td class="pos-cell">{{ p.assignment }}</td>
+                                        <td class="name-cell">{{ p.display_name }}</td>
+                                        <td class="points-cell">{{ p.points }}</td>
                                     </tr>
                                 </tbody>
+                                <tfoot>
+                                    <tr class="total-row">
+                                        <td colspan="2" class="total-label">Total</td>
+                                        <td class="total-points">{{ getTeamTotalPoints(roster.players) }}</td>
+                                    </tr>
+                                </tfoot>
                             </table>
                         </div>
                     </div>
@@ -757,7 +814,7 @@ h2 {
 }
 
 
-/* --- ROSTER STYLES (Unchanged) --- */
+/* --- ROSTER STYLES (Teams List / Grid) --- */
 .rosters-section {
     margin-top: 0px;
 }
@@ -769,55 +826,114 @@ h2 {
     background: #f9f9f9;
     border-radius: 8px;
 }
-.roster-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
+
+.teams-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
 }
-.team-roster-card {
-    border: 1px solid #ccc;
+
+.team-block {
+    background: #f9f9f9;
     border-radius: 8px;
-    width: 300px;
-    background: #fafafa;
-    overflow: hidden;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-.team-roster-header {
-    background: #eee;
-    padding: 10px 15px;
+
+.team-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    cursor: pointer;
-    user-select: none;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 0rem;
+    /* Overriding old style if conflict */
+    background: transparent;
+    cursor: default;
+    justify-content: flex-start;
 }
-.team-roster-header h3 {
+
+.team-logo-roster {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    background: white;
+    padding: 4px;
+    border-radius: 20%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.team-info h2 {
     margin: 0;
-    font-size: 1.1em;
+    font-size: 1.4rem;
 }
-.team-roster-content {
-    max-height: 400px;
-    overflow-y: auto;
+
+.roster-table-container {
+    overflow-x: auto;
 }
-.team-roster-content table {
+
+.roster-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9em;
+    font-size: 0.9rem;
 }
-.team-roster-content th, .team-roster-content td {
-    padding: 6px 10px;
+
+.roster-table th {
     text-align: left;
-    border-bottom: 1px solid #eee;
+    padding: 0.5rem;
+    background: #e9ecef;
+    color: #495057;
+    font-weight: 600;
 }
-.team-roster-content tr:hover {
-    background-color: #f0f0f0;
+
+.header-points {
+    text-align: right !important;
+}
+
+.roster-table td {
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.player-row {
     cursor: pointer;
+    transition: background-color 0.2s;
 }
-.team-roster-content tr.empty-row {
-    color: #aaa;
-    cursor: default;
+
+.player-row:hover {
+    background-color: #e2e6ea;
 }
-.team-roster-content tr.empty-row:hover {
-    background-color: transparent;
+
+.points-cell {
+    font-weight: bold;
+    color: #000000;
+    text-align: right;
+}
+
+/* Footer Styles */
+.total-row td {
+    border-top: 2px solid #aaa;
+    padding: 0.5rem 0.25rem;
+    font-weight: bold;
+    background-color: #f1f3f5;
+}
+
+.total-label {
+    text-align: right;
+    padding-right: 1rem;
+}
+
+.total-points {
+    text-align: right;
+    color: #000000;
+}
+
+/* Empty Row Styles */
+.empty-row {
+    pointer-events: none;
+    background-color: #fafafa;
+}
+.empty-row td {
+    height: 1rem; /* Ensure minimum height */
 }
 
 /* --- MODAL --- */

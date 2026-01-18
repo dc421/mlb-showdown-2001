@@ -148,7 +148,8 @@ router.get('/state', authenticateToken, async (req, res) => {
                     u.user_id,
                     t.city, t.name as team_name,
                     cp.name as player_name, cp.display_name, ppv.points,
-                    rc.assignment
+                    rc.assignment,
+                    cp.position, cp.ip
                 FROM rosters r
                 JOIN users u ON r.user_id = u.user_id
                 JOIN teams t ON u.team_id = t.team_id
@@ -164,6 +165,7 @@ router.get('/state', authenticateToken, async (req, res) => {
             rostersRes.rows.forEach(row => {
                 if (!rosterMap[row.user_id]) {
                     rosterMap[row.user_id] = {
+                        user_id: row.user_id,
                         team: `${row.city} ${row.team_name}`,
                         players: []
                     };
