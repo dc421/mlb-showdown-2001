@@ -1004,8 +1004,17 @@ const showThrowRollResult = computed(() => {
 
 const isGameEndingSteal = computed(() => {
     if (!gameStore.gameState) return false;
-    const isStealFinish = (!!gameStore.gameState.lastStealResult || !!gameStore.gameState.throwRollResult) && !gameStore.gameState.currentAtBat?.batterAction;
-    return isGameOver.value && gameStore.displayGameState.outs === 3 && (!!gameStore.gameState.lastStealResult || !!gameStore.gameState.throwRollResult) && !isSwingResultVisible.value;
+    const isStealFinish = (!!gameStore.gameState.lastStealResult || !!gameStore.gameState.throwRollResult || !!gameStore.gameState.pendingStealAttempt) && !gameStore.gameState.currentAtBat?.batterAction;
+
+    if (amIDisplayDefensivePlayer.value) {
+        // If we only have pendingStealAttempt, we are still "playing" the defense (rolling).
+        // We should not show the result yet.
+        if (!!gameStore.gameState.pendingStealAttempt && !gameStore.gameState.lastStealResult && !gameStore.gameState.throwRollResult) {
+            return false;
+        }
+    }
+
+    return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
 });
 
 const showAutoThrowResult = computed(() => {
@@ -2114,7 +2123,7 @@ function handleVisibilityChange() {
           />
           <ThrowRollResult
             v-if="showAutoThrowResult"
-            :details="gameStore.gameState.throwRollResult"
+            :details="stealDisplayDetails || gameStore.gameState.throwRollResult"
             :teamColors="pitcherTeamColors"
           />
           <ThrowRollResult
