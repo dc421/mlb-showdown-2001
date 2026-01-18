@@ -18,7 +18,7 @@ const seasonMap = {
     '4/2/22': 'Summer 2022',
     '12/23/22': 'Winter 2023',
     '4/1/23': 'Summer 2023',
-    '7/4/23': 'Fall 2023',
+    '7/3/23': 'Fall 2023',
     '2/28/24': 'Spring 2024',
     '8/18/24': 'Fall 2024',
     '2/28/25': 'Spring 2025',
@@ -135,8 +135,15 @@ function mapSeasonToPointSet(seasonStr) {
             const y = 2000 + parseInt(parts[2]);
             const date = new Date(y, m - 1, d);
             if (date < new Date(2020, 9, 22)) return "Original Pts";
+
+            // Post-2020 Logic:
+            // If Year < 2025, format as "M/D Season"
+            // If Year >= 2025, format as "M/D/YY Season"
+            if (y < 2025) {
+                return `${parts[0]}/${parts[1]} Season`;
+            }
         }
-        // If newer, use the date key as the point set name (e.g. "8/4/25 Season")
+        // If newer (>= 2025), use the date key as the point set name (e.g. "8/4/25 Season")
         return `${dateKey} Season`;
     }
 

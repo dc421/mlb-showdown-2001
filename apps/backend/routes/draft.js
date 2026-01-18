@@ -466,7 +466,7 @@ router.get('/state', authenticateToken, async (req, res) => {
                 END as position
              FROM draft_history dh
              LEFT JOIN cards_player cp ON dh.card_id = cp.card_id
-             LEFT JOIN teams t ON dh.team_id = t.team_id
+             LEFT JOIN teams t ON dh.team_id = t.team_id OR (dh.team_id IS NULL AND t.city = dh.team_name)
              LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
              WHERE dh.season_name = $1
              ORDER BY dh.pick_number ASC, dh.created_at ASC`,
