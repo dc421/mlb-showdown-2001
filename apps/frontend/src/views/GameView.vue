@@ -1005,7 +1005,7 @@ const showThrowRollResult = computed(() => {
 const isGameEndingSteal = computed(() => {
     if (!gameStore.gameState) return false;
     const isStealFinish = (!!gameStore.gameState.lastStealResult || !!gameStore.gameState.throwRollResult) && !gameStore.gameState.currentAtBat?.batterAction;
-    return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
+    return isGameOver.value && gameStore.displayGameState.outs === 3 && (!!gameStore.gameState.lastStealResult || !!gameStore.gameState.throwRollResult) && !isSwingResultVisible.value;
 });
 
 const showAutoThrowResult = computed(() => {
