@@ -5,7 +5,8 @@ import { getContrastingTextColor } from '@/utils/colors';
 const props = defineProps({
   details: {
     type: Object,
-    required: true,
+    required: false,
+    default: () => ({}),
   },
   teamColors: {
     type: Object,
@@ -16,10 +17,12 @@ const props = defineProps({
 const textColor = computed(() => getContrastingTextColor(props.teamColors.primary));
 
 const isSingleRunner = computed(() => {
+  if (!props.details) return true;
   return !props.details.attempts || props.details.attempts.length <= 1;
 });
 
 const outcomeText = computed(() => {
+  if (!props.details) return '';
   // Handle steals (single and double) first, as they have throwToBase.
   if (props.details.throwToBase) {
     if (isSingleRunner.value && props.details.outcome === 'SAFE') {
@@ -46,6 +49,7 @@ const outcomeText = computed(() => {
 });
 
 const rollDetails = computed(() => {
+  if (!props.details) return {};
   if (props.details.attempts?.length > 0) {
     return props.details.attempts[0];
   }
