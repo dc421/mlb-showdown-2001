@@ -185,7 +185,16 @@ function openPlayerCard(player) {
 }
 
 function getTeamTotalPoints(roster) {
-    return roster.reduce((sum, player) => sum + (player.points || 0), 0);
+    return roster.reduce((sum, player) => {
+        let pts = player.points || 0;
+        // Divide by 5 for bench players (consistent with backend check)
+        // Assignment might be 'BENCH' or 'PITCHING_STAFF' (if bullpen)
+        // Check if assignment is explicitly bench or if control is null (hitter) on bench
+        if (player.assignment === 'BENCH') {
+             pts = Math.round(pts / 5);
+        }
+        return sum + pts;
+    }, 0);
 }
 
 function padRoster(roster) {
@@ -202,6 +211,19 @@ function padRoster(roster) {
         // Use assignment if available, fallback to displayPosition or raw position
         // Backend now returns p.position and p.ip
         let pos = p.assignment;
+
+        // Display Logic
+        p.displayPoints = p.points;
+        if (p.assignment === 'BENCH') {
+            p.displayPosition = 'B';
+            if (p.points) p.displayPoints = Math.round(p.points / 5);
+        } else if (p.assignment === 'PITCHING_STAFF') {
+            // Use backend derived position if available, else derive
+             if (p.position === 'SP' || (p.ip && Number(p.ip) > 3)) p.displayPosition = 'SP';
+             else p.displayPosition = 'RP';
+        } else {
+            p.displayPosition = p.assignment;
+        }
 
         // If assignment is "PITCHING_STAFF" or generic, we try to deduce from raw position/stats
         // But for Classic, users assign "SP", "RP", "C", etc directly usually.
@@ -235,7 +257,9 @@ function padRoster(roster) {
             player_name: '',
             display_name: '',
             assignment: nextMissing,
+            displayPosition: nextMissing === 'BENCH' ? 'B' : nextMissing,
             points: '',
+            displayPoints: '',
             isEmpty: true
         });
     }
@@ -524,9 +548,9 @@ onMounted(async () => {
                                 </thead>
                                 <tbody>
                                     <tr v-for="p in padRoster(roster.players)" :key="p.card_id" @click="!p.isEmpty && openPlayerCard(p)" class="player-row" :class="{ 'empty-row': p.isEmpty }">
-                                        <td class="pos-cell">{{ p.assignment }}</td>
+                                        <td class="pos-cell">{{ p.displayPosition }}</td>
                                         <td class="name-cell">{{ p.display_name }}</td>
-                                        <td class="points-cell">{{ p.points }}</td>
+                                        <td class="points-cell">{{ p.displayPoints }}</td>
                                     </tr>
                                 </tbody>
                                 <tfoot>

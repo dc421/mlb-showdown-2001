@@ -302,6 +302,9 @@ onMounted(async () => {
                             <td>
                                 <span v-if="team.clinch" class="clinch-indicator">{{ team.clinch }}</span>
                                 {{ team.name }}
+                                <RouterLink :to="`/teams/${team.team_id}`" class="team-link">
+                                    {{ team.name }}
+                                </RouterLink>
                             </td>
                             <td class="text-right">{{ team.wins }}</td>
                             <td class="text-right">{{ team.losses }}</td>
@@ -353,7 +356,11 @@ onMounted(async () => {
                 <div class="team-header" >
                     <img :src="team.logo_url" :alt="team.name" class="team-logo" />
                     <div class="team-info">
-                        <h2>{{ team.full_display_name }}</h2>
+                        <h2>
+                            <RouterLink :to="`/teams/${team.team_id}`" class="team-link-header">
+                                {{ team.full_display_name }}
+                            </RouterLink>
+                        </h2>
                         <p>Owner: {{ team.owner }}</p>
                     </div>
                 </div>
@@ -879,4 +886,21 @@ h1 {
     color: #dc3545;
 }
 
+.team-link {
+    color: inherit;
+    text-decoration: none;
+    font-weight: bold;
+}
+.team-link:hover {
+    text-decoration: underline;
+    color: #0056b3;
+}
+
+.team-link-header {
+    color: inherit;
+    text-decoration: none;
+}
+.team-link-header:hover {
+    text-decoration: underline;
+}
 </style>
