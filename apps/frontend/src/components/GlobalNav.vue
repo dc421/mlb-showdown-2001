@@ -161,7 +161,6 @@ onMounted(async () => {
 @media (min-width: 769px) {
   .global-nav {
     max-height: 80px;
-    overflow-y: hidden;
   }
 }
 .global-nav a, .teams-link {

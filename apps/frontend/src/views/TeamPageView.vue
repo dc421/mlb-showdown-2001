@@ -30,8 +30,10 @@ const organizeRosterForMatrix = (rosterPlayers) => {
     const pitcherMap = { 'SP': [], 'RP': [] };
 
     rosterPlayers.forEach(p => {
-        // Check if pitcher
-        if ((p.ip && Number(p.ip) > 0) || p.control !== null || p.position === 'SP' || p.position === 'RP') {
+        // Check if pitcher - Correctly handle null control from backend
+        const isPitcher = (p.ip && Number(p.ip) > 0) || (p.control !== undefined && p.control !== null) || p.position === 'SP' || p.position === 'RP';
+
+        if (isPitcher) {
             const pos = (Number(p.ip) > 3 || p.position === 'SP') ? 'SP' : 'RP';
             pitcherMap[pos].push(p);
         } else {
@@ -44,23 +46,24 @@ const organizeRosterForMatrix = (rosterPlayers) => {
     });
 
     // We only take the top player for starting spots in matrix (if multiples exist for 1 position)
-    // Actually, usually 1 starter per spot. Bench has multiple.
-    // Let's format for the row: { C: p, 1B: p ... }
     const batterRow = {};
     ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
         batterRow[pos] = batterMap[pos].length > 0 ? batterMap[pos][0] : null;
     });
     batterRow['Bench'] = batterMap['B']; // Array of bench players
 
-    // For pitchers, we want SP1, SP2, SP3, SP4, Bullpen
-    // Sort SPs by points? Or just order found.
-    const sps = pitcherMap['SP'].sort((a,b) => b.points - a.points);
+    // For pitchers, we want SP1, SP2, SP3, SP4, RP1, RP2, Bullpen
+    const sps = pitcherMap['SP'].sort((a,b) => (b.points || 0) - (a.points || 0));
+    const rps = pitcherMap['RP'].sort((a,b) => (b.points || 0) - (a.points || 0));
+
     const pitchersRow = {
         'SP1': sps[0] || null,
         'SP2': sps[1] || null,
         'SP3': sps[2] || null,
         'SP4': sps[3] || null,
-        'Bullpen': pitcherMap['RP']
+        'RP1': rps[0] || null,
+        'RP2': rps[1] || null,
+        'Bullpen': rps.slice(2)
     };
 
     return { batterRow, pitchersRow };
@@ -130,6 +133,16 @@ const teamDisplayName = computed(() => {
       <div class="team-info">
         <h1>{{ teamDisplayName }}</h1>
         <p v-if="teamData.team.owner_first_name">Owner: {{ teamData.team.owner_first_name }} {{ teamData.team.owner_last_name }}</p>
+
+        <!-- NEW: Identity History -->
+        <div v-if="teamData.identityHistory && teamData.identityHistory.length > 0" class="identity-history">
+             <span class="identity-label">Franchise History:</span>
+             <ul class="identity-list">
+                 <li v-for="(identity, idx) in teamData.identityHistory" :key="idx">
+                     {{ identity.name }} ({{ identity.start === identity.end ? identity.start : `${identity.start}-${identity.end}` }})
+                 </li>
+             </ul>
+        </div>
       </div>
       <div class="accolades">
           <div v-if="teamData.accolades.spaceships.length > 0" class="accolade-row">
@@ -224,12 +237,12 @@ const teamDisplayName = computed(() => {
                                 </RouterLink>
                             </td>
                             <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos" @click="openPlayerCard(row.batters[pos])" class="player-cell" :class="{'filled': row.batters[pos]}">
-                                {{ row.batters[pos]?.displayName || '-' }}
+                                {{ row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points})` : '-' }}
                             </td>
                             <td class="bench-cell">
                                 <div class="bench-list">
                                     <span v-for="p in row.batters['Bench']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player">
-                                        {{ p.displayName }}
+                                        {{ p.displayName }} ({{ p.points }})
                                     </span>
                                 </div>
                             </td>
@@ -251,6 +264,8 @@ const teamDisplayName = computed(() => {
                             <th>SP2</th>
                             <th>SP3</th>
                             <th>SP4</th>
+                            <th>RP1</th>
+                            <th>RP2</th>
                             <th>Bullpen</th>
                         </tr>
                     </thead>
@@ -261,13 +276,13 @@ const teamDisplayName = computed(() => {
                                     {{ row.season }}
                                 </RouterLink>
                             </td>
-                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos" @click="openPlayerCard(row.pitchers[pos])" class="player-cell" :class="{'filled': row.pitchers[pos]}">
-                                {{ row.pitchers[pos]?.displayName || '-' }}
+                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2']" :key="pos" @click="openPlayerCard(row.pitchers[pos])" class="player-cell" :class="{'filled': row.pitchers[pos]}">
+                                {{ row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points})` : '-' }}
                             </td>
                             <td class="bench-cell">
                                 <div class="bench-list">
                                     <span v-for="p in row.pitchers['Bullpen']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player">
-                                        {{ p.displayName }}
+                                        {{ p.displayName }} ({{ p.points }})
                                     </span>
                                 </div>
                             </td>
