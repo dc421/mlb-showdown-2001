@@ -40,6 +40,11 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         // This solves the Prod vs Local ID mismatch by relying on the Team Name which is stable.
         const namePattern = `%${team.name}%`; // e.g. "Boston", "New York"
 
+        // FETCH ALL TEAMS FOR EXCLUSION LOGIC
+        // This prevents fuzzy matches (e.g. "New York") from matching "New York South"
+        const allTeamsRes = await client.query('SELECT team_id, city, name FROM teams');
+        const otherTeams = allTeamsRes.rows.filter(t => t.team_id !== team.team_id);
+
         const historyQuery = `
             SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score
             FROM series_results
@@ -53,6 +58,40 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
         historyRes.rows.forEach(r => {
             const season = r.season_name;
+
+            // EXCLUSION LOGIC
+            const isWinnerMatch = r.winning_team_name && r.winning_team_name.includes(team.name);
+            const isLoserMatch = r.losing_team_name && r.losing_team_name.includes(team.name);
+
+            // If it matches US, check if it ALSO matches a "Conflicting Team" (one that contains our name)
+            // e.g. We are "New York". Row is "New York South". Conflict Team is "New York South".
+            // "New York South" includes "New York".
+            const isFalsePositive = (nameToCheck) => {
+                return otherTeams.some(other => {
+                    // Only care if the other team's name actually contains OUR name (causing the ambiguity)
+                    if (other.city.includes(team.name) || other.name.includes(team.name) || `${other.city} ${other.name}`.includes(team.name)) {
+                         // Check if the row name is a better match for the OTHER team
+                         // e.g. Row="New York South". Other="New York South".
+                         // If Row contains Other's City (and it's longer/specific), it's theirs.
+                         if (nameToCheck.includes(other.city)) return true;
+                    }
+                    return false;
+                });
+            };
+
+            let relevantSide = null; // 'winner' or 'loser'
+            let teamNameUsed = null;
+
+            if (isWinnerMatch && !isFalsePositive(r.winning_team_name)) {
+                relevantSide = 'winner';
+                teamNameUsed = r.winning_team_name;
+            } else if (isLoserMatch && !isFalsePositive(r.losing_team_name)) {
+                relevantSide = 'loser';
+                teamNameUsed = r.losing_team_name;
+            }
+
+            if (!relevantSide) return; // Skip this row
+
             if (!seasonStats[season]) {
                 seasonStats[season] = {
                     season_name: season,
@@ -63,19 +102,16 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 };
             }
 
-            // Check if this row is relevant to the queried team
-            const isWinnerName = r.winning_team_name && r.winning_team_name.includes(team.name);
-            const isLoserName = r.losing_team_name && r.losing_team_name.includes(team.name);
-
-            if (isWinnerName) {
+            if (relevantSide === 'winner') {
                 seasonStats[season].wins += (r.winning_score || 0);
                 seasonStats[season].losses += (r.losing_score || 0);
-                seasonStats[season].teamNameUsed = r.winning_team_name;
-            } else if (isLoserName) {
+            } else {
                 seasonStats[season].wins += (r.losing_score || 0);
                 seasonStats[season].losses += (r.winning_score || 0);
-                seasonStats[season].teamNameUsed = r.losing_team_name;
             }
+
+            // Track the name used this season (if not set or update if we found one)
+            if (teamNameUsed) seasonStats[season].teamNameUsed = teamNameUsed;
 
             if (r.round) {
                 seasonStats[season].rounds.add(r.round);
@@ -122,6 +158,30 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const sortedSeasonNames = sortSeasons(historyList.map(h => h.season));
         historyList.sort((a, b) => sortedSeasonNames.indexOf(a.season) - sortedSeasonNames.indexOf(b.season));
 
+        // CALCULATE IDENTITY HISTORY (Chronological)
+        // Group consecutive seasons with the same team name
+        const identityHistory = [];
+        let currentIdentity = null;
+        // historyList is sorted DESC (latest first) or ASC?
+        // sortedSeasonNames usually sorts Oldest -> Newest or Newest -> Oldest?
+        // 'sortSeasons' usually puts recent first? Let's check typical usage.
+        // Assuming sortedSeasonNames is DESC (Recent First) based on previous query ORDER BY date DESC?
+        // Wait, sortSeasons usually does Newest First.
+        // Let's iterate in REVERSE (Oldest First) to build the timeline naturally.
+
+        for (let i = historyList.length - 1; i >= 0; i--) {
+            const h = historyList[i];
+            const name = h.teamNameUsed || currentTeamName;
+
+            if (!currentIdentity || currentIdentity.name !== name) {
+                if (currentIdentity) identityHistory.push(currentIdentity);
+                currentIdentity = { name: name, start: h.season, end: h.season };
+            } else {
+                currentIdentity.end = h.season;
+            }
+        }
+        if (currentIdentity) identityHistory.push(currentIdentity);
+
 
         // 3. Fetch Roster History
         // Use the collected names from history + current name
@@ -135,7 +195,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         });
 
         const rosterQuery = `
-            SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip
+            SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip, cp.image_url
             FROM historical_rosters hr
             LEFT JOIN cards_player cp ON hr.card_id = cp.card_id
             WHERE hr.team_name = ANY($1::text[])
@@ -156,7 +216,12 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 displayName: r.display_name || r.card_name || r.player_name,
                 position: r.position,
                 points: r.points,
-                assignment: r.position
+                assignment: r.position,
+                // NEW FIELDS
+                control: r.control,
+                ip: r.ip,
+                fielding_ratings: r.fielding_ratings,
+                image_url: r.image_url
             };
 
             if (r.control !== null) {
@@ -225,6 +290,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         res.json({
             team,
             history: historyList,
+            identityHistory: identityHistory.reverse(), // Send Newest -> Oldest for display
             rosters: formattedRosters,
             accolades: {
                 spaceships: spaceships.rows,
@@ -255,7 +321,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
 
         // 1. Fetch Roster
         const rosterQuery = `
-            SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip
+            SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip, cp.image_url
             FROM historical_rosters hr
             LEFT JOIN cards_player cp ON hr.card_id = cp.card_id
             WHERE hr.season = $1 AND (hr.team_name ILIKE $2 OR hr.team_name = $3)
@@ -270,7 +336,12 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 displayName: r.display_name || r.card_name || r.player_name,
                 position: r.position,
                 points: r.points,
-                assignment: r.position
+                assignment: r.position,
+                // NEW FIELDS
+                control: r.control,
+                ip: r.ip,
+                fielding_ratings: r.fielding_ratings,
+                image_url: r.image_url
             };
             if (r.control !== null) {
                  if (!player.position || player.position.includes('/')) {
