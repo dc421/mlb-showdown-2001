@@ -4,6 +4,54 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 
+// Helper to clean "City City" name repetition (e.g. "Boston Boston")
+// and match to a current team
+const mapToCurrentTeam = (name, currentTeams) => {
+    if (!name) return null;
+
+    // 1. Clean the name (Handle "Boston Boston" -> "Boston")
+    let cleanName = name;
+    const parts = name.split(' ');
+    if (parts.length > 1 && parts.length % 2 === 0) {
+        const mid = parts.length / 2;
+        const firstHalf = parts.slice(0, mid).join(' ');
+        const secondHalf = parts.slice(mid).join(' ');
+        if (firstHalf === secondHalf) {
+            cleanName = firstHalf;
+        }
+    }
+
+    // 2. Try to find a match in current teams
+    // Match strategies:
+    // A. Name contains Team Name (e.g. "Boston Red Sox" contains "Red Sox")
+    // B. Name contains City (e.g. "Boston Red Sox" contains "Boston")
+    // C. City contains Name (e.g. "Boston" contains "Boston")
+
+    // Sort teams by name length desc to match specific first
+    const sortedTeams = [...currentTeams].sort((a, b) => b.name.length - a.name.length);
+
+    let matched = sortedTeams.find(t => cleanName.includes(t.name));
+    if (!matched) {
+        matched = sortedTeams.find(t => cleanName.includes(t.city));
+    }
+
+    // If matched, use the Current Team info, but keep the cleaned name for display if needed
+    if (matched) {
+        return {
+            ...matched,
+            displayName: cleanName // Pass this along
+        };
+    }
+
+    return {
+        team_id: null, // Orphan
+        name: cleanName,
+        city: '',
+        logo_url: null,
+        displayName: cleanName
+    };
+};
+
 // GET SEASON LIST
 router.get('/seasons', authenticateToken, async (req, res) => {
     try {
@@ -14,9 +62,6 @@ router.get('/seasons', authenticateToken, async (req, res) => {
             ORDER BY season_name DESC
         `;
         const result = await pool.query(query);
-        // We might want to sort by date, but season_name is all we have in this specific query.
-        // Ideally we'd join with a date, but DISTINCT ON is cleaner.
-        // Let's try to get them by most recent game date.
         const dateQuery = `
             SELECT season_name, MAX(date) as last_date
             FROM series_results
@@ -36,10 +81,13 @@ router.get('/seasons', authenticateToken, async (req, res) => {
 router.get('/season-summary', authenticateToken, async (req, res) => {
     const { season } = req.query;
     try {
+        // 0. Fetch Current Teams for Mapping
+        const teamsRes = await pool.query('SELECT team_id, name, city, logo_url FROM teams');
+        const currentTeams = teamsRes.rows;
+
         let currentSeason = season;
 
         if (!currentSeason && season !== 'all-time') {
-            // 1. Determine Current Season if not provided
             const seasonQuery = `
                 SELECT season_name
                 FROM series_results
@@ -59,14 +107,15 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
         let resultsQuery = `
             SELECT *
             FROM series_results
+            WHERE style IS DISTINCT FROM 'Classic'
         `;
         const params = [];
 
         if (season !== 'all-time') {
-            resultsQuery += ` WHERE season_name = $1`;
+            resultsQuery += ` AND season_name = $1`;
             params.push(currentSeason);
         } else {
-             resultsQuery += ` WHERE season_name IS NOT NULL`; // Filter out garbage if any
+             resultsQuery += ` AND season_name IS NOT NULL`;
         }
 
         resultsQuery += ` ORDER BY date DESC`;
@@ -78,151 +127,111 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
         const teamStats = {};
 
         seriesResults.forEach(series => {
-            // Exclude Special Rounds from Standings
             if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') {
                 return;
             }
 
-            const { winning_team_id, winning_team_name, losing_team_id, losing_team_name, winning_score, losing_score } = series;
+            const { winning_team_name, losing_team_name, winning_score, losing_score } = series;
 
-            // Initialize teams
-            if (winning_team_id && !teamStats[winning_team_id]) {
-                teamStats[winning_team_id] = { team_id: winning_team_id, name: winning_team_name, wins: 0, losses: 0, remaining: 0 };
-            }
-            if (losing_team_id && !teamStats[losing_team_id]) {
-                teamStats[losing_team_id] = { team_id: losing_team_id, name: losing_team_name, wins: 0, losses: 0, remaining: 0 };
-            }
+            // Map to Current Teams
+            const winner = mapToCurrentTeam(winning_team_name, currentTeams);
+            const loser = mapToCurrentTeam(losing_team_name, currentTeams);
 
-            // Update Names
-            if (winning_team_id && winning_team_name) teamStats[winning_team_id].name = winning_team_name;
-            if (losing_team_id && losing_team_name) teamStats[losing_team_id].name = losing_team_name;
+            // Helper to init stats
+            const initStats = (t) => {
+                const key = t.team_id ? `ID-${t.team_id}` : `NAME-${t.name}`;
+                if (!teamStats[key]) {
+                    // Display Name Logic:
+                    // If All-Time: Use Current Team Name (City + Name)
+                    // If Season: Use the name from the result (cleaned)
+                    let displayName;
+                    if (season === 'all-time') {
+                         displayName = t.team_id ? (t.city === t.name ? t.name : `${t.city} ${t.name}`) : t.name;
+                    } else {
+                         displayName = t.displayName || t.name;
+                    }
+
+                    teamStats[key] = {
+                        team_id: t.team_id,
+                        name: displayName,
+                        logo_url: t.logo_url,
+                        wins: 0,
+                        losses: 0,
+                        remaining: 0
+                    };
+                }
+                return key;
+            };
+
+            const wKey = initStats(winner);
+            const lKey = initStats(loser);
 
             const isCompleted = winning_score !== null && losing_score !== null;
 
             if (isCompleted) {
-                if (winning_team_id) teamStats[winning_team_id].wins += (winning_score || 0);
-                if (losing_team_id) teamStats[losing_team_id].losses += (winning_score || 0); // Losing team gets 'losses' equal to winner's score? No, usually it's series wins.
-                // Wait, are these series scores (e.g. 4-2) or game scores?
-                // The column is winning_score (integer) and losing_score (integer).
-                // In a series context, this usually means Series Wins (e.g. 4) vs Series Losses (e.g. 2).
-                // So yes, add winning_score to wins, and losing_score to losses.
+                teamStats[wKey].wins += (winning_score || 0);
+                teamStats[lKey].losses += (winning_score || 0);
 
-                if (winning_team_id) teamStats[winning_team_id].losses += (losing_score || 0);
-                if (losing_team_id) teamStats[losing_team_id].wins += (losing_score || 0);
+                teamStats[wKey].losses += (losing_score || 0);
+                teamStats[lKey].wins += (losing_score || 0);
             } else {
-                // Scheduled Game (Series) - assuming it's a best of 7 series that hasn't started or finished?
-                // If the score is null, it's a scheduled series.
-                // We should count this as a "potential" 7 games (or 4 wins) available?
-                // Actually, simpler: A scheduled series is usually 1 matchup.
-                // If we are tracking W-L of *games* within series, we need to know how many games are in a series.
-                // Assuming standard 7 game series for league play.
-                // But wait, `series_results` stores the *result of the series*.
-                // e.g. "Boston 4, New York 2".
-                // If it's null, the series hasn't happened.
-                // Since we are aggregating "Wins" and "Losses" (games won/lost),
-                // a pending series represents 7 *potential* games (or 4 potential wins).
-                // However, the standing table shows W and L.
-                // Let's assume a pending series adds 7 to the "remaining games" count for clinch math?
-                // Or maybe just count series?
-                // The current code does: wins += winning_score. This implies we are counting INDIVIDUAL GAME wins.
-
-                if (winning_team_id) teamStats[winning_team_id].remaining += 7; // Approx max games
-                if (losing_team_id) teamStats[losing_team_id].remaining += 7;
+                teamStats[wKey].remaining += 7;
+                teamStats[lKey].remaining += 7;
             }
         });
 
         // --- CLINCH LOGIC ---
-        // x- Clinched Spaceship (Top 2)
-        // z- Clinched Spoon (Bottom 2)
-        // y- Clinched Neither (Middle)
-
         const teams = Object.values(teamStats);
 
-        // Sort for Rank determination
-        // Note: This sort is just for current standing, not max possible
-        const sortTeams = (list) => {
-             return list.sort((a, b) => {
-                const totalA = a.wins + a.losses;
-                const totalB = b.wins + b.losses;
-                const pctA = totalA > 0 ? a.wins / totalA : 0;
-                const pctB = totalB > 0 ? b.wins / totalB : 0;
-                if (pctB !== pctA) return pctB - pctA;
-                return b.wins - a.wins;
-            });
-        };
-
-        // We need to determine if a team can mathematically reach the top 2 or fall to bottom 2.
-        // Simplification:
-        // Max Possible Wins = Current Wins + Remaining Games (assuming winning all remaining 7-game series 4-0? No, 7-0?
-        // In MLB Showdown league, you get a win for every game won.
-        // So pending series = 7 potential wins.
-
-        // Actually, if a series is played 4-3, the winner gets 4 wins, loser gets 3. Total 7.
-        // If 4-0, total 4.
-        // This makes "remaining games" variable.
-        // Let's assume "Remaining Wins Available" = (Number of Pending Series * 4).
-        // Because you can't get more than 4 wins in a series.
-        // But the *loser* could also get 3 wins.
-        // This makes exact math hard without a fixed schedule size.
-        // Let's assume a pending series offers a max of 4 wins to a team.
-
         teams.forEach(t => {
-            // Count pending series for this team
-            const pendingCount = seriesResults.filter(s =>
-                (s.winning_team_id === t.team_id || s.losing_team_id === t.team_id) &&
-                s.winning_score === null &&
-                (s.round !== 'Golden Spaceship' && s.round !== 'Wooden Spoon' && s.round !== 'Silver Submarine')
-            ).length;
+            const pendingCount = seriesResults.filter(s => {
+                if (s.winning_score !== null) return false;
+                if (s.round === 'Golden Spaceship' || s.round === 'Wooden Spoon' || s.round === 'Silver Submarine') return false;
 
-            t.maxWins = t.wins + (pendingCount * 4); // Best case: sweep all pending series
-            t.minWins = t.wins; // Worst case: lose all pending series 0-4
+                const w = mapToCurrentTeam(s.winning_team_name, currentTeams);
+                const l = mapToCurrentTeam(s.losing_team_name, currentTeams);
+                const wKey = w.team_id ? `ID-${w.team_id}` : `NAME-${w.name}`;
+                const lKey = l.team_id ? `ID-${l.team_id}` : `NAME-${l.name}`;
+
+                const tKey = t.team_id ? `ID-${t.team_id}` : `NAME-${t.name}`;
+
+                return wKey === tKey || lKey === tKey;
+            }).length;
+
+            t.maxWins = t.wins + (pendingCount * 4);
+            t.minWins = t.wins;
         });
 
-        // Check Spaceship (Top 2) Clinch
-        // A team X clinches Top 2 if their Minimum Wins > 3rd Place's Maximum Wins.
-        // Who is "3rd Place"? The team with the 3rd highest Max Wins? No.
-        // We need to verify that AT MOST 1 other team can exceed Team X's Min Wins.
-
-        // Check Spoon (Bottom 2) Clinch
-        // A team Y clinches Bottom 2 if their Maximum Wins < 3rd-to-Last Place's Minimum Wins.
-        // i.e., at most 1 team will finish below them (or equal).
-
-        // Note: This logic assumes all teams play the same number of series, or close to it.
-
         teams.forEach(team => {
-            // Can this team be pushed out of Top 2?
-            // Count how many OTHER teams could possibly surpass or tie this team's CURRENT MINIMUM wins.
-            // If count < 2, then this team is guaranteed Top 2.
-            const teamsCanCatch = teams.filter(other => other.team_id !== team.team_id && other.maxWins >= team.minWins).length;
-            const clinchedSpaceship = teamsCanCatch < 2; // Only 0 or 1 team can catch us.
+            const teamsCanCatch = teams.filter(other => {
+                 const otherKey = other.team_id ? `ID-${other.team_id}` : `NAME-${other.name}`;
+                 const teamKey = team.team_id ? `ID-${team.team_id}` : `NAME-${team.name}`;
+                 return otherKey !== teamKey && other.maxWins >= team.minWins;
+            }).length;
+            const clinchedSpaceship = teamsCanCatch < 2;
 
-            // Can this team escape Bottom 2?
-            // Count how many OTHER teams this team could possibly surpass (or tie).
-            // i.e., Other Team's Min Wins <= This Team's Max Wins.
-            // If this count < 2, then at most 1 team is below us. -> We are bottom 2.
-            // Wait, logic check:
-            // If I can catch 5 teams, I am safe.
-            // If I can catch only 1 team (or 0), I am stuck in bottom 2.
-            const teamsCanSurpass = teams.filter(other => other.team_id !== team.team_id && other.minWins <= team.maxWins).length;
+            const teamsCanSurpass = teams.filter(other => {
+                 const otherKey = other.team_id ? `ID-${other.team_id}` : `NAME-${other.name}`;
+                 const teamKey = team.team_id ? `ID-${team.team_id}` : `NAME-${team.name}`;
+                 return otherKey !== teamKey && other.minWins <= team.maxWins;
+            }).length;
             const clinchedSpoon = teamsCanSurpass < 2;
 
             if (clinchedSpaceship) team.clinch = 'x-';
             else if (clinchedSpoon) team.clinch = 'z-';
             else {
-                // Check if they are eliminated from Spaceship AND safe from Spoon?
-                // Eliminated from Spaceship: Impossible to reach Top 2.
-                // i.e. My Max Wins < 2nd Place Min Wins?
-                // More robust: count teams that are guaranteed to finish above me.
-                // teamsGuaranteedAbove = teams.filter(other => other.minWins > team.maxWins).length
-                // If teamsGuaranteedAbove >= 2, I cannot make Top 2.
-
-                const teamsGuaranteedAbove = teams.filter(other => other.team_id !== team.team_id && other.minWins > team.maxWins).length;
+                const teamsGuaranteedAbove = teams.filter(other => {
+                    const otherKey = other.team_id ? `ID-${other.team_id}` : `NAME-${other.name}`;
+                    const teamKey = team.team_id ? `ID-${team.team_id}` : `NAME-${team.name}`;
+                    return otherKey !== teamKey && other.minWins > team.maxWins;
+                }).length;
                 const eliminatedSpaceship = teamsGuaranteedAbove >= 2;
 
-                // Safe from Spoon: Guaranteed to finish above at least 2 teams.
-                // teamsGuaranteedBelow = teams.filter(other => other.maxWins < team.minWins).length
-                // If teamsGuaranteedBelow >= 2, I am safe from Spoon.
-                const teamsGuaranteedBelow = teams.filter(other => other.team_id !== team.team_id && other.maxWins < team.minWins).length;
+                const teamsGuaranteedBelow = teams.filter(other => {
+                    const otherKey = other.team_id ? `ID-${other.team_id}` : `NAME-${other.name}`;
+                    const teamKey = team.team_id ? `ID-${team.team_id}` : `NAME-${team.name}`;
+                    return otherKey !== teamKey && other.maxWins < team.minWins;
+                }).length;
                 const safeSpoon = teamsGuaranteedBelow >= 2;
 
                 if (eliminatedSpaceship && safeSpoon) {
@@ -239,11 +248,10 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
             return {
                 ...team,
                 winPct: winPct,
-                winPctDisplay: winPct.toFixed(3).replace(/^0+/, '') // e.g. .500
+                winPctDisplay: winPct.toFixed(3).replace(/^0+/, '')
             };
         });
 
-        // Sort Standings: Win % Descending, then Wins Descending
         standings.sort((a, b) => {
             if (b.winPct !== a.winPct) return b.winPct - a.winPct;
             return b.wins - a.wins;
@@ -253,6 +261,9 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
             standings,
             recentResults: seriesResults.map(r => {
                 const hasScore = r.winning_score !== null && r.losing_score !== null;
+                const winner = mapToCurrentTeam(r.winning_team_name, currentTeams);
+                const loser = mapToCurrentTeam(r.losing_team_name, currentTeams);
+
                 return {
                     id: r.id,
                     date: r.date,
@@ -260,8 +271,15 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                     style: r.style,
                     winning_team_id: r.winning_team_id,
                     losing_team_id: r.losing_team_id,
-                    winner: r.winning_team_name,
-                    loser: r.losing_team_name,
+                    winner: r.winning_team_name, // Keeping original names for result rows as per "Use team name listed"?
+                    // Or should I use cleaned? "Use the team name listed" probably means cleaned if it was "Boston Boston".
+                    // But if it was "Boston", keep "Boston".
+                    // The "Cleaned" name is in winner.displayName
+                    winner_name: winner.displayName,
+                    loser_name: loser.displayName,
+
+                    winner_logo: winner.logo_url,
+                    loser_logo: loser.logo_url,
                     score: hasScore ? `${r.winning_score}-${r.losing_score}` : null
                 };
             })
@@ -277,12 +295,11 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
 router.get('/matrix', authenticateToken, async (req, res) => {
     const { season } = req.query;
     try {
+        const teamsRes = await pool.query('SELECT team_id, name, city, logo_url FROM teams');
+        const currentTeams = teamsRes.rows;
+
         let currentSeason = season;
         if (!currentSeason || currentSeason === 'all-time') {
-             // For all-time, we just don't filter by season?
-             // Or we aggregate everything.
-             // If season is explicitly 'all-time', we query all.
-             // If season is missing, we default to current (like summary).
              if (!season) {
                 const seasonQuery = `SELECT season_name FROM series_results WHERE season_name IS NOT NULL ORDER BY date DESC LIMIT 1`;
                 const seasonResult = await pool.query(seasonQuery);
@@ -290,46 +307,47 @@ router.get('/matrix', authenticateToken, async (req, res) => {
              }
         }
 
-        let query = `SELECT * FROM series_results`;
+        let query = `SELECT * FROM series_results WHERE style IS DISTINCT FROM 'Classic'`;
         const params = [];
         if (currentSeason && currentSeason !== 'all-time') {
-            query += ` WHERE season_name = $1`;
+            query += ` AND season_name = $1`;
             params.push(currentSeason);
         }
 
         const result = await pool.query(query, params);
 
-        const matrix = {}; // { teamId: { name: '...', opponents: { oppId: { w, l } } } }
+        const matrix = {};
+
+        const getStatsKey = (t) => t.team_id ? `ID-${t.team_id}` : `NAME-${t.name}`;
 
         result.rows.forEach(row => {
-            if (row.round === 'Golden Spaceship' || row.round === 'Wooden Spoon') return; // Exclude postseason? Usually matrix is reg season.
-            // Assuming we include all valid rounds.
+            if (row.round === 'Golden Spaceship' || row.round === 'Wooden Spoon') return;
 
-            const wId = row.winning_team_id;
-            const lId = row.losing_team_id;
-            const wName = row.winning_team_name;
-            const lName = row.losing_team_name;
             const wScore = row.winning_score || 0;
             const lScore = row.losing_score || 0;
 
-            if (!matrix[wId]) matrix[wId] = { id: wId, name: wName, opponents: {} };
-            if (!matrix[lId]) matrix[lId] = { id: lId, name: lName, opponents: {} };
+            const winner = mapToCurrentTeam(row.winning_team_name, currentTeams);
+            const loser = mapToCurrentTeam(row.losing_team_name, currentTeams);
 
-            // Ensure names are up to date
-            matrix[wId].name = wName;
-            matrix[lId].name = lName;
+            const wKey = getStatsKey(winner);
+            const lKey = getStatsKey(loser);
+
+            // For Matrix, we usually use Current Names for consistency, especially All-Time
+            const wName = winner.team_id ? (winner.city === winner.name ? winner.name : `${winner.city} ${winner.name}`) : winner.name;
+            const lName = loser.team_id ? (loser.city === loser.name ? loser.name : `${loser.city} ${loser.name}`) : loser.name;
+
+            if (!matrix[wKey]) matrix[wKey] = { id: wKey, name: wName, opponents: {} };
+            if (!matrix[lKey]) matrix[lKey] = { id: lKey, name: lName, opponents: {} };
 
             // Initialize opponent entries
-            if (!matrix[wId].opponents[lId]) matrix[wId].opponents[lId] = { wins: 0, losses: 0 };
-            if (!matrix[lId].opponents[wId]) matrix[lId].opponents[wId] = { wins: 0, losses: 0 };
+            if (!matrix[wKey].opponents[lKey]) matrix[wKey].opponents[lKey] = { wins: 0, losses: 0 };
+            if (!matrix[lKey].opponents[wKey]) matrix[lKey].opponents[wKey] = { wins: 0, losses: 0 };
 
-            // Winner perspective
-            matrix[wId].opponents[lId].wins += wScore; // Games won
-            matrix[wId].opponents[lId].losses += lScore; // Games lost
+            matrix[wKey].opponents[lKey].wins += wScore;
+            matrix[wKey].opponents[lKey].losses += lScore;
 
-            // Loser perspective
-            matrix[lId].opponents[wId].wins += lScore;
-            matrix[lId].opponents[wId].losses += wScore;
+            matrix[lKey].opponents[wKey].wins += lScore;
+            matrix[lKey].opponents[wKey].losses += wScore;
         });
 
         res.json(Object.values(matrix));
@@ -344,13 +362,11 @@ router.get('/matrix', authenticateToken, async (req, res) => {
 router.post('/result', authenticateToken, async (req, res) => {
     const { id, winning_score, losing_score, winner_id } = req.body;
 
-    // id is series_results.id
     if (!id || winning_score === undefined || losing_score === undefined || !winner_id) {
         return res.status(400).json({ message: 'Missing required fields.' });
     }
 
     try {
-        // Fetch original to verify and get names/IDs
         const originalRes = await pool.query('SELECT * FROM series_results WHERE id = $1', [id]);
         if (originalRes.rows.length === 0) return res.status(404).json({ message: 'Result not found.' });
 
@@ -359,16 +375,6 @@ router.post('/result', authenticateToken, async (req, res) => {
         let newWinningId = winner_id;
         let newLosingId = (original.winning_team_id === winner_id) ? original.losing_team_id : original.winning_team_id;
 
-        // Wait, what if the user swapped the winner in the UI?
-        // original.winning_team_id might be Team A, original.losing might be Team B.
-        // If user says Team B won (winner_id = Team B ID), then newWinningId = Team B, newLosingId = Team A.
-
-        // If original.winning_team_id was ALREADY Team B (if score was null, maybe it was set arbitrarily?)
-        // Usually scheduled games have winning_team_id as home? No, logic above uses winning/losing columns.
-        // In DB, scheduled games might just have placeholders.
-        // Let's rely on the IDs passed.
-
-        // Verify names map correctly
         let newWinningName, newLosingName;
         if (winner_id === original.winning_team_id) {
             newWinningName = original.winning_team_name;

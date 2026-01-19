@@ -12,7 +12,6 @@ const selectedPlayer = ref(null);
 const seasonSummary = ref(null);
 const seasonsList = ref([]);
 const selectedSeason = ref('');
-const viewMode = ref('standings'); // 'standings' or 'matrix'
 const matrixData = ref([]);
 
 // Modal State for Result Input
@@ -36,13 +35,7 @@ async function fetchSeasons() {
         const response = await apiClient('/api/league/seasons');
         if (response.ok) {
             seasonsList.value = await response.json();
-            // Assuming current season is not in this list? Or is it?
-            // Usually the list contains all seasons.
-            // If we have a list, default selectedSeason to the first one (most recent) if not set.
             if (seasonsList.value.length > 0 && !selectedSeason.value) {
-                // Actually, let's keep selectedSeason empty to mean "Current" initially,
-                // but if the user picks "All-Time" or a specific one, we set it.
-                // Or better: Default to the first one in the list as the "Current" one for display.
                 selectedSeason.value = seasonsList.value[0];
             }
         }
@@ -57,17 +50,6 @@ async function fetchLeagueData() {
   }
 
   const pointSetId = authStore.selectedPointSetId;
-  // If we are looking at a past season, we might want a different point set,
-  // but for now let's stick to the current logic for Rosters.
-
-  // Note: The /api/league endpoint (rosters) is NOT filtered by season currently.
-  // It returns CURRENT rosters.
-  // The user requested: "view past seasons... (So that includes series results, standings, and team rosters.)"
-  // Implementing historical rosters is complex (requires historical_rosters table).
-  // The current backend `/api/league` endpoint does NOT support historical rosters yet.
-  // Given the scope and constraints, I will focus on Results/Standings/Matrix filtering first.
-  // Historical Rosters might be a bigger task or I can try to pass season to it if supported later.
-
   loading.value = true;
 
   try {
@@ -75,7 +57,7 @@ async function fetchLeagueData() {
     if (selectedSeason.value) summaryUrl += `?season=${encodeURIComponent(selectedSeason.value)}`;
 
     const [leagueResponse, summaryResponse] = await Promise.all([
-        apiClient(`/api/league?point_set_id=${pointSetId}`), // Still fetching current rosters
+        apiClient(`/api/league?point_set_id=${pointSetId}`),
         apiClient(summaryUrl)
     ]);
 
@@ -86,8 +68,10 @@ async function fetchLeagueData() {
         seasonSummary.value = await summaryResponse.json();
     }
 
-    if (viewMode.value === 'matrix') {
+    if (selectedSeason.value === 'all-time') {
         await fetchMatrix();
+    } else {
+        matrixData.value = [];
     }
 
   } catch (error) {
@@ -114,14 +98,6 @@ async function fetchMatrix() {
 watch(selectedSeason, () => {
     fetchLeagueData();
 });
-
-// Watch for view mode changes
-watch(viewMode, () => {
-    if (viewMode.value === 'matrix') {
-        fetchMatrix();
-    }
-});
-
 
 function openPlayerCard(player) {
     selectedPlayer.value = player;
@@ -175,7 +151,7 @@ function padRoster(roster) {
 function openResultModal(series) {
     resultForm.value = {
         id: series.id,
-        winnerName: series.winner, // Currently mapped as winning_team_name
+        winnerName: series.winner,
         loserName: series.loser,
         winningScore: 0,
         losingScore: 0,
@@ -241,19 +217,99 @@ onMounted(async () => {
                 <option value="all-time">All-Time</option>
             </select>
         </div>
-
-        <div class="view-toggle">
-            <button :class="{ active: viewMode === 'standings' }" @click="viewMode = 'standings'">Standings</button>
-            <button :class="{ active: viewMode === 'matrix' }" @click="viewMode = 'matrix'">Matrix</button>
-        </div>
     </div>
 
     <div v-if="loading" class="loading">Loading league data...</div>
 
     <div v-else>
 
-        <!-- MATRIX VIEW -->
-        <div v-if="viewMode === 'matrix'" class="matrix-view">
+        <!-- STANDINGS AND RESULTS SECTION -->
+        <div v-if="seasonSummary && (seasonSummary.standings.length > 0 || seasonSummary.recentResults.length > 0)" class="summary-section">
+
+            <div class="summary-column standings-column">
+                <h3>Standings</h3>
+                <table class="summary-table standings-table">
+                    <thead>
+                        <tr>
+                            <th>Team</th>
+                            <th class="text-right">W</th>
+                            <th class="text-right">L</th>
+                            <th class="text-right">Pct</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="team in seasonSummary.standings" :key="team.team_id">
+                            <td class="team-cell">
+                                <span v-if="team.clinch" class="clinch-indicator">{{ team.clinch }}</span>
+                                <img v-if="team.logo_url" :src="team.logo_url" class="mini-logo" alt="" />
+                                <RouterLink v-if="team.team_id" :to="`/teams/${team.team_id}`" class="team-link">
+                                    {{ team.name }}
+                                </RouterLink>
+                                <span v-else>{{ team.name }}</span>
+                            </td>
+                            <td class="text-right">{{ team.wins }}</td>
+                            <td class="text-right">{{ team.losses }}</td>
+                            <td class="text-right">{{ team.winPctDisplay }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="summary-column results-column">
+                <h3>Recent Series Results</h3>
+                <div class="results-list">
+                    <div v-for="result in seasonSummary.recentResults" :key="result.id" class="result-item">
+
+                        <!-- Trophy Icons -->
+                        <div v-if="result.round === 'Golden Spaceship'" class="trophy-icon" title="Golden Spaceship">
+                            <img :src="`${apiUrl}/images/golden_spaceship.png`" alt="Spaceship" />
+                        </div>
+                        <div v-if="result.round === 'Wooden Spoon'" class="trophy-icon" title="Wooden Spoon">
+                            <img :src="`${apiUrl}/images/wooden_spoon.png`" alt="Spoon" />
+                        </div>
+                        <div v-if="result.round === 'Silver Submarine'" class="trophy-icon" title="Silver Submarine">
+                            <img :src="`${apiUrl}/images/silver_submarine.png`" alt="Submarine" />
+                        </div>
+
+                        <span v-if="['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(result.round)" class="round-label">{{ result.round }}</span>
+
+                        <template v-if="result.score">
+                            <div class="result-participant">
+                                <img v-if="result.winner_logo" :src="result.winner_logo" class="tiny-logo" alt=""/>
+                                <span class="result-winner">{{ result.winner_name || result.winner }}</span>
+                            </div>
+                            <span class="def-text">def.</span>
+                            <div class="result-participant">
+                                <img v-if="result.loser_logo" :src="result.loser_logo" class="tiny-logo" alt=""/>
+                                <span class="result-loser">{{ result.loser_name || result.loser }}</span>
+                            </div>
+                            <span class="result-score">({{ result.score }})</span>
+                        </template>
+                        <template v-else>
+                            <div class="result-participant">
+                                <img v-if="result.winner_logo" :src="result.winner_logo" class="tiny-logo" alt=""/>
+                                <span class="result-matchup">{{ result.winner_name || result.winner }}</span>
+                            </div>
+                            <span class="vs-text">vs.</span>
+                            <div class="result-participant">
+                                <img v-if="result.loser_logo" :src="result.loser_logo" class="tiny-logo" alt=""/>
+                                <span class="result-matchup">{{ result.loser_name || result.loser }}</span>
+                            </div>
+                            <!-- Add Result Button -->
+                            <button class="add-result-btn" @click="openResultModal(result)">+</button>
+                        </template>
+                    </div>
+                    <div v-if="seasonSummary.recentResults.length === 0" class="no-results">
+                        No results yet this season.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MATRIX VIEW (Only for All-Time) -->
+        <div v-if="selectedSeason === 'all-time' && matrixData.length > 0" class="matrix-view">
+             <h3>Head-to-Head Matrix (All-Time)</h3>
              <div class="matrix-container">
                 <table class="matrix-table">
                     <thead>
@@ -283,75 +339,10 @@ onMounted(async () => {
              </div>
         </div>
 
-        <!-- STANDINGS VIEW -->
-        <div v-else-if="seasonSummary && (seasonSummary.standings.length > 0 || seasonSummary.recentResults.length > 0)" class="summary-section">
-
-            <div class="summary-column standings-column">
-                <h3>Standings</h3>
-                <table class="summary-table standings-table">
-                    <thead>
-                        <tr>
-                            <th>Team</th>
-                            <th class="text-right">W</th>
-                            <th class="text-right">L</th>
-                            <th class="text-right">Pct</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="team in seasonSummary.standings" :key="team.team_id">
-                            <td>
-                                <span v-if="team.clinch" class="clinch-indicator">{{ team.clinch }}</span>
-                                {{ team.name }}
-                                <RouterLink :to="`/teams/${team.team_id}`" class="team-link">
-                                    {{ team.name }}
-                                </RouterLink>
-                            </td>
-                            <td class="text-right">{{ team.wins }}</td>
-                            <td class="text-right">{{ team.losses }}</td>
-                            <td class="text-right">{{ team.winPctDisplay }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="summary-column results-column">
-                <h3>Recent Series Results</h3>
-                <div class="results-list">
-                    <div v-for="result in seasonSummary.recentResults" :key="result.id" class="result-item">
-
-                        <!-- Trophy Icons -->
-                        <div v-if="result.round === 'Golden Spaceship'" class="trophy-icon" title="Golden Spaceship">
-                            <img :src="`${apiUrl}/images/golden_spaceship.png`" alt="Spaceship" />
-                        </div>
-                        <div v-if="result.round === 'Wooden Spoon'" class="trophy-icon" title="Wooden Spoon">
-                            <img :src="`${apiUrl}/images/wooden_spoon.png`" alt="Spoon" />
-                        </div>
-                        <div v-if="result.round === 'Silver Submarine'" class="trophy-icon" title="Silver Submarine">
-                            <img :src="`${apiUrl}/images/silver_submarine.png`" alt="Submarine" />
-                        </div>
-
-                        <span v-if="['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(result.round)" class="round-label">{{ result.round }}</span>
-
-                        <template v-if="result.score">
-                            <span class="result-winner">{{ result.winner }}</span> def.
-                            <span class="result-loser">{{ result.loser }}</span>
-                            <span class="result-score">({{ result.score }})</span>
-                        </template>
-                        <template v-else>
-                            <span class="result-matchup">{{ result.winner }} vs. {{ result.loser }}</span>
-                            <!-- Add Result Button -->
-                            <button class="add-result-btn" @click="openResultModal(result)">+</button>
-                        </template>
-                    </div>
-                    <div v-if="seasonSummary.recentResults.length === 0" class="no-results">
-                        No results yet this season.
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <div v-if="viewMode === 'standings'" class="teams-list">
+        <!-- ROSTERS (Hide if All-Time? The prompt didn't say to hide rosters for all-time, but typical behavior implies rosters are seasonal.
+             Since the backend /api/league returns CURRENT rosters, showing them for All-Time is okay as "Current Rosters".
+             The user didn't ask to hide them. I'll keep them.) -->
+        <div class="teams-list">
             <div v-for="team in leagueData" :key="team.team_id" class="team-block">
                 <div class="team-header" >
                     <img :src="team.logo_url" :alt="team.name" class="team-logo" />
@@ -445,7 +436,7 @@ onMounted(async () => {
 /* Controls Header */
 .controls-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     margin-bottom: 2rem;
     background: #f8f9fa;
@@ -466,26 +457,6 @@ onMounted(async () => {
     border-radius: 4px;
     border: 1px solid #ced4da;
     font-size: 1rem;
-}
-
-.view-toggle {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.view-toggle button {
-    padding: 0.5rem 1rem;
-    border: 1px solid #ced4da;
-    background: #fff;
-    cursor: pointer;
-    border-radius: 4px;
-    font-weight: 600;
-}
-
-.view-toggle button.active {
-    background: #007bff;
-    color: white;
-    border-color: #007bff;
 }
 
 h1 {
@@ -542,6 +513,18 @@ h1 {
     border-bottom: 1px solid #e9ecef;
 }
 
+.team-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mini-logo {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
 .text-right {
     text-align: right !important;
 }
@@ -586,6 +569,18 @@ h1 {
     margin-right: 0.5rem;
 }
 
+.result-participant {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tiny-logo {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+
 .result-winner {
     font-weight: 600;
     color: #28a745;
@@ -594,6 +589,11 @@ h1 {
 .result-loser {
     font-weight: 600;
     color: #333;
+}
+
+.def-text, .vs-text {
+    margin: 0 4px;
+    color: #666;
 }
 
 .result-score {
@@ -633,6 +633,7 @@ h1 {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 2rem;
+    margin-top: 2rem;
 }
 
 .team-block {
@@ -838,6 +839,18 @@ h1 {
 }
 
 /* Matrix Styles */
+.matrix-view {
+    margin-bottom: 2rem;
+}
+
+.matrix-view h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+}
+
 .matrix-container {
     overflow-x: auto;
     background: white;
