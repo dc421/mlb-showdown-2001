@@ -1,23 +1,13 @@
-Port 5173 is in use, trying another one...
-
-> showdown-monorepo@1.0.0 dev:frontend
-> npm run dev --workspace=frontend
-
 
 > frontend@0.0.0 dev
 > vite --port 5173
 
 
-  VITE v7.2.6  ready in 1141 ms
+  VITE v7.2.6  ready in 1089 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
   ➜  Vue DevTools: Open http://localhost:5173/__devtools__/ as a separate window
-  VITE v7.2.6  ready in 1030 ms
-
-  ➜  Local:   http://localhost:5174/
-  ➜  Network: http://192.168.0.2:5174/
-  ➜  Vue DevTools: Open http://localhost:5174/__devtools__/ as a separate window
   ➜  Vue DevTools: Press Alt(⌥)+Shift(⇧)+D in App to toggle the Vue DevTools
 [1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
 
@@ -27,5 +17,3 @@ Port 5173 is in use, trying another one...
 
 [1m[33m[@vue/compiler-sfc][0m[33m the >>> and /deep/ combinators have been deprecated. Use :deep() instead.[0m
 
-7:44:23 PM [vite] (client) hmr update /src/views/LeagueView.vue
-7:44:31 PM [vite] (client) hmr update /src/views/LeagueView.vue?vue&type=style&index=0&scoped=d7087aab&lang.css
