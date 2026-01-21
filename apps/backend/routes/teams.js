@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
-const { sortSeasons } = require('../utils/seasonUtils');
+const { sortSeasons, mapSeasonToPointSet } = require('../utils/seasonUtils');
 
 // Helper to handle ID mapping
 // In prod team IDs, Boston is 3, New York is 5, NY South is 1
@@ -39,6 +39,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         // 2. Fetch Season History from series_results with Name-Based Matching (and ID fallback)
         // This solves the Prod vs Local ID mismatch by relying on the Team Name which is stable.
         const namePattern = `%${team.name}%`; // e.g. "Boston", "New York"
+        const mappedIds = getMappedIds(teamId); // Helper for Prod vs Local ID mismatch
 
         // FETCH ALL TEAMS FOR EXCLUSION LOGIC
         // This prevents fuzzy matches (e.g. "New York") from matching "New York South"
@@ -48,44 +49,47 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const historyQuery = `
             SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score
             FROM series_results
-            WHERE (winning_team_name ILIKE $1 OR losing_team_name ILIKE $1)
+            WHERE (winning_team_id = ANY($2::int[]) OR losing_team_id = ANY($2::int[]) OR winning_team_name ILIKE $1 OR losing_team_name ILIKE $1)
             ORDER BY date DESC
         `;
 
-        const historyRes = await client.query(historyQuery, [namePattern]);
+        const historyRes = await client.query(historyQuery, [namePattern, mappedIds]);
 
         const seasonStats = {}; // season_name -> { wins, losses, rounds: [], teamNameUsed: string }
+
+        // EXCLUSION LOGIC HELPER
+        const isFalsePositive = (nameToCheck) => {
+             if (!nameToCheck) return false;
+             return otherTeams.some(other => {
+                // Only care if the other team's name actually contains OUR name (causing the ambiguity)
+                if (other.city.includes(team.name) || other.name.includes(team.name) || `${other.city} ${other.name}`.includes(team.name)) {
+                     // Check if the row name is a better match for the OTHER team
+                     // e.g. Row="New York South". Other="New York South".
+                     // If Row contains Other's City (and it's longer/specific), it's theirs.
+                     if (nameToCheck.includes(other.city)) return true;
+                }
+                return false;
+            });
+        };
 
         historyRes.rows.forEach(r => {
             const season = r.season_name;
 
-            // EXCLUSION LOGIC
-            const isWinnerMatch = r.winning_team_name && r.winning_team_name.includes(team.name);
-            const isLoserMatch = r.losing_team_name && r.losing_team_name.includes(team.name);
+            // Check ID Match first (Exact)
+            const isWinnerIdMatch = r.winning_team_id && mappedIds.map(String).includes(String(r.winning_team_id));
+            const isLoserIdMatch = r.losing_team_id && mappedIds.map(String).includes(String(r.losing_team_id));
 
-            // If it matches US, check if it ALSO matches a "Conflicting Team" (one that contains our name)
-            // e.g. We are "New York". Row is "New York South". Conflict Team is "New York South".
-            // "New York South" includes "New York".
-            const isFalsePositive = (nameToCheck) => {
-                return otherTeams.some(other => {
-                    // Only care if the other team's name actually contains OUR name (causing the ambiguity)
-                    if (other.city.includes(team.name) || other.name.includes(team.name) || `${other.city} ${other.name}`.includes(team.name)) {
-                         // Check if the row name is a better match for the OTHER team
-                         // e.g. Row="New York South". Other="New York South".
-                         // If Row contains Other's City (and it's longer/specific), it's theirs.
-                         if (nameToCheck.includes(other.city)) return true;
-                    }
-                    return false;
-                });
-            };
+            // Check Name Match (Fuzzy with Exclusion)
+            const isWinnerNameMatch = r.winning_team_name && r.winning_team_name.includes(team.name) && !isFalsePositive(r.winning_team_name);
+            const isLoserNameMatch = r.losing_team_name && r.losing_team_name.includes(team.name) && !isFalsePositive(r.losing_team_name);
 
             let relevantSide = null; // 'winner' or 'loser'
             let teamNameUsed = null;
 
-            if (isWinnerMatch && !isFalsePositive(r.winning_team_name)) {
+            if (isWinnerIdMatch || isWinnerNameMatch) {
                 relevantSide = 'winner';
                 teamNameUsed = r.winning_team_name;
-            } else if (isLoserMatch && !isFalsePositive(r.losing_team_name)) {
+            } else if (isLoserIdMatch || isLoserNameMatch) {
                 relevantSide = 'loser';
                 teamNameUsed = r.losing_team_name;
             }
@@ -203,6 +207,51 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
         const rosterRes = await client.query(rosterQuery, [[...namesUsed]]);
 
+        // FETCH POINTS IF MISSING
+        // Collect all seasons and point set IDs needed
+        const uniqueSeasons = [...new Set(rosterRes.rows.map(r => r.season))];
+        const pointSetMap = {}; // season -> pointSetId
+
+        // Fetch all point sets to find IDs
+        const psRes = await client.query('SELECT point_set_id, name FROM point_sets');
+        const psNameMap = {};
+        psRes.rows.forEach(ps => psNameMap[ps.name] = ps.point_set_id);
+
+        uniqueSeasons.forEach(season => {
+            const psName = mapSeasonToPointSet(season);
+            const psId = psNameMap[psName] || psNameMap['Original Pts'];
+            if (psId) pointSetMap[season] = psId;
+        });
+
+        // Gather all cards that need points (points is null)
+        const cardsNeedingPoints = [];
+        rosterRes.rows.forEach(r => {
+            if (r.points === null && r.card_id && pointSetMap[r.season]) {
+                cardsNeedingPoints.push({ card_id: r.card_id, point_set_id: pointSetMap[r.season] });
+            }
+        });
+
+        // Batch fetch points
+        const pointsLookup = {}; // `${card_id}_${point_set_id}` -> points
+        if (cardsNeedingPoints.length > 0) {
+            // Since (card_id, point_set_id) is composite, we can't do simple IN.
+            // We can fetch ALL values for the relevant point sets and card IDs.
+            const uniqueCardIds = [...new Set(cardsNeedingPoints.map(c => c.card_id))];
+            const uniquePsIds = [...new Set(cardsNeedingPoints.map(c => c.point_set_id))];
+
+            if (uniqueCardIds.length > 0 && uniquePsIds.length > 0) {
+                const ppvQuery = `
+                    SELECT card_id, point_set_id, points
+                    FROM player_point_values
+                    WHERE card_id = ANY($1::int[]) AND point_set_id = ANY($2::int[])
+                `;
+                const ppvRes = await client.query(ppvQuery, [uniqueCardIds, uniquePsIds]);
+                ppvRes.rows.forEach(row => {
+                    pointsLookup[`${row.card_id}_${row.point_set_id}`] = row.points;
+                });
+            }
+        }
+
         // Group by season
         const rosterHistory = {};
 
@@ -210,12 +259,23 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             if (!rosterHistory[r.season]) {
                 rosterHistory[r.season] = [];
             }
+
+            // Fill missing points
+            let pts = r.points;
+            if (pts === null && r.card_id) {
+                const psId = pointSetMap[r.season];
+                if (psId) {
+                    const found = pointsLookup[`${r.card_id}_${psId}`];
+                    if (found !== undefined) pts = found;
+                }
+            }
+
             const player = {
                 card_id: r.card_id,
                 name: r.player_name,
                 displayName: r.display_name || r.card_name || r.player_name,
                 position: r.position,
-                points: r.points,
+                points: pts,
                 assignment: r.position,
                 // NEW FIELDS
                 control: r.control,
@@ -260,32 +320,46 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             });
         });
 
-        // 4. Accolades (Updated Logic to match server.js AND use Name Matching)
-        // Use mapped IDs for extra safety, plus name matching
-        const mappedIds = getMappedIds(teamId);
-
+        // 4. Accolades (Updated Logic with Exclusion)
+        // We reuse the broad query but filter results in JS to avoid "New York" grabbing "New York South" trophies
         const spaceshipQuery = `
-            SELECT season_name, date FROM series_results
+            SELECT season_name, date, winning_team_id, winning_team_name, round FROM series_results
             WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE $2)
             AND round = 'Golden Spaceship'
             ORDER BY date DESC
         `;
         const spoonQuery = `
-            SELECT season_name, date FROM series_results
+            SELECT season_name, date, losing_team_id, losing_team_name, round FROM series_results
             WHERE (losing_team_id = ANY($1::int[]) OR losing_team_name ILIKE $2)
             AND round = 'Wooden Spoon'
             ORDER BY date DESC
         `;
         const submarineQuery = `
-            SELECT season_name, date FROM series_results
+            SELECT season_name, date, winning_team_id, winning_team_name, round FROM series_results
             WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE $2)
             AND round = 'Silver Submarine'
             ORDER BY date DESC
         `;
 
-        const spaceships = await client.query(spaceshipQuery, [mappedIds, namePattern]);
-        const spoons = await client.query(spoonQuery, [mappedIds, namePattern]);
-        const submarines = await client.query(submarineQuery, [mappedIds, namePattern]);
+        const spaceshipsRes = await client.query(spaceshipQuery, [mappedIds, namePattern]);
+        const spoonsRes = await client.query(spoonQuery, [mappedIds, namePattern]);
+        const submarinesRes = await client.query(submarineQuery, [mappedIds, namePattern]);
+
+        // Filter Function for Accolades
+        const filterAccolades = (rows, isWinner) => {
+            return rows.filter(r => {
+                const idToCheck = isWinner ? r.winning_team_id : r.losing_team_id;
+                const nameToCheck = isWinner ? r.winning_team_name : r.losing_team_name;
+
+                // 1. ID Match (Exact)
+                if (idToCheck && mappedIds.map(String).includes(String(idToCheck))) return true;
+
+                // 2. Name Match (Fuzzy with Exclusion)
+                if (nameToCheck && nameToCheck.includes(team.name) && !isFalsePositive(nameToCheck)) return true;
+
+                return false;
+            });
+        };
 
         res.json({
             team,
@@ -293,9 +367,9 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             identityHistory: identityHistory.reverse(), // Send Newest -> Oldest for display
             rosters: formattedRosters,
             accolades: {
-                spaceships: spaceships.rows,
-                spoons: spoons.rows,
-                submarines: submarines.rows
+                spaceships: filterAccolades(spaceshipsRes.rows, true),
+                spoons: filterAccolades(spoonsRes.rows, false), // Spoon is for loser usually (unless logic changed, but query used losing_team)
+                submarines: filterAccolades(submarinesRes.rows, true)
             }
         });
 
@@ -329,13 +403,42 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
         // Match against generic name pattern OR exact city+name (in case user query is strict)
         const rosterRes = await client.query(rosterQuery, [seasonName, namePattern, `${team.city} ${team.name}`]);
 
+        // FETCH POINTS IF MISSING
+        const psName = mapSeasonToPointSet(seasonName);
+        let psId = null;
+        if (psName) {
+            const psRes = await client.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
+            if (psRes.rows.length > 0) psId = psRes.rows[0].point_set_id;
+            else {
+                 // Fallback to 'Original Pts'
+                 const origRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Original Pts'");
+                 if (origRes.rows.length > 0) psId = origRes.rows[0].point_set_id;
+            }
+        }
+
+        const pointsLookup = {};
+        const cardIdsNeedingPoints = rosterRes.rows.filter(r => r.points === null && r.card_id).map(r => r.card_id);
+
+        if (psId && cardIdsNeedingPoints.length > 0) {
+             const ppvRes = await client.query(
+                'SELECT card_id, points FROM player_point_values WHERE point_set_id = $1 AND card_id = ANY($2::int[])',
+                [psId, cardIdsNeedingPoints]
+             );
+             ppvRes.rows.forEach(row => pointsLookup[row.card_id] = row.points);
+        }
+
         let roster = rosterRes.rows.map(r => {
+             let pts = r.points;
+             if (pts === null && r.card_id && pointsLookup[r.card_id] !== undefined) {
+                 pts = pointsLookup[r.card_id];
+             }
+
              const player = {
                 card_id: r.card_id,
                 name: r.player_name,
                 displayName: r.display_name || r.card_name || r.player_name,
                 position: r.position,
-                points: r.points,
+                points: pts,
                 assignment: r.position,
                 // NEW FIELDS
                 control: r.control,
