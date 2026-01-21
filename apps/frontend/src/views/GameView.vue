@@ -752,6 +752,9 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
 
   // NEW: If the game is over and ended on a non-batter action (like a steal), do not hide.
   if (gameStore.game?.status === 'completed' && !gameStore.gameState.currentAtBat?.batterAction) {
+      if (amIDisplayDefensivePlayer.value && gameStore.gameState.pendingStealAttempt) {
+          return true;
+      }
       return false;
   }
 
@@ -1758,7 +1761,7 @@ function handleResolveSteal(throwToBase = null) {
 const isStealAttemptInProgress = computed(() => {
     if (shouldDelayStealRoll.value) return false;
     if (shouldShowDoublePlayFirst.value) return false;
-    if (isGameOver.value && gameStore.displayGameState.outs < 3 || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
+    if ((isGameOver.value && gameStore.displayGameState.outs < 3 && !gameStore.gameState?.pendingStealAttempt) || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
     const isSingleStealInProgress = (!!gameStore.gameState?.pendingStealAttempt || !!gameStore.gameState?.lastStealResult) &&
                                  (isRunnerOnOffensiveTeam.value || (gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs > 0)) &&
