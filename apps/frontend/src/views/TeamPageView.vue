@@ -82,6 +82,74 @@ const processedHistory = computed(() => {
     });
 });
 
+const mostCommonPlayers = computed(() => {
+    if (!processedHistory.value.length) return { batters: {}, pitchers: {} };
+
+    const batterCounts = {};
+    const pitcherCounts = {};
+
+    // Initialize counters
+    ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'Bench'].forEach(pos => batterCounts[pos] = {});
+    ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2', 'Bullpen'].forEach(pos => pitcherCounts[pos] = {});
+
+    processedHistory.value.forEach(row => {
+        // Batters
+        ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
+            const p = row.batters[pos];
+            if (p) {
+                const key = p.displayName || p.name;
+                batterCounts[pos][key] = (batterCounts[pos][key] || 0) + 1;
+            }
+        });
+        // Bench (Array)
+        if (row.batters['Bench']) {
+             row.batters['Bench'].forEach(p => {
+                 const key = p.displayName || p.name;
+                 batterCounts['Bench'][key] = (batterCounts['Bench'][key] || 0) + 1;
+             });
+        }
+
+        // Pitchers
+        ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2'].forEach(pos => {
+            const p = row.pitchers[pos];
+            if (p) {
+                const key = p.displayName || p.name;
+                pitcherCounts[pos][key] = (pitcherCounts[pos][key] || 0) + 1;
+            }
+        });
+        // Bullpen (Array)
+         if (row.pitchers['Bullpen']) {
+             row.pitchers['Bullpen'].forEach(p => {
+                 const key = p.displayName || p.name;
+                 pitcherCounts['Bullpen'][key] = (pitcherCounts['Bullpen'][key] || 0) + 1;
+             });
+        }
+    });
+
+    const getMostCommon = (counts) => {
+        const result = {};
+        for (const pos in counts) {
+            let max = 0;
+            let player = null;
+            for (const name in counts[pos]) {
+                if (counts[pos][name] > max) {
+                    max = counts[pos][name];
+                    player = name;
+                }
+            }
+            if (player) {
+                result[pos] = { name: player, count: max };
+            }
+        }
+        return result;
+    };
+
+    return {
+        batters: getMostCommon(batterCounts),
+        pitchers: getMostCommon(pitcherCounts)
+    };
+});
+
 // Fetch team data on mount or when teamId changes
 async function fetchTeamData() {
   loading.value = true;
@@ -248,6 +316,24 @@ const teamDisplayName = computed(() => {
                             </td>
                         </tr>
                     </tbody>
+                    <tfoot v-if="mostCommonPlayers.batters && Object.keys(mostCommonPlayers.batters).length > 0">
+                        <tr class="summary-row">
+                            <td class="sticky-col total-label">Most Common</td>
+                            <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos" class="summary-cell">
+                                <template v-if="mostCommonPlayers.batters[pos]">
+                                    <div class="common-name">{{ mostCommonPlayers.batters[pos].name }}</div>
+                                    <div class="common-count">({{ mostCommonPlayers.batters[pos].count }})</div>
+                                </template>
+                                <span v-else>-</span>
+                            </td>
+                            <td class="summary-cell">
+                                <template v-if="mostCommonPlayers.batters['Bench']">
+                                    <div class="common-name">{{ mostCommonPlayers.batters['Bench'].name }}</div>
+                                    <div class="common-count">({{ mostCommonPlayers.batters['Bench'].count }})</div>
+                                </template>
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </section>
@@ -288,6 +374,24 @@ const teamDisplayName = computed(() => {
                             </td>
                         </tr>
                     </tbody>
+                    <tfoot v-if="mostCommonPlayers.pitchers && Object.keys(mostCommonPlayers.pitchers).length > 0">
+                        <tr class="summary-row">
+                            <td class="sticky-col total-label">Most Common</td>
+                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2']" :key="pos" class="summary-cell">
+                                <template v-if="mostCommonPlayers.pitchers[pos]">
+                                    <div class="common-name">{{ mostCommonPlayers.pitchers[pos].name }}</div>
+                                    <div class="common-count">({{ mostCommonPlayers.pitchers[pos].count }})</div>
+                                </template>
+                                <span v-else>-</span>
+                            </td>
+                            <td class="summary-cell">
+                                <template v-if="mostCommonPlayers.pitchers['Bullpen']">
+                                    <div class="common-name">{{ mostCommonPlayers.pitchers['Bullpen'].name }}</div>
+                                    <div class="common-count">({{ mostCommonPlayers.pitchers['Bullpen'].count }})</div>
+                                </template>
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </section>
@@ -499,5 +603,27 @@ thead th.sticky-col {
     .bench-list {
         max-width: 200px; /* Constrain bench width on mobile scroll */
     }
+}
+
+/* Footer Summary Styles */
+.summary-row td {
+    background-color: #f8f9fa;
+    border-top: 2px solid #dee2e6;
+    font-size: 0.85rem;
+    vertical-align: top;
+}
+.summary-row .total-label {
+    font-weight: bold;
+    text-align: right;
+    padding-right: 1rem;
+    background-color: #e9ecef; /* Match sticky header style somewhat */
+}
+.common-name {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.common-count {
+    color: #666;
+    font-size: 0.8rem;
 }
 </style>
