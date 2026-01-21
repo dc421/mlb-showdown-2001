@@ -76,7 +76,7 @@ export function formatNameShort(name) {
         lastName = cleanName; // Single name
     }
 
-    return `${firstInitial}.${lastName}`;
+    return `${firstInitial}. ${lastName}`;
 }
 
 /**

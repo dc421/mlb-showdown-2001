@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { sortSeasons, mapSeasonToPointSet } = require('../utils/seasonUtils');
+const { matchesFranchise } = require('../utils/franchiseUtils');
 
 // Helper to handle ID mapping
 // In prod team IDs, Boston is 3, New York is 5, NY South is 1
@@ -44,8 +45,9 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         // FETCH ALL TEAMS FOR EXCLUSION LOGIC
         // This prevents fuzzy matches (e.g. "New York") from matching "New York South"
         const allTeamsRes = await client.query('SELECT team_id, city, name FROM teams');
-        const otherTeams = allTeamsRes.rows.filter(t => t.team_id !== team.team_id);
+        const allTeams = allTeamsRes.rows;
 
+        // Broad query: Grab everything that might be relevant based on ID or Name, then filter strictly in JS
         const historyQuery = `
             SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score
             FROM series_results
@@ -57,39 +59,22 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
         const seasonStats = {}; // season_name -> { wins, losses, rounds: [], teamNameUsed: string }
 
-        // EXCLUSION LOGIC HELPER
-        const isFalsePositive = (nameToCheck) => {
-             if (!nameToCheck) return false;
-             return otherTeams.some(other => {
-                // Only care if the other team's name actually contains OUR name (causing the ambiguity)
-                if (other.city.includes(team.name) || other.name.includes(team.name) || `${other.city} ${other.name}`.includes(team.name)) {
-                     // Check if the row name is a better match for the OTHER team
-                     // e.g. Row="New York South". Other="New York South".
-                     // If Row contains Other's City (and it's longer/specific), it's theirs.
-                     if (nameToCheck.includes(other.city)) return true;
-                }
-                return false;
-            });
-        };
-
         historyRes.rows.forEach(r => {
             const season = r.season_name;
 
-            // Check ID Match first (Exact)
-            const isWinnerIdMatch = r.winning_team_id && mappedIds.map(String).includes(String(r.winning_team_id));
-            const isLoserIdMatch = r.losing_team_id && mappedIds.map(String).includes(String(r.losing_team_id));
+            // Check if Winning Team belongs to this Franchise
+            const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, team, allTeams, mappedIds);
 
-            // Check Name Match (Fuzzy with Exclusion)
-            const isWinnerNameMatch = r.winning_team_name && r.winning_team_name.includes(team.name) && !isFalsePositive(r.winning_team_name);
-            const isLoserNameMatch = r.losing_team_name && r.losing_team_name.includes(team.name) && !isFalsePositive(r.losing_team_name);
+            // Check if Losing Team belongs to this Franchise
+            const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, team, allTeams, mappedIds);
 
             let relevantSide = null; // 'winner' or 'loser'
             let teamNameUsed = null;
 
-            if (isWinnerIdMatch || isWinnerNameMatch) {
+            if (isWinner) {
                 relevantSide = 'winner';
                 teamNameUsed = r.winning_team_name;
-            } else if (isLoserIdMatch || isLoserNameMatch) {
+            } else if (isLoser) {
                 relevantSide = 'loser';
                 teamNameUsed = r.losing_team_name;
             }
@@ -101,17 +86,41 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                     season_name: season,
                     wins: 0,
                     losses: 0,
+                    regularWins: 0,
+                    regularLosses: 0,
+                    postseasonWins: 0,
+                    postseasonLosses: 0,
                     rounds: new Set(),
                     teamNameUsed: null
                 };
             }
 
+            const isPostseason = r.round && r.round !== 'Regular Season';
+
             if (relevantSide === 'winner') {
-                seasonStats[season].wins += (r.winning_score || 0);
-                seasonStats[season].losses += (r.losing_score || 0);
+                const w = r.winning_score || 0;
+                const l = r.losing_score || 0;
+                seasonStats[season].wins += w;
+                seasonStats[season].losses += l;
+                if (isPostseason) {
+                    seasonStats[season].postseasonWins += w;
+                    seasonStats[season].postseasonLosses += l;
+                } else {
+                    seasonStats[season].regularWins += w;
+                    seasonStats[season].regularLosses += l;
+                }
             } else {
-                seasonStats[season].wins += (r.losing_score || 0);
-                seasonStats[season].losses += (r.winning_score || 0);
+                const w = r.losing_score || 0;
+                const l = r.winning_score || 0;
+                seasonStats[season].wins += w;
+                seasonStats[season].losses += l;
+                if (isPostseason) {
+                    seasonStats[season].postseasonWins += w;
+                    seasonStats[season].postseasonLosses += l;
+                } else {
+                    seasonStats[season].regularWins += w;
+                    seasonStats[season].regularLosses += l;
+                }
             }
 
             // Track the name used this season (if not set or update if we found one)
@@ -124,14 +133,16 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
         // Convert stats to array
         const historyList = Object.values(seasonStats).map(s => {
-            const total = s.wins + s.losses;
-            const winPct = total > 0 ? (s.wins / total).toFixed(3).replace(/^0+/, '') : '.000';
+            const total = s.regularWins + s.regularLosses;
+            const winPct = total > 0 ? (s.regularWins / total).toFixed(3).replace(/^0+/, '') : '.000';
 
             // Determine "Result"
-            let result = 'Regular Season';
+            let result = '-';
+
             if (s.rounds.has('Golden Spaceship')) {
                 const finals = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Golden Spaceship');
-                if (finals && finals.winning_team_name.includes(team.name)) {
+                // Use robust matching to see if WE won
+                if (finals && matchesFranchise(finals.winning_team_name, finals.winning_team_id, team, allTeams, mappedIds)) {
                     result = 'Champion';
                 } else if (finals) {
                     result = 'Runner Up';
@@ -140,19 +151,24 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 result = 'Playoffs';
             } else if (s.rounds.has('Wooden Spoon')) {
                 const spoonGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Wooden Spoon');
-                // Usually winning the spoon match means you avoid the spoon (unless logic implies winner GETS spoon)
-                // Let's assume standard logic: Spoon Game Loser = Spoon Winner
-                if (spoonGame && spoonGame.losing_team_name.includes(team.name)) {
+                // Usually winning the spoon match means you avoid the spoon
+                // If we LOST the spoon match, we are the Spoon Winner.
+                if (spoonGame && matchesFranchise(spoonGame.losing_team_name, spoonGame.losing_team_id, team, allTeams, mappedIds)) {
                      result = 'Wooden Spoon';
                 } else {
                      result = 'Wooden Spoon Participant';
                 }
             }
 
+            // Append Postseason Record if applicable
+            if (result !== '-') {
+                 result = `${result} (${s.postseasonWins}-${s.postseasonLosses})`;
+            }
+
             return {
                 season: s.season_name,
-                wins: s.wins,
-                losses: s.losses,
+                wins: s.regularWins, // Return Regular Season W-L
+                losses: s.regularLosses,
                 winPct,
                 result,
                 teamNameUsed: s.teamNameUsed
@@ -398,10 +414,24 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip, cp.image_url
             FROM historical_rosters hr
             LEFT JOIN cards_player cp ON hr.card_id = cp.card_id
-            WHERE hr.season = $1 AND (hr.team_name ILIKE $2 OR hr.team_name = $3)
+            WHERE hr.season = $1
         `;
-        // Match against generic name pattern OR exact city+name (in case user query is strict)
-        const rosterRes = await client.query(rosterQuery, [seasonName, namePattern, `${team.city} ${team.name}`]);
+        // We fetch ALL for the season, then filter in JS using matchesFranchise because we need the full power of aliases
+        const allRostersRes = await client.query(rosterQuery, [seasonName]);
+
+        // Need all teams for context in matchesFranchise
+        const allTeamsRes = await client.query('SELECT team_id, city, name FROM teams');
+        const allTeams = allTeamsRes.rows;
+        const mappedIds = getMappedIds(teamId);
+
+        // Filter the rows that belong to this franchise
+        const rosterRows = allRostersRes.rows.filter(r => {
+             // historical_rosters has 'team_name' but not 'team_id'. We pass null for ID.
+             return matchesFranchise(r.team_name, null, team, allTeams, mappedIds);
+        });
+
+        // Use the filtered rows
+        const rosterRes = { rows: rosterRows };
 
         // FETCH POINTS IF MISSING
         const psName = mapSeasonToPointSet(seasonName);
@@ -457,20 +487,36 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
         // 2. Fetch Series Results
         const resultsQuery = `
             SELECT * FROM series_results
-            WHERE season_name = $1 AND (winning_team_name ILIKE $2 OR losing_team_name ILIKE $2)
+            WHERE season_name = $1
             ORDER BY date DESC
         `;
-        const resultsRes = await client.query(resultsQuery, [seasonName, namePattern]);
+        // Again, fetch all for season, filter in JS
+        const allResultsRes = await client.query(resultsQuery, [seasonName]);
 
-        const results = resultsRes.rows.map(r => {
-            const isWinner = r.winning_team_name.includes(team.name);
-            return {
-                opponent: isWinner ? r.losing_team_name : r.winning_team_name,
-                result: isWinner ? 'W' : 'L',
-                score: `${r.winning_score}-${r.losing_score}`,
-                round: r.round,
-                date: r.date
-            };
+        const results = [];
+        allResultsRes.rows.forEach(r => {
+            const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, team, allTeams, mappedIds);
+            const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, team, allTeams, mappedIds);
+
+            if (isWinner) {
+                results.push({
+                    opponent: r.losing_team_name,
+                    result: 'W',
+                    score: `${r.winning_score}-${r.losing_score}`,
+                    round: r.round,
+                    date: r.date
+                });
+            } else if (isLoser) {
+                results.push({
+                    opponent: r.winning_team_name,
+                    result: 'L',
+                    score: `${r.winning_score}-${r.losing_score}`, // Winning score first? Or My score first? Usually W-L implies winner first.
+                    // But if I lost, maybe I want "L 2-5".
+                    // Code before was: `${r.winning_score}-${r.losing_score}`. So always Winner-Loser.
+                    round: r.round,
+                    date: r.date
+                });
+            }
         });
 
         res.json({
