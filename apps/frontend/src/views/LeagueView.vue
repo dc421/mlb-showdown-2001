@@ -56,8 +56,11 @@ async function fetchLeagueData() {
     let summaryUrl = `/api/league/season-summary`;
     if (selectedSeason.value) summaryUrl += `?season=${encodeURIComponent(selectedSeason.value)}`;
 
+    let leagueUrl = `/api/league?point_set_id=${pointSetId}`;
+    if (selectedSeason.value) leagueUrl += `&season=${encodeURIComponent(selectedSeason.value)}`;
+
     const [leagueResponse, summaryResponse] = await Promise.all([
-        apiClient(`/api/league?point_set_id=${pointSetId}`),
+        apiClient(leagueUrl),
         apiClient(summaryUrl)
     ]);
 
@@ -198,6 +201,21 @@ async function submitResult() {
     }
 }
 
+// Filter out spaceship/spoon results for the main list
+const filteredRecentResults = computed(() => {
+    if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
+    return seasonSummary.value.recentResults.filter(r =>
+        !['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(r.round)
+    );
+});
+
+const seasonFinales = computed(() => {
+    if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
+    return seasonSummary.value.recentResults.filter(r =>
+        ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(r.round)
+    );
+});
+
 
 onMounted(async () => {
     await fetchSeasons();
@@ -235,6 +253,11 @@ onMounted(async () => {
                             <th class="text-right">W</th>
                             <th class="text-right">L</th>
                             <th class="text-right">Pct</th>
+
+                            <!-- ALL-TIME COLUMNS -->
+                            <th v-if="selectedSeason === 'all-time'" class="text-right">Avg Fin</th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /></th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -242,7 +265,7 @@ onMounted(async () => {
                             <td class="team-cell">
                                 <span v-if="team.clinch" class="clinch-indicator">{{ team.clinch }}</span>
                                 <img v-if="team.logo_url" :src="team.logo_url" class="mini-logo" alt="" />
-                                <RouterLink v-if="team.team_id" :to="`/teams/${team.team_id}`" class="team-link">
+                                <RouterLink v-if="team.team_id && !team.isFranchise" :to="`/teams/${team.team_id}`" class="team-link">
                                     {{ team.name }}
                                 </RouterLink>
                                 <span v-else>{{ team.name }}</span>
@@ -250,29 +273,67 @@ onMounted(async () => {
                             <td class="text-right">{{ team.wins }}</td>
                             <td class="text-right">{{ team.losses }}</td>
                             <td class="text-right">{{ team.winPctDisplay }}</td>
+
+                            <!-- ALL-TIME STATS -->
+                            <td v-if="selectedSeason === 'all-time'" class="text-right">{{ team.avgFinish }}</td>
+                            <td v-if="selectedSeason === 'all-time'" class="text-center">
+                                <span v-if="team.spaceships > 0" class="trophy-count">
+                                    <img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /> {{ team.spaceships }}
+                                </span>
+                            </td>
+                            <td v-if="selectedSeason === 'all-time'" class="text-center">
+                                <span v-if="team.spoons > 0" class="trophy-count">
+                                    <img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /> {{ team.spoons }}
+                                </span>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
+
+                 <!-- TROPHY CASE (All-Time Only) -->
+                <div v-if="selectedSeason === 'all-time'" class="trophy-case-section">
+                    <h3>Franchise Accolades</h3>
+                    <div v-for="team in seasonSummary.standings" :key="team.team_id" class="franchise-accolade-row">
+                        <div class="franchise-info">
+                             <img v-if="team.logo_url" :src="team.logo_url" class="mini-logo" alt="" />
+                             <b>{{ team.name }}</b>
+                        </div>
+                        <div class="accolade-icons">
+                            <!-- Spaceships -->
+                            <img v-for="n in team.spaceships" :key="`s-${n}`" :src="`${apiUrl}/images/golden_spaceship.png`" class="trophy-icon-lg" title="Golden Spaceship Champion" />
+
+                            <!-- Spoons -->
+                            <img v-for="n in team.spoons" :key="`sp-${n}`" :src="`${apiUrl}/images/wooden_spoon.png`" class="trophy-icon-lg" title="Wooden Spoon" />
+
+                            <!-- Appearances (If wanted, user said 'appearances', maybe just count text is enough in table, but here visuals are nicer) -->
+                            <!-- Let's stick to the main trophies requested for the 'visual' section -->
+                        </div>
+                    </div>
+                </div>
+
+                 <!-- SEASON FINALES (Moved from Recent Results) -->
+                <div v-if="seasonFinales.length > 0" class="season-finales">
+                    <h3>Season Finales</h3>
+                    <div v-for="result in seasonFinales" :key="result.id" class="finale-item" :class="{'spaceship-game': result.round === 'Golden Spaceship', 'spoon-game': result.round === 'Wooden Spoon'}">
+                         <div class="finale-header">
+                            <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-icon" />
+                            <img v-if="result.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-icon" />
+                            <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-icon" />
+                            <span class="finale-title">{{ result.round }}</span>
+                         </div>
+                         <div class="finale-score">
+                             <span class="winner">{{ result.winner_name || result.winner }}</span>
+                             <span class="score-val">{{ result.score }}</span>
+                             <span class="loser">{{ result.loser_name || result.loser }}</span>
+                         </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="summary-column results-column">
+            <div v-if="selectedSeason !== 'all-time'" class="summary-column results-column">
                 <h3>Recent Series Results</h3>
                 <div class="results-list">
-                    <div v-for="result in seasonSummary.recentResults" :key="result.id" class="result-item">
-
-                        <!-- Trophy Icons -->
-                        <div v-if="result.round === 'Golden Spaceship'" class="trophy-icon" title="Golden Spaceship">
-                            <img :src="`${apiUrl}/images/golden_spaceship.png`" alt="Spaceship" />
-                        </div>
-                        <div v-if="result.round === 'Wooden Spoon'" class="trophy-icon" title="Wooden Spoon">
-                            <img :src="`${apiUrl}/images/wooden_spoon.png`" alt="Spoon" />
-                        </div>
-                        <div v-if="result.round === 'Silver Submarine'" class="trophy-icon" title="Silver Submarine">
-                            <img :src="`${apiUrl}/images/silver_submarine.png`" alt="Submarine" />
-                        </div>
-
-                        <span v-if="['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(result.round)" class="round-label">{{ result.round }}</span>
-
+                    <div v-for="result in filteredRecentResults" :key="result.id" class="result-item">
                         <template v-if="result.score">
                             <div class="result-participant">
                                 <img v-if="result.winner_logo" :src="result.winner_logo" class="tiny-logo" alt=""/>
@@ -299,7 +360,7 @@ onMounted(async () => {
                             <button class="add-result-btn" @click="openResultModal(result)">+</button>
                         </template>
                     </div>
-                    <div v-if="seasonSummary.recentResults.length === 0" class="no-results">
+                    <div v-if="filteredRecentResults.length === 0" class="no-results">
                         No results yet this season.
                     </div>
                 </div>
@@ -339,10 +400,8 @@ onMounted(async () => {
              </div>
         </div>
 
-        <!-- ROSTERS (Hide if All-Time? The prompt didn't say to hide rosters for all-time, but typical behavior implies rosters are seasonal.
-             Since the backend /api/league returns CURRENT rosters, showing them for All-Time is okay as "Current Rosters".
-             The user didn't ask to hide them. I'll keep them.) -->
-        <div class="teams-list">
+        <!-- ROSTERS (Hidden if All-Time) -->
+        <div v-if="leagueData.length > 0" class="teams-list">
             <div v-for="team in leagueData" :key="team.team_id" class="team-block">
                 <div class="team-header" >
                     <img :src="team.logo_url" :alt="team.name" class="team-logo" />
@@ -362,7 +421,7 @@ onMounted(async () => {
                             <tr>
                                 <th class="header-pos">Pos</th>
                                 <th class="header-player">Player</th>
-                                <th class="header-points">Points</th>
+                                <th class="header-points">Pts</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -428,7 +487,7 @@ onMounted(async () => {
 
 <style scoped>
 .league-container {
-    max-width: 1200px;
+    max-width: 1400px; /* Increased max-width for 5 columns */
     margin: 0 auto;
     padding: 1rem;
 }
@@ -529,15 +588,24 @@ h1 {
     text-align: right !important;
 }
 
+.text-center {
+    text-align: center !important;
+}
+
 .clinch-indicator {
     font-weight: bold;
     margin-right: 4px;
     color: #666;
 }
 
+.micro-icon {
+    width: 16px;
+    height: auto;
+    vertical-align: middle;
+}
+
 /* Results List Styles */
 .results-list {
-    /* REMOVED MAX HEIGHT AND OVERFLOW AS REQUESTED */
     /* max-height: 300px;
     overflow-y: auto; */
 }
@@ -631,60 +699,67 @@ h1 {
 /* Existing Styles for Rosters */
 .teams-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
+    /* CHANGE: 5 columns fixed */
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem; /* Reduced gap */
     margin-top: 2rem;
+    overflow-x: auto; /* Just in case on very small screens */
 }
 
 .team-block {
     background: #f9f9f9;
     border-radius: 8px;
-    padding: 1rem;
+    padding: 0.5rem; /* Reduced padding */
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 0; /* Allows flex/grid children to shrink */
 }
 
 .team-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
+    gap: 0.5rem; /* Reduced gap */
+    padding-bottom: 0.5rem;
     margin-bottom: 0rem;
+    flex-direction: column; /* Stack logo and name to save horizontal space */
+    text-align: center;
 }
 
 .team-logo {
-    width: 60px;
-    height: 60px;
+    width: 40px; /* Smaller logo */
+    height: 40px;
     object-fit: contain;
     background: white;
-    padding: 4px;
+    padding: 2px;
     border-radius: 20%;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .team-info h2 {
     margin: 0;
-    font-size: 1.4rem;
+    font-size: 1rem; /* Smaller font */
+    line-height: 1.2;
 }
 
 .team-info p {
     margin: 0;
     color: #666;
-    font-size: .8rem;
+    font-size: .7rem; /* Smaller font */
+    display: none; /* Hide owner name to save space? Or keep small? Keeping small. */
 }
 
 .roster-table-container {
-    overflow-x: auto;
+    overflow-x: hidden; /* Hide scrollbar if possible, content should fit */
 }
 
 .roster-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.75rem; /* Compact font */
 }
 
 .roster-table th {
     text-align: left;
-    padding: 0.5rem;
+    padding: 0.25rem; /* Reduced padding */
     background: #e9ecef;
     color: #495057;
     font-weight: 600;
@@ -695,8 +770,11 @@ h1 {
 }
 
 .roster-table td {
-    padding: 0.25rem 0.5rem;
+    padding: 0.15rem 0.25rem; /* Very compact padding */
     border-bottom: 1px solid #dee2e6;
+    white-space: nowrap; /* Prevent wrapping */
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .player-row {
@@ -717,14 +795,14 @@ h1 {
 /* Footer Styles */
 .total-row td {
     border-top: 2px solid #aaa;
-    padding: 0.5rem 0.25rem;
+    padding: 0.25rem 0.25rem;
     font-weight: bold;
     background-color: #f1f3f5;
 }
 
 .total-label {
     text-align: right;
-    padding-right: 1rem;
+    padding-right: 0.5rem;
 }
 
 .total-points {
@@ -915,5 +993,117 @@ h1 {
 }
 .team-link-header:hover {
     text-decoration: underline;
+}
+
+/* All-Time Trophy Case */
+.trophy-case-section {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.trophy-case-section h3 {
+    margin-top: 0;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.franchise-accolade-row {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f1f1f1;
+}
+.franchise-accolade-row:last-child {
+    border-bottom: none;
+}
+
+.franchise-info {
+    width: 200px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.accolade-icons {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.trophy-icon-lg {
+    height: 32px;
+    width: auto;
+}
+
+/* Season Finales */
+.season-finales {
+    margin-top: 2rem;
+}
+.season-finales h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #495057;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 0.25rem;
+}
+
+.finale-item {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.spaceship-game {
+    border-left: 5px solid #FFD700;
+    background: #fff9e6;
+}
+
+.spoon-game {
+    border-left: 5px solid #8B4513;
+    background: #fdf5e6;
+}
+
+.finale-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.finale-icon {
+    height: 24px;
+    width: auto;
+}
+
+.finale-title {
+    font-weight: bold;
+    color: #333;
+}
+
+.finale-score {
+    font-size: 1rem;
+    font-weight: 600;
+}
+.winner { color: #28a745; margin-right: 4px; }
+.loser { color: #333; margin-left: 4px; }
+.score-val { color: #666; margin: 0 4px; }
+
+/* Responsive adjustments for 5 columns */
+@media (max-width: 1000px) {
+    .teams-list {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
 }
 </style>
