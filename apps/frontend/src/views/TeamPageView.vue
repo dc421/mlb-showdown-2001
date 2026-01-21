@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import { formatNameShort } from '@/utils/playerUtils';
 
 const route = useRoute();
 const teamId = ref(route.params.teamId);
@@ -144,9 +145,77 @@ const mostCommonPlayers = computed(() => {
         return result;
     };
 
+    // NEW LOGIC FOR MOST COMMON ROW:
+    // "list the player who has appeared on the roster most frequently (in any position) who has appeared once (at that position)"
+
+    // 1. Calculate Total Appearances on Roster for Every Player
+    const playerTotalApps = {}; // Name -> Count
+    processedHistory.value.forEach(row => {
+        const seenInThisSeason = new Set();
+        // Check Batters
+        Object.values(row.batters).forEach(p => {
+             if (p) { // p might be array for Bench
+                 const list = Array.isArray(p) ? p : [p];
+                 list.forEach(pl => {
+                     const name = pl.displayName || pl.name;
+                     if (!seenInThisSeason.has(name)) {
+                         playerTotalApps[name] = (playerTotalApps[name] || 0) + 1;
+                         seenInThisSeason.add(name);
+                     }
+                 });
+             }
+        });
+        // Check Pitchers
+        Object.values(row.pitchers).forEach(p => {
+             if (p) {
+                 const list = Array.isArray(p) ? p : [p];
+                 list.forEach(pl => {
+                     const name = pl.displayName || pl.name;
+                     if (!seenInThisSeason.has(name)) {
+                         playerTotalApps[name] = (playerTotalApps[name] || 0) + 1;
+                         seenInThisSeason.add(name);
+                     }
+                 });
+             }
+        });
+    });
+
+    const getMostCommonByTotal = (countsForPos) => {
+        const result = {};
+        for (const pos in countsForPos) {
+            // countsForPos[pos] is { "Player Name": countAtPos }
+            // We want the player with MAX playerTotalApps, provided countAtPos >= 1
+            let maxTotal = 0;
+            let winner = null;
+
+            // Iterate all players who have appeared at this position
+            for (const name in countsForPos[pos]) {
+                const totalApps = playerTotalApps[name] || 0;
+                if (totalApps > maxTotal) {
+                    maxTotal = totalApps;
+                    winner = name;
+                } else if (totalApps === maxTotal) {
+                    // Tie-breaker? Maybe maxAtPos? Or just first found.
+                    // Let's use countAtPos as tiebreaker
+                    const currentWinnerCount = winner ? (countsForPos[pos][winner] || 0) : 0;
+                    const challengerCount = countsForPos[pos][name];
+                    if (challengerCount > currentWinnerCount) {
+                         winner = name;
+                    }
+                }
+            }
+
+            if (winner) {
+                // Return format: Name (TotalApps)
+                result[pos] = { name: formatNameShort(winner), count: maxTotal };
+            }
+        }
+        return result;
+    };
+
     return {
-        batters: getMostCommon(batterCounts),
-        pitchers: getMostCommon(pitcherCounts)
+        batters: getMostCommonByTotal(batterCounts),
+        pitchers: getMostCommonByTotal(pitcherCounts)
     };
 });
 
@@ -305,12 +374,14 @@ const teamDisplayName = computed(() => {
                                 </RouterLink>
                             </td>
                             <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos" @click="openPlayerCard(row.batters[pos])" class="player-cell" :class="{'filled': row.batters[pos]}">
-                                {{ row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points})` : '-' }}
+                                <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
+                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName) : '-' }}
+                                </span>
                             </td>
                             <td class="bench-cell">
                                 <div class="bench-list">
-                                    <span v-for="p in row.batters['Bench']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player">
-                                        {{ p.displayName }} ({{ p.points }})
+                                    <span v-for="p in row.batters['Bench']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player" :title="`${p.displayName} (${p.points} pts)`">
+                                        {{ formatNameShort(p.displayName) }}
                                     </span>
                                 </div>
                             </td>
@@ -363,12 +434,14 @@ const teamDisplayName = computed(() => {
                                 </RouterLink>
                             </td>
                             <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2']" :key="pos" @click="openPlayerCard(row.pitchers[pos])" class="player-cell" :class="{'filled': row.pitchers[pos]}">
-                                {{ row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points})` : '-' }}
+                                <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
+                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName) : '-' }}
+                                </span>
                             </td>
                             <td class="bench-cell">
                                 <div class="bench-list">
-                                    <span v-for="p in row.pitchers['Bullpen']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player">
-                                        {{ p.displayName }} ({{ p.points }})
+                                    <span v-for="p in row.pitchers['Bullpen']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player" :title="`${p.displayName} (${p.points} pts)`">
+                                        {{ formatNameShort(p.displayName) }}
                                     </span>
                                 </div>
                             </td>
