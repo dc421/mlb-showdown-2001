@@ -94,7 +94,7 @@ router.get('/', authenticateToken, async (req, res) => {
         let teamsMap = {};
 
         // Fetch Current Teams Metadata (Always needed for structure)
-        const teamsRes = await pool.query('SELECT team_id, city, name as team_name, logo_url, display_format, user_id, owner_first_name, owner_last_name FROM teams JOIN users ON teams.user_id = users.user_id');
+        const teamsRes = await pool.query('SELECT teams.team_id, teams.city, teams.name as team_name, teams.logo_url, teams.display_format, teams.user_id, users.owner_first_name, users.owner_last_name FROM teams JOIN users ON teams.user_id = users.user_id');
         const currentTeams = teamsRes.rows;
 
         // Initialize teamsMap with Current Teams
