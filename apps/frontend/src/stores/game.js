@@ -685,7 +685,7 @@ async function resetRolls(gameId) {
   const displayGameState = computed(() => {
     const auth = useAuthStore();
 
-    if (game.value?.status === 'completed') {
+    if (game.value?.status === 'completed' && !isOutcomeHidden.value) {
       return gameState.value;
     }
     if (!gameState.value) {
