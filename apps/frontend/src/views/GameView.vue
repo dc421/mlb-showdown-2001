@@ -752,7 +752,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
 
   // NEW: If the game is over and ended on a non-batter action (like a steal), do not hide.
   if (gameStore.game?.status === 'completed' && !gameStore.gameState.currentAtBat?.batterAction) {
-      if (amIDisplayDefensivePlayer.value && gameStore.gameState.pendingStealAttempt) {
+      if (amIDefensivePlayer.value && gameStore.gameState.pendingStealAttempt) {
           return true;
       }
       return false;
@@ -764,7 +764,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   }
 
   //if(isStealAttemptInProgress.value && !showThrowRollResult.value && !gameStore.gameState.currentPlay.payload.decisions){
-  if(!!gameStore.gameState.pendingStealAttempt && (!showThrowRollResult.value && amIDisplayDefensivePlayer.value)){
+  if(!!gameStore.gameState.pendingStealAttempt && (!showThrowRollResult.value && amIDefensivePlayer.value)){
     return true
   }
 
@@ -777,13 +777,13 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   if (!atBatIsResolved && !gameStore.opponentReadyForNext) return false;
 
   // Scenario 1: Offensive player has resolved the at-bat but hasn't "rolled" to see the result.
-  const isOffensivePlayerWaitingToRoll = amIDisplayOffensivePlayer.value && !isSwingResultVisible.value && !(gameStore.gameState.inningEndedOnCaughtStealing);
+  const isOffensivePlayerWaitingToRoll = amIOffensivePlayer.value && !isSwingResultVisible.value && !(gameStore.gameState.inningEndedOnCaughtStealing);
   if (isOffensivePlayerWaitingToRoll) {
     return true;
   }
 
   // Scenario 2: Defensive player acted second and is waiting for the 900ms reveal timer.
-  const isDefensivePlayerWaitingForReveal = amIDisplayDefensivePlayer.value &&
+  const isDefensivePlayerWaitingForReveal = amIDefensivePlayer.value &&
                                             gameStore.gameState.defensivePlayerWentSecond &&
                                             !isSwingResultVisible.value;
   if (isDefensivePlayerWaitingForReveal) {
