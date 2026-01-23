@@ -13,6 +13,7 @@ const seasonSummary = ref(null);
 const seasonsList = ref([]);
 const selectedSeason = ref('');
 const matrixData = ref([]);
+const hoveredSlotId = ref(null);
 
 // Modal State for Result Input
 const showResultModal = ref(false);
@@ -147,7 +148,19 @@ function padRoster(roster) {
         });
     }
 
-    return sortRoster(padded);
+    const sorted = sortRoster(padded);
+
+    // Assign Slot IDs for Highlighting
+    const slotCounts = {};
+    sorted.forEach(p => {
+        const pos = p.assignment === 'PITCHING_STAFF' ? (p.displayPosition || p.position) : (p.assignment || p.displayPosition || p.position);
+        const key = pos || 'B';
+        if (!slotCounts[key]) slotCounts[key] = 0;
+        p.slotId = `${key}-${slotCounts[key]}`;
+        slotCounts[key]++;
+    });
+
+    return sorted;
 }
 
 // Result Input Modal
@@ -257,7 +270,9 @@ onMounted(async () => {
                             <!-- ALL-TIME COLUMNS -->
                             <th v-if="selectedSeason === 'all-time'" class="text-right">Avg Fin</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /></th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center">App</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /></th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center">App</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -282,9 +297,15 @@ onMounted(async () => {
                                 </span>
                             </td>
                             <td v-if="selectedSeason === 'all-time'" class="text-center">
+                                <span v-if="team.spaceshipAppearances > 0">{{ team.spaceshipAppearances }}</span>
+                            </td>
+                            <td v-if="selectedSeason === 'all-time'" class="text-center">
                                 <span v-if="team.spoons > 0" class="trophy-count">
                                     <img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /> {{ team.spoons }}
                                 </span>
+                            </td>
+                            <td v-if="selectedSeason === 'all-time'" class="text-center">
+                                <span v-if="team.spoonAppearances > 0">{{ team.spoonAppearances }}</span>
                             </td>
                         </tr>
                     </tbody>
@@ -311,20 +332,19 @@ onMounted(async () => {
                     </div>
                 </div>
 
-                 <!-- SEASON FINALES (Moved from Recent Results) -->
-                <div v-if="seasonFinales.length > 0" class="season-finales">
-                    <h3>Season Finales</h3>
+                 <!-- POSTSEASON (Formerly Season Finales) -->
+                <div v-if="seasonFinales.length > 0 && selectedSeason !== 'all-time'" class="season-finales">
+                    <h3>POSTSEASON</h3>
                     <div v-for="result in seasonFinales" :key="result.id" class="finale-item" :class="{'spaceship-game': result.round === 'Golden Spaceship', 'spoon-game': result.round === 'Wooden Spoon'}">
-                         <div class="finale-header">
-                            <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-icon" />
-                            <img v-if="result.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-icon" />
-                            <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-icon" />
-                            <span class="finale-title">{{ result.round }}</span>
+                         <div class="finale-trophy-container">
+                             <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
+                             <img v-if="result.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
+                             <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
                          </div>
                          <div class="finale-score">
-                             <span class="winner">{{ result.winner_name || result.winner }}</span>
+                             <span class="winner" :class="{'metallic-text': result.round === 'Golden Spaceship'}">{{ result.winner_name || result.winner }}</span>
                              <span class="score-val">{{ result.score }}</span>
-                             <span class="loser">{{ result.loser_name || result.loser }}</span>
+                             <span class="loser" :class="{'dull-text': result.round === 'Wooden Spoon'}">{{ result.loser_name || result.loser }}</span>
                          </div>
                     </div>
                 </div>
@@ -425,11 +445,24 @@ onMounted(async () => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="player in padRoster(team.roster)" :key="player.card_id" @click="!player.isEmpty && openPlayerCard(player)" class="player-row" :class="{ 'empty-row': player.isEmpty }">
+                            <tr
+                                v-for="player in padRoster(team.roster)"
+                                :key="player.card_id"
+                                @click="!player.isEmpty && openPlayerCard(player)"
+                                class="player-row"
+                                :class="{
+                                    'empty-row': player.isEmpty,
+                                    'highlight-slot': hoveredSlotId && hoveredSlotId === player.slotId
+                                }"
+                                @mouseenter="hoveredSlotId = player.slotId"
+                                @mouseleave="hoveredSlotId = null"
+                            >
                                 <td class="pos-cell">
                                     {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
                                 </td>
-                                <td class="name-cell">{{ player.displayName || player.name }}</td>
+                                <td class="name-cell" :class="{'text-shrink': (player.displayName || player.name).length > 14}">
+                                    {{ player.displayName || player.name }}
+                                </td>
                                 <td class="points-cell">{{ player.points }}</td>
                             </tr>
                         </tbody>
@@ -772,9 +805,7 @@ h1 {
 .roster-table td {
     padding: 0.15rem 0.25rem; /* Very compact padding */
     border-bottom: 1px solid #dee2e6;
-    white-space: nowrap; /* Prevent wrapping */
-    overflow: hidden;
-    text-overflow: ellipsis;
+    /* Removed white-space: nowrap to allow flex handling inside cells if needed, but flexrow handles it */
 }
 
 .player-row {
@@ -786,10 +817,35 @@ h1 {
     background-color: #e2e6ea;
 }
 
+/* Slot highlighting across teams */
+.highlight-slot {
+    background-color: #f1f3f5; /* Lighter gray than hover */
+}
+/* Ensure the direct hover overrides the slot highlight */
+.player-row:hover {
+    background-color: #dbe4ea !important;
+}
+
+.name-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0; /* Important for flex to shrink it */
+    width: 100%; /* Take available space */
+}
+
+.text-shrink {
+    font-size: 0.85em; /* Shrink font for long names */
+    letter-spacing: -0.2px;
+}
+
 .points-cell {
     font-weight: bold;
     color: #000000;
     text-align: right;
+    width: 30px; /* Fixed width */
+    min-width: 30px;
+    white-space: nowrap;
 }
 
 /* Footer Styles */
@@ -1040,7 +1096,7 @@ h1 {
     width: auto;
 }
 
-/* Season Finales */
+/* Postseason */
 .season-finales {
     margin-top: 2rem;
 }
@@ -1061,44 +1117,61 @@ h1 {
     padding: 0.75rem;
     margin-bottom: 0.75rem;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column; /* Stack trophy and score */
     align-items: center;
+    justify-content: center;
     box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    text-align: center;
+    gap: 0.5rem;
 }
 
 .spaceship-game {
+    border: 1px solid #FFD700;
     border-left: 5px solid #FFD700;
     background: #fff9e6;
 }
 
 .spoon-game {
+    border: 1px solid #8B4513;
     border-left: 5px solid #8B4513;
     background: #fdf5e6;
 }
 
-.finale-header {
+.finale-trophy-container {
+    display: flex;
+    justify-content: center;
+}
+
+.finale-trophy-lg {
+    height: 48px; /* Larger trophy */
+    width: auto;
+}
+
+.finale-score {
+    font-size: 1.1rem;
+    font-weight: 600;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.finale-icon {
-    height: 24px;
-    width: auto;
+.metallic-text {
+    background: linear-gradient(to bottom, #d4af37, #C5A028, #EACF70, #d4af37);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0px 1px 1px rgba(0,0,0,0.1);
+    font-weight: 800;
+    text-transform: uppercase;
 }
 
-.finale-title {
-    font-weight: bold;
-    color: #333;
+.dull-text {
+    color: #6d6d6d;
+    text-shadow: 0px 1px 0px rgba(255,255,255,0.5);
 }
 
-.finale-score {
-    font-size: 1rem;
-    font-weight: 600;
-}
-.winner { color: #28a745; margin-right: 4px; }
-.loser { color: #333; margin-left: 4px; }
-.score-val { color: #666; margin: 0 4px; }
+.winner { color: #28a745; }
+.loser { color: #333; }
+.score-val { color: #666; }
 
 /* Responsive adjustments for 5 columns */
 @media (max-width: 1000px) {

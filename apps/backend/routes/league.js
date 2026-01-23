@@ -113,9 +113,17 @@ router.get('/', authenticateToken, async (req, res) => {
 
         if (season) {
             // HISTORICAL ROSTERS
-            // Need to map historical team names to current team IDs using the mapToCurrentTeam logic
-            // or just simple name matching if possible.
-            // Since historical_rosters has 'team_name', we can try to match it.
+            // Fetch team ID mapping for this season from series_results to ensure correct attribution
+            const idMapQuery = `
+                SELECT winning_team_name as name, winning_team_id as id FROM series_results WHERE season_name = $1
+                UNION
+                SELECT losing_team_name as name, losing_team_id as id FROM series_results WHERE season_name = $1
+            `;
+            const idMapRes = await pool.query(idMapQuery, [season]);
+            const seasonIdMap = {};
+            idMapRes.rows.forEach(row => {
+                if (row.name) seasonIdMap[row.name] = row.id;
+            });
 
             // Fetch all historical rosters for this season
             const rosterQuery = `
@@ -132,8 +140,15 @@ router.get('/', authenticateToken, async (req, res) => {
 
             // Map each row to a team
             rosterRes.rows.forEach(row => {
-                 const matchedTeam = mapToCurrentTeam(row.team_name, currentTeams);
-                 if (matchedTeam && matchedTeam.team_id) {
+                 let targetTeamId = seasonIdMap[row.team_name];
+
+                 // Fallback to name matching if not found in series_results (e.g. team played no games or name mismatch)
+                 if (!targetTeamId) {
+                     const matched = mapToCurrentTeam(row.team_name, currentTeams);
+                     if (matched) targetTeamId = matched.team_id;
+                 }
+
+                 if (targetTeamId && teamsMap[targetTeamId]) {
                      // Add to the correct team bucket
                      const player = {
                         card_id: row.card_id,
@@ -150,7 +165,7 @@ router.get('/', authenticateToken, async (req, res) => {
                         is_starter: row.position !== 'BENCH' && row.position !== 'PITCHING_STAFF'
                      };
 
-                     teamsMap[matchedTeam.team_id].roster.push(player);
+                     teamsMap[targetTeamId].roster.push(player);
                  }
             });
 
@@ -314,22 +329,24 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                 sResults.forEach(series => {
                     if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') return;
 
-                    const winner = mapToCurrentTeam(series.winning_team_name, currentTeams);
-                    const loser = mapToCurrentTeam(series.losing_team_name, currentTeams);
+                    // Use IDs directly from series_results for Franchise aggregation
+                    const winnerId = series.winning_team_id;
+                    const loserId = series.losing_team_id;
+
+                    if (!winnerId || !loserId) return;
 
                     // Use Mapped IDs (Franchise Logic)
-                    const wFranchiseId = getMappedIds(winner.team_id)[0];
-                    const lFranchiseId = getMappedIds(loser.team_id)[0];
+                    const wFranchiseId = getMappedIds(winnerId)[0];
+                    const lFranchiseId = getMappedIds(loserId)[0];
 
                     if (!sStats[wFranchiseId]) sStats[wFranchiseId] = { wins: 0, losses: 0 };
                     if (!sStats[lFranchiseId]) sStats[lFranchiseId] = { wins: 0, losses: 0 };
 
                     if (series.winning_score !== null) {
                          sStats[wFranchiseId].wins += series.winning_score;
-                         sStats[lFranchiseId].losses += series.winning_score; // Loser gets losses = winner's score? No, winner wins games = score.
-                         // Wait, series_results winning_score is games won.
-
                          sStats[wFranchiseId].losses += series.losing_score;
+
+                         sStats[lFranchiseId].losses += series.winning_score;
                          sStats[lFranchiseId].wins += series.losing_score;
                     }
                 });
@@ -379,18 +396,16 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
             seriesResults.forEach(series => {
                 if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') return;
 
-                const winner = mapToCurrentTeam(series.winning_team_name, currentTeams);
-                const loser = mapToCurrentTeam(series.losing_team_name, currentTeams);
+                if (!series.winning_team_id || !series.losing_team_id) return;
 
-                if (!winner.team_id || !loser.team_id) return;
-
-                const wStats = getFranchiseStats(winner.team_id);
-                const lStats = getFranchiseStats(loser.team_id);
+                const wStats = getFranchiseStats(series.winning_team_id);
+                const lStats = getFranchiseStats(series.losing_team_id);
 
                 if (series.winning_score !== null) {
                     wStats.wins += series.winning_score;
-                    lStats.losses += series.winning_score;
                     wStats.losses += series.losing_score;
+
+                    lStats.losses += series.winning_score;
                     lStats.wins += series.losing_score;
                 }
             });
@@ -406,31 +421,29 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
 
             // 3. Trophies & Appearances
             seriesResults.forEach(series => {
-                const winner = mapToCurrentTeam(series.winning_team_name, currentTeams);
-                const loser = mapToCurrentTeam(series.losing_team_name, currentTeams);
+                if (!series.winning_team_id || !series.losing_team_id) return;
 
-                if (!winner.team_id || !loser.team_id) return;
-
-                const wStats = getFranchiseStats(winner.team_id);
-                const lStats = getFranchiseStats(loser.team_id);
+                const wStats = getFranchiseStats(series.winning_team_id);
+                const lStats = getFranchiseStats(series.losing_team_id);
 
                 if (series.round === 'Golden Spaceship') {
                     wStats.spaceshipAppearances++;
                     lStats.spaceshipAppearances++;
-                    if (series.winning_team_name.includes(wStats.name) || getMappedIds(winner.team_id).includes(wStats.team_id)) {
+                    // Winner of the series gets the spaceship
+                    const winnerId = series.winning_team_id;
+                    const wFid = getMappedIds(winnerId)[0];
+                    if (wFid === getMappedIds(wStats.team_id)[0]) {
                          wStats.spaceships++;
                     }
                 } else if (series.round === 'Wooden Spoon') {
                     wStats.spoonAppearances++;
                     lStats.spoonAppearances++;
-                    // "Winner" of Spoon usually means avoiding it.
-                    // Wait, usually the loser of the "Wooden Spoon Match" GETS the spoon.
-                    // Let's assume the winner of the match avoids the spoon.
-                    // So the loser gets the spoon count.
-                    // Wait, check teams.js logic again.
-                    // teams.js: if (spoonGame && spoonGame.losing_team_name.includes(team.name)) result = 'Wooden Spoon';
-                    // So Loser = Spoon.
-                    lStats.spoons++;
+                    // Loser of the series gets the spoon
+                    const loserId = series.losing_team_id;
+                    const lFid = getMappedIds(loserId)[0];
+                    if (lFid === getMappedIds(lStats.team_id)[0]) {
+                        lStats.spoons++;
+                    }
                 }
             });
 
