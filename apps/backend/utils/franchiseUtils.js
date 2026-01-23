@@ -5,9 +5,20 @@
 const ALIASES = {
     'Boston': ['San Diego'], // Boston (Drew) used to be San Diego
     'New York': ['Montreal'], // New York (Scott) used to be Montreal
-    'NY South': [], // Alex
-    'Detroit': [], // Chris
-    'Ann Arbor': [] // Ben
+    'NY South': ['Fargo', 'NYDC', 'New York South'], // Alex
+    'Detroit': ['Laramie', 'Cincinnati'], // Chris
+    'Ann Arbor': ['Chicago', 'Redwood City'] // Ben
+};
+
+// Helper to handle ID mapping
+// In prod team IDs, Boston is 3, New York is 5, NY South is 1
+// In local team IDs, Boston is 1, New York is 3, NY South is 5
+const getMappedIds = (teamId) => {
+    const ids = [teamId];
+    if (Number(teamId) === 1) ids.push(3);
+    else if (Number(teamId) === 3) ids.push(5);
+    else if (Number(teamId) === 5) ids.push(1);
+    return ids;
 };
 
 /**
@@ -38,11 +49,16 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
 
         const otherName = other.name;
         const otherCity = other.city;
+        const otherAliases = ALIASES[otherName] || [];
 
         const matchesOtherName = otherName && recordName.includes(otherName);
         const matchesOtherCity = otherCity && recordName.includes(otherCity);
+        const matchesOtherAlias = otherAliases.some(alias => recordName.includes(alias));
 
-        if (matchesOtherName || matchesOtherCity) {
+        if (matchesOtherName || matchesOtherCity || matchesOtherAlias) {
+            // If matched via explicit alias of another team, it belongs to them
+            if (matchesOtherAlias) return true;
+
             const matchesMyName = recordName.includes(currentTeamName) || recordName.includes(currentCity);
 
             if (matchesMyName) {
@@ -106,5 +122,6 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
 }
 
 module.exports = {
-    matchesFranchise
+    matchesFranchise,
+    getMappedIds
 };
