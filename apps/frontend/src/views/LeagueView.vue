@@ -460,7 +460,7 @@ onMounted(async () => {
                                 <td class="pos-cell">
                                     {{ player.assignment === 'PITCHING_STAFF' ? (player.displayPosition || player.position) : (player.assignment || player.displayPosition || player.position) }}
                                 </td>
-                                <td class="name-cell" :class="{'text-shrink': (player.displayName || player.name).length > 14}">
+                                <td class="name-cell" :class="{'text-shrink': (player.displayName || player.name).length > 18}">
                                     {{ player.displayName || player.name }}
                                 </td>
                                 <td class="points-cell">{{ player.points }}</td>
@@ -787,7 +787,7 @@ h1 {
 .roster-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.75rem; /* Compact font */
+    font-size: 0.95rem; /* Compact font */
 }
 
 .roster-table th {
@@ -819,7 +819,7 @@ h1 {
 
 /* Slot highlighting across teams */
 .highlight-slot {
-    background-color: #f1f3f5; /* Lighter gray than hover */
+    background-color: #dadcde; /* Lighter gray than hover */
 }
 /* Ensure the direct hover overrides the slot highlight */
 .player-row:hover {
@@ -835,7 +835,7 @@ h1 {
 }
 
 .text-shrink {
-    font-size: 0.85em; /* Shrink font for long names */
+    font-size: 1em; /* Shrink font for long names */
     letter-spacing: -0.2px;
 }
 
