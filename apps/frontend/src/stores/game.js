@@ -528,6 +528,13 @@ async function resetRolls(gameId) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
 
+      // Special case for Game Ending Steals: The backend inserts both the "Caught Stealing" event
+      // AND the "Game Over" system event. We must hide both until the defensive player rolls.
+      const secondLastEvent = gameEvents.value.length >= 2 ? gameEvents.value[gameEvents.value.length - 2] : null;
+      if (lastEvent && lastEvent.event_type === 'system' && secondLastEvent && secondLastEvent.event_type === 'steal') {
+          return gameEvents.value.slice(0, gameEvents.value.length - 2);
+      }
+
       return gameEvents.value.slice(0, gameEvents.value.length - 1);
     }
 
