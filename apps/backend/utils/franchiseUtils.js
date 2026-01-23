@@ -25,34 +25,38 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
 
     const currentTeamName = currentTeam.name;
     const currentCity = currentTeam.city;
-    const fullCurrentName = `${currentCity} ${currentTeamName}`;
 
     // 1. Check Known Aliases
-    // If the record name matches a known alias for this team, it's a match.
-    // We check if the alias is contained in the record name (fuzzy match on alias).
     const teamAliases = ALIASES[currentTeamName] || [];
     for (const alias of teamAliases) {
         if (recordName.includes(alias)) return true;
     }
 
     // 2. Exclusion Logic: Does the name match ANOTHER active team better?
-    // If the record name matches "New York South", and we are "New York", we must reject it.
     const isFalsePositive = allTeams.some(other => {
-        if (other.team_id === currentTeam.team_id) return false; // Skip self
+        if (other.team_id === currentTeam.team_id) return false;
 
-        // Only care if the other team's name is causing ambiguity with OUR name.
-        // e.g. Our Name="New York", Other="New York South".
-        // If record="New York South", it contains "New York".
-        if (other.name.includes(currentTeamName) || other.city.includes(currentTeamName)) {
-            // If the record name contains the OTHER team's full identifier, it belongs to them.
-            // e.g. Record="New York South", Other="New York South" -> Match.
-            // We check if the other team's specific name/city is found in the record.
-            // We use the most specific part that differentiates them.
-            if (recordName.includes(other.name) && other.name.length > currentTeamName.length) return true;
-            if (recordName.includes(other.city) && other.city.length > currentCity.length) return true;
+        const otherName = other.name;
+        const otherCity = other.city;
 
-            // Explicit check for known collision: "New York South" vs "New York"
-            if (recordName.includes('South') && currentTeamName === 'New York' && !currentTeamName.includes('South')) return true;
+        const matchesOtherName = otherName && recordName.includes(otherName);
+        const matchesOtherCity = otherCity && recordName.includes(otherCity);
+
+        if (matchesOtherName || matchesOtherCity) {
+            const matchesMyName = recordName.includes(currentTeamName) || recordName.includes(currentCity);
+
+            if (matchesMyName) {
+                 if (matchesOtherName && otherName.includes(currentTeamName) && otherName.length > currentTeamName.length) {
+                     return true;
+                 }
+                 if (matchesOtherCity && otherCity.includes(currentCity) && otherCity.length > currentCity.length) {
+                     return true;
+                 }
+                 // "South" suffix logic: If record has South, and I don't, but Other does (implicitly or explicitly)
+                 if (recordName.includes('South') && !currentTeamName.includes('South')) {
+                      return true;
+                 }
+            }
         }
         return false;
     });
@@ -62,45 +66,40 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
     // 3. Name Match (Fuzzy)
     // If the record name contains our current name (and wasn't excluded above), it's a match.
     if (recordName.includes(currentTeamName)) return true;
-    if (recordName.includes(currentCity)) return true; // e.g. "Boston" match in "Boston Red Sox"
+    if (recordName.includes(currentCity)) return true;
 
     // 4. ID Match (with Name Safeguard)
-    // If the ID matches one of our mapped IDs, we assume it's ours,
-    // UNLESS the name explicitly matches another active team (Exclusion).
-    // Note: We already ran Exclusion check above on the name.
-    // But we should double check: if ID matches, but Name is "New York South" and we are "Boston" (Local ID collision),
-    // then exclusion logic wouldn't have caught it yet if "Boston" isn't in "New York South".
-    // Wait, the "False Positive" check above only checked against "My Name".
-    // We need a broader safeguard: If ID matches, but Name belongs to ANY other team.
-
     const idMatch = recordId && mappedIds.map(String).includes(String(recordId));
 
     if (idMatch) {
         // Strict Name Safeguard:
-        // Does this name belong to ANY other team?
         const nameBelongsToOther = allTeams.some(other => {
             if (other.team_id === currentTeam.team_id) return false;
-            // Check if recordName strictly matches another team's identity
-            // e.g. Record="New York South", Other="New York South".
-            // If I am Boston, and I see ID 1 (which is Boston Local), but name is "New York South" (Prod ID 1),
-            // I should reject it.
 
-            // How to detect?
-            // If recordName contains Other.name or Other.city AND doesn't contain My.name/My.city/Aliases?
-            // If I am Boston, "New York South" does not contain "Boston".
+            const matchesOtherName = other.name && recordName.includes(other.name);
+            const matchesOtherCity = other.city && recordName.includes(other.city);
 
-            if (recordName.includes(other.name) || recordName.includes(other.city)) {
-                // It matches someone else. Does it also match me?
+            if (matchesOtherName || matchesOtherCity) {
+                // It matches them. Does it match me?
                 const matchesMe = recordName.includes(currentTeamName) ||
                                   recordName.includes(currentCity) ||
                                   teamAliases.some(a => recordName.includes(a));
 
-                if (!matchesMe) return true; // Matches them, not me -> It's theirs.
+                // If it matches them but NOT me, it's definitely theirs.
+                if (!matchesMe) return true;
+
+                // If it matches BOTH, we check if it matches them BETTER
+                 if (matchesOtherName && other.name.includes(currentTeamName) && other.name.length > currentTeamName.length) {
+                     return true;
+                 }
             }
             return false;
         });
 
-        if (!nameBelongsToOther) return true;
+        // If the name explicitly belongs to another team, we assume the ID match is a cross-env collision
+        if (nameBelongsToOther) return false;
+
+        return true;
     }
 
     return false;

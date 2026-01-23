@@ -48,10 +48,12 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const allTeams = allTeamsRes.rows;
 
         // Broad query: Grab everything that might be relevant based on ID or Name, then filter strictly in JS
+        // ADDED: "AND style IS DISTINCT FROM 'Classic'" to avoid exhibition games cluttering history (0-0 records)
         const historyQuery = `
             SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score
             FROM series_results
             WHERE (winning_team_id = ANY($2::int[]) OR losing_team_id = ANY($2::int[]) OR winning_team_name ILIKE $1 OR losing_team_name ILIKE $1)
+            AND style IS DISTINCT FROM 'Classic'
             ORDER BY date DESC
         `;
 
@@ -182,12 +184,9 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         // Group consecutive seasons with the same team name
         const identityHistory = [];
         let currentIdentity = null;
-        // historyList is sorted DESC (latest first) or ASC?
-        // sortedSeasonNames usually sorts Oldest -> Newest or Newest -> Oldest?
-        // 'sortSeasons' usually puts recent first? Let's check typical usage.
-        // Assuming sortedSeasonNames is DESC (Recent First) based on previous query ORDER BY date DESC?
-        // Wait, sortSeasons usually does Newest First.
-        // Let's iterate in REVERSE (Oldest First) to build the timeline naturally.
+        // historyList is sorted Newest -> Oldest in the API usually, but let's verify sortSeasons output order.
+        // sortSeasons returns Newest First (DESC).
+        // To build history timeline, iterate Oldest -> Newest (Reverse).
 
         for (let i = historyList.length - 1; i >= 0; i--) {
             const h = historyList[i];
@@ -367,13 +366,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 const idToCheck = isWinner ? r.winning_team_id : r.losing_team_id;
                 const nameToCheck = isWinner ? r.winning_team_name : r.losing_team_name;
 
-                // 1. ID Match (Exact)
-                if (idToCheck && mappedIds.map(String).includes(String(idToCheck))) return true;
-
-                // 2. Name Match (Fuzzy with Exclusion)
-                if (nameToCheck && nameToCheck.includes(team.name) && !isFalsePositive(nameToCheck)) return true;
-
-                return false;
+                // Use the shared franchiseUtils logic
+                return matchesFranchise(nameToCheck, idToCheck, team, allTeams, mappedIds);
             });
         };
 
