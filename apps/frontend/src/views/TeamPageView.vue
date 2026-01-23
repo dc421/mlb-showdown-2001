@@ -12,11 +12,46 @@ const loading = ref(true);
 const selectedPlayer = ref(null);
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
-// Helper to determine position category
-const getBatterPosition = (player) => {
-    // If pitcher, ignore here
-    if (player.ip > 0 || player.control !== null) return null;
-    return player.assignment || player.position;
+// --- DYNAMIC COLUMNS LOGIC ---
+
+// Calculate max number of RPs and Bench players across all seasons
+const maxCols = computed(() => {
+    let maxRp = 2; // Minimum 2 RPs shown
+    let maxBench = 1; // Minimum 1 Bench col
+
+    if (!teamData.value?.rosters) return { rp: maxRp, bench: maxBench };
+
+    teamData.value.rosters.forEach(r => {
+        const { rpCount, benchCount } = getCountsForSeason(r.players);
+        if (rpCount > maxRp) maxRp = rpCount;
+        if (benchCount > maxBench) maxBench = benchCount;
+    });
+
+    return { rp: maxRp, bench: maxBench };
+});
+
+const getCountsForSeason = (rosterPlayers) => {
+    let rpCount = 0;
+    let benchCount = 0;
+    rosterPlayers.forEach(p => {
+        // Consistent pitcher check with organizeRosterForMatrix
+        const isPitcher = (p.ip && Number(p.ip) > 0) || (p.control !== undefined && p.control !== null) || p.position === 'SP' || p.position === 'RP';
+        const pos = p.assignment || p.position;
+
+        if (isPitcher) {
+            // Count as RP if position is RP OR if stats imply RP (ip <= 3) and not explicitly assigned SP
+            if (p.position === 'RP' || (Number(p.ip) <= 3 && p.position !== 'SP')) {
+                 rpCount++;
+            }
+        } else {
+            if (pos === 'BENCH' || pos === 'B') {
+                benchCount++;
+            } else if (!['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'].includes(pos)) {
+                 benchCount++; // Fallback for weirder positions
+            }
+        }
+    });
+    return { rpCount, benchCount };
 };
 
 // Organize roster for matrix display
@@ -51,21 +86,29 @@ const organizeRosterForMatrix = (rosterPlayers) => {
     ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
         batterRow[pos] = batterMap[pos].length > 0 ? batterMap[pos][0] : null;
     });
-    batterRow['Bench'] = batterMap['B']; // Array of bench players
 
-    // For pitchers, we want SP1, SP2, SP3, SP4, RP1, RP2, Bullpen
+    // Flatten Bench: Bench 1, Bench 2, ...
+    const benches = batterMap['B'].sort((a,b) => (b.points || 0) - (a.points || 0));
+    for (let i = 0; i < maxCols.value.bench; i++) {
+        batterRow[`Bench${i+1}`] = benches[i] || null;
+    }
+
+    // For pitchers, we want SP1, SP2, SP3, SP4
     const sps = pitcherMap['SP'].sort((a,b) => (b.points || 0) - (a.points || 0));
-    const rps = pitcherMap['RP'].sort((a,b) => (b.points || 0) - (a.points || 0));
+    batterRow['SP1'] = sps[0] || null;
 
     const pitchersRow = {
         'SP1': sps[0] || null,
         'SP2': sps[1] || null,
         'SP3': sps[2] || null,
-        'SP4': sps[3] || null,
-        'RP1': rps[0] || null,
-        'RP2': rps[1] || null,
-        'Bullpen': rps.slice(2)
+        'SP4': sps[3] || null
     };
+
+    // Flatten RPs: RP1, RP2, ... RP_Max
+    const rps = pitcherMap['RP'].sort((a,b) => (b.points || 0) - (a.points || 0));
+    for (let i = 0; i < maxCols.value.rp; i++) {
+        pitchersRow[`RP${i+1}`] = rps[i] || null;
+    }
 
     return { batterRow, pitchersRow };
 };
@@ -89,133 +132,73 @@ const mostCommonPlayers = computed(() => {
     const batterCounts = {};
     const pitcherCounts = {};
 
+    // Dynamic keys
+    const batterKeys = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+    for (let i = 1; i <= maxCols.value.bench; i++) batterKeys.push(`Bench${i}`);
+
+    const pitcherKeys = ['SP1', 'SP2', 'SP3', 'SP4'];
+    for (let i = 1; i <= maxCols.value.rp; i++) pitcherKeys.push(`RP${i}`);
+
     // Initialize counters
-    ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'Bench'].forEach(pos => batterCounts[pos] = {});
-    ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2', 'Bullpen'].forEach(pos => pitcherCounts[pos] = {});
+    batterKeys.forEach(pos => batterCounts[pos] = {});
+    pitcherKeys.forEach(pos => pitcherCounts[pos] = {});
 
     processedHistory.value.forEach(row => {
-        // Batters
-        ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'].forEach(pos => {
+        batterKeys.forEach(pos => {
             const p = row.batters[pos];
             if (p) {
                 const key = p.displayName || p.name;
                 batterCounts[pos][key] = (batterCounts[pos][key] || 0) + 1;
             }
         });
-        // Bench (Array)
-        if (row.batters['Bench']) {
-             row.batters['Bench'].forEach(p => {
-                 const key = p.displayName || p.name;
-                 batterCounts['Bench'][key] = (batterCounts['Bench'][key] || 0) + 1;
-             });
-        }
 
-        // Pitchers
-        ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2'].forEach(pos => {
+        pitcherKeys.forEach(pos => {
             const p = row.pitchers[pos];
             if (p) {
                 const key = p.displayName || p.name;
                 pitcherCounts[pos][key] = (pitcherCounts[pos][key] || 0) + 1;
             }
         });
-        // Bullpen (Array)
-         if (row.pitchers['Bullpen']) {
-             row.pitchers['Bullpen'].forEach(p => {
-                 const key = p.displayName || p.name;
-                 pitcherCounts['Bullpen'][key] = (pitcherCounts['Bullpen'][key] || 0) + 1;
-             });
-        }
     });
 
-    const getMostCommon = (counts) => {
+    // Modified Logic: Greedy Unique Selection across ALL slots in priority order
+    // We process slots in order (Starters first, then Bench/Relief)
+    const getMostCommonUnique = (countsForPos, keys) => {
         const result = {};
-        for (const pos in counts) {
+        const globalUsedPlayers = new Set(); // Track usage across the entire table (batters or pitchers separate or combined? "List the player... who has appeared once")
+        // The request says: "make sure we don't list the same player twice? So the same player wouldn't be named for SP1 and SP2"
+        // This implies uniqueness within the table (Pitchers Table vs Batters Table).
+        // Since a player is usually EITHER a pitcher OR a batter, we can scope to the table.
+
+        keys.forEach(pos => {
             let max = 0;
-            let player = null;
-            for (const name in counts[pos]) {
-                if (counts[pos][name] > max) {
-                    max = counts[pos][name];
-                    player = name;
-                }
-            }
-            if (player) {
-                result[pos] = { name: player, count: max };
-            }
-        }
-        return result;
-    };
-
-    // NEW LOGIC FOR MOST COMMON ROW:
-    // "list the player who has appeared on the roster most frequently (in any position) who has appeared once (at that position)"
-
-    // 1. Calculate Total Appearances on Roster for Every Player
-    const playerTotalApps = {}; // Name -> Count
-    processedHistory.value.forEach(row => {
-        const seenInThisSeason = new Set();
-        // Check Batters
-        Object.values(row.batters).forEach(p => {
-             if (p) { // p might be array for Bench
-                 const list = Array.isArray(p) ? p : [p];
-                 list.forEach(pl => {
-                     const name = pl.displayName || pl.name;
-                     if (!seenInThisSeason.has(name)) {
-                         playerTotalApps[name] = (playerTotalApps[name] || 0) + 1;
-                         seenInThisSeason.add(name);
-                     }
-                 });
-             }
-        });
-        // Check Pitchers
-        Object.values(row.pitchers).forEach(p => {
-             if (p) {
-                 const list = Array.isArray(p) ? p : [p];
-                 list.forEach(pl => {
-                     const name = pl.displayName || pl.name;
-                     if (!seenInThisSeason.has(name)) {
-                         playerTotalApps[name] = (playerTotalApps[name] || 0) + 1;
-                         seenInThisSeason.add(name);
-                     }
-                 });
-             }
-        });
-    });
-
-    const getMostCommonByTotal = (countsForPos) => {
-        const result = {};
-        for (const pos in countsForPos) {
-            // countsForPos[pos] is { "Player Name": countAtPos }
-            // We want the player with MAX playerTotalApps, provided countAtPos >= 1
-            let maxTotal = 0;
             let winner = null;
 
-            // Iterate all players who have appeared at this position
+            // Find best candidate for this slot who hasn't been used yet
             for (const name in countsForPos[pos]) {
-                const totalApps = playerTotalApps[name] || 0;
-                if (totalApps > maxTotal) {
-                    maxTotal = totalApps;
+                if (globalUsedPlayers.has(name)) continue; // Skip if already assigned to a higher priority slot
+
+                const count = countsForPos[pos][name];
+                if (count > max) {
+                    max = count;
                     winner = name;
-                } else if (totalApps === maxTotal) {
-                    // Tie-breaker? Maybe maxAtPos? Or just first found.
-                    // Let's use countAtPos as tiebreaker
-                    const currentWinnerCount = winner ? (countsForPos[pos][winner] || 0) : 0;
-                    const challengerCount = countsForPos[pos][name];
-                    if (challengerCount > currentWinnerCount) {
-                         winner = name;
-                    }
+                } else if (count === max) {
+                    // Tie-breaker logic?
+                    // Maybe prioritize total apps? For now, first found (arbitrary but stable key order)
                 }
             }
 
             if (winner) {
-                // Return format: Name (TotalApps)
-                result[pos] = { name: formatNameShort(winner), count: maxTotal };
+                result[pos] = { name: formatNameShort(winner, true), count: max };
+                globalUsedPlayers.add(winner);
             }
-        }
+        });
         return result;
     };
 
     return {
-        batters: getMostCommonByTotal(batterCounts),
-        pitchers: getMostCommonByTotal(pitcherCounts)
+        batters: getMostCommonUnique(batterCounts, batterKeys),
+        pitchers: getMostCommonUnique(pitcherCounts, pitcherKeys)
     };
 });
 
@@ -271,7 +254,6 @@ const teamDisplayName = computed(() => {
         <h1>{{ teamDisplayName }}</h1>
         <p v-if="teamData.team.owner_first_name">Owner: {{ teamData.team.owner_first_name }} {{ teamData.team.owner_last_name }}</p>
 
-        <!-- NEW: Identity History -->
         <div v-if="teamData.identityHistory && teamData.identityHistory.length > 0" class="identity-history">
              <span class="identity-label">Franchise History:</span>
              <ul class="identity-list">
@@ -283,11 +265,9 @@ const teamDisplayName = computed(() => {
       </div>
       <div class="accolades">
           <div v-if="teamData.accolades.spaceships.length > 0" class="accolade-row">
-            <!-- Desktop: Show all -->
             <div v-for="(accolade, index) in teamData.accolades.spaceships" :key="accolade.season_name + index" class="accolade-item desktop-only">
               <img :src="`${apiUrl}/images/golden_spaceship.png`" :title="accolade.season_name" class="accolade-icon" alt="Golden Spaceship" />
             </div>
-            <!-- Mobile: Show count -->
             <div class="accolade-item mobile-only">
               <img :src="`${apiUrl}/images/golden_spaceship.png`" class="accolade-icon" alt="Golden Spaceship" />
               <span class="accolade-count">: {{ teamData.accolades.spaceships.length }}</span>
@@ -317,7 +297,7 @@ const teamDisplayName = computed(() => {
     </header>
 
     <main class="team-main">
-        <!-- SEASON HISTORY TABLE (STATS) -->
+        <!-- SEASON HISTORY TABLE -->
         <section class="section history-section">
             <h2>Season History</h2>
             <div class="table-scroll">
@@ -331,7 +311,9 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="season in teamData.history" :key="season.season">
+                        <!-- ADDED HIGHLIGHT CLASSES -->
+                        <tr v-for="season in teamData.history" :key="season.season"
+                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'brown-bg': season.result && season.result.includes('Wooden Spoon')}">
                             <td class="season-name">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${season.season}`" class="season-link">
                                     {{ season.season }}
@@ -339,7 +321,7 @@ const teamDisplayName = computed(() => {
                             </td>
                             <td>{{ season.wins }}-{{ season.losses }}</td>
                             <td>{{ season.winPct }}</td>
-                            <td class="result-cell" :class="{'champion': season.result === 'Champion', 'spoon': season.result === 'Wooden Spoon'}">{{ season.result }}</td>
+                            <td class="result-cell" :class="{'champion-text': season.result === 'Champion', 'spoon-text': season.result === 'Wooden Spoon'}">{{ season.result }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -363,7 +345,8 @@ const teamDisplayName = computed(() => {
                             <th>CF</th>
                             <th>RF</th>
                             <th>DH</th>
-                            <th>Bench</th>
+                            <!-- Dynamic Bench Headers -->
+                            <th v-for="i in maxCols.bench" :key="`bench-head-${i}`">B{{i > 1 ? i : ''}}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -375,15 +358,16 @@ const teamDisplayName = computed(() => {
                             </td>
                             <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos" @click="openPlayerCard(row.batters[pos])" class="player-cell" :class="{'filled': row.batters[pos]}">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
-                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName) : '-' }}
+                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
                                 </span>
                             </td>
-                            <td class="bench-cell">
-                                <div class="bench-list">
-                                    <span v-for="p in row.batters['Bench']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player" :title="`${p.displayName} (${p.points} pts)`">
-                                        {{ formatNameShort(p.displayName) }}
-                                    </span>
-                                </div>
+                            <!-- Dynamic Bench Cells -->
+                            <td v-for="i in maxCols.bench" :key="`bench-${i}`"
+                                @click="openPlayerCard(row.batters[`Bench${i}`])"
+                                class="player-cell" :class="{'filled': row.batters[`Bench${i}`]}">
+                                <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
+                                    {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
+                                </span>
                             </td>
                         </tr>
                     </tbody>
@@ -397,11 +381,12 @@ const teamDisplayName = computed(() => {
                                 </template>
                                 <span v-else>-</span>
                             </td>
-                            <td class="summary-cell">
-                                <template v-if="mostCommonPlayers.batters['Bench']">
-                                    <div class="common-name">{{ mostCommonPlayers.batters['Bench'].name }}</div>
-                                    <div class="common-count">({{ mostCommonPlayers.batters['Bench'].count }})</div>
+                            <td v-for="i in maxCols.bench" :key="`bench-sum-${i}`" class="summary-cell">
+                                <template v-if="mostCommonPlayers.batters[`Bench${i}`]">
+                                    <div class="common-name">{{ mostCommonPlayers.batters[`Bench${i}`].name }}</div>
+                                    <div class="common-count">({{ mostCommonPlayers.batters[`Bench${i}`].count }})</div>
                                 </template>
+                                <span v-else>-</span>
                             </td>
                         </tr>
                     </tfoot>
@@ -421,9 +406,8 @@ const teamDisplayName = computed(() => {
                             <th>SP2</th>
                             <th>SP3</th>
                             <th>SP4</th>
-                            <th>RP1</th>
-                            <th>RP2</th>
-                            <th>Bullpen</th>
+                            <!-- Dynamic RP Headers -->
+                            <th v-for="i in maxCols.rp" :key="`rp-head-${i}`">RP{{i}}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -433,35 +417,37 @@ const teamDisplayName = computed(() => {
                                     {{ row.season }}
                                 </RouterLink>
                             </td>
-                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2']" :key="pos" @click="openPlayerCard(row.pitchers[pos])" class="player-cell" :class="{'filled': row.pitchers[pos]}">
+                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos" @click="openPlayerCard(row.pitchers[pos])" class="player-cell" :class="{'filled': row.pitchers[pos]}">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
-                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName) : '-' }}
+                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
                                 </span>
                             </td>
-                            <td class="bench-cell">
-                                <div class="bench-list">
-                                    <span v-for="p in row.pitchers['Bullpen']" :key="p.card_id" @click="openPlayerCard(p)" class="bench-player" :title="`${p.displayName} (${p.points} pts)`">
-                                        {{ formatNameShort(p.displayName) }}
-                                    </span>
-                                </div>
+                             <!-- Dynamic RP Cells -->
+                            <td v-for="i in maxCols.rp" :key="`rp-${i}`"
+                                @click="openPlayerCard(row.pitchers[`RP${i}`])"
+                                class="player-cell" :class="{'filled': row.pitchers[`RP${i}`]}">
+                                <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
+                                    {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
+                                </span>
                             </td>
                         </tr>
                     </tbody>
                     <tfoot v-if="mostCommonPlayers.pitchers && Object.keys(mostCommonPlayers.pitchers).length > 0">
                         <tr class="summary-row">
                             <td class="sticky-col total-label">Most Common</td>
-                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4', 'RP1', 'RP2']" :key="pos" class="summary-cell">
+                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos" class="summary-cell">
                                 <template v-if="mostCommonPlayers.pitchers[pos]">
                                     <div class="common-name">{{ mostCommonPlayers.pitchers[pos].name }}</div>
                                     <div class="common-count">({{ mostCommonPlayers.pitchers[pos].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
-                            <td class="summary-cell">
-                                <template v-if="mostCommonPlayers.pitchers['Bullpen']">
-                                    <div class="common-name">{{ mostCommonPlayers.pitchers['Bullpen'].name }}</div>
-                                    <div class="common-count">({{ mostCommonPlayers.pitchers['Bullpen'].count }})</div>
+                            <td v-for="i in maxCols.rp" :key="`rp-sum-${i}`" class="summary-cell">
+                                <template v-if="mostCommonPlayers.pitchers[`RP${i}`]">
+                                    <div class="common-name">{{ mostCommonPlayers.pitchers[`RP${i}`].name }}</div>
+                                    <div class="common-count">({{ mostCommonPlayers.pitchers[`RP${i}`].count }})</div>
                                 </template>
+                                <span v-else>-</span>
                             </td>
                         </tr>
                     </tfoot>
@@ -584,13 +570,23 @@ thead th.sticky-col {
 .season-link:hover { text-decoration: underline; }
 
 .result-cell { font-weight: 500; }
-.champion { color: #d4af37; font-weight: bold; }
-.spoon { color: #8b4513; }
+.champion-text { color: #d4af37; font-weight: bold; } /* Changed class name to avoid conflict with bg */
+.spoon-text { color: #8b4513; }
+
+/* HIGHLIGHTS */
+.gold-bg {
+    background-color: rgba(255, 215, 0, 0.15) !important;
+}
+.brown-bg {
+    background-color: rgba(139, 69, 19, 0.1) !important;
+}
 
 /* Matrix Table Specifics */
 .matrix-table td {
     font-size: 0.9rem;
     vertical-align: top;
+    min-width: 80px; /* Ensure columns are wide enough */
+    white-space: nowrap; /* Prevent wrapping */
 }
 .player-cell {
     cursor: default;
@@ -606,23 +602,7 @@ thead th.sticky-col {
     color: #0056b3;
 }
 
-.bench-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    max-width: 300px;
-}
-.bench-player {
-    background: #f1f3f5;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    white-space: nowrap;
-}
-.bench-player:hover {
-    background: #e2e6ea;
-}
+/* Removed old .bench-list styles since we are flattening */
 
 /* Modal */
 .modal-overlay {
@@ -672,10 +652,6 @@ thead th.sticky-col {
     }
     .desktop-only { display: none !important; }
     .mobile-only { display: flex !important; }
-
-    .bench-list {
-        max-width: 200px; /* Constrain bench width on mobile scroll */
-    }
 }
 
 /* Footer Summary Styles */

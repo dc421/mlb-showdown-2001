@@ -39,35 +39,25 @@ export function getLastName(name) {
  * Formats a name as "F.Last".
  * Special handling for Chan Ho Park -> "C.Park".
  * Respects Middle Initial removal logic.
+ *
+ * @param {string} name - The full name to format.
+ * @param {boolean} [keepParen=false] - Whether to preserve trailing parentheticals (e.g. (NYY)).
  */
-export function formatNameShort(name) {
+export function formatNameShort(name, keepParen = false) {
     if (!name) return '';
     if (name === 'Chan Ho Park') return 'C.Park';
 
-    const parts = name.split(' ');
-    const firstInitial = parts[0][0];
-
-    // Use getLastName logic to find the "Last Name" part, but we need to respect the full string structure
-    // We want "M.Johnson" for "Mark L. Johnson"
-
-    let lastName = '';
-
-    // Re-use logic:
-    // 1. Remove parentheticals (for display? Usually formatNameShort is for UI which implies clean names)
-    // Actually, formatNameShort usually takes the raw name.
-    // If the input is "Juan Gonzalez (DET)", we probably want "J.Gonzalez (DET)" or just "J.Gonzalez"?
-    // User requirement: "For the last name that we show in the GameScorecard... 'Mark L. Johnson' should use the last name 'Johnson'"
-    // This implies "M. Johnson" (or "M.Johnson").
-
-    // Let's strip parentheticals for the "Last Name" extraction but maybe keep them if needed?
-    // Actually, for "P: TBD" or "AB: J.Doe", we usually don't show (DET).
-    // Let's look at getLastName implementation above.
+    // Extract parenthetical if needed
+    const parenMatch = name.match(/\s(\([^)]+\))$/);
+    const suffix = (keepParen && parenMatch) ? ` ${parenMatch[1]}` : '';
 
     let cleanName = name.replace(/\s\([^)]+\)$/, ''); // Strip parenthetical for "Last Name" determination
     const cleanParts = cleanName.split(' ');
+    const firstInitial = cleanParts[0][0];
 
     const middleInitialRegex = /^[A-Z]\.?$/;
 
+    let lastName = '';
     if (cleanParts.length >= 3 && middleInitialRegex.test(cleanParts[1])) {
         lastName = cleanParts.slice(2).join(' ');
     } else if (cleanParts.length >= 2) {
@@ -76,7 +66,7 @@ export function formatNameShort(name) {
         lastName = cleanName; // Single name
     }
 
-    return `${firstInitial}. ${lastName}`;
+    return `${firstInitial}. ${lastName}${suffix}`;
 }
 
 /**

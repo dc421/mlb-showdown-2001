@@ -158,14 +158,14 @@ const pitcherDisplay = computed(() => {
     const pitcher = isTop ? gameState.value.currentHomePitcher : gameState.value.currentAwayPitcher;
     if (!pitcher || !pitcher.name) return 'P: TBD';
 
-    return `P: ${formatNameShort(pitcher.name)}`;
+    return `P: ${formatNameShort(pitcher.name, true)}`;
 });
 
 const batterDisplay = computed(() => {
     if (!gameState.value || !gameState.value.currentAtBat || !gameState.value.currentAtBat.batter) return '';
     const batter = gameState.value.currentAtBat.batter;
 
-    return `AB: ${formatNameShort(batter.name)}`;
+    return `AB: ${formatNameShort(batter.name, true)}`;
 });
 
 </script>
