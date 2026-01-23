@@ -3,26 +3,13 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
+const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
 
-// Helper to handle ID mapping
-// In prod team IDs, Boston is 3, New York is 5, NY South is 1
-// In local team IDs, Boston is 1, New York is 3, NY South is 5
-const getMappedIds = (teamId) => {
-    const ids = [teamId];
-    if (Number(teamId) === 1) ids.push(3);
-    else if (Number(teamId) === 3) ids.push(5);
-    else if (Number(teamId) === 5) ids.push(1);
-    return ids;
-};
-
-// Helper to clean "City City" name repetition (e.g. "Boston Boston")
-// and match to a current team
-const mapToCurrentTeam = (name, currentTeams) => {
-    if (!name) return null;
-
+// Helper to find the matching current team for a historical record
+const findTeamForRecord = (name, id, currentTeams) => {
     // 1. Clean the name (Handle "Boston Boston" -> "Boston")
-    let cleanName = name;
-    const parts = name.split(' ');
+    let cleanName = name || '';
+    const parts = cleanName.split(' ');
     if (parts.length > 1 && parts.length % 2 === 0) {
         const mid = parts.length / 2;
         const firstHalf = parts.slice(0, mid).join(' ');
@@ -32,30 +19,20 @@ const mapToCurrentTeam = (name, currentTeams) => {
         }
     }
 
-    // 2. Try to find a match in current teams
-    // Match strategies:
-    // A. Name contains Team Name (e.g. "Boston Red Sox" contains "Red Sox")
-    // B. Name contains City (e.g. "Boston Red Sox" contains "Boston")
-    // C. City contains Name (e.g. "Boston" contains "Boston")
+    const matched = currentTeams.find(t => {
+        // matchesFranchise handles Aliases, ID mapping, and Exclusion logic
+        return matchesFranchise(cleanName, id, t, currentTeams, getMappedIds(t.team_id));
+    });
 
-    // Sort teams by name length desc to match specific first
-    const sortedTeams = [...currentTeams].sort((a, b) => b.name.length - a.name.length);
-
-    let matched = sortedTeams.find(t => cleanName.includes(t.name));
-    if (!matched) {
-        matched = sortedTeams.find(t => cleanName.includes(t.city));
-    }
-
-    // If matched, use the Current Team info, but keep the cleaned name for display if needed
     if (matched) {
         return {
             ...matched,
-            displayName: cleanName // Pass this along
+            displayName: cleanName
         };
     }
 
     return {
-        team_id: null, // Orphan
+        team_id: null,
         name: cleanName,
         city: '',
         logo_url: null,
@@ -94,7 +71,8 @@ router.get('/', authenticateToken, async (req, res) => {
         let teamsMap = {};
 
         // Fetch Current Teams Metadata (Always needed for structure)
-        const teamsRes = await pool.query('SELECT teams.team_id, teams.city, teams.name as team_name, teams.logo_url, teams.display_format, teams.user_id, users.owner_first_name, users.owner_last_name FROM teams JOIN users ON teams.user_id = users.user_id');
+        // Ensure we fetch 'name' (not aliased) to work with findTeamForRecord/matchesFranchise
+        const teamsRes = await pool.query('SELECT teams.team_id, teams.city, teams.name, teams.logo_url, teams.display_format, teams.user_id, users.owner_first_name, users.owner_last_name FROM teams JOIN users ON teams.user_id = users.user_id');
         const currentTeams = teamsRes.rows;
 
         // Initialize teamsMap with Current Teams
@@ -103,28 +81,16 @@ router.get('/', authenticateToken, async (req, res) => {
             teamsMap[t.team_id] = {
                 team_id: t.team_id,
                 city: t.city,
-                name: t.team_name,
+                name: t.name,
                 logo_url: t.logo_url,
                 owner: `${t.owner_first_name} ${t.owner_last_name}`,
-                full_display_name: format.replace('{city}', t.city).replace('{name}', t.team_name),
+                full_display_name: format.replace('{city}', t.city).replace('{name}', t.name),
                 roster: []
             };
         });
 
         if (season) {
             // HISTORICAL ROSTERS
-            // Fetch team ID mapping for this season from series_results to ensure correct attribution
-            const idMapQuery = `
-                SELECT winning_team_name as name, winning_team_id as id FROM series_results WHERE season_name = $1
-                UNION
-                SELECT losing_team_name as name, losing_team_id as id FROM series_results WHERE season_name = $1
-            `;
-            const idMapRes = await pool.query(idMapQuery, [season]);
-            const seasonIdMap = {};
-            idMapRes.rows.forEach(row => {
-                if (row.name) seasonIdMap[row.name] = row.id;
-            });
-
             // Fetch all historical rosters for this season
             const rosterQuery = `
                 SELECT
@@ -138,17 +104,11 @@ router.get('/', authenticateToken, async (req, res) => {
             `;
             const rosterRes = await pool.query(rosterQuery, [season, point_set_id]);
 
-            // Map each row to a team
+            // Map each row to a team using Robust Matching
             rosterRes.rows.forEach(row => {
-                 let targetTeamId = seasonIdMap[row.team_name];
+                 const matchedTeam = findTeamForRecord(row.team_name, null, currentTeams);
 
-                 // Fallback to name matching if not found in series_results (e.g. team played no games or name mismatch)
-                 if (!targetTeamId) {
-                     const matched = mapToCurrentTeam(row.team_name, currentTeams);
-                     if (matched) targetTeamId = matched.team_id;
-                 }
-
-                 if (targetTeamId && teamsMap[targetTeamId]) {
+                 if (matchedTeam && matchedTeam.team_id && teamsMap[matchedTeam.team_id]) {
                      // Add to the correct team bucket
                      const player = {
                         card_id: row.card_id,
@@ -165,7 +125,7 @@ router.get('/', authenticateToken, async (req, res) => {
                         is_starter: row.position !== 'BENCH' && row.position !== 'PITCHING_STAFF'
                      };
 
-                     teamsMap[targetTeamId].roster.push(player);
+                     teamsMap[matchedTeam.team_id].roster.push(player);
                  }
             });
 
@@ -329,25 +289,23 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                 sResults.forEach(series => {
                     if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') return;
 
-                    // Use IDs directly from series_results for Franchise aggregation
-                    const winnerId = series.winning_team_id;
-                    const loserId = series.losing_team_id;
+                    const winnerTeam = findTeamForRecord(series.winning_team_name, series.winning_team_id, currentTeams);
+                    const loserTeam = findTeamForRecord(series.losing_team_name, series.losing_team_id, currentTeams);
 
-                    if (!winnerId || !loserId) return;
+                    if (!winnerTeam.team_id || !loserTeam.team_id) return;
 
-                    // Use Mapped IDs (Franchise Logic)
-                    const wFranchiseId = getMappedIds(winnerId)[0];
-                    const lFranchiseId = getMappedIds(loserId)[0];
+                    const wFid = winnerTeam.team_id;
+                    const lFid = loserTeam.team_id;
 
-                    if (!sStats[wFranchiseId]) sStats[wFranchiseId] = { wins: 0, losses: 0 };
-                    if (!sStats[lFranchiseId]) sStats[lFranchiseId] = { wins: 0, losses: 0 };
+                    if (!sStats[wFid]) sStats[wFid] = { wins: 0, losses: 0 };
+                    if (!sStats[lFid]) sStats[lFid] = { wins: 0, losses: 0 };
 
                     if (series.winning_score !== null) {
-                         sStats[wFranchiseId].wins += series.winning_score;
-                         sStats[wFranchiseId].losses += series.losing_score;
+                         sStats[wFid].wins += series.winning_score;
+                         sStats[wFid].losses += series.losing_score;
 
-                         sStats[lFranchiseId].losses += series.winning_score;
-                         sStats[lFranchiseId].wins += series.losing_score;
+                         sStats[lFid].losses += series.winning_score;
+                         sStats[lFid].wins += series.losing_score;
                     }
                 });
 
@@ -371,13 +329,12 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
 
             // Helper to get stats object
             const getFranchiseStats = (teamId) => {
-                const fid = getMappedIds(teamId)[0];
-                if (!franchiseStats[fid]) {
-                    // Find a representative team object
-                    const repTeam = currentTeams.find(t => getMappedIds(t.team_id).includes(fid)) || { name: 'Unknown', team_id: fid };
-                    franchiseStats[fid] = {
+                // teamId passed here is already the Canonical/Current Team ID from findTeamForRecord
+                if (!franchiseStats[teamId]) {
+                    const repTeam = currentTeams.find(t => t.team_id === teamId) || { name: 'Unknown', team_id: teamId };
+                    franchiseStats[teamId] = {
                         team_id: repTeam.team_id,
-                        name: repTeam.name, // Will be fixed later to show City + Name if needed
+                        name: repTeam.name,
                         logo_url: repTeam.logo_url,
                         wins: 0,
                         losses: 0,
@@ -389,17 +346,20 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                         spoonAppearances: 0
                     };
                 }
-                return franchiseStats[fid];
+                return franchiseStats[teamId];
             };
 
             // 1. W-L Record
             seriesResults.forEach(series => {
                 if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') return;
 
-                if (!series.winning_team_id || !series.losing_team_id) return;
+                const winnerTeam = findTeamForRecord(series.winning_team_name, series.winning_team_id, currentTeams);
+                const loserTeam = findTeamForRecord(series.losing_team_name, series.losing_team_id, currentTeams);
 
-                const wStats = getFranchiseStats(series.winning_team_id);
-                const lStats = getFranchiseStats(series.losing_team_id);
+                if (!winnerTeam.team_id || !loserTeam.team_id) return;
+
+                const wStats = getFranchiseStats(winnerTeam.team_id);
+                const lStats = getFranchiseStats(loserTeam.team_id);
 
                 if (series.winning_score !== null) {
                     wStats.wins += series.winning_score;
@@ -421,29 +381,25 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
 
             // 3. Trophies & Appearances
             seriesResults.forEach(series => {
-                if (!series.winning_team_id || !series.losing_team_id) return;
+                const winnerTeam = findTeamForRecord(series.winning_team_name, series.winning_team_id, currentTeams);
+                const loserTeam = findTeamForRecord(series.losing_team_name, series.losing_team_id, currentTeams);
 
-                const wStats = getFranchiseStats(series.winning_team_id);
-                const lStats = getFranchiseStats(series.losing_team_id);
+                if (!winnerTeam.team_id || !loserTeam.team_id) return;
+
+                const wStats = getFranchiseStats(winnerTeam.team_id);
+                const lStats = getFranchiseStats(loserTeam.team_id);
 
                 if (series.round === 'Golden Spaceship') {
                     wStats.spaceshipAppearances++;
                     lStats.spaceshipAppearances++;
                     // Winner of the series gets the spaceship
-                    const winnerId = series.winning_team_id;
-                    const wFid = getMappedIds(winnerId)[0];
-                    if (wFid === getMappedIds(wStats.team_id)[0]) {
-                         wStats.spaceships++;
-                    }
+                    // Assuming we are matching winnerTeam (which matched winning_team_name/id) to wStats (which is tied to winnerTeam.team_id)
+                    wStats.spaceships++;
                 } else if (series.round === 'Wooden Spoon') {
                     wStats.spoonAppearances++;
                     lStats.spoonAppearances++;
                     // Loser of the series gets the spoon
-                    const loserId = series.losing_team_id;
-                    const lFid = getMappedIds(loserId)[0];
-                    if (lFid === getMappedIds(lStats.team_id)[0]) {
-                        lStats.spoons++;
-                    }
+                    lStats.spoons++;
                 }
             });
 
@@ -474,7 +430,7 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
             });
 
         } else {
-            // --- REGULAR SEASON LOGIC (Existing) ---
+            // --- REGULAR SEASON LOGIC ---
             const teamStats = {};
 
             seriesResults.forEach(series => {
@@ -485,8 +441,8 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                 const { winning_team_name, losing_team_name, winning_score, losing_score } = series;
 
                 // Map to Current Teams
-                const winner = mapToCurrentTeam(winning_team_name, currentTeams);
-                const loser = mapToCurrentTeam(losing_team_name, currentTeams);
+                const winner = findTeamForRecord(winning_team_name, series.winning_team_id, currentTeams);
+                const loser = findTeamForRecord(losing_team_name, series.losing_team_id, currentTeams);
 
                 // Helper to init stats
                 const initStats = (t) => {
@@ -533,8 +489,8 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                     if (s.winning_score !== null) return false;
                     if (s.round === 'Golden Spaceship' || s.round === 'Wooden Spoon' || s.round === 'Silver Submarine') return false;
 
-                    const w = mapToCurrentTeam(s.winning_team_name, currentTeams);
-                    const l = mapToCurrentTeam(s.losing_team_name, currentTeams);
+                    const w = findTeamForRecord(s.winning_team_name, s.winning_team_id, currentTeams);
+                    const l = findTeamForRecord(s.losing_team_name, s.losing_team_id, currentTeams);
                     const wKey = w.team_id ? `ID-${w.team_id}` : `NAME-${w.name}`;
                     const lKey = l.team_id ? `ID-${l.team_id}` : `NAME-${l.name}`;
 
@@ -606,8 +562,8 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                 standings,
                 recentResults: seriesResults.map(r => {
                     const hasScore = r.winning_score !== null && r.losing_score !== null;
-                    const winner = mapToCurrentTeam(r.winning_team_name, currentTeams);
-                    const loser = mapToCurrentTeam(r.losing_team_name, currentTeams);
+                    const winner = findTeamForRecord(r.winning_team_name, r.winning_team_id, currentTeams);
+                    const loser = findTeamForRecord(r.losing_team_name, r.losing_team_id, currentTeams);
 
                     return {
                         id: r.id,
@@ -669,8 +625,8 @@ router.get('/matrix', authenticateToken, async (req, res) => {
             const wScore = row.winning_score || 0;
             const lScore = row.losing_score || 0;
 
-            const winner = mapToCurrentTeam(row.winning_team_name, currentTeams);
-            const loser = mapToCurrentTeam(row.losing_team_name, currentTeams);
+            const winner = findTeamForRecord(row.winning_team_name, row.winning_team_id, currentTeams);
+            const loser = findTeamForRecord(row.losing_team_name, row.losing_team_id, currentTeams);
 
             const wKey = getStatsKey(winner);
             const lKey = getStatsKey(loser);
