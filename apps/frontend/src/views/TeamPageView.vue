@@ -118,10 +118,16 @@ const processedHistory = computed(() => {
 
     return teamData.value.rosters.map(r => {
         const { batterRow, pitchersRow } = organizeRosterForMatrix(r.players);
+
+        // Find season result for highlighting
+        const historyItem = teamData.value.history.find(h => h.season === r.season);
+        const result = historyItem ? historyItem.result : '';
+
         return {
             season: r.season,
             batters: batterRow,
-            pitchers: pitchersRow
+            pitchers: pitchersRow,
+            result
         };
     });
 });
@@ -313,7 +319,7 @@ const teamDisplayName = computed(() => {
                     <tbody>
                         <!-- ADDED HIGHLIGHT CLASSES -->
                         <tr v-for="season in teamData.history" :key="season.season"
-                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'brown-bg': season.result && season.result.includes('Wooden Spoon')}">
+                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'brown-bg': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant')}">
                             <td class="season-name">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${season.season}`" class="season-link">
                                     {{ season.season }}
@@ -350,7 +356,7 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="row in processedHistory" :key="row.season">
+                        <tr v-for="row in processedHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
                             <td class="season-cell sticky-col">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${row.season}`" class="season-link">
                                     {{ row.season }}
@@ -411,7 +417,7 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="row in processedHistory" :key="row.season">
+                        <tr v-for="row in processedHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
                             <td class="season-cell sticky-col">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${row.season}`" class="season-link">
                                     {{ row.season }}

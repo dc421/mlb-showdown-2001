@@ -5,9 +5,9 @@
 const ALIASES = {
     'Boston': ['San Diego'], // Boston (Drew) used to be San Diego
     'New York': ['Montreal'], // New York (Scott) used to be Montreal
-    'NY South': [], // Alex
-    'Detroit': [], // Chris
-    'Ann Arbor': [] // Ben
+    'NY South': ['Fargo', 'NYDC'], // Alex
+    'Detroit': ['Laramie', 'Cincinnati'], // Chris
+    'Ann Arbor': ['Chicago', 'Redwood City'] // Ben
 };
 
 /**

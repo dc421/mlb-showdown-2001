@@ -90,7 +90,7 @@ onMounted(async () => {
                 class="dropdown-item"
                 @click="closeTeamsMenu"
               >
-                  {{ team.name }}
+                  {{ team.city }}
               </RouterLink>
           </div>
       </div>
@@ -134,7 +134,7 @@ onMounted(async () => {
                 class="mobile-link indented"
                 @click="closeMenu"
               >
-                  {{ team.name }}
+                  {{ team.city }}
               </RouterLink>
           </div>
       </div>
