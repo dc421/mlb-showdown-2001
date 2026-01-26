@@ -476,7 +476,7 @@ const teamDisplayName = computed(() => {
 
 <style scoped>
 .team-page-container {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   padding-bottom: 4rem;
 }
@@ -589,9 +589,10 @@ thead th.sticky-col {
 
 /* Matrix Table Specifics */
 .matrix-table td {
-    font-size: 0.9rem;
+    font-size: 0.7rem;
     vertical-align: top;
-    min-width: 80px; /* Ensure columns are wide enough */
+    padding: .2rem;
+    min-width: 50px; /* Ensure columns are wide enough */
     white-space: nowrap; /* Prevent wrapping */
 }
 .player-cell {
