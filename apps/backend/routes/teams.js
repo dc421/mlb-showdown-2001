@@ -3,18 +3,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { sortSeasons, mapSeasonToPointSet } = require('../utils/seasonUtils');
-const { matchesFranchise } = require('../utils/franchiseUtils');
-
-// Helper to handle ID mapping
-// In prod team IDs, Boston is 3, New York is 5, NY South is 1
-// In local team IDs, Boston is 1, New York is 3, NY South is 5
-const getMappedIds = (teamId) => {
-    const ids = [teamId];
-    if (Number(teamId) === 1) ids.push(3);
-    else if (Number(teamId) === 3) ids.push(5);
-    else if (Number(teamId) === 5) ids.push(1);
-    return ids;
-};
+const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
 
 // GET TEAM HISTORY (Seasons, Records, Rosters)
 router.get('/:teamId/history', authenticateToken, async (req, res) => {

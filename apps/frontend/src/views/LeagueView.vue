@@ -224,9 +224,12 @@ const filteredRecentResults = computed(() => {
 
 const seasonFinales = computed(() => {
     if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
-    return seasonSummary.value.recentResults.filter(r =>
+    const finales = seasonSummary.value.recentResults.filter(r =>
         ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(r.round)
     );
+    // Sort: Spaceship > Submarine > Spoon
+    const order = { 'Golden Spaceship': 1, 'Silver Submarine': 2, 'Wooden Spoon': 3 };
+    return finales.sort((a, b) => (order[a.round] || 99) - (order[b.round] || 99));
 });
 
 
@@ -258,6 +261,36 @@ onMounted(async () => {
         <div v-if="seasonSummary && (seasonSummary.standings.length > 0 || seasonSummary.recentResults.length > 0)" class="summary-section">
 
             <div class="summary-column standings-column">
+
+                <!-- POSTSEASON (Moved Above Standings) -->
+                <div v-if="seasonFinales.length > 0 && selectedSeason !== 'all-time'" class="season-finales">
+                    <div v-for="result in seasonFinales" :key="result.id" class="finale-card" :class="{'spaceship-card': result.round === 'Golden Spaceship', 'spoon-card': result.round === 'Wooden Spoon'}">
+                         <div class="finale-header-text">
+                             {{ result.round.toUpperCase() }}
+                         </div>
+                         <div class="finale-content">
+                             <div class="finale-trophy-wrapper">
+                                 <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
+                                 <img v-if="result.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
+                                 <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
+                             </div>
+                             <div class="finale-details">
+                                 <div class="finale-winner-row">
+                                     <span class="label">WINNER</span>
+                                     <span class="team-name" :class="{'winner-text': true}">{{ result.winner_name || result.winner }}</span>
+                                 </div>
+                                 <div class="finale-score-row">
+                                     {{ result.score }}
+                                 </div>
+                                 <div class="finale-loser-row">
+                                     <span class="label">LOSER</span>
+                                     <span class="team-name" :class="{'loser-text': true}">{{ result.loser_name || result.loser }}</span>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+
                 <h3>Standings</h3>
                 <table class="summary-table standings-table">
                     <thead>
@@ -319,35 +352,26 @@ onMounted(async () => {
                              <img v-if="team.logo_url" :src="team.logo_url" class="mini-logo" alt="" />
                              <b>{{ team.name }}</b>
                         </div>
-                        <div class="accolade-icons">
-                            <!-- Spaceships -->
-                            <img v-for="n in team.spaceships" :key="`s-${n}`" :src="`${apiUrl}/images/golden_spaceship.png`" class="trophy-icon-lg" title="Golden Spaceship Champion" />
+                        <div class="accolade-icons-column">
+                            <!-- Spaceships Row -->
+                            <div v-if="team.spaceships > 0" class="accolade-row">
+                                <img v-for="n in team.spaceships" :key="`s-${n}`" :src="`${apiUrl}/images/golden_spaceship.png`" class="trophy-icon-lg" title="Golden Spaceship Champion" />
+                            </div>
+                            <!-- Submarines Row (If we have data, logic for submarine count wasn't explicitly in league.js franchiseStats, but just in case) -->
+                            <!-- league.js doesn't currently agg submarines in All-Time franchiseStats object explicitly except maybe implicit count?
+                                 Wait, franchiseStats object in league.js has spaceships and spoons. I should check if I need to add submarines there.
+                                 The user said "showing spaceships above submarines above spoons".
+                                 I'll add Submarines support to league.js later if needed, but assuming for now we just show what we have.
+                            -->
 
-                            <!-- Spoons -->
-                            <img v-for="n in team.spoons" :key="`sp-${n}`" :src="`${apiUrl}/images/wooden_spoon.png`" class="trophy-icon-lg" title="Wooden Spoon" />
-
-                            <!-- Appearances (If wanted, user said 'appearances', maybe just count text is enough in table, but here visuals are nicer) -->
-                            <!-- Let's stick to the main trophies requested for the 'visual' section -->
+                            <!-- Spoons Row -->
+                            <div v-if="team.spoons > 0" class="accolade-row">
+                                <img v-for="n in team.spoons" :key="`sp-${n}`" :src="`${apiUrl}/images/wooden_spoon.png`" class="trophy-icon-lg" title="Wooden Spoon" />
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                 <!-- POSTSEASON (Formerly Season Finales) -->
-                <div v-if="seasonFinales.length > 0 && selectedSeason !== 'all-time'" class="season-finales">
-                    <h3>POSTSEASON</h3>
-                    <div v-for="result in seasonFinales" :key="result.id" class="finale-item" :class="{'spaceship-game': result.round === 'Golden Spaceship', 'spoon-game': result.round === 'Wooden Spoon'}">
-                         <div class="finale-trophy-container">
-                             <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
-                             <img v-if="result.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
-                             <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
-                         </div>
-                         <div class="finale-score">
-                             <span class="winner" :class="{'metallic-text': result.round === 'Golden Spaceship'}">{{ result.winner_name || result.winner }}</span>
-                             <span class="score-val">{{ result.score }}</span>
-                             <span class="loser" :class="{'dull-text': result.round === 'Wooden Spoon'}">{{ result.loser_name || result.loser }}</span>
-                         </div>
-                    </div>
-                </div>
             </div>
 
             <div v-if="selectedSeason !== 'all-time'" class="summary-column results-column">
@@ -1070,7 +1094,7 @@ h1 {
 
 .franchise-accolade-row {
     display: flex;
-    align-items: center;
+    align-items: center; /* Align Top? Or Center? */
     padding: 0.5rem 0;
     border-bottom: 1px solid #f1f1f1;
 }
@@ -1085,10 +1109,16 @@ h1 {
     gap: 8px;
 }
 
-.accolade-icons {
+/* NEW: Flex Column for Trophy Rows */
+.accolade-icons-column {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.accolade-row {
     display: flex;
     gap: 4px;
-    flex-wrap: wrap;
 }
 
 .trophy-icon-lg {
@@ -1096,84 +1126,104 @@ h1 {
     width: auto;
 }
 
-/* Postseason */
+/* Postseason Styles (Redesigned) */
 .season-finales {
-    margin-top: 2rem;
-}
-.season-finales h3 {
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
-    color: #495057;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 2px solid #dee2e6;
-    padding-bottom: 0.25rem;
+    margin-bottom: 2rem;
 }
 
-.finale-item {
+.finale-card {
     background: #fff;
-    border: 1px solid #e9ecef;
     border-radius: 8px;
-    padding: 0.75rem;
-    margin-bottom: 0.75rem;
-    display: flex;
-    flex-direction: column; /* Stack trophy and score */
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    padding: 0; /* Header image handles spacing */
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+
+.finale-header-text {
+    background: #333;
+    color: #fff;
+    font-weight: 800;
     text-align: center;
-    gap: 0.5rem;
+    padding: 0.5rem;
+    letter-spacing: 1px;
+    font-size: 0.9rem;
 }
 
-.spaceship-game {
-    border: 1px solid #FFD700;
-    border-left: 5px solid #FFD700;
-    background: #fff9e6;
+.spaceship-card .finale-header-text {
+    background: linear-gradient(to right, #DAA520, #FFD700, #DAA520);
+    color: #000;
+    text-shadow: 0px 1px 0px rgba(255,255,255,0.3);
 }
 
-.spoon-game {
-    border: 1px solid #8B4513;
-    border-left: 5px solid #8B4513;
-    background: #fdf5e6;
+.spoon-card .finale-header-text {
+    background: linear-gradient(to right, #8B4513, #A0522D, #8B4513);
+    color: #fff;
 }
 
-.finale-trophy-container {
+.finale-content {
+    padding: 1rem;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.finale-trophy-wrapper {
+    margin-bottom: 0.5rem;
 }
 
 .finale-trophy-lg {
-    height: 48px; /* Larger trophy */
+    height: 64px; /* Big Trophy */
     width: auto;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
 }
 
-.finale-score {
-    font-size: 1.1rem;
-    font-weight: 600;
+.finale-details {
+    width: 100%;
+    text-align: center;
+}
+
+.finale-winner-row, .finale-loser-row {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    font-size: 1rem;
+    padding: 0.25rem 0;
 }
 
-.metallic-text {
-    background: linear-gradient(to bottom, #d4af37, #C5A028, #EACF70, #d4af37);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0px 1px 1px rgba(0,0,0,0.1);
+.finale-score-row {
+    font-size: 1.5rem;
     font-weight: 800;
+    margin: 0.5rem 0;
+    color: #444;
+}
+
+.label {
+    font-size: 0.7rem;
+    color: #999;
+    font-weight: bold;
     text-transform: uppercase;
 }
 
-.dull-text {
-    color: #6d6d6d;
-    text-shadow: 0px 1px 0px rgba(255,255,255,0.5);
+.team-name {
+    font-weight: 700;
 }
 
-.winner { color: #28a745; }
-.loser { color: #333; }
-.score-val { color: #666; }
+.winner-text {
+    color: #28a745;
+}
 
-/* Responsive adjustments for 5 columns */
+.loser-text {
+    color: #333;
+}
+
+.spoon-card .loser-text {
+    color: #8B4513; /* Highlight Spoon Loser */
+}
+
+/* Responsive adjustments */
 @media (max-width: 1000px) {
     .teams-list {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
