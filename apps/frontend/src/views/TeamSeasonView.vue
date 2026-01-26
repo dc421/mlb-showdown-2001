@@ -204,7 +204,7 @@ const teamDisplayName = computed(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(game, index) in seasonData.results" :key="index">
+                            <tr v-for="(game, index) in seasonData.results" :key="index" :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon'}">
                                 <td>{{ new Date(game.date).toLocaleDateString() }}</td>
                                 <td>{{ game.opponent }}</td>
                                 <td :class="{'win': game.result === 'W', 'loss': game.result === 'L'}">{{ game.result }}</td>
@@ -314,6 +314,14 @@ const teamDisplayName = computed(() => {
 .win { color: green; font-weight: bold; }
 .loss { color: red; font-weight: bold; }
 .empty-msg { text-align: center; color: #999; padding: 2rem; }
+
+/* HIGHLIGHTS */
+.gold-bg {
+    background-color: rgba(255, 215, 0, 0.15) !important;
+}
+.brown-bg {
+    background-color: rgba(139, 69, 19, 0.1) !important;
+}
 
 /* Modal */
 .modal-overlay {

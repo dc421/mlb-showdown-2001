@@ -4,21 +4,10 @@
 
 const ALIASES = {
     'Boston': ['San Diego'], // Boston (Drew) used to be San Diego
-    'New York': ['Montreal'], // New York (Scott) used to be Montreal
-    'NY South': ['Fargo', 'NYDC', 'New York South'], // Alex
+    'New York': ['no aliases'], // New York (Scott) no aliases
+    'NY South': ['Fargo', 'NYDC'], // Alex
     'Detroit': ['Laramie', 'Cincinnati'], // Chris
     'Ann Arbor': ['Chicago', 'Redwood City'] // Ben
-};
-
-// Helper to handle ID mapping
-// In prod team IDs, Boston is 3, New York is 5, NY South is 1
-// In local team IDs, Boston is 1, New York is 3, NY South is 5
-const getMappedIds = (teamId) => {
-    const ids = [teamId];
-    if (Number(teamId) === 1) ids.push(3);
-    else if (Number(teamId) === 3) ids.push(5);
-    else if (Number(teamId) === 5) ids.push(1);
-    return ids;
 };
 
 /**
