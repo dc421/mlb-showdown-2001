@@ -132,6 +132,25 @@ const processedHistory = computed(() => {
     });
 });
 
+const playerTotalCounts = computed(() => {
+    const counts = {};
+    if (!teamData.value?.rosters) return counts;
+
+    // Count distinct seasons per player
+    teamData.value.rosters.forEach(r => {
+        const seasonPlayers = new Set();
+        r.players.forEach(p => {
+             const key = p.displayName || p.name;
+             seasonPlayers.add(key);
+        });
+
+        seasonPlayers.forEach(name => {
+            counts[name] = (counts[name] || 0) + 1;
+        });
+    });
+    return counts;
+});
+
 const mostCommonPlayers = computed(() => {
     if (!processedHistory.value.length) return { batters: {}, pitchers: {} };
 
@@ -195,7 +214,8 @@ const mostCommonPlayers = computed(() => {
             }
 
             if (winner) {
-                result[pos] = { name: formatNameShort(winner, true), count: max };
+                const totalCount = playerTotalCounts.value[winner] || max;
+                result[pos] = { name: formatNameShort(winner, true), count: totalCount };
                 globalUsedPlayers.add(winner);
             }
         });
@@ -207,6 +227,9 @@ const mostCommonPlayers = computed(() => {
         pitchers: getMostCommonUnique(pitcherCounts, pitcherKeys)
     };
 });
+
+const hoveredBatterCol = ref(null);
+const hoveredPitcherCol = ref(null);
 
 // Fetch team data on mount or when teamId changes
 async function fetchTeamData() {
@@ -342,17 +365,17 @@ const teamDisplayName = computed(() => {
                     <thead>
                         <tr>
                             <th class="sticky-col">Season</th>
-                            <th>C</th>
-                            <th>1B</th>
-                            <th>2B</th>
-                            <th>3B</th>
-                            <th>SS</th>
-                            <th>LF</th>
-                            <th>CF</th>
-                            <th>RF</th>
-                            <th>DH</th>
+                            <th v-for="(pos, idx) in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
+                                @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null"
+                                :class="{'col-hover': hoveredBatterCol === idx}">
+                                {{ pos }}
+                            </th>
                             <!-- Dynamic Bench Headers -->
-                            <th v-for="i in maxCols.bench" :key="`bench-head-${i}`">B{{i > 1 ? i : ''}}</th>
+                            <th v-for="i in maxCols.bench" :key="`bench-head-${i}`"
+                                @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null"
+                                :class="{'col-hover': hoveredBatterCol === 8 + i}">
+                                B{{i > 1 ? i : ''}}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -362,7 +385,11 @@ const teamDisplayName = computed(() => {
                                     {{ row.season }}
                                 </RouterLink>
                             </td>
-                            <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos" @click="openPlayerCard(row.batters[pos])" class="player-cell" :class="{'filled': row.batters[pos]}">
+                            <td v-for="(pos, idx) in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
+                                @click="openPlayerCard(row.batters[pos])"
+                                class="player-cell"
+                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx}"
+                                @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
                                     {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
                                 </span>
@@ -370,7 +397,9 @@ const teamDisplayName = computed(() => {
                             <!-- Dynamic Bench Cells -->
                             <td v-for="i in maxCols.bench" :key="`bench-${i}`"
                                 @click="openPlayerCard(row.batters[`Bench${i}`])"
-                                class="player-cell" :class="{'filled': row.batters[`Bench${i}`]}">
+                                class="player-cell"
+                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i}"
+                                @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
                                     {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
                                 </span>
@@ -408,12 +437,17 @@ const teamDisplayName = computed(() => {
                     <thead>
                         <tr>
                             <th class="sticky-col">Season</th>
-                            <th>SP1</th>
-                            <th>SP2</th>
-                            <th>SP3</th>
-                            <th>SP4</th>
+                            <th v-for="(pos, idx) in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
+                                @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null"
+                                :class="{'col-hover': hoveredPitcherCol === idx}">
+                                {{ pos }}
+                            </th>
                             <!-- Dynamic RP Headers -->
-                            <th v-for="i in maxCols.rp" :key="`rp-head-${i}`">RP{{i}}</th>
+                            <th v-for="i in maxCols.rp" :key="`rp-head-${i}`"
+                                @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null"
+                                :class="{'col-hover': hoveredPitcherCol === 3 + i}">
+                                RP{{i}}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -423,7 +457,11 @@ const teamDisplayName = computed(() => {
                                     {{ row.season }}
                                 </RouterLink>
                             </td>
-                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos" @click="openPlayerCard(row.pitchers[pos])" class="player-cell" :class="{'filled': row.pitchers[pos]}">
+                            <td v-for="(pos, idx) in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
+                                @click="openPlayerCard(row.pitchers[pos])"
+                                class="player-cell"
+                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx}"
+                                @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
                                     {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
                                 </span>
@@ -431,7 +469,9 @@ const teamDisplayName = computed(() => {
                              <!-- Dynamic RP Cells -->
                             <td v-for="i in maxCols.rp" :key="`rp-${i}`"
                                 @click="openPlayerCard(row.pitchers[`RP${i}`])"
-                                class="player-cell" :class="{'filled': row.pitchers[`RP${i}`]}">
+                                class="player-cell"
+                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i}"
+                                @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
                                     {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
                                 </span>
@@ -585,6 +625,10 @@ thead th.sticky-col {
 }
 .brown-bg {
     background-color: rgba(139, 69, 19, 0.1) !important;
+}
+
+.col-hover {
+    background-color: rgba(0, 0, 0, 0.05);
 }
 
 /* Matrix Table Specifics */

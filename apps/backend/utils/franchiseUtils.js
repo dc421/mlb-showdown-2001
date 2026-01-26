@@ -121,7 +121,13 @@ function getMappedIds(teamId) {
     return [id];
 }
 
+function getFranchiseAliases(teamName) {
+    const aliases = ALIASES[teamName] || [];
+    return aliases.filter(a => a !== 'no aliases');
+}
+
 module.exports = {
     matchesFranchise,
-    getMappedIds
+    getMappedIds,
+    getFranchiseAliases
 };

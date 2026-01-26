@@ -217,7 +217,7 @@ onMounted(async () => {
 }
 .teams-dropdown-menu {
     position: absolute;
-    top: 110%; /* Below the nav item */
+    top: 100%; /* Below the nav item */
     left: 0;
     background-color: #343a40;
     min-width: 150px;
