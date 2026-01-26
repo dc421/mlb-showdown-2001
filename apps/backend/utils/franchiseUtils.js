@@ -5,7 +5,7 @@
 const ALIASES = {
     'Boston': ['San Diego'], // Boston (Drew) used to be San Diego
     'New York': ['no aliases'], // New York (Scott) no aliases
-    'NY South': ['Fargo', 'NYDC'], // Alex
+    'NY South': ['Fargo', 'NYDC', 'New York South'], // Alex
     'Detroit': ['Laramie', 'Cincinnati'], // Chris
     'Ann Arbor': ['Chicago', 'Redwood City'] // Ben
 };
@@ -118,7 +118,13 @@ function getMappedIds(teamId) {
     return [id];
 }
 
+function getFranchiseAliases(teamName) {
+    const aliases = ALIASES[teamName] || [];
+    return aliases.filter(a => a !== 'no aliases');
+}
+
 module.exports = {
     matchesFranchise,
-    getMappedIds
+    getMappedIds,
+    getFranchiseAliases
 };

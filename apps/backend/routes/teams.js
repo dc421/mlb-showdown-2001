@@ -3,7 +3,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { sortSeasons, mapSeasonToPointSet } = require('../utils/seasonUtils');
-const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
+const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('../utils/franchiseUtils');
 
 // GET TEAM HISTORY (Seasons, Records, Rosters)
 router.get('/:teamId/history', authenticateToken, async (req, res) => {
@@ -31,6 +31,10 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const namePattern = `%${team.name}%`; // e.g. "Boston", "New York"
         const mappedIds = getMappedIds(teamId); // Helper for Prod vs Local ID mismatch
 
+        // Construct name patterns for ALL aliases
+        const aliases = getFranchiseAliases(team.name);
+        const searchPatterns = [namePattern, ...aliases.map(a => `%${a}%`)];
+
         // FETCH ALL TEAMS FOR EXCLUSION LOGIC
         // This prevents fuzzy matches (e.g. "New York") from matching "New York South"
         const allTeamsRes = await client.query('SELECT team_id, city, name FROM teams');
@@ -41,12 +45,12 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const historyQuery = `
             SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score
             FROM series_results
-            WHERE (winning_team_id = ANY($2::int[]) OR losing_team_id = ANY($2::int[]) OR winning_team_name ILIKE $1 OR losing_team_name ILIKE $1)
+            WHERE (winning_team_id = ANY($2::int[]) OR losing_team_id = ANY($2::int[]) OR winning_team_name ILIKE ANY($1::text[]) OR losing_team_name ILIKE ANY($1::text[]))
             AND style IS DISTINCT FROM 'Classic'
             ORDER BY date DESC
         `;
 
-        const historyRes = await client.query(historyQuery, [namePattern, mappedIds]);
+        const historyRes = await client.query(historyQuery, [searchPatterns, mappedIds]);
 
         const seasonStats = {}; // season_name -> { wins, losses, rounds: [], teamNameUsed: string }
 
@@ -186,6 +190,9 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const namesUsed = new Set();
         namesUsed.add(currentTeamName);
         namesUsed.add(currentCity);
+        // Explicitly add Aliases
+        aliases.forEach(a => namesUsed.add(a));
+
         // Also add just the name part (e.g. "Boston", "New York") to catch cases where only city was used?
         // Or specific full names found in history
         historyList.forEach(h => {
@@ -318,26 +325,26 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         // We reuse the broad query but filter results in JS to avoid "New York" grabbing "New York South" trophies
         const spaceshipQuery = `
             SELECT season_name, date, winning_team_id, winning_team_name, round FROM series_results
-            WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE $2)
+            WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE ANY($2::text[]))
             AND round = 'Golden Spaceship'
             ORDER BY date DESC
         `;
         const spoonQuery = `
             SELECT season_name, date, losing_team_id, losing_team_name, round FROM series_results
-            WHERE (losing_team_id = ANY($1::int[]) OR losing_team_name ILIKE $2)
+            WHERE (losing_team_id = ANY($1::int[]) OR losing_team_name ILIKE ANY($2::text[]))
             AND round = 'Wooden Spoon'
             ORDER BY date DESC
         `;
         const submarineQuery = `
             SELECT season_name, date, winning_team_id, winning_team_name, round FROM series_results
-            WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE $2)
+            WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE ANY($2::text[]))
             AND round = 'Silver Submarine'
             ORDER BY date DESC
         `;
 
-        const spaceshipsRes = await client.query(spaceshipQuery, [mappedIds, namePattern]);
-        const spoonsRes = await client.query(spoonQuery, [mappedIds, namePattern]);
-        const submarinesRes = await client.query(submarineQuery, [mappedIds, namePattern]);
+        const spaceshipsRes = await client.query(spaceshipQuery, [mappedIds, searchPatterns]);
+        const spoonsRes = await client.query(spoonQuery, [mappedIds, searchPatterns]);
+        const submarinesRes = await client.query(submarineQuery, [mappedIds, searchPatterns]);
 
         // Filter Function for Accolades
         const filterAccolades = (rows, isWinner) => {
