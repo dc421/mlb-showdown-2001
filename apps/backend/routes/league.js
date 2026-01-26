@@ -4,6 +4,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
+const { mapSeasonToPointSet } = require('../utils/seasonUtils');
 
 // Helper to find the matching current team for a historical record
 const findTeamForRecord = (name, id, currentTeams) => {
@@ -91,6 +92,22 @@ router.get('/', authenticateToken, async (req, res) => {
 
         if (season) {
             // HISTORICAL ROSTERS
+
+            // Determine correct Point Set for this season
+            const psName = mapSeasonToPointSet(season);
+            let targetPointSetId = point_set_id; // Default to query param
+
+            if (psName) {
+                const psRes = await pool.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
+                if (psRes.rows.length > 0) {
+                    targetPointSetId = psRes.rows[0].point_set_id;
+                } else {
+                     // Fallback to 'Original Pts'
+                     const origRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Original Pts'");
+                     if (origRes.rows.length > 0) targetPointSetId = origRes.rows[0].point_set_id;
+                }
+            }
+
             // Fetch all historical rosters for this season
             const rosterQuery = `
                 SELECT
@@ -102,7 +119,7 @@ router.get('/', authenticateToken, async (req, res) => {
                 LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
                 WHERE hr.season = $1
             `;
-            const rosterRes = await pool.query(rosterQuery, [season, point_set_id]);
+            const rosterRes = await pool.query(rosterQuery, [season, targetPointSetId]);
 
             // Map each row to a team using Robust Matching
             rosterRes.rows.forEach(row => {
@@ -408,9 +425,9 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                 const winPct = totalGames > 0 ? (t.wins / totalGames) : 0;
                 const avgFinish = t.seasonsPlayed > 0 ? (t.totalRank / t.seasonsPlayed).toFixed(1) : '-';
 
-                // Fix Name Display for Franchise (Use Current City + Name)
+                // Fix Name Display for Franchise (Use Current City Only)
                 const teamObj = currentTeams.find(ct => ct.team_id === t.team_id);
-                const displayName = teamObj ? (teamObj.city === teamObj.name ? teamObj.name : `${teamObj.city} ${teamObj.name}`) : t.name;
+                const displayName = teamObj ? teamObj.city : t.name;
 
                 return {
                     ...t,

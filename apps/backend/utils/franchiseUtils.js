@@ -5,7 +5,7 @@
 const ALIASES = {
     'Boston': ['San Diego'], // Boston (Drew) used to be San Diego
     'New York': ['no aliases'], // New York (Scott) no aliases
-    'NY South': ['Fargo', 'NYDC'], // Alex
+    'NY South': ['Fargo', 'NYDC', 'New York South'], // Alex
     'Detroit': ['Laramie', 'Cincinnati'], // Chris
     'Ann Arbor': ['Chicago', 'Redwood City'] // Ben
 };
@@ -27,7 +27,10 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
     const currentCity = currentTeam.city;
 
     // 1. Check Known Aliases
-    const teamAliases = ALIASES[currentTeamName] || [];
+    const nameAliases = ALIASES[currentTeamName] || [];
+    const cityAliases = ALIASES[currentCity] || [];
+    const teamAliases = [...new Set([...nameAliases, ...cityAliases])];
+
     for (const alias of teamAliases) {
         if (recordName.includes(alias)) return true;
     }

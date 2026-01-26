@@ -222,14 +222,25 @@ const filteredRecentResults = computed(() => {
     );
 });
 
-const seasonFinales = computed(() => {
+const spaceshipSeries = computed(() => {
     if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
-    const finales = seasonSummary.value.recentResults.filter(r =>
-        ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(r.round)
+    return seasonSummary.value.recentResults.filter(r =>
+        ['Golden Spaceship', 'Silver Submarine'].includes(r.round)
+    ).sort((a, b) => {
+        const order = { 'Golden Spaceship': 1, 'Silver Submarine': 2 };
+        return (order[a.round] || 99) - (order[b.round] || 99);
+    });
+});
+
+const spoonSeries = computed(() => {
+    if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
+    return seasonSummary.value.recentResults.filter(r =>
+        r.round === 'Wooden Spoon'
     );
-    // Sort: Spaceship > Submarine > Spoon
-    const order = { 'Golden Spaceship': 1, 'Silver Submarine': 2, 'Wooden Spoon': 3 };
-    return finales.sort((a, b) => (order[a.round] || 99) - (order[b.round] || 99));
+});
+
+const visibleTeams = computed(() => {
+    return leagueData.value.filter(t => t.roster && t.roster.length > 0);
 });
 
 
@@ -262,16 +273,15 @@ onMounted(async () => {
 
             <div class="summary-column standings-column">
 
-                <!-- POSTSEASON (Moved Above Standings) -->
-                <div v-if="seasonFinales.length > 0 && selectedSeason !== 'all-time'" class="season-finales">
-                    <div v-for="result in seasonFinales" :key="result.id" class="finale-card" :class="{'spaceship-card': result.round === 'Golden Spaceship', 'spoon-card': result.round === 'Wooden Spoon'}">
+                <!-- SPACESHIP / SUBMARINE (Above Standings) -->
+                <div v-if="spaceshipSeries.length > 0 && selectedSeason !== 'all-time'" class="season-finales">
+                    <div v-for="result in spaceshipSeries" :key="result.id" class="finale-card" :class="{'spaceship-card': result.round === 'Golden Spaceship'}">
                          <div class="finale-header-text">
                              {{ result.round.toUpperCase() }}
                          </div>
                          <div class="finale-content">
                              <div class="finale-trophy-wrapper">
                                  <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
-                                 <img v-if="result.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
                                  <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
                              </div>
                              <div class="finale-details">
@@ -375,7 +385,34 @@ onMounted(async () => {
             </div>
 
             <div v-if="selectedSeason !== 'all-time'" class="summary-column results-column">
-                <h3>Recent Series Results</h3>
+                <!-- SPOON (Above Results) -->
+                <div v-if="spoonSeries.length > 0" class="season-finales">
+                    <div v-for="result in spoonSeries" :key="result.id" class="finale-card spoon-card">
+                         <div class="finale-header-text">
+                             {{ result.round.toUpperCase() }}
+                         </div>
+                         <div class="finale-content">
+                             <div class="finale-trophy-wrapper">
+                                 <img :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
+                             </div>
+                             <div class="finale-details">
+                                 <div class="finale-winner-row">
+                                     <span class="label">WINNER</span>
+                                     <span class="team-name" :class="{'winner-text': true}">{{ result.winner_name || result.winner }}</span>
+                                 </div>
+                                 <div class="finale-score-row">
+                                     {{ result.score }}
+                                 </div>
+                                 <div class="finale-loser-row">
+                                     <span class="label">LOSER</span>
+                                     <span class="team-name" :class="{'loser-text': true}">{{ result.loser_name || result.loser }}</span>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+
+                <h3>Results</h3>
                 <div class="results-list">
                     <div v-for="result in filteredRecentResults" :key="result.id" class="result-item">
                         <template v-if="result.score">
@@ -446,7 +483,7 @@ onMounted(async () => {
 
         <!-- ROSTERS (Hidden if All-Time) -->
         <div v-if="leagueData.length > 0" class="teams-list">
-            <div v-for="team in leagueData" :key="team.team_id" class="team-block">
+            <div v-for="team in visibleTeams" :key="team.team_id" class="team-block">
                 <div class="team-header" >
                     <img :src="team.logo_url" :alt="team.name" class="team-logo" />
                     <div class="team-info">
