@@ -217,10 +217,10 @@ onMounted(async () => {
 }
 .teams-dropdown-menu {
     position: absolute;
-    top: 100%; /* Below the nav item */
+    top: 110%; /* Below the nav item */
     left: 0;
     background-color: #343a40;
-    min-width: 200px;
+    min-width: 150px;
     box-shadow: 0 8px 16px rgba(0,0,0,0.2);
     border-radius: 4px;
     padding: 0.5rem 0;
@@ -229,7 +229,7 @@ onMounted(async () => {
     flex-direction: column;
 }
 .dropdown-item {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 1rem;
     color: white;
     text-decoration: none;
     transition: background-color 0.2s;
