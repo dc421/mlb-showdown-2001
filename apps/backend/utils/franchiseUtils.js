@@ -110,6 +110,14 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
     return false;
 }
 
+function getMappedIds(teamId) {
+    const id = parseInt(teamId, 10);
+    if ([1, 3, 5].includes(id)) {
+        return [1, 3, 5];
+    }
+    return [id];
+}
+
 module.exports = {
     matchesFranchise,
     getMappedIds
