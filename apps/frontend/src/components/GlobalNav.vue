@@ -96,7 +96,7 @@ onMounted(async () => {
       </div>
 
       <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text active-classic">Classic</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text">Draft</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
     </div>
     
     <div class="nav-center">
@@ -140,7 +140,7 @@ onMounted(async () => {
       </div>
 
       <RouterLink to="/classic" @click="closeMenu" class="mobile-link active-classic">Classic</RouterLink>
-      <RouterLink to="/draft" @click="closeMenu" class="mobile-link">Draft</RouterLink>
+      <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
       <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
     </div>
   </nav>
