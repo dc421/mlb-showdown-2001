@@ -146,7 +146,7 @@ router.get('/state', authenticateToken, async (req, res) => {
             const rostersQuery = `
                 SELECT
                     u.user_id,
-                    t.city, t.name as team_name,
+                    t.city, t.name as team_name, t.display_format,
                     cp.name as player_name, cp.display_name, ppv.points,
                     cp.card_id, cp.image_url,
                     rc.assignment,
@@ -169,9 +169,11 @@ router.get('/state', authenticateToken, async (req, res) => {
             const rosterMap = {};
             rostersRes.rows.forEach(row => {
                 if (!rosterMap[row.user_id]) {
+                    const format = row.display_format || '{city} {name}';
+                    const teamName = format.replace('{city}', row.city).replace('{name}', row.team_name);
                     rosterMap[row.user_id] = {
                         user_id: row.user_id,
-                        team: `${row.city} ${row.team_name}`,
+                        team: teamName,
                         players: []
                     };
                 }

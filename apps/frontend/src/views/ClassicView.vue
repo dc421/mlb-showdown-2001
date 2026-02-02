@@ -605,7 +605,7 @@ onMounted(async () => {
 
         <!-- Player Card Modal -->
         <div v-if="selectedPlayer" class="modal-overlay" @click="selectedPlayer = null">
-            <div class="modal-content" @click.stop>
+            <div class="modal-content player-card-content" @click.stop>
                 <button class="close-btn" @click="selectedPlayer = null">×</button>
                 <PlayerCard :player="selectedPlayer" />
             </div>
@@ -614,6 +614,17 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.player-card-content {
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+.player-card-content .close-btn {
+    color: white;
+    top: -40px;
+    right: 0;
+}
+
 .header-section {
     display: flex;
     flex-direction: column;
@@ -853,57 +864,62 @@ h2 {
 
 .teams-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+    margin-top: 2rem;
+    overflow-x: auto;
 }
 
 .team-block {
     background: #f9f9f9;
     border-radius: 8px;
-    padding: 1rem;
+    padding: 0.5rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 0;
 }
 
 .team-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
     margin-bottom: 0rem;
-    /* Overriding old style if conflict */
+    flex-direction: column;
+    text-align: center;
     background: transparent;
     cursor: default;
     justify-content: flex-start;
 }
 
 .team-logo-roster {
-    width: 60px;
-    height: 60px;
+    width: 40px;
+    height: 40px;
     object-fit: contain;
     background: white;
-    padding: 4px;
+    padding: 2px;
     border-radius: 20%;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .team-info h2 {
     margin: 0;
-    font-size: 1.4rem;
+    font-size: 1rem;
+    line-height: 1.2;
 }
 
 .roster-table-container {
-    overflow-x: auto;
+    overflow-x: hidden;
 }
 
 .roster-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
 .roster-table th {
     text-align: left;
-    padding: 0.5rem;
+    padding: 0.25rem;
     background: #e9ecef;
     color: #495057;
     font-weight: 600;
@@ -914,7 +930,7 @@ h2 {
 }
 
 .roster-table td {
-    padding: 0.25rem 0.5rem;
+    padding: 0.15rem 0.25rem;
     border-bottom: 1px solid #dee2e6;
 }
 
@@ -927,16 +943,27 @@ h2 {
     background-color: #e2e6ea;
 }
 
+.name-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 0;
+    width: 100%;
+}
+
 .points-cell {
     font-weight: bold;
     color: #000000;
     text-align: right;
+    width: 30px;
+    min-width: 30px;
+    white-space: nowrap;
 }
 
 /* Footer Styles */
 .total-row td {
     border-top: 2px solid #aaa;
-    padding: 0.5rem 0.25rem;
+    padding: 0.25rem 0.25rem;
     font-weight: bold;
     background-color: #f1f3f5;
 }

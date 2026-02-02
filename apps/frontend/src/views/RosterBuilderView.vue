@@ -487,7 +487,7 @@ onMounted(async () => {
                 <span>Players: {{ playerCount }} / 20</span>
                 <span :class="{ 'over-limit': totalPoints > 5000 }">Points: {{ totalPoints }} / 5000</span>
             </div>
-            <button v-if="draftState && draftState.is_active && (draftState.current_round === 4 || draftState.current_round === 5) && authStore.user.team.team_id === draftState.active_team_id"
+            <button v-if="draftState && draftState.is_active && (draftState.current_round === 4 || draftState.current_round === 5) && authStore.user.team.team_id === draftState.active_team_id && rosterType !== 'classic'"
                     @click="submitDraftTurn"
                     class="draft-submit-btn">
                 Submit Roster
