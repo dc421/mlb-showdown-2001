@@ -66,7 +66,7 @@ async function sendViaBrevo(to, subject, html) {
 
         // Brevo requires sender info. We default to EMAIL_USER if available.
         const senderEmail = process.env.EMAIL_USER;
-        const senderName = "League Commissioner";
+        const senderName = "Roger Goodell";
 
         if (!senderEmail) {
              return reject(new Error('Missing EMAIL_USER (needed for sender address in Brevo)'));
@@ -260,7 +260,7 @@ async function sendPickConfirmation(pickDetails, nextTeam, client) {
     const recipients = await getLeagueEmails(client);
     const { player, team, round, pickNumber } = pickDetails;
 
-    const subject = `Draft Update: ${player.name} Selected!`;
+    const subject = `Draft Update: ${team.name} Selects ${player.name}`;
     const html = `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
             <h2>The Pick Is In!</h2>
@@ -268,8 +268,7 @@ async function sendPickConfirmation(pickDetails, nextTeam, client) {
 
             <hr />
 
-            <h3>Up Next: ${nextTeam ? nextTeam.name : 'Draft Complete!'}</h3>
-            ${nextTeam ? `<p>It is now <strong>${nextTeam.name}</strong>'s turn to pick.</p>` : ''}
+            <h3>Up Next: ${nextTeam ? nextTeam.name : 'Draft Complete!'}</h3>}
 
             <p>
                 <a href="${process.env.FRONTEND_URL}/draft" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Draft Board</a>
@@ -315,28 +314,30 @@ async function sendStalledDraftNotification(level, team, client) {
     let messageBody = '';
 
     if (level === 1) { // 24 Hours
-        subject = `Draft Alert: 24 Hour Frown of Disapproval`;
+        subject = `${team.name} Receives 24 Hour Frown of Disapproval Note`;
         messageBody = `
-            <h3>Frown of Disapproval ☹️</h3>
+            <h3>Frown of Disapproval Note ☹️</h3>
             <p>It has been over 24 hours since the last pick.</p>
-            <p>The <strong>${team.name}</strong> has officially received a Frown of Disapproval Note.</p>
-            <p>Please make your pick soon!</p>
+            <p><strong>${team.name}</strong> has officially received a Frown of Disapproval Note.</p>
+            <p>Your Friend, Roger</p>
         `;
     } else if (level === 2) { // 48 Hours
-        subject = `Draft Alert: 48 Hour Notice of Censure`;
+        subject = `${team.name} Receives 48 Hour Notice of Censure`;
         messageBody = `
-            <h3>Notice of Censure ⚠️</h3>
+            <h3>48 Hour Notice of Censure ⚠️</h3>
             <p>It has been over 48 hours since the last pick.</p>
-            <p>The <strong>${team.name}</strong> has officially received a Notice of Censure.</p>
+            <p><strong>${team.name}</strong> has officially received a Notice of Censure.</p>
             <p>The league is waiting...</p>
+            <p>Your Friend, Roger</p>
         `;
     } else if (level === 3) { // 72 Hours
-        subject = `Draft Alert: 72 Hour Threat of Pick Forfeiture`;
+        subject = `${team.name} Receives 72 Hour Threat of Pick Forfeiture`;
         messageBody = `
             <h3>Threat of Pick Forfeiture 🚨</h3>
             <p>It has been over 72 hours since the last pick.</p>
-            <p>The <strong>${team.name}</strong> has officially received a Threat of Pick Forfeiture.</p>
+            <p><strong>${team.name}</strong> has officially received a 72 Hour Threat of Pick Forfeiture.</p>
             <p>Make your pick immediately or risk losing it!</p>
+            <p>Your Friend, Roger is worried about you<p>
         `;
     }
 
