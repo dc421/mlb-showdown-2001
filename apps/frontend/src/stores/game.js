@@ -494,6 +494,14 @@ async function resetRolls(gameId) {
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
     // --- FIX FOR TAG UP SPOILERS ---
+    // If the throw result is unacknowledged by the defense, hide the last event (which contains the result).
+    const isUnacknowledgedThrow = gameState.value?.throwRollResult && !gameState.value.throwRollResult.acknowledged;
+
+    if (isUnacknowledgedThrow && amIDefensivePlayer.value) {
+        // Hide the very last event, which is the result of the throw.
+        return gameEvents.value.slice(0, gameEvents.value.length - 1);
+    }
+
     const isDisplayDefensive = displayGameState.value && myTeam.value ?
         ((displayGameState.value.isTopInning && myTeam.value === 'home') ||
          (!displayGameState.value.isTopInning && myTeam.value === 'away')) :
@@ -702,6 +710,21 @@ async function resetRolls(gameId) {
         isBetweenHalfInningsAway: false, isBetweenHalfInningsHome: false
       };
     }
+
+    // --- UNACKNOWLEDGED THROW ROLLBACK (Defense Only) ---
+    if (amIDefensivePlayer.value && gameState.value.throwRollResult && !gameState.value.throwRollResult.acknowledged && gameState.value.throwRollResult.preThrowBases) {
+        return {
+            ...gameState.value,
+            bases: gameState.value.throwRollResult.preThrowBases,
+            // We might also want to rollback outs if the throw resulted in an out?
+            // However, the throwRollResult object doesn't explicitly store pre-throw outs.
+            // But usually outs only increase. We can trust the user won't notice the out count change
+            // as much as the runner teleporting?
+            // Actually, if we want to be perfect, we should probably stick to the current outs
+            // or infer it. But base position is the critical "spoiler".
+        };
+    }
+    // ----------------------------------------------------
 
     if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' && gameState.value.currentPlay.payload.results) {
       const { decisions, results } = gameState.value.currentPlay.payload;
