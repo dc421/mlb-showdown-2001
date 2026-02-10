@@ -10,17 +10,14 @@ describe('franchiseUtils', () => {
     ];
 
     describe('getMappedIds', () => {
-        test('maps 1 -> 1, 3', () => {
-            expect(getMappedIds(1)).toContain(1);
-            expect(getMappedIds(1)).toContain(3);
+        test('maps 1 -> 1', () => {
+            expect(getMappedIds(1)).toEqual([1]);
         });
-        test('maps 3 -> 3, 5', () => {
-            expect(getMappedIds(3)).toContain(3);
-            expect(getMappedIds(3)).toContain(5);
+        test('maps 3 -> 3', () => {
+            expect(getMappedIds(3)).toEqual([3]);
         });
-        test('maps 5 -> 5, 1', () => {
-            expect(getMappedIds(5)).toContain(5);
-            expect(getMappedIds(5)).toContain(1);
+        test('maps 5 -> 5', () => {
+            expect(getMappedIds(5)).toEqual([5]);
         });
         test('maps other -> itself', () => {
              expect(getMappedIds(7)).toEqual([7]);
