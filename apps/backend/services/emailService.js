@@ -260,15 +260,26 @@ async function sendPickConfirmation(pickDetails, nextTeam, client) {
     const recipients = await getLeagueEmails(client);
     const { player, team, round, pickNumber } = pickDetails;
 
-    const subject = `Draft Update: ${team.name} Selects ${player.name}`;
+    const subject = nextTeam ? `${nextTeam.name} ON THE CLOCK` : `Draft Complete!`;
+
+    const teamLogoImg = team.logo_url ? `<img src="${team.logo_url}" style="height: 30px; vertical-align: middle; margin-right: 8px;" />` : '';
+    const nextTeamLogoImg = (nextTeam && nextTeam.logo_url) ? `<img src="${nextTeam.logo_url}" style="height: 30px; vertical-align: middle; margin-right: 8px;" />` : '';
+
     const html = `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2>The Pick Is In!</h2>
+            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                ${teamLogoImg}
+                <h2 style="margin: 0;">The Pick Is In!</h2>
+            </div>
+
             <p><strong>${team.name}</strong> has selected <strong>${player.name}</strong> (${player.position || 'Player'}) in Round ${round}, Pick ${pickNumber}.</p>
 
             <hr />
 
-            <h3>Up Next: ${nextTeam ? nextTeam.name : 'Draft Complete!'}</h3>}
+            <div style="display: flex; align-items: center; margin-top: 15px; margin-bottom: 10px;">
+                 ${nextTeamLogoImg}
+                 <h3 style="margin: 0;">Up Next: ${nextTeam ? nextTeam.name : 'Draft Complete!'}</h3>
+            </div>
 
             <p>
                 <a href="${process.env.FRONTEND_URL}/draft" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Draft Board</a>

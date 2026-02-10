@@ -627,16 +627,16 @@ router.post('/pick', authenticateToken, async (req, res) => {
 
         // --- EMAIL NOTIFICATION LOGIC ---
         // Fetch current team info for the email
-        const currentTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [teamId]);
+        const currentTeamRes = await client.query('SELECT city, name, logo_url FROM teams WHERE team_id = $1', [teamId]);
         const currentTeam = currentTeamRes.rows[0];
-        const teamDisplayName = `${currentTeam.city} ${currentTeam.name}`;
+        const teamDisplayName = currentTeam.city;
 
         // Fetch next team info
         let nextTeam = null;
         if (newState.active_team_id) {
-            const nextTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [newState.active_team_id]);
+            const nextTeamRes = await client.query('SELECT city, name, logo_url FROM teams WHERE team_id = $1', [newState.active_team_id]);
             const nt = nextTeamRes.rows[0];
-            nextTeam = { name: `${nt.city} ${nt.name}` };
+            nextTeam = { name: nt.city, logo_url: nt.logo_url };
         }
 
         const pickDetails = {
@@ -644,7 +644,7 @@ router.post('/pick', authenticateToken, async (req, res) => {
                 name: card.display_name || card.name,
                 position: card.control !== null ? (card.ip > 3 ? 'SP' : 'RP') : Object.keys(card.fielding_ratings || {}).join('/')
             },
-            team: { name: teamDisplayName },
+            team: { name: teamDisplayName, logo_url: currentTeam.logo_url },
             round: state.current_round,
             pickNumber: state.current_pick_number
         };
@@ -854,15 +854,15 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
 
         // --- EMAIL NOTIFICATION LOGIC ---
         // For Add/Drop rounds, we can just say "Roster Submitted"
-        const currentTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [teamId]);
+        const currentTeamRes = await client.query('SELECT city, name, logo_url FROM teams WHERE team_id = $1', [teamId]);
         const currentTeam = currentTeamRes.rows[0];
-        const teamDisplayName = `${currentTeam.city} ${currentTeam.name}`;
+        const teamDisplayName = currentTeam.city;
 
         let nextTeam = null;
         if (newState.active_team_id) {
-            const nextTeamRes = await client.query('SELECT city, name FROM teams WHERE team_id = $1', [newState.active_team_id]);
+            const nextTeamRes = await client.query('SELECT city, name, logo_url FROM teams WHERE team_id = $1', [newState.active_team_id]);
             const nt = nextTeamRes.rows[0];
-            nextTeam = { name: `${nt.city} ${nt.name}` };
+            nextTeam = { name: nt.city, logo_url: nt.logo_url };
         }
 
         const pickDetails = {
@@ -870,7 +870,7 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
                 name: "Roster Submission",
                 position: "Multi"
             },
-            team: { name: teamDisplayName },
+            team: { name: teamDisplayName, logo_url: currentTeam.logo_url },
             round: state.current_round,
             pickNumber: state.current_pick_number
         };

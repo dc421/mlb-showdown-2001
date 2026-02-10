@@ -116,7 +116,23 @@ function getTeamTotalPoints(roster) {
 }
 
 function padRoster(roster) {
-    const padded = [...roster];
+    // Clone and ensure points are processed for BENCH if missed by backend
+    const padded = roster.map(p => {
+        const copy = { ...p };
+        // Check for Bench assignment and if points look like they need division (heuristic or explicit)
+        // Note: Backend usually handles this, but frontend enforcement ensures consistency, especially during drafts
+        if ((copy.assignment === 'BENCH' || copy.assignment === 'B') && copy.points) {
+             // If points are abnormally high for a bench player (e.g., > 100), assume they are raw and divide
+             // Or simpler: just rely on the fact that if assignment is BENCH (raw), it needs division.
+             // If it is 'B' (processed), it might be done. But checking prevents double division?
+             // Actually, backend sets assignment to 'B' AFTER dividing. So if it is 'BENCH', definitely divide.
+             if (copy.assignment === 'BENCH') {
+                 copy.points = Math.round(copy.points / 5);
+             }
+        }
+        return copy;
+    });
+
     const counts = { 'C': 0, '1B': 0, '2B': 0, 'SS': 0, '3B': 0, 'LF': 0, 'CF': 0, 'RF': 0, 'DH': 0, 'SP': 0, 'RP': 0 };
 
     padded.forEach(p => {
@@ -240,7 +256,9 @@ const spoonSeries = computed(() => {
 });
 
 const visibleTeams = computed(() => {
-    return leagueData.value.filter(t => t.roster && t.roster.length > 0);
+    return leagueData.value
+        .filter(t => t.roster && t.roster.length > 0)
+        .sort((a, b) => (a.city || '').localeCompare(b.city || ''));
 });
 
 
@@ -279,22 +297,18 @@ onMounted(async () => {
                          <div class="finale-header-text">
                              {{ result.round.toUpperCase() }}
                          </div>
-                         <div class="finale-content">
-                             <div class="finale-trophy-wrapper">
+                         <div class="finale-content-row">
+                             <div class="finale-trophy-column">
                                  <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
                                  <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
                              </div>
-                             <div class="finale-details">
-                                 <div class="finale-winner-row">
-                                     <span class="label">WINNER</span>
-                                     <span class="team-name" :class="{'winner-text': true}">{{ result.winner_name || result.winner }}</span>
+                             <div class="finale-details-column">
+                                 <div class="finale-winner-line">
+                                     <span class="winner-name-lg">{{ result.winner_name || result.winner }}</span>
+                                     <img v-if="result.winner_logo" :src="result.winner_logo" class="winner-logo-lg" />
                                  </div>
-                                 <div class="finale-score-row">
-                                     {{ result.score }}
-                                 </div>
-                                 <div class="finale-loser-row">
-                                     <span class="label">LOSER</span>
-                                     <span class="team-name" :class="{'loser-text': true}">{{ result.loser_name || result.loser }}</span>
+                                 <div class="finale-score-line">
+                                     {{ result.score }} vs {{ result.loser_name || result.loser }}
                                  </div>
                              </div>
                          </div>
@@ -391,21 +405,17 @@ onMounted(async () => {
                          <div class="finale-header-text">
                              {{ result.round.toUpperCase() }}
                          </div>
-                         <div class="finale-content">
-                             <div class="finale-trophy-wrapper">
+                         <div class="finale-content-row">
+                             <div class="finale-trophy-column">
                                  <img :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
                              </div>
-                             <div class="finale-details">
-                                 <div class="finale-winner-row">
-                                     <span class="label">WINNER</span>
-                                     <span class="team-name" :class="{'winner-text': true}">{{ result.winner_name || result.winner }}</span>
+                             <div class="finale-details-column">
+                                 <div class="finale-winner-line">
+                                     <span class="winner-name-lg">{{ result.loser_name || result.loser }}</span>
+                                     <img v-if="result.loser_logo" :src="result.loser_logo" class="winner-logo-lg" />
                                  </div>
-                                 <div class="finale-score-row">
-                                     {{ result.score }}
-                                 </div>
-                                 <div class="finale-loser-row">
-                                     <span class="label">LOSER</span>
-                                     <span class="team-name" :class="{'loser-text': true}">{{ result.loser_name || result.loser }}</span>
+                                 <div class="finale-score-line">
+                                     {{ result.score }} vs {{ result.winner_name || result.winner }}
                                  </div>
                              </div>
                          </div>
@@ -1171,94 +1181,95 @@ h1 {
 .finale-card {
     background: #fff;
     border-radius: 8px;
-    padding: 0; /* Header image handles spacing */
+    padding: 0;
     margin-bottom: 1rem;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     border: 1px solid #e9ecef;
     overflow: hidden;
 }
 
+.spaceship-card {
+    background-color: #FFD700;
+    background-image: linear-gradient(135deg, #F0E68C 0%, #FFD700 100%);
+    border: 1px solid #DAA520;
+}
+
+.spoon-card {
+    background-color: #8B4513;
+    background-image: linear-gradient(135deg, #A0522D 0%, #8B4513 100%);
+    border: 1px solid #5C3317;
+    color: white;
+}
+
 .finale-header-text {
-    background: #333;
-    color: #fff;
+    background: rgba(0,0,0,0.1); /* Subtle dark overlay for header */
+    color: inherit;
     font-weight: 800;
     text-align: center;
-    padding: 0.5rem;
+    padding: 0.25rem;
     letter-spacing: 1px;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
-.spaceship-card .finale-header-text {
-    background: linear-gradient(to right, #DAA520, #FFD700, #DAA520);
-    color: #000;
-    text-shadow: 0px 1px 0px rgba(255,255,255,0.3);
-}
-
-.spoon-card .finale-header-text {
-    background: linear-gradient(to right, #8B4513, #A0522D, #8B4513);
-    color: #fff;
-}
-
-.finale-content {
-    padding: 1rem;
+.finale-content-row {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    gap: 1rem;
 }
 
-.finale-trophy-wrapper {
-    margin-bottom: 0.5rem;
+.finale-trophy-column {
+    flex: 0 0 auto;
 }
 
 .finale-trophy-lg {
-    height: 64px; /* Big Trophy */
+    height: 50px;
     width: auto;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
 }
 
-.finale-details {
-    width: 100%;
-    text-align: center;
-}
-
-.finale-winner-row, .finale-loser-row {
+.finale-details-column {
+    flex: 1;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    justify-content: center;
+    text-align: right;
+}
+
+.finale-winner-line {
+    display: flex;
     align-items: center;
-    font-size: 1rem;
-    padding: 0.25rem 0;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 2px;
 }
 
-.finale-score-row {
-    font-size: 1.5rem;
+.winner-name-lg {
+    font-size: 1.2rem;
     font-weight: 800;
-    margin: 0.5rem 0;
-    color: #444;
-}
-
-.label {
-    font-size: 0.7rem;
-    color: #999;
-    font-weight: bold;
     text-transform: uppercase;
+    color: inherit;
+}
+.spaceship-card .winner-name-lg { color: #000; }
+.spoon-card .winner-name-lg { color: #fff; }
+
+.winner-logo-lg {
+    height: 30px;
+    width: 30px;
+    object-fit: contain;
+    background: white;
+    border-radius: 50%;
+    padding: 2px;
 }
 
-.team-name {
-    font-weight: 700;
+.finale-score-line {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.8;
 }
-
-.winner-text {
-    color: #28a745;
-}
-
-.loser-text {
-    color: #333;
-}
-
-.spoon-card .loser-text {
-    color: #8B4513; /* Highlight Spoon Loser */
-}
+.spaceship-card .finale-score-line { color: #333; }
+.spoon-card .finale-score-line { color: #eee; }
 
 /* Responsive adjustments */
 @media (max-width: 1000px) {
