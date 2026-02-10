@@ -115,9 +115,7 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
 
 function getMappedIds(teamId) {
     const id = parseInt(teamId, 10);
-    if ([1, 3, 5].includes(id)) {
-        return [1, 3, 5];
-    }
+    // Removed the manual grouping of [1, 3, 5] as they are distinct franchises
     return [id];
 }
 
