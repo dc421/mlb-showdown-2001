@@ -115,7 +115,7 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
 
 function getMappedIds(teamId) {
     const id = parseInt(teamId, 10);
-    // Removed legacy mapping for [1, 3, 5] as it caused cross-contamination between Boston, NY, and NY South
+    // Removed the manual grouping of [1, 3, 5] as they are distinct franchises
     return [id];
 }
 
