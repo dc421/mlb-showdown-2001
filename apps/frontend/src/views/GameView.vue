@@ -957,14 +957,9 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
 
 const showDefensiveRollForThrowButton = computed(() => {
     // This is the key change: if there are multiple throw options, we skip this button.
-    if (wasMultiThrowSituation.value) {
+    if (wasMultiThrowSituation.value || !!gameStore.gameState?.throwRollResult?.consolidatedOutcome) {
         return false;
     }
-    // New Check: If the throw result is unacknowledged, we ALWAYS show the button for the defense.
-    if (amIDisplayDefensivePlayer.value && gameStore.gameState?.throwRollResult && !gameStore.gameState.throwRollResult.acknowledged) {
-        return true;
-    }
-
     return amIDisplayDefensivePlayer.value && isSwingResultVisible.value && !!gameStore.gameState?.throwRollResult && !defensiveThrowRollClicked.value && !(gameStore.gameState?.currentAtBat.pitcherAction === 'intentional_walk');
 });
 
@@ -1027,12 +1022,6 @@ const isGameEndingSteal = computed(() => {
 
 const showAutoThrowResult = computed(() => {
     if (isGameEndingSteal.value) return true;
-
-    // --- NEW: Hide result if unacknowledged by defense ---
-    if (amIDisplayDefensivePlayer.value && gameStore.gameState?.throwRollResult && !gameStore.gameState.throwRollResult.acknowledged) {
-        return false;
-    }
-    // -----------------------------------------------------
 
     if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult ||
     (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext && gameStore.gameState?.currentAtBat.pitcherAction !== 'intentional_walk') || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
