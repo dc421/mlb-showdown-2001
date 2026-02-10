@@ -41,12 +41,11 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const allTeams = allTeamsRes.rows;
 
         // Broad query: Grab everything that might be relevant based on ID or Name, then filter strictly in JS
-        // ADDED: "AND style IS DISTINCT FROM 'Classic'" to avoid exhibition games cluttering history (0-0 records)
+        // Removed "AND style IS DISTINCT FROM 'Classic'" to allow Classic games in history
         const historyQuery = `
-            SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score
+            SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score, style
             FROM series_results
             WHERE (winning_team_id = ANY($2::int[]) OR losing_team_id = ANY($2::int[]) OR winning_team_name ILIKE ANY($1::text[]) OR losing_team_name ILIKE ANY($1::text[]))
-            AND style IS DISTINCT FROM 'Classic'
             ORDER BY date DESC
         `;
 
@@ -90,7 +89,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 };
             }
 
-            const isPostseason = r.round && r.round !== 'Regular Season';
+            // Treat 'Round Robin' as Regular Season to fix 0-0 records issue
+            const isPostseason = r.round && r.round !== 'Regular Season' && r.round !== 'Round Robin';
 
             if (relevantSide === 'winner') {
                 seasonStats[season].wins += 1;
@@ -357,11 +357,90 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             });
         };
 
+        // 5. Classic Rosters (New)
+        // Fetch rosters from 'rosters' table where roster_type = 'classic' and user_id matches
+        let formattedClassicRosters = [];
+        if (team.user_id) {
+            const classicRosterQuery = `
+                SELECT r.user_id, r.classic_id, c.name as classic_name,
+                       cp.name as player_name, cp.display_name, cp.card_id, cp.image_url,
+                       rc.assignment, cp.control, cp.ip, cp.fielding_ratings,
+                       ppv.points
+                FROM rosters r
+                JOIN classics c ON r.classic_id = c.id
+                JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                JOIN cards_player cp ON rc.card_id = cp.card_id
+                LEFT JOIN point_sets ps ON ps.name = 'Original Pts'
+                LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = ps.point_set_id
+                WHERE r.roster_type = 'classic' AND r.user_id = $1
+            `;
+            const classicRosterRes = await client.query(classicRosterQuery, [team.user_id]);
+
+            const classicRosterHistory = {};
+
+            classicRosterRes.rows.forEach(r => {
+                 const seasonKey = r.classic_name || 'Classic';
+                 if (!classicRosterHistory[seasonKey]) {
+                     classicRosterHistory[seasonKey] = [];
+                 }
+
+                 const player = {
+                    card_id: r.card_id,
+                    name: r.player_name,
+                    displayName: r.display_name || r.player_name,
+                    position: r.assignment,
+                    points: r.points,
+                    assignment: r.assignment,
+                    control: r.control,
+                    ip: r.ip,
+                    fielding_ratings: r.fielding_ratings,
+                    image_url: r.image_url
+                };
+
+                // Re-derive position like we do for regular rosters
+                if (r.control !== null) {
+                     if (!player.position || player.position.includes('/')) {
+                         player.position = r.ip > 3 ? 'SP' : 'RP';
+                     }
+                } else {
+                     if (!player.position) {
+                         player.position = r.assignment;
+                     }
+                }
+
+                classicRosterHistory[seasonKey].push(player);
+            });
+
+            Object.keys(classicRosterHistory).forEach(season => {
+                 let players = classicRosterHistory[season];
+                 // Sort logic... same as regular
+                 players.sort((a, b) => {
+                    const getRank = (p) => {
+                        const pos = p.position === 'BENCH' ? 'B' : p.position;
+                        return positionOrder[pos] || 99;
+                    }
+                    const rankA = getRank(a);
+                    const rankB = getRank(b);
+                    if (rankA !== rankB) return rankA - rankB;
+                    return (b.points || 0) - (a.points || 0);
+                });
+
+                formattedClassicRosters.push({
+                    season: season,
+                    players: players
+                });
+            });
+
+            // Sort Classic Rosters descending by season/classic name
+            formattedClassicRosters.sort((a,b) => b.season.localeCompare(a.season));
+        }
+
         res.json({
             team,
             history: historyList,
             identityHistory: identityHistory.reverse(), // Send Newest -> Oldest for display
             rosters: formattedRosters,
+            classicRosters: formattedClassicRosters,
             accolades: {
                 spaceships: filterAccolades(spaceshipsRes.rows, true),
                 spoons: filterAccolades(spoonsRes.rows, false), // Spoon is for loser usually (unless logic changed, but query used losing_team)
