@@ -25,6 +25,11 @@ const findTeamForRecord = (name, id, currentTeams) => {
         return matchesFranchise(cleanName, id, t, currentTeams, getMappedIds(t.team_id));
     });
 
+    // DEBUG: Log failed matches for specific tricky teams
+    if (!matched && (cleanName.includes('San Diego') || cleanName.includes('Boston'))) {
+        console.log(`[League Debug] Failed to match historical record: "${cleanName}" (ID: ${id}) to any current team.`);
+    }
+
     if (matched) {
         return {
             ...matched,
@@ -90,7 +95,18 @@ router.get('/', authenticateToken, async (req, res) => {
             };
         });
 
+        // Check if the requested season is the Active/Draft season
+        // If so, we treat it as "Current Rosters" (fetching from roster_cards)
+        let isDraftSeason = false;
         if (season) {
+             const activeDraftRes = await pool.query('SELECT season_name FROM draft_state WHERE is_active = true LIMIT 1');
+             if (activeDraftRes.rows.length > 0 && activeDraftRes.rows[0].season_name === season) {
+                 isDraftSeason = true;
+             }
+             if (season === 'Upcoming Season') isDraftSeason = true;
+        }
+
+        if (season && !isDraftSeason) {
             // HISTORICAL ROSTERS
 
             // Determine correct Point Set for this season
@@ -225,13 +241,6 @@ router.get('/', authenticateToken, async (req, res) => {
 // GET SEASON LIST
 router.get('/seasons', authenticateToken, async (req, res) => {
     try {
-        const query = `
-            SELECT DISTINCT season_name
-            FROM series_results
-            WHERE season_name IS NOT NULL
-            ORDER BY season_name DESC
-        `;
-        const result = await pool.query(query);
         const dateQuery = `
             SELECT season_name, MAX(date) as last_date
             FROM series_results
@@ -240,7 +249,19 @@ router.get('/seasons', authenticateToken, async (req, res) => {
             ORDER BY last_date DESC
         `;
         const dateResult = await pool.query(dateQuery);
-        res.json(dateResult.rows.map(r => r.season_name));
+        const seasons = dateResult.rows.map(r => r.season_name);
+
+        // Check for active draft season
+        const activeDraftRes = await pool.query('SELECT season_name FROM draft_state WHERE is_active = true LIMIT 1');
+        if (activeDraftRes.rows.length > 0) {
+            const activeSeason = activeDraftRes.rows[0].season_name;
+            if (!seasons.includes(activeSeason)) {
+                // Add to the top of the list
+                seasons.unshift(activeSeason);
+            }
+        }
+
+        res.json(seasons);
     } catch (error) {
         console.error('Error fetching seasons:', error);
         res.status(500).json({ message: 'Server error fetching seasons.' });
@@ -649,8 +670,8 @@ router.get('/matrix', authenticateToken, async (req, res) => {
             const lKey = getStatsKey(loser);
 
             // For Matrix, we usually use Current Names for consistency, especially All-Time
-            const wName = winner.team_id ? (winner.city === winner.name ? winner.name : `${winner.city} ${winner.name}`) : winner.name;
-            const lName = loser.team_id ? (loser.city === loser.name ? loser.name : `${loser.city} ${loser.name}`) : loser.name;
+            const wName = winner.team_id ? winner.city : winner.name;
+            const lName = loser.team_id ? loser.city : loser.name;
 
             if (!matrix[wKey]) matrix[wKey] = { id: wKey, name: wName, opponents: {} };
             if (!matrix[lKey]) matrix[lKey] = { id: lKey, name: lName, opponents: {} };

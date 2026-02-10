@@ -126,6 +126,11 @@ const getWins = (series, teamId) => {
     return '';
 };
 
+const sortedRosters = computed(() => {
+    if (!state.value.rosters) return [];
+    return [...state.value.rosters].sort((a, b) => (a.team || '').localeCompare(b.team || ''));
+});
+
 // Manual Result Entry State
 const resultModalOpen = ref(false);
 const activeMatchup = ref(null);
@@ -529,7 +534,7 @@ onMounted(async () => {
                 </div>
 
                 <div v-else class="teams-list">
-                    <div v-for="roster in state.rosters" :key="roster.user_id" class="team-block">
+                    <div v-for="roster in sortedRosters" :key="roster.user_id" class="team-block">
                         <div class="team-header">
                             <img v-if="getTeamDetails(roster.user_id).logo_url" :src="getTeamDetails(roster.user_id).logo_url" class="team-logo-roster" />
                             <div class="team-info">
@@ -727,7 +732,7 @@ onMounted(async () => {
 }
 
 .classic-container {
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     padding: 2rem;
 }
