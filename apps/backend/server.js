@@ -3535,6 +3535,8 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
             }
 
             const originalOuts = newState.outs;
+            // Capture bases before throw for rollback
+            const preThrowBases = JSON.parse(JSON.stringify(newState.bases));
 
             const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent, teamInfo, decision.runner.pitcherOfRecordId ? { card_id: decision.runner.pitcherOfRecordId } : null);
             newState = resolvedState;
@@ -3563,6 +3565,11 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
                 }
             }
 
+            if (newState.throwRollResult) {
+                newState.throwRollResult.preThrowBases = preThrowBases;
+                newState.throwRollResult.acknowledged = false;
+            }
+
             if (newState.gameOver) {
               const updateResult = await client.query(
                 `UPDATE games SET status = 'completed', completed_at = NOW() WHERE game_id = $1 AND status != 'completed'`,
@@ -3581,7 +3588,8 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 
             newState.awayPlayerReadyForNext = false;
             newState.homePlayerReadyForNext = false;
-            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+            // Set turn to DEFENSE to force acknowledgement
+            await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [defensiveTeam.user_id, gameId]);
 
         } else if (sentRunners.length > 1) {
             newState.currentPlay.payload.choices = decisions;
@@ -3655,6 +3663,22 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
         const outfieldDefense = await getOutfieldDefense(defensiveTeam);
+
+    // --- ACKNOWLEDGEMENT FLOW ---
+    if (newState.throwRollResult && !newState.throwRollResult.acknowledged) {
+        newState.throwRollResult.acknowledged = true;
+        // Clear temp data
+        delete newState.throwRollResult.preThrowBases;
+
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+        await client.query('INSERT INTO game_states (game_id, turn_number, state_data) VALUES ($1, $2, $3)', [gameId, currentTurn + 1, newState]);
+        await client.query('COMMIT');
+
+        const gameData = await getAndProcessGameData(gameId, client);
+        io.to(gameId).emit('game-updated', gameData);
+        return res.status(200).json(gameData);
+    }
+    // ----------------------------
 
         if (!newState.currentPlay || !newState.currentPlay.payload) {
             console.error(`Error in resolve-throw for game ${gameId}: currentPlay is missing or invalid.`);
