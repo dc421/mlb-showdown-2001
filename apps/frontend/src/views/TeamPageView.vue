@@ -835,7 +835,7 @@ thead th.sticky-col {
 .summary-row td {
     background-color: #f8f9fa;
     border-top: 2px solid #dee2e6;
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     vertical-align: top;
 }
 .summary-row .total-label {
@@ -855,6 +855,6 @@ thead th.sticky-col {
 }
 .common-count {
     color: #666;
-    font-size: 0.8rem;
+    font-size: 0.65rem;
 }
 </style>
