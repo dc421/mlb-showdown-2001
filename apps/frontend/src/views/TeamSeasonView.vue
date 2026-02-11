@@ -16,7 +16,11 @@ const apiUrl = import.meta.env.VITE_API_URL || '';
 async function fetchSeasonData() {
     loading.value = true;
     try {
-        const response = await apiClient(`/api/teams/${teamId.value}/seasons/${encodeURIComponent(seasonName.value)}`);
+        const type = route.query.type;
+        let url = `/api/teams/${teamId.value}/seasons/${encodeURIComponent(seasonName.value)}`;
+        if (type) url += `?type=${encodeURIComponent(type)}`;
+
+        const response = await apiClient(url);
         if (response.ok) {
             seasonData.value = await response.json();
         } else {
@@ -31,6 +35,10 @@ async function fetchSeasonData() {
 
 watch(() => route.params.seasonName, (newSeason) => {
     seasonName.value = newSeason;
+    fetchSeasonData();
+});
+
+watch(() => route.query.type, () => {
     fetchSeasonData();
 });
 
@@ -94,7 +102,7 @@ const seasonStats = computed(() => {
 
     // Regular Season Record
     results.forEach(g => {
-        if (g.round === 'Regular Season' || !g.round) {
+        if (g.round === 'Regular Season' || g.round === 'Round Robin' || !g.round) {
              if (g.result === 'W') wins++;
              else if (g.result === 'L') losses++;
         }
@@ -173,7 +181,7 @@ const teamDisplayName = computed(() => {
                             <tr>
                                 <th>Pos</th>
                                 <th>Player</th>
-                                <th>Points</th>
+                                <th class="points-header">Points</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -305,6 +313,7 @@ const teamDisplayName = computed(() => {
 .player-row:hover { background: #e9ecef; }
 .pos-cell { font-weight: bold; width: 50px; }
 .points-cell { text-align: right; font-weight: bold; }
+.points-header { text-align: right !important; }
 
 /* Results Table */
 .table-container { overflow-x: auto; }

@@ -41,7 +41,6 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const allTeams = allTeamsRes.rows;
 
         // Broad query: Grab everything that might be relevant based on ID or Name, then filter strictly in JS
-        // Removed "AND style IS DISTINCT FROM 'Classic'" to allow Classic games in history
         const historyQuery = `
             SELECT season_name, round, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score, style
             FROM series_results
@@ -52,9 +51,12 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const historyRes = await client.query(historyQuery, [searchPatterns, mappedIds]);
 
         const seasonStats = {}; // season_name -> { wins, losses, rounds: [], teamNameUsed: string }
+        const classicStats = {}; // season_name -> { wins, losses, rounds: [], teamNameUsed: string }
 
         historyRes.rows.forEach(r => {
             const season = r.season_name;
+            const isClassic = r.style === 'Classic';
+            const targetStats = isClassic ? classicStats : seasonStats;
 
             // Check if Winning Team belongs to this Franchise
             const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, team, allTeams, mappedIds);
@@ -75,8 +77,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
             if (!relevantSide) return; // Skip this row
 
-            if (!seasonStats[season]) {
-                seasonStats[season] = {
+            if (!targetStats[season]) {
+                targetStats[season] = {
                     season_name: season,
                     wins: 0,
                     losses: 0,
@@ -95,82 +97,88 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             if (relevantSide === 'winner') {
                 const w = r.winning_score || 0;
                 const l = r.losing_score || 0;
-                seasonStats[season].wins += w;
-                seasonStats[season].losses += l;
+                targetStats[season].wins += w;
+                targetStats[season].losses += l;
 
                 if (isPostseason) {
-                    seasonStats[season].postseasonWins += w;
-                    seasonStats[season].postseasonLosses += l;
+                    targetStats[season].postseasonWins += w;
+                    targetStats[season].postseasonLosses += l;
                 } else {
-                    seasonStats[season].regularWins += w;
-                    seasonStats[season].regularLosses += l;
+                    targetStats[season].regularWins += w;
+                    targetStats[season].regularLosses += l;
                 }
             } else {
                 const w = r.losing_score || 0;
                 const l = r.winning_score || 0;
-                seasonStats[season].wins += w;
-                seasonStats[season].losses += l;
+                targetStats[season].wins += w;
+                targetStats[season].losses += l;
 
                 if (isPostseason) {
-                    seasonStats[season].postseasonWins += w;
-                    seasonStats[season].postseasonLosses += l;
+                    targetStats[season].postseasonWins += w;
+                    targetStats[season].postseasonLosses += l;
                 } else {
-                    seasonStats[season].regularWins += w;
-                    seasonStats[season].regularLosses += l;
+                    targetStats[season].regularWins += w;
+                    targetStats[season].regularLosses += l;
                 }
             }
 
             // Track the name used this season (if not set or update if we found one)
-            if (teamNameUsed) seasonStats[season].teamNameUsed = teamNameUsed;
+            if (teamNameUsed) targetStats[season].teamNameUsed = teamNameUsed;
 
             if (r.round) {
-                seasonStats[season].rounds.add(r.round);
+                targetStats[season].rounds.add(r.round);
             }
         });
 
         // Convert stats to array
-        const historyList = Object.values(seasonStats).map(s => {
-            const total = s.regularWins + s.regularLosses;
-            const winPct = total > 0 ? (s.regularWins / total).toFixed(3).replace(/^0+/, '') : '.000';
+        const processStats = (statsObj) => {
+            const list = Object.values(statsObj).map(s => {
+                const total = s.regularWins + s.regularLosses;
+                const winPct = total > 0 ? (s.regularWins / total).toFixed(3).replace(/^0+/, '') : '.000';
 
-            // Determine "Result"
-            let result = '-';
+                // Determine "Result"
+                let result = '-';
 
-            if (s.rounds.has('Golden Spaceship')) {
-                const finals = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Golden Spaceship');
-                // Use robust matching to see if WE won
-                if (finals && matchesFranchise(finals.winning_team_name, finals.winning_team_id, team, allTeams, mappedIds)) {
-                    result = 'Champion';
-                } else if (finals) {
-                    result = 'Runner Up';
+                if (s.rounds.has('Golden Spaceship')) {
+                    const finals = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Golden Spaceship');
+                    // Use robust matching to see if WE won
+                    if (finals && matchesFranchise(finals.winning_team_name, finals.winning_team_id, team, allTeams, mappedIds)) {
+                        result = 'Champion';
+                    } else if (finals) {
+                        result = 'Runner Up';
+                    }
+                } else if (s.rounds.has('Playoffs') || s.rounds.has('Semi-Finals')) {
+                    result = 'Playoffs';
+                } else if (s.rounds.has('Wooden Spoon')) {
+                    const spoonGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Wooden Spoon');
+                    // Usually winning the spoon match means you avoid the spoon
+                    // If we LOST the spoon match, we are the Spoon Winner.
+                    if (spoonGame && matchesFranchise(spoonGame.losing_team_name, spoonGame.losing_team_id, team, allTeams, mappedIds)) {
+                         result = 'Wooden Spoon';
+                    } else {
+                         result = 'Wooden Spoon Participant';
+                    }
                 }
-            } else if (s.rounds.has('Playoffs') || s.rounds.has('Semi-Finals')) {
-                result = 'Playoffs';
-            } else if (s.rounds.has('Wooden Spoon')) {
-                const spoonGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Wooden Spoon');
-                // Usually winning the spoon match means you avoid the spoon
-                // If we LOST the spoon match, we are the Spoon Winner.
-                if (spoonGame && matchesFranchise(spoonGame.losing_team_name, spoonGame.losing_team_id, team, allTeams, mappedIds)) {
-                     result = 'Wooden Spoon';
-                } else {
-                     result = 'Wooden Spoon Participant';
+
+                // Append Postseason Record if applicable
+                if (result !== '-') {
+                     result = `${result} (${s.postseasonWins}-${s.postseasonLosses})`;
                 }
-            }
 
-            // Append Postseason Record if applicable
-            if (result !== '-') {
-                 result = `${result} (${s.postseasonWins}-${s.postseasonLosses})`;
-            }
+                return {
+                    season: s.season_name,
+                    wins: s.regularWins, // Return Regular Season W-L
+                    losses: s.regularLosses,
+                    winPct,
+                    result,
+                    teamNameUsed: s.teamNameUsed
+                };
+            });
+            return list;
+        };
 
-            return {
-                season: s.season_name,
-                wins: s.regularWins, // Return Regular Season W-L
-                losses: s.regularLosses,
-                winPct,
-                result,
-                teamNameUsed: s.teamNameUsed
-            };
-        });
+        const historyList = processStats(seasonStats);
+        const classicHistoryList = processStats(classicStats);
 
         const sortedSeasonNames = sortSeasons(historyList.map(h => h.season));
         historyList.sort((a, b) => sortedSeasonNames.indexOf(a.season) - sortedSeasonNames.indexOf(b.season));
@@ -450,6 +458,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         res.json({
             team,
             history: historyList,
+            classicHistory: classicHistoryList,
             identityHistory: identityHistory.reverse(), // Send Newest -> Oldest for display
             rosters: formattedRosters,
             classicRosters: formattedClassicRosters,
@@ -471,6 +480,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 // GET SPECIFIC SEASON DETAILS
 router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) => {
     const { teamId, seasonName } = req.params;
+    const { type } = req.query;
     const client = await pool.connect();
 
     try {
@@ -478,82 +488,117 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
         if (teamRes.rows.length === 0) return res.status(404).json({ message: 'Team not found.' });
         const team = teamRes.rows[0];
 
-        const namePattern = `%${team.name}%`;
-
-        // 1. Fetch Roster
-        const rosterQuery = `
-            SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip, cp.image_url
-            FROM historical_rosters hr
-            LEFT JOIN cards_player cp ON hr.card_id = cp.card_id
-            WHERE hr.season = $1
-        `;
-        // We fetch ALL for the season, then filter in JS using matchesFranchise because we need the full power of aliases
-        const allRostersRes = await client.query(rosterQuery, [seasonName]);
-
         // Need all teams for context in matchesFranchise
         const allTeamsRes = await client.query('SELECT team_id, city, name FROM teams');
         const allTeams = allTeamsRes.rows;
         const mappedIds = getMappedIds(teamId);
 
-        // Filter the rows that belong to this franchise
-        const rosterRows = allRostersRes.rows.filter(r => {
-             // historical_rosters has 'team_name' but not 'team_id'. We pass null for ID.
-             return matchesFranchise(r.team_name, null, team, allTeams, mappedIds);
-        });
+        let roster = [];
 
-        // Use the filtered rows
-        const rosterRes = { rows: rosterRows };
+        if (type === 'Classic') {
+            // FETCH CLASSIC ROSTER
+            const classicRosterQuery = `
+                SELECT r.user_id, r.classic_id, c.name as classic_name,
+                       cp.name as player_name, cp.display_name, cp.card_id, cp.image_url,
+                       rc.assignment, cp.control, cp.ip, cp.fielding_ratings,
+                       ppv.points
+                FROM rosters r
+                JOIN classics c ON r.classic_id = c.id
+                JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                JOIN cards_player cp ON rc.card_id = cp.card_id
+                LEFT JOIN point_sets ps ON ps.name = 'Original Pts'
+                LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = ps.point_set_id
+                WHERE c.name = $1 AND r.user_id = $2 AND r.roster_type = 'classic'
+            `;
+            const classicRosterRes = await client.query(classicRosterQuery, [seasonName, team.user_id]);
 
-        // FETCH POINTS IF MISSING
-        const psName = mapSeasonToPointSet(seasonName);
-        let psId = null;
-        if (psName) {
-            const psRes = await client.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
-            if (psRes.rows.length > 0) psId = psRes.rows[0].point_set_id;
-            else {
-                 // Fallback to 'Original Pts'
-                 const origRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Original Pts'");
-                 if (origRes.rows.length > 0) psId = origRes.rows[0].point_set_id;
+            roster = classicRosterRes.rows.map(r => {
+                const player = {
+                    card_id: r.card_id,
+                    name: r.player_name,
+                    displayName: r.display_name || r.player_name,
+                    position: r.assignment,
+                    points: r.points,
+                    assignment: r.assignment,
+                    control: r.control,
+                    ip: r.ip,
+                    fielding_ratings: r.fielding_ratings,
+                    image_url: r.image_url
+                };
+                if (r.control !== null) {
+                    if (!player.position || player.position.includes('/')) {
+                        player.position = r.ip > 3 ? 'SP' : 'RP';
+                    }
+                } else {
+                    if (!player.position) player.position = r.assignment;
+                }
+                return player;
+            });
+        } else {
+            // FETCH LEAGUE ROSTER (Historical)
+            const rosterQuery = `
+                SELECT hr.*, cp.display_name, cp.name as card_name, cp.fielding_ratings, cp.control, cp.ip, cp.image_url
+                FROM historical_rosters hr
+                LEFT JOIN cards_player cp ON hr.card_id = cp.card_id
+                WHERE hr.season = $1
+            `;
+            const allRostersRes = await client.query(rosterQuery, [seasonName]);
+
+            // Filter the rows that belong to this franchise
+            const rosterRows = allRostersRes.rows.filter(r => {
+                return matchesFranchise(r.team_name, null, team, allTeams, mappedIds);
+            });
+            const rosterRes = { rows: rosterRows };
+
+            // FETCH POINTS IF MISSING
+            const psName = mapSeasonToPointSet(seasonName);
+            let psId = null;
+            if (psName) {
+                const psRes = await client.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
+                if (psRes.rows.length > 0) psId = psRes.rows[0].point_set_id;
+                else {
+                    const origRes = await client.query("SELECT point_set_id FROM point_sets WHERE name = 'Original Pts'");
+                    if (origRes.rows.length > 0) psId = origRes.rows[0].point_set_id;
+                }
             }
-        }
 
-        const pointsLookup = {};
-        const cardIdsNeedingPoints = rosterRes.rows.filter(r => r.points === null && r.card_id).map(r => r.card_id);
+            const pointsLookup = {};
+            const cardIdsNeedingPoints = rosterRes.rows.filter(r => r.points === null && r.card_id).map(r => r.card_id);
 
-        if (psId && cardIdsNeedingPoints.length > 0) {
-             const ppvRes = await client.query(
-                'SELECT card_id, points FROM player_point_values WHERE point_set_id = $1 AND card_id = ANY($2::int[])',
-                [psId, cardIdsNeedingPoints]
-             );
-             ppvRes.rows.forEach(row => pointsLookup[row.card_id] = row.points);
-        }
-
-        let roster = rosterRes.rows.map(r => {
-             let pts = r.points;
-             if (pts === null && r.card_id && pointsLookup[r.card_id] !== undefined) {
-                 pts = pointsLookup[r.card_id];
-             }
-
-             const player = {
-                card_id: r.card_id,
-                name: r.player_name,
-                displayName: r.display_name || r.card_name || r.player_name,
-                position: r.position,
-                points: pts,
-                assignment: r.position,
-                // NEW FIELDS
-                control: r.control,
-                ip: r.ip,
-                fielding_ratings: r.fielding_ratings,
-                image_url: r.image_url
-            };
-            if (r.control !== null) {
-                 if (!player.position || player.position.includes('/')) {
-                     player.position = r.ip > 3 ? 'SP' : 'RP';
-                 }
+            if (psId && cardIdsNeedingPoints.length > 0) {
+                const ppvRes = await client.query(
+                    'SELECT card_id, points FROM player_point_values WHERE point_set_id = $1 AND card_id = ANY($2::int[])',
+                    [psId, cardIdsNeedingPoints]
+                );
+                ppvRes.rows.forEach(row => pointsLookup[row.card_id] = row.points);
             }
-            return player;
-        });
+
+            roster = rosterRes.rows.map(r => {
+                let pts = r.points;
+                if (pts === null && r.card_id && pointsLookup[r.card_id] !== undefined) {
+                    pts = pointsLookup[r.card_id];
+                }
+
+                const player = {
+                    card_id: r.card_id,
+                    name: r.player_name,
+                    displayName: r.display_name || r.card_name || r.player_name,
+                    position: r.position,
+                    points: pts,
+                    assignment: r.position,
+                    control: r.control,
+                    ip: r.ip,
+                    fielding_ratings: r.fielding_ratings,
+                    image_url: r.image_url
+                };
+                if (r.control !== null) {
+                    if (!player.position || player.position.includes('/')) {
+                        player.position = r.ip > 3 ? 'SP' : 'RP';
+                    }
+                }
+                return player;
+            });
+        }
 
         // 2. Fetch Series Results
         const resultsQuery = `
@@ -561,11 +606,17 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             WHERE season_name = $1
             ORDER BY date DESC
         `;
-        // Again, fetch all for season, filter in JS
         const allResultsRes = await client.query(resultsQuery, [seasonName]);
 
         const results = [];
         allResultsRes.rows.forEach(r => {
+            // FILTER BY STYLE
+            if (type === 'Classic') {
+                if (r.style !== 'Classic') return;
+            } else {
+                if (r.style === 'Classic') return;
+            }
+
             const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, team, allTeams, mappedIds);
             const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, team, allTeams, mappedIds);
 
@@ -581,9 +632,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 results.push({
                     opponent: r.winning_team_name,
                     result: 'L',
-                    score: `${r.winning_score}-${r.losing_score}`, // Winning score first? Or My score first? Usually W-L implies winner first.
-                    // But if I lost, maybe I want "L 2-5".
-                    // Code before was: `${r.winning_score}-${r.losing_score}`. So always Winner-Loser.
+                    score: `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
                     date: r.date
                 });

@@ -549,7 +549,9 @@ const teamDisplayName = computed(() => {
                     <tbody>
                         <tr v-for="row in processedClassicHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
                             <td class="season-cell sticky-col">
-                                {{ row.season }}
+                                <RouterLink :to="{ path: `/teams/${teamId}/seasons/${row.season}`, query: { type: 'Classic' } }" class="season-link">
+                                    {{ row.season }}
+                                </RouterLink>
                             </td>
                             <td v-for="(pos, idx) in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
                                 @click="openPlayerCard(row.batters[pos])"
@@ -600,7 +602,9 @@ const teamDisplayName = computed(() => {
                     <tbody>
                         <tr v-for="row in processedClassicHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
                             <td class="season-cell sticky-col">
-                                {{ row.season }}
+                                <RouterLink :to="{ path: `/teams/${teamId}/seasons/${row.season}`, query: { type: 'Classic' } }" class="season-link">
+                                    {{ row.season }}
+                                </RouterLink>
                             </td>
                             <td v-for="(pos, idx) in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
                                 @click="openPlayerCard(row.pitchers[pos])"
