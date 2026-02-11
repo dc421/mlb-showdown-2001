@@ -305,10 +305,9 @@ onMounted(async () => {
                              <div class="finale-details-column">
                                  <div class="finale-winner-line">
                                      <span class="winner-name-lg">{{ result.winner_name || result.winner }}</span>
-                                     <img v-if="result.winner_logo" :src="result.winner_logo" class="winner-logo-lg" />
                                  </div>
                                  <div class="finale-score-line">
-                                     {{ result.score }} vs {{ result.loser_name || result.loser }}
+                                     W {{ result.score }} vs {{ result.loser_name || result.loser }}
                                  </div>
                              </div>
                          </div>
@@ -412,10 +411,9 @@ onMounted(async () => {
                              <div class="finale-details-column">
                                  <div class="finale-winner-line">
                                      <span class="winner-name-lg">{{ result.loser_name || result.loser }}</span>
-                                     <img v-if="result.loser_logo" :src="result.loser_logo" class="winner-logo-lg" />
                                  </div>
                                  <div class="finale-score-line">
-                                     {{ result.score }} vs {{ result.winner_name || result.winner }}
+                                     L {{ result.score }} vs {{ result.winner_name || result.winner }}
                                  </div>
                              </div>
                          </div>
@@ -551,7 +549,7 @@ onMounted(async () => {
 
     <!-- Player Card Modal -->
     <div v-if="selectedPlayer" class="modal-overlay" @click.self="closePlayerCard">
-        <div class="modal-content">
+        <div class="modal-content player-card-modal-content">
             <button class="close-btn" @click="closePlayerCard">×</button>
             <PlayerCard :player="selectedPlayer" />
         </div>
@@ -960,6 +958,12 @@ h1 {
     max-height: 90vh;
 }
 
+.player-card-modal-content {
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
 .result-modal-content {
     width: 400px;
 }
@@ -1221,10 +1225,12 @@ h1 {
 
 .finale-trophy-column {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
 }
 
 .finale-trophy-lg {
-    height: 50px;
+    height: 60px; /* Bigger Trophy */
     width: auto;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
 }
@@ -1234,22 +1240,24 @@ h1 {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    text-align: right;
+    text-align: center; /* Center everything */
+    padding-left: 10px;
 }
 
 .finale-winner-line {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 8px;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .winner-name-lg {
-    font-size: 1.2rem;
-    font-weight: 800;
+    font-size: 1.8rem; /* Much Bigger Font */
+    font-weight: 900;
     text-transform: uppercase;
     color: inherit;
+    line-height: 1.1;
 }
 .spaceship-card .winner-name-lg { color: #000; }
 .spoon-card .winner-name-lg { color: #fff; }
@@ -1264,9 +1272,9 @@ h1 {
 }
 
 .finale-score-line {
-    font-size: 0.85rem;
-    font-weight: 600;
-    opacity: 0.8;
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.9;
 }
 .spaceship-card .finale-score-line { color: #333; }
 .spoon-card .finale-score-line { color: #eee; }

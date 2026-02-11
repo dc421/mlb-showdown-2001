@@ -174,6 +174,7 @@ router.get('/state', authenticateToken, async (req, res) => {
                     rosterMap[row.user_id] = {
                         user_id: row.user_id,
                         team: teamName,
+                        city: row.city,
                         players: []
                     };
                 }

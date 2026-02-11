@@ -128,7 +128,12 @@ const getWins = (series, teamId) => {
 
 const sortedRosters = computed(() => {
     if (!state.value.rosters) return [];
-    return [...state.value.rosters].sort((a, b) => (a.team || '').localeCompare(b.team || ''));
+    // Sort by City if available, otherwise Team Name
+    return [...state.value.rosters].sort((a, b) => {
+        const cityA = a.city || a.team || '';
+        const cityB = b.city || b.team || '';
+        return cityA.localeCompare(cityB);
+    });
 });
 
 // Manual Result Entry State
@@ -526,7 +531,7 @@ onMounted(async () => {
             </div>
 
             <!-- ROSTERS -->
-            <div class="section rosters-section">
+            <div class="rosters-section">
                 <h2>Classic Rosters</h2>
                 <div v-if="!state.revealed" class="locked-message">
                     <p>Rosters are hidden until you submit your roster.</p>
@@ -732,9 +737,9 @@ onMounted(async () => {
 }
 
 .classic-container {
-    max-width: 100%;
+    max-width: 100%; /* Allows full expansion */
     margin: 0 auto;
-    padding: 2rem;
+    padding: 1rem; /* Match LeagueView padding */
 }
 .section {
     margin-bottom: 2rem;
