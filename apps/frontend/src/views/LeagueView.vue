@@ -1150,14 +1150,6 @@ h1 {
     margin-top: 2px;
 }
 
-.phantoms-header {
-    background-color: #333 !important;
-    color: #eee !important;
-}
-
-.phantoms-cell {
-    background-color: rgba(0, 0, 0, 0.05); /* Light gray for intersection */
-}
 /* Darker intersection if both are phantoms (self-cell usually handles this, but just in case) */
 .phantoms-cell.matrix-self {
     background-color: #333;
@@ -1338,7 +1330,7 @@ h1 {
     width: 50px;
     object-fit: contain;
     background: white;
-    border-radius: 50%;
+    border-radius: 20%;
     padding: 4px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
@@ -1348,8 +1340,8 @@ h1 {
     font-weight: 700;
     opacity: 0.9;
 }
-.spaceship-card .finale-score-line { color: #333; }
-.spoon-card .finale-score-line { color: #eee; }
+.spaceship-card .finale-score-line { color: #218838; }
+.spoon-card .finale-score-line { color: red; }
 
 /* Responsive adjustments */
 @media (max-width: 1000px) {
