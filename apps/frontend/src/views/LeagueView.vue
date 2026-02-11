@@ -261,6 +261,27 @@ const visibleTeams = computed(() => {
         .sort((a, b) => (a.city || '').localeCompare(b.city || ''));
 });
 
+// Sorted Matrix Data: Alphabetical, with "Phantoms" forced to the end
+const sortedMatrixData = computed(() => {
+    if (!matrixData.value) return [];
+    // Clone array to sort
+    const data = [...matrixData.value];
+    data.sort((a, b) => {
+        // Force Phantoms to bottom
+        if (a.name === 'Phantoms') return 1;
+        if (b.name === 'Phantoms') return -1;
+        return a.name.localeCompare(b.name);
+    });
+    return data;
+});
+
+// Helper to get win pct
+function getWinPct(wins, losses) {
+    const total = wins + losses;
+    if (total === 0) return '';
+    const pct = wins / total;
+    return pct.toFixed(3).replace(/^0+/, '');
+}
 
 onMounted(async () => {
     await fetchSeasons();
@@ -310,6 +331,9 @@ onMounted(async () => {
                                      W {{ result.score }} vs {{ result.loser_name || result.loser }}
                                  </div>
                              </div>
+                             <div class="finale-logo-column">
+                                 <img v-if="result.winner_logo" :src="result.winner_logo" class="winner-logo-lg" />
+                             </div>
                          </div>
                     </div>
                 </div>
@@ -324,11 +348,11 @@ onMounted(async () => {
                             <th class="text-right">Pct</th>
 
                             <!-- ALL-TIME COLUMNS -->
-                            <th v-if="selectedSeason === 'all-time'" class="text-right">Avg Fin</th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-right border-right-cell">Avg Fin</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /></th>
-                            <th v-if="selectedSeason === 'all-time'" class="text-center">App</th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">App</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /></th>
-                            <th v-if="selectedSeason === 'all-time'" class="text-center">App</th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">App</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -346,13 +370,13 @@ onMounted(async () => {
                             <td class="text-right">{{ team.winPctDisplay }}</td>
 
                             <!-- ALL-TIME STATS -->
-                            <td v-if="selectedSeason === 'all-time'" class="text-right">{{ team.avgFinish }}</td>
+                            <td v-if="selectedSeason === 'all-time'" class="text-right border-right-cell">{{ team.avgFinish }}</td>
                             <td v-if="selectedSeason === 'all-time'" class="text-center">
                                 <span v-if="team.spaceships > 0" class="trophy-count">
                                     <img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /> {{ team.spaceships }}
                                 </span>
                             </td>
-                            <td v-if="selectedSeason === 'all-time'" class="text-center">
+                            <td v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">
                                 <span v-if="team.spaceshipAppearances > 0">{{ team.spaceshipAppearances }}</span>
                             </td>
                             <td v-if="selectedSeason === 'all-time'" class="text-center">
@@ -360,7 +384,7 @@ onMounted(async () => {
                                     <img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /> {{ team.spoons }}
                                 </span>
                             </td>
-                            <td v-if="selectedSeason === 'all-time'" class="text-center">
+                            <td v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">
                                 <span v-if="team.spoonAppearances > 0">{{ team.spoonAppearances }}</span>
                             </td>
                         </tr>
@@ -402,7 +426,7 @@ onMounted(async () => {
                 <div v-if="spoonSeries.length > 0" class="season-finales">
                     <div v-for="result in spoonSeries" :key="result.id" class="finale-card spoon-card">
                          <div class="finale-header-text">
-                             {{ result.round.toUpperCase() }}
+                             {{ result.round.toUpperCase() }} - LAST PLACE
                          </div>
                          <div class="finale-content-row">
                              <div class="finale-trophy-column">
@@ -415,6 +439,9 @@ onMounted(async () => {
                                  <div class="finale-score-line">
                                      L {{ result.score }} vs {{ result.winner_name || result.winner }}
                                  </div>
+                             </div>
+                             <div class="finale-logo-column">
+                                 <img v-if="result.loser_logo" :src="result.loser_logo" class="winner-logo-lg" />
                              </div>
                          </div>
                     </div>
@@ -458,27 +485,32 @@ onMounted(async () => {
         </div>
 
         <!-- MATRIX VIEW (Only for All-Time) -->
-        <div v-if="selectedSeason === 'all-time' && matrixData.length > 0" class="matrix-view">
+        <div v-if="selectedSeason === 'all-time' && sortedMatrixData.length > 0" class="matrix-view">
              <h3>Head-to-Head Matrix (All-Time)</h3>
              <div class="matrix-container">
                 <table class="matrix-table">
                     <thead>
                         <tr>
                             <th class="matrix-corner"></th> <!-- Top Left Corner -->
-                            <th v-for="team in matrixData" :key="team.id">{{ team.name }}</th>
+                            <th v-for="team in sortedMatrixData" :key="team.id" :class="{'phantoms-header': team.name === 'Phantoms'}">{{ team.name }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="rowTeam in matrixData" :key="rowTeam.id">
-                            <td class="matrix-row-header">{{ rowTeam.name }}</td>
-                            <td v-for="colTeam in matrixData" :key="colTeam.id" class="matrix-cell">
+                        <tr v-for="rowTeam in sortedMatrixData" :key="rowTeam.id">
+                            <td class="matrix-row-header" :class="{'phantoms-header': rowTeam.name === 'Phantoms'}">{{ rowTeam.name }}</td>
+                            <td v-for="colTeam in sortedMatrixData" :key="colTeam.id" class="matrix-cell" :class="{'phantoms-cell': rowTeam.name === 'Phantoms' || colTeam.name === 'Phantoms'}">
                                 <template v-if="rowTeam.id === colTeam.id">
                                     <span class="matrix-self">-</span>
                                 </template>
                                 <template v-else>
                                     <div v-if="rowTeam.opponents[colTeam.id]" class="matrix-record">
-                                        <span class="matrix-wins">{{ rowTeam.opponents[colTeam.id].wins }}</span> -
-                                        <span class="matrix-losses">{{ rowTeam.opponents[colTeam.id].losses }}</span>
+                                        <div>
+                                            <span class="matrix-wins">{{ rowTeam.opponents[colTeam.id].wins }}</span> -
+                                            <span class="matrix-losses">{{ rowTeam.opponents[colTeam.id].losses }}</span>
+                                        </div>
+                                        <div class="matrix-pct">
+                                            {{ getWinPct(rowTeam.opponents[colTeam.id].wins, rowTeam.opponents[colTeam.id].losses) }}
+                                        </div>
                                     </div>
                                     <div v-else class="matrix-empty"></div>
                                 </template>
@@ -1104,8 +1136,36 @@ h1 {
     color: #28a745;
 }
 
+.border-right-cell {
+    border-right: 2px solid #dee2e6 !important;
+}
+
 .matrix-losses {
     color: #dc3545;
+}
+
+.matrix-pct {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 2px;
+}
+
+.phantoms-header {
+    background-color: #333 !important;
+    color: #eee !important;
+}
+
+.phantoms-cell {
+    background-color: rgba(0, 0, 0, 0.05); /* Light gray for intersection */
+}
+/* Darker intersection if both are phantoms (self-cell usually handles this, but just in case) */
+.phantoms-cell.matrix-self {
+    background-color: #333;
+}
+
+/* Ensure Phantoms cells have darker text if needed, or white if background is dark */
+.phantoms-header {
+    border-color: #555;
 }
 
 .team-link {
@@ -1174,7 +1234,8 @@ h1 {
 
 .trophy-icon-lg {
     height: 32px;
-    width: auto;
+    width: 32px;
+    object-fit: contain;
 }
 
 /* Postseason Styles (Redesigned) */
@@ -1199,10 +1260,10 @@ h1 {
 }
 
 .spoon-card {
-    background-color: #8B4513;
-    background-image: linear-gradient(135deg, #A0522D 0%, #8B4513 100%);
-    border: 1px solid #5C3317;
-    color: white;
+    background-color: #5D4037;
+    background-image: linear-gradient(135deg, #6D4C41 0%, #4E342E 100%);
+    border: 1px solid #3E2723;
+    color: #efebe9; /* Slightly off-white for muddy feel */
 }
 
 .finale-header-text {
@@ -1219,6 +1280,7 @@ h1 {
 .finale-content-row {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0.5rem 1rem;
     gap: 1rem;
 }
@@ -1240,14 +1302,20 @@ h1 {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    text-align: center; /* Center everything */
-    padding-left: 10px;
+    text-align: left; /* Left align text */
+    align-items: flex-start;
+}
+
+.finale-logo-column {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
 }
 
 .finale-winner-line {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
     margin-bottom: 4px;
 }
@@ -1260,15 +1328,19 @@ h1 {
     line-height: 1.1;
 }
 .spaceship-card .winner-name-lg { color: #000; }
-.spoon-card .winner-name-lg { color: #fff; }
+.spoon-card .winner-name-lg {
+    color: #d7ccc8; /* Dull text */
+    font-size: 1.3rem; /* Smaller for loser */
+}
 
 .winner-logo-lg {
-    height: 30px;
-    width: 30px;
+    height: 50px; /* Larger logo for the right side */
+    width: 50px;
     object-fit: contain;
     background: white;
     border-radius: 50%;
-    padding: 2px;
+    padding: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .finale-score-line {
