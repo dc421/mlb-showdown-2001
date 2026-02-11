@@ -339,7 +339,7 @@ onMounted(async () => {
                 </div>
 
                 <h3>Standings</h3>
-                <table class="summary-table standings-table">
+                <table class="summary-table standings-table" :class="{'all-time-table': selectedSeason === 'all-time'}">
                     <thead>
                         <tr>
                             <th>Team</th>
@@ -1228,6 +1228,11 @@ h1 {
     height: 32px;
     width: 32px;
     object-fit: contain;
+}
+
+/* All-Time Table Width Constraint */
+.all-time-table {
+    max-width: 800px;
 }
 
 /* Postseason Styles (Redesigned) */
