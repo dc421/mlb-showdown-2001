@@ -1232,7 +1232,7 @@ h1 {
 
 /* All-Time Table Width Constraint */
 .all-time-table {
-    max-width: 800px;
+    max-width: 700px;
 }
 
 /* Postseason Styles (Redesigned) */

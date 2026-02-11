@@ -822,7 +822,7 @@ async function resetRolls(gameId) {
     if (shouldShowThreeOuts) {
         bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
         outs = 3;
-    } else if (!amIReadyForNext.value && (opponentReadyForNext.value || gameState.value.inningEndedOnCaughtStealing)) {
+    } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
         if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
              const src = gameState.value.lastCompletedAtBat;
              if (src) {
