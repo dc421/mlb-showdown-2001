@@ -2,22 +2,22 @@ const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
 
 describe('franchiseUtils', () => {
     const mockCurrentTeams = [
-        { team_id: 3, name: 'Boston', city: 'Boston' },
-        { team_id: 5, name: 'New York', city: 'New York' },
-        { team_id: 1, name: 'NY South', city: 'NY South' }, // Assuming mapped ID handles 1 -> [1, 3] in Prod or something, but let's test logic
+        { team_id: 1, name: 'Boston', city: 'Boston' },
+        { team_id: 3, name: 'New York', city: 'New York' },
+        { team_id: 5, name: 'NY South', city: 'NY South' },
         { team_id: 7, name: 'Detroit', city: 'Detroit' },
         { team_id: 9, name: 'Ann Arbor', city: 'Ann Arbor' }
     ];
 
     describe('getMappedIds', () => {
-        test('maps 1 -> 1', () => {
-            expect(getMappedIds(1)).toEqual([1]);
+        test('maps 1 -> 1, 3, 5', () => {
+            expect(getMappedIds(1)).toEqual([1, 3, 5]);
         });
-        test('maps 3 -> 3', () => {
-            expect(getMappedIds(3)).toEqual([3]);
+        test('maps 3 -> 1, 3, 5', () => {
+            expect(getMappedIds(3)).toEqual([1, 3, 5]);
         });
-        test('maps 5 -> 5', () => {
-            expect(getMappedIds(5)).toEqual([5]);
+        test('maps 5 -> 1, 3, 5', () => {
+            expect(getMappedIds(5)).toEqual([1, 3, 5]);
         });
         test('maps other -> itself', () => {
              expect(getMappedIds(7)).toEqual([7]);
@@ -25,71 +25,64 @@ describe('franchiseUtils', () => {
     });
 
     describe('matchesFranchise', () => {
-        const boston = mockCurrentTeams[0];
-        const newYork = mockCurrentTeams[1];
-        const nySouth = mockCurrentTeams[2];
-        const detroit = mockCurrentTeams[3];
-        const annArbor = mockCurrentTeams[4];
+        const boston = mockCurrentTeams[0]; // ID 1
+        const newYork = mockCurrentTeams[1]; // ID 3
+        const nySouth = mockCurrentTeams[2]; // ID 5
+        const detroit = mockCurrentTeams[3]; // ID 7
 
-        // Mocks based on getMappedIds logic (simplified for test)
-        // Boston (3) -> [3, 5] (Wait, code says 3 -> 3, 5)
-        // New York (5) -> [5, 1]
-        // NY South (1) -> [1, 3]
+        const mappedIds = [1, 3, 5];
 
         test('Matches exact name', () => {
-            expect(matchesFranchise('Boston', null, boston, mockCurrentTeams, [3])).toBe(true);
+            expect(matchesFranchise('Boston', 1, boston, mockCurrentTeams, mappedIds)).toBe(true);
         });
 
         test('Matches known alias (San Diego -> Boston)', () => {
-            expect(matchesFranchise('San Diego', null, boston, mockCurrentTeams, [3])).toBe(true);
+            expect(matchesFranchise('San Diego', 5, boston, mockCurrentTeams, mappedIds)).toBe(true);
         });
 
         test('Matches new alias (Fargo -> NY South)', () => {
-            expect(matchesFranchise('Fargo', null, nySouth, mockCurrentTeams, [1])).toBe(true);
+            expect(matchesFranchise('Fargo', 5, nySouth, mockCurrentTeams, mappedIds)).toBe(true);
         });
 
         test('Matches new alias (Laramie -> Detroit)', () => {
-            expect(matchesFranchise('Laramie', null, detroit, mockCurrentTeams, [7])).toBe(true);
+            expect(matchesFranchise('Laramie', 7, detroit, mockCurrentTeams, [7])).toBe(true);
         });
 
         test('Exclusion: "New York" matches New York but NOT NY South', () => {
-            // New York checks "New York" -> True
-            expect(matchesFranchise('New York', null, newYork, mockCurrentTeams, [5])).toBe(true);
-
-            // NY South checks "New York" -> Should be False (False Positive Logic)
-            // Because "New York" matches 'New York' (Other Team) better or equal?
-            // "New York" is contained in "New York".
-            // "New York" is NOT contained in "NY South".
-            // Wait, "New York" IS contained in "New York" (Other Team).
-            // Does "New York" match "NY South"? No.
-            expect(matchesFranchise('New York', null, nySouth, mockCurrentTeams, [1])).toBe(false);
+            expect(matchesFranchise('New York', 3, newYork, mockCurrentTeams, mappedIds)).toBe(true);
+            // NY South shouldn't claim New York
+            expect(matchesFranchise('New York', 3, nySouth, mockCurrentTeams, mappedIds)).toBe(false);
         });
 
         test('Exclusion: "New York South" matches NY South but NOT New York', () => {
-            expect(matchesFranchise('New York South', null, nySouth, mockCurrentTeams, [1])).toBe(true); // Fuzzy match
-             // New York checks "New York South".
-             // It matches "New York" (Me).
-             // But it matches "NY South" (Other)? "New York South" contains "NY South"? No.
-             // But "New York South" contains "South".
-             // Code: if recordName.includes('South') && !currentTeamName.includes('South') -> True (Belongs to other)
-            expect(matchesFranchise('New York South', null, newYork, mockCurrentTeams, [5])).toBe(false);
+            expect(matchesFranchise('New York South', 5, nySouth, mockCurrentTeams, mappedIds)).toBe(true);
+            // New York shouldn't claim New York South
+            expect(matchesFranchise('New York South', 5, newYork, mockCurrentTeams, mappedIds)).toBe(false);
         });
 
-        test('ID Match with Name Safeguard', () => {
-            // ID 1 maps to Boston (via getMappedIds logic: 1 -> 1,3).
-            // Assume we are Boston (3). Record has ID 1. MappedIds [3, 5]... Wait.
-            // If Boston is 3, getMappedIds(3) returns [3, 5].
-            // If Record is 5 (New York ID on Prod?), Boston claims it?
-            // No, New York exists.
+        test('Safeguard: New York should NOT claim NYDC (NY South alias) via ID match', () => {
+            // "NYDC" is alias of NY South.
+            // ID match: NYDC (ID 5) matches New York (ID 3) via mappedIds [1,3,5].
+            // But Safeguard should see NYDC belongs to NY South (Alias).
+            expect(matchesFranchise('NYDC', 5, newYork, mockCurrentTeams, mappedIds)).toBe(false);
+        });
 
-            // Let's test explicit safeguard.
-            // Record: "New York", ID: 5.
-            // Current: Boston (ID 3). MappedIDs: [3, 5].
-            // ID Match: True (5 is in [3, 5]).
-            // Name Safeguard: Record "New York" matches Other Team (New York).
-            // Does it match Me (Boston)? No.
-            // Result: False.
-            expect(matchesFranchise('New York', 5, boston, mockCurrentTeams, [3, 5])).toBe(false);
+        test('Safeguard: Boston should claim San Diego even if ID 5 (shared with NY South)', () => {
+            // San Diego is alias of Boston.
+            // ID 5 matches Boston ID 1 via mappedIds.
+            // Safeguard should see San Diego belongs to Boston (me), so keep it.
+            // Check if it belongs to anyone else?
+            // "San Diego" doesn't belong to NY South (ID 5).
+            // So Boston keeps it.
+            expect(matchesFranchise('San Diego', 5, boston, mockCurrentTeams, mappedIds)).toBe(true);
+        });
+
+        test('Safeguard: NY South should NOT claim San Diego (Boston Alias) via ID match', () => {
+             // San Diego (ID 5). NY South (ID 5). ID Match.
+             // Safeguard: San Diego matches Boston (Other).
+             // Matches Me (NY South)? No.
+             // Should return false.
+             expect(matchesFranchise('San Diego', 5, nySouth, mockCurrentTeams, mappedIds)).toBe(false);
         });
     });
 });

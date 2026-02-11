@@ -93,18 +93,30 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             const isPostseason = r.round && r.round !== 'Regular Season' && r.round !== 'Round Robin';
 
             if (relevantSide === 'winner') {
-                seasonStats[season].wins += 1;
+                const w = r.winning_score || 0;
+                const l = r.losing_score || 0;
+                seasonStats[season].wins += w;
+                seasonStats[season].losses += l;
+
                 if (isPostseason) {
-                    seasonStats[season].postseasonWins += 1;
+                    seasonStats[season].postseasonWins += w;
+                    seasonStats[season].postseasonLosses += l;
                 } else {
-                    seasonStats[season].regularWins += 1;
+                    seasonStats[season].regularWins += w;
+                    seasonStats[season].regularLosses += l;
                 }
             } else {
-                seasonStats[season].losses += 1;
+                const w = r.losing_score || 0;
+                const l = r.winning_score || 0;
+                seasonStats[season].wins += w;
+                seasonStats[season].losses += l;
+
                 if (isPostseason) {
-                    seasonStats[season].postseasonLosses += 1;
+                    seasonStats[season].postseasonWins += w;
+                    seasonStats[season].postseasonLosses += l;
                 } else {
-                    seasonStats[season].regularLosses += 1;
+                    seasonStats[season].regularWins += w;
+                    seasonStats[season].regularLosses += l;
                 }
             }
 

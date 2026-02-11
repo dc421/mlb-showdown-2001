@@ -84,10 +84,17 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
         const nameBelongsToOther = allTeams.some(other => {
             if (other.team_id === currentTeam.team_id) return false;
 
-            const matchesOtherName = other.name && recordName.includes(other.name);
-            const matchesOtherCity = other.city && recordName.includes(other.city);
+            const otherName = other.name;
+            const otherCity = other.city;
+            const otherNameAliases = ALIASES[otherName] || [];
+            const otherCityAliases = ALIASES[otherCity] || [];
+            const allOtherAliases = [...new Set([...otherNameAliases, ...otherCityAliases])];
 
-            if (matchesOtherName || matchesOtherCity) {
+            const matchesOtherName = otherName && recordName.includes(otherName);
+            const matchesOtherCity = otherCity && recordName.includes(otherCity);
+            const matchesOtherAlias = allOtherAliases.some(alias => recordName.includes(alias));
+
+            if (matchesOtherName || matchesOtherCity || matchesOtherAlias) {
                 // It matches them. Does it match me?
                 const matchesMe = recordName.includes(currentTeamName) ||
                                   recordName.includes(currentCity) ||
@@ -97,7 +104,7 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
                 if (!matchesMe) return true;
 
                 // If it matches BOTH, we check if it matches them BETTER
-                 if (matchesOtherName && other.name.includes(currentTeamName) && other.name.length > currentTeamName.length) {
+                 if (matchesOtherName && otherName.includes(currentTeamName) && otherName.length > currentTeamName.length) {
                      return true;
                  }
             }
@@ -115,7 +122,10 @@ function matchesFranchise(recordName, recordId, currentTeam, allTeams, mappedIds
 
 function getMappedIds(teamId) {
     const id = parseInt(teamId, 10);
-    // Removed the manual grouping of [1, 3, 5] as they are distinct franchises
+    // Return mapped IDs for Boston (1), New York (3), and NY South (5) to bridge Prod/Local gaps
+    if ([1, 3, 5].includes(id)) {
+        return [1, 3, 5];
+    }
     return [id];
 }
 
