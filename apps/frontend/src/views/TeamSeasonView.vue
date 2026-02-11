@@ -91,20 +91,32 @@ const displayRoster = computed(() => {
 
 // RANK AND STATS CALCULATION
 const seasonStats = computed(() => {
-    if (!seasonData.value?.results) return { wins: 0, losses: 0, rank: '3rd Place', accolade: null };
+    if (!seasonData.value?.results) return {
+        regularWins: 0, regularLosses: 0,
+        postseasonWins: 0, postseasonLosses: 0,
+        rank: '3rd Place', accolade: null
+    };
 
-    let wins = 0;
-    let losses = 0;
+    let regularWins = 0;
+    let regularLosses = 0;
+    let postseasonWins = 0;
+    let postseasonLosses = 0;
     let rank = '3rd Place'; // Default
     let accolade = null;
 
     const results = seasonData.value.results;
 
-    // Regular Season Record
     results.forEach(g => {
+        const w = Number(g.game_wins) || 0;
+        const l = Number(g.game_losses) || 0;
+
         if (g.round === 'Regular Season' || g.round === 'Round Robin' || !g.round) {
-             if (g.result === 'W') wins++;
-             else if (g.result === 'L') losses++;
+             regularWins += w;
+             regularLosses += l;
+        } else {
+             // Postseason
+             postseasonWins += w;
+             postseasonLosses += l;
         }
     });
 
@@ -138,7 +150,7 @@ const seasonStats = computed(() => {
         }
     }
 
-    return { wins, losses, rank, accolade };
+    return { regularWins, regularLosses, postseasonWins, postseasonLosses, rank, accolade };
 });
 
 
@@ -164,7 +176,9 @@ const teamDisplayName = computed(() => {
                          <img v-if="seasonStats.accolade === 'Wooden Spoon Holder'" :src="`${apiUrl}/images/wooden_spoon.png`" class="trophy-icon" alt="Wooden Spoon" />
 
                          <span class="rank-text">{{ seasonStats.rank }}</span>
-                         <span class="record-text">({{ seasonStats.wins }}-{{ seasonStats.losses }})</span>
+                         <span class="record-text">
+                             ({{ seasonStats.regularWins }}-{{ seasonStats.regularLosses }}<span v-if="seasonStats.postseasonWins > 0 || seasonStats.postseasonLosses > 0">, {{ seasonStats.postseasonWins }}-{{ seasonStats.postseasonLosses }}</span>)
+                         </span>
                     </div>
                 </div>
             </div>

@@ -626,7 +626,9 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     result: 'W',
                     score: `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
-                    date: r.date
+                    date: r.date,
+                    game_wins: r.winning_score,
+                    game_losses: r.losing_score
                 });
             } else if (isLoser) {
                 results.push({
@@ -634,7 +636,9 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     result: 'L',
                     score: `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
-                    date: r.date
+                    date: r.date,
+                    game_wins: r.losing_score,
+                    game_losses: r.winning_score
                 });
             }
         });
