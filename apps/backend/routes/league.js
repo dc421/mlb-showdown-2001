@@ -389,8 +389,6 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
 
             // 1. W-L Record
             seriesResults.forEach(series => {
-                if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') return;
-
                 const winnerTeam = findTeamForRecord(series.winning_team_name, series.winning_team_id, currentTeams);
                 const loserTeam = findTeamForRecord(series.losing_team_name, series.losing_team_id, currentTeams);
 
@@ -658,8 +656,6 @@ router.get('/matrix', authenticateToken, async (req, res) => {
         const getStatsKey = (t) => t.team_id ? `ID-${t.team_id}` : `NAME-${t.name}`;
 
         result.rows.forEach(row => {
-            if (row.round === 'Golden Spaceship' || row.round === 'Wooden Spoon') return;
-
             const wScore = row.winning_score || 0;
             const lScore = row.losing_score || 0;
 
