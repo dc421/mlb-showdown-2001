@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 import { sortRoster } from '@/utils/playerUtils';
 
+const route = useRoute();
 const authStore = useAuthStore();
 const leagueData = ref([]);
 const loading = ref(true);
@@ -36,7 +38,10 @@ async function fetchSeasons() {
         const response = await apiClient('/api/league/seasons');
         if (response.ok) {
             seasonsList.value = await response.json();
-            if (seasonsList.value.length > 0 && !selectedSeason.value) {
+
+            if (route.query.season) {
+                 selectedSeason.value = route.query.season;
+            } else if (seasonsList.value.length > 0 && !selectedSeason.value) {
                 selectedSeason.value = seasonsList.value[0];
             }
         }
