@@ -4,7 +4,7 @@
   "description": "",
   "main": "ingest_data.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npx jest",
     "start": "node server.js",
     "dev": "node server.js",
     "migrate:create": "node-pg-migrate -r dotenv/config create",

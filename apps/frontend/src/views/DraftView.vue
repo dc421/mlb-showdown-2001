@@ -102,6 +102,7 @@ const displayRows = computed(() => {
     if (!draftState.value.draft_order || draftState.value.draft_order.length === 0) {
         return draftState.value.history
             .filter(item => (item.action || '').toUpperCase() !== 'REMOVED_RANDOM')
+            .sort((a, b) => (b.points || 0) - (a.points || 0))
             .map(h => {
                 let name = h.player_name;
                 if (h.position) name += ` (${h.position})`;
@@ -163,7 +164,7 @@ const displayRows = computed(() => {
                 const aVal = actionOrder[a.action] !== undefined ? actionOrder[a.action] : 99;
                 const bVal = actionOrder[b.action] !== undefined ? actionOrder[b.action] : 99;
                 if (aVal !== bVal) return aVal - bVal;
-                return a.id - b.id;
+                return (b.points || 0) - (a.points || 0);
             }).forEach(h => {
                  // Display Round normalization
                  let displayRound = h.round;
