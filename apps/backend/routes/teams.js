@@ -92,7 +92,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             }
 
             // Treat 'Round Robin' as Regular Season to fix 0-0 records issue
-            const isPostseason = r.round && r.round !== 'Regular Season' && r.round !== 'Round Robin';
+            // Treat 'Semifinal' as Regular Season per user request
+            const isPostseason = r.round && r.round !== 'Regular Season' && r.round !== 'Round Robin' && r.round !== 'Semifinal';
 
             if (relevantSide === 'winner') {
                 const w = r.winning_score || 0;

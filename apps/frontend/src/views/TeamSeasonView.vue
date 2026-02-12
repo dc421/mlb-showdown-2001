@@ -89,6 +89,26 @@ const displayRoster = computed(() => {
     });
 });
 
+// SORTED RESULTS (Pin Finale to Bottom)
+const sortedResults = computed(() => {
+    if (!seasonData.value?.results) return [];
+    const results = [...seasonData.value.results];
+
+    // Define finale rounds that should be at the bottom
+    const finaleRounds = ['Golden Spaceship', 'Silver Submarine', 'Wooden Spoon'];
+
+    return results.sort((a, b) => {
+        const isFinaleA = finaleRounds.includes(a.round);
+        const isFinaleB = finaleRounds.includes(b.round);
+
+        if (isFinaleA && !isFinaleB) return 1; // A to bottom
+        if (!isFinaleA && isFinaleB) return -1; // B to bottom
+
+        // Keep original order otherwise
+        return 0;
+    });
+});
+
 // RANK AND STATS CALCULATION
 const seasonStats = computed(() => {
     if (!seasonData.value?.results) return {
@@ -110,7 +130,7 @@ const seasonStats = computed(() => {
         const w = Number(g.game_wins) || 0;
         const l = Number(g.game_losses) || 0;
 
-        if (g.round === 'Regular Season' || g.round === 'Round Robin' || !g.round) {
+        if (g.round === 'Regular Season' || g.round === 'Round Robin' || g.round === 'Semifinal' || g.round === 'Semi-Finals' || !g.round) {
              regularWins += w;
              regularLosses += l;
         } else {
@@ -169,7 +189,11 @@ const teamDisplayName = computed(() => {
             <div class="header-content" :style="{ borderLeft: `6px solid ${seasonData.team.primary_color}` }">
                 <h1>{{ teamDisplayName }}</h1>
                 <div class="season-meta">
-                    <h2>{{ seasonData.season }} Season</h2>
+                    <h2>
+                        <RouterLink :to="`/league?season=${encodeURIComponent(seasonData.season)}`" class="league-link">
+                            {{ seasonData.season }} Season
+                        </RouterLink>
+                    </h2>
                     <div class="season-rank">
                          <!-- Trophy Icons -->
                          <img v-if="seasonStats.accolade === 'Golden Spaceship Winner'" :src="`${apiUrl}/images/golden_spaceship.png`" class="trophy-icon" alt="Golden Spaceship" />
@@ -203,7 +227,7 @@ const teamDisplayName = computed(() => {
                                 <td class="pos-cell">
                                     {{ player.assignment === 'BENCH' ? 'B' : (player.assignment || player.position) }}
                                 </td>
-                                <td class="name-cell">{{ formatNameShort(player.displayName, true) }}</td>
+                                <td class="name-cell">{{ player.displayName || player.name }}</td>
                                 <td class="points-cell">{{ player.points }}</td>
                             </tr>
                         </tbody>
@@ -226,14 +250,14 @@ const teamDisplayName = computed(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(game, index) in seasonData.results" :key="index" :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon'}">
+                            <tr v-for="(game, index) in sortedResults" :key="index" :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon'}">
                                 <td>{{ new Date(game.date).toLocaleDateString() }}</td>
                                 <td>{{ game.opponent }}</td>
                                 <td :class="{'win': game.result === 'W', 'loss': game.result === 'L'}">{{ game.result }}</td>
                                 <td>{{ game.score }}</td>
                                 <td>{{ game.round }}</td>
                             </tr>
-                            <tr v-if="seasonData.results.length === 0">
+                            <tr v-if="sortedResults.length === 0">
                                 <td colspan="5" class="empty-msg">No results found for this season.</td>
                             </tr>
                         </tbody>
@@ -275,6 +299,16 @@ const teamDisplayName = computed(() => {
 }
 .header-content h1 { margin: 0; font-size: 2rem; color: #333; }
 .header-content h2 { margin: 0; font-size: 1.5rem; color: #777; font-weight: normal; }
+
+.league-link {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+.league-link:hover {
+    text-decoration: underline;
+    color: #000;
+}
 
 .season-meta {
     display: flex;
