@@ -2457,11 +2457,13 @@ function handleVisibilityChange() {
                       'next-up': amIDisplayOffensivePlayer && index === defensiveNextBatterIndex
                   }"
                   class="lineup-item">
+                  <span class="sub-icon"></span>
                   <span @click.stop="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info">
               <hr />
+              <span class="sub-icon"></span>
               <span @click.stop="selectedCard = rightPanelData.pitcher">
                 <strong :style="{ color: black }">Pitching: </strong>
                 <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }}</template>
@@ -2472,6 +2474,7 @@ function handleVisibilityChange() {
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
               <ul>
                   <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
+                          <span class="sub-icon"></span>
                           <span @click.stop="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
                           <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-indicators">
                               <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
@@ -2484,6 +2487,7 @@ function handleVisibilityChange() {
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bench:</strong>
               <ul>
                   <li v-for="p in rightPanelData.bench" :key="p.card_id" class="lineup-item">
+                      <span class="sub-icon"></span>
                       <span @click.stop="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
                   </li>
               </ul>
