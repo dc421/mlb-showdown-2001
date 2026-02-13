@@ -2046,7 +2046,7 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
             LEFT JOIN rosters r ON rc.roster_id = r.roster_id AND r.roster_type = 'league'
             LEFT JOIN users u ON r.user_id = u.user_id
             LEFT JOIN teams t ON u.team_id = t.team_id
-            ORDER BY cp.display_name, cp.card_id;
+            ORDER BY cp.display_name, cp.card_id, t.team_id;
         `;
 
         const allCardsResult = await pool.query(distinctQuery, [point_set_id]);
