@@ -490,7 +490,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
         const team = teamRes.rows[0];
 
         // Need all teams for context in matchesFranchise
-        const allTeamsRes = await client.query('SELECT team_id, city, name FROM teams');
+        const allTeamsRes = await client.query('SELECT team_id, city, name, logo_url FROM teams');
         const allTeams = allTeamsRes.rows;
         const mappedIds = getMappedIds(teamId);
 
@@ -628,8 +628,15 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, team, allTeams, mappedIds);
 
             if (isWinner) {
+                // Resolve Opponent Logo
+                let opponentLogo = null;
+                const opTeam = allTeams.find(t => Number(t.team_id) === Number(r.losing_team_id));
+                if (opTeam) opponentLogo = opTeam.logo_url;
+                opponentLogo = getLogoForTeam(r.losing_team_name, opponentLogo);
+
                 results.push({
                     opponent: r.losing_team_name,
+                    opponent_logo: opponentLogo,
                     result: 'W',
                     score: `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
@@ -638,8 +645,14 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     game_losses: r.losing_score
                 });
             } else if (isLoser) {
+                let opponentLogo = null;
+                const opTeam = allTeams.find(t => Number(t.team_id) === Number(r.winning_team_id));
+                if (opTeam) opponentLogo = opTeam.logo_url;
+                opponentLogo = getLogoForTeam(r.winning_team_name, opponentLogo);
+
                 results.push({
                     opponent: r.winning_team_name,
+                    opponent_logo: opponentLogo,
                     result: 'L',
                     score: `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
