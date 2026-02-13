@@ -200,7 +200,7 @@ const shouldDelayStealRoll = computed(() => {
 
   const lastBatterId = gameStore.gameState.lastCompletedAtBat?.batter?.card_id;
   
-  if (!lastBatterId || !batterToDisplay) return true;
+  if (!lastBatterId || !batterToDisplay.value) return true;
 
   if (shouldShowDoublePlayFirst.value) return false;
   return stealPlay.batterPlayerId !== batterToDisplay.value.card_id;
@@ -876,9 +876,9 @@ const showNextHitterButton = computed(() => {
     return false;
   }else if (isAwaitingBaserunningDecision.value) {
     return false;
-  } else if (amIDisplayDefensivePlayer && gameStore.gameState.currentPlay?.type === 'INFIELD_IN_CHOICE' && isSwingResultVisible) {
+  } else if (amIDisplayDefensivePlayer.value && gameStore.gameState.currentPlay?.type === 'INFIELD_IN_CHOICE' && isSwingResultVisible) {
     return false;
-  } else if ((amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))) {
+  } else if ((amIDisplayOffensivePlayer.value && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))) {
     return false;
   } else if (gameStore.amIReadyForNext) {
     return false;
