@@ -18,6 +18,7 @@ export const useAuthStore = defineStore('auth', () => {
   const API_URL = import.meta.env.VITE_API_URL || '';
   const isAuthenticated = computed(() => !!token.value);
   const availableTeams = ref([]);
+  const isDraftActive = ref(false);
 
   function setToken(newToken) {
     token.value = newToken;
@@ -82,20 +83,45 @@ export const useAuthStore = defineStore('auth', () => {
     router.push('/login');
   }
 
+  async function fetchDraftStatus() {
+    if (!token.value) return;
+    try {
+        const response = await apiClient('/api/draft/state');
+        if (response.ok) {
+            const data = await response.json();
+            isDraftActive.value = data.globalDraftActive;
+        }
+    } catch (error) {
+        console.error('Error checking draft status:', error);
+    }
+  }
+
   async function fetchPointSets() {
     if (!token.value) return;
     try {
-      // Use apiClient
-      const response = await apiClient(`/api/point-sets`);
+      const [, response] = await Promise.all([
+          fetchDraftStatus(),
+          apiClient(`/api/point-sets`)
+      ]);
+
       if (!response.ok) throw new Error('Failed to fetch point sets');
       const sets = await response.json();
       pointSets.value = sets;
 
       // Only set default if not already set (allows components to override before fetch)
       if (sets.length > 0 && !selectedPointSetId.value) {
-        const currentSeasonSet = sets.find(set => set.name === "8/4/25 Season");
-        if (currentSeasonSet) {
-          selectedPointSetId.value = currentSeasonSet.point_set_id;
+        let defaultSet = null;
+
+        if (isDraftActive.value) {
+            defaultSet = sets.find(set => set.name === "Upcoming Season");
+        }
+
+        if (!defaultSet) {
+            defaultSet = sets.find(set => set.name === "8/4/25 Season");
+        }
+
+        if (defaultSet) {
+          selectedPointSetId.value = defaultSet.point_set_id;
         } else {
           selectedPointSetId.value = sets[0].point_set_id;
         }
@@ -274,6 +300,6 @@ async function submitLineup(gameId, lineupData) {
     isAuthenticated, login, register, logout, myRoster,fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
-    fetchPointSets
+    fetchPointSets, isDraftActive, fetchDraftStatus
   }
 })

@@ -14,7 +14,6 @@ const seriesType = ref('exhibition'); // Default to exhibition
 const teamAccolades = ref({ spaceships: [], spoons: [], submarines: [] });
 const selectedPlayer = ref(null);
 const activeRosterTab = ref('league'); // 'league' or 'classic'
-const isDraftActive = ref(false);
 
 // Ensure apiUrl is an empty string if VITE_API_URL is not defined, to allow relative paths (proxied) to work.
 const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -118,19 +117,6 @@ async function fetchTeamAccolades() {
         } catch (error) {
             console.error('Error fetching accolades:', error);
         }
-    }
-}
-
-async function checkDraftStatus() {
-    try {
-        const response = await apiClient('/api/draft/state');
-        if (response.ok) {
-            const data = await response.json();
-            // Use globalDraftActive to know if ANY draft is happening
-            isDraftActive.value = data.globalDraftActive;
-        }
-    } catch (error) {
-        console.error('Error checking draft status:', error);
     }
 }
 
@@ -251,7 +237,6 @@ onMounted(async () => {
   authStore.fetchMyGames();
   authStore.fetchOpenGames();
   fetchTeamAccolades();
-  await checkDraftStatus();
   socket.connect();
   socket.on('games-updated', refreshData);
 });
@@ -380,14 +365,14 @@ onUnmounted(() => {
 
         <div class="new-games-section">
             <h2>New Game</h2>
-            <button @click="handleCreateGame" :disabled="!authStore.myRoster || (activeRosterTab === 'league' && isDraftActive)" class="action-btn">
-                {{ (activeRosterTab === 'league' && isDraftActive) ? 'Draft in Progress' : '+ Create New Game' }}
+            <button @click="handleCreateGame" :disabled="!authStore.myRoster || (activeRosterTab === 'league' && authStore.isDraftActive)" class="action-btn">
+                {{ (activeRosterTab === 'league' && authStore.isDraftActive) ? 'Draft in Progress' : '+ Create New Game' }}
             </button>
             <div class="series-options">
                 <template v-if="activeRosterTab === 'league'">
-                    <label><input type="radio" v-model="seriesType" value="exhibition" :disabled="isDraftActive"> Exhibition</label>
-                    <label><input type="radio" v-model="seriesType" value="regular_season" :disabled="isDraftActive"> Regular Season (7 Games)</label>
-                    <label><input type="radio" v-model="seriesType" value="playoff" :disabled="isDraftActive"> Playoff (Best of 7)</label>
+                    <label><input type="radio" v-model="seriesType" value="exhibition" :disabled="authStore.isDraftActive"> Exhibition</label>
+                    <label><input type="radio" v-model="seriesType" value="regular_season" :disabled="authStore.isDraftActive"> Regular Season (7 Games)</label>
+                    <label><input type="radio" v-model="seriesType" value="playoff" :disabled="authStore.isDraftActive"> Playoff (Best of 7)</label>
                 </template>
                 <template v-else-if="activeRosterTab === 'classic'">
                      <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
@@ -397,8 +382,8 @@ onUnmounted(() => {
             <ul v-if="gamesToJoin.length > 0" class="game-list">
               <li v-for="game in gamesToJoin" :key="game.game_id">
                 <span>{{ getGameTypeName(game.series_type) }} vs. {{ game.full_display_name }}</span>
-                <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster || (game.series_type !== 'classic' && isDraftActive)">
-                    {{ (game.series_type !== 'classic' && isDraftActive) ? 'Draft Active' : 'Join' }}
+                <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster || (game.series_type !== 'classic' && authStore.isDraftActive)">
+                    {{ (game.series_type !== 'classic' && authStore.isDraftActive) ? 'Draft Active' : 'Join' }}
                 </button>
               </li>
             </ul>
