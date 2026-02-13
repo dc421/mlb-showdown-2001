@@ -24,7 +24,7 @@ function processPlayers(playersToProcess) {
 
 // GET LEAGUE ROSTERS (Modified to accept season)
 router.get('/', authenticateToken, async (req, res) => {
-    const { point_set_id, season } = req.query;
+    let { point_set_id, season } = req.query;
     if (!point_set_id) {
         return res.status(400).json({ message: 'A point_set_id is required.' });
     }
@@ -64,8 +64,17 @@ router.get('/', authenticateToken, async (req, res) => {
              if (activeDraftRes.rows.length > 0 && activeDraftRes.rows[0].season_name === season) {
                  isDraftSeason = true;
              }
-             if (season === 'Upcoming Season') isDraftSeason = true;
+             if (season === 'Upcoming Season' || season === 'Live Draft') isDraftSeason = true;
         }
+
+        // --- FIX: Force 'Upcoming Season' point set for active draft ---
+        if (isDraftSeason) {
+            const upcomingPsRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
+            if (upcomingPsRes.rows.length > 0) {
+                point_set_id = upcomingPsRes.rows[0].point_set_id;
+            }
+        }
+        // -------------------------------------------------------------
 
         if (season && !isDraftSeason) {
             // HISTORICAL ROSTERS
