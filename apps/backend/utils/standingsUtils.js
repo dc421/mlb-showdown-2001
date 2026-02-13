@@ -1,4 +1,4 @@
-const { matchesFranchise, getMappedIds } = require('./franchiseUtils');
+const { matchesFranchise, getMappedIds, getLogoForTeam } = require('./franchiseUtils');
 
 // Helper to find the matching current team for a historical record
 const findTeamForRecord = (name, id, currentTeams) => {
@@ -22,7 +22,8 @@ const findTeamForRecord = (name, id, currentTeams) => {
     if (matched) {
         return {
             ...matched,
-            displayName: cleanName
+            displayName: cleanName,
+            logo_url: getLogoForTeam(cleanName, matched.logo_url)
         };
     }
 
@@ -30,7 +31,7 @@ const findTeamForRecord = (name, id, currentTeams) => {
         team_id: null,
         name: cleanName,
         city: '',
-        logo_url: null,
+        logo_url: getLogoForTeam(cleanName, null),
         displayName: cleanName
     };
 };

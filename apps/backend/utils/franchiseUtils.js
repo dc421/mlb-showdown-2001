@@ -134,8 +134,28 @@ function getFranchiseAliases(teamName) {
     return aliases.filter(a => a !== 'no aliases');
 }
 
+/**
+ * Resolves the logo URL for a team based on its historical name.
+ *
+ * @param {string} name - The team name to check (e.g. "Laramie Lugnuts").
+ * @param {string} defaultLogo - The default logo URL to return if no match found.
+ * @returns {string} - The resolved logo URL.
+ */
+function getLogoForTeam(name, defaultLogo) {
+    if (!name) return defaultLogo;
+    const lowerName = name.toLowerCase();
+
+    // Use relative path that works with the frontend proxy (which forwards /images to backend)
+    if (lowerName.includes('phantoms')) return '/images/phantoms.png';
+    if (lowerName.includes('laramie') || lowerName.includes('lugnuts')) return '/images/lugnuts.png';
+    if (lowerName.includes('cincinnati') || lowerName.includes('catastrophe')) return '/images/catastrophe.png';
+
+    return defaultLogo;
+}
+
 module.exports = {
     matchesFranchise,
     getMappedIds,
-    getFranchiseAliases
+    getFranchiseAliases,
+    getLogoForTeam
 };

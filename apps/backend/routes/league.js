@@ -112,6 +112,11 @@ router.get('/', authenticateToken, async (req, res) => {
                  const matchedTeam = findTeamForRecord(row.team_name, null, currentTeams);
 
                  if (matchedTeam && matchedTeam.team_id && teamsMap[matchedTeam.team_id]) {
+                     // Update logo if historical (from findTeamForRecord logic)
+                     if (matchedTeam.logo_url && matchedTeam.logo_url !== teamsMap[matchedTeam.team_id].logo_url) {
+                         teamsMap[matchedTeam.team_id].logo_url = matchedTeam.logo_url;
+                     }
+
                      // Add to the correct team bucket
                      const player = {
                         card_id: row.card_id,
