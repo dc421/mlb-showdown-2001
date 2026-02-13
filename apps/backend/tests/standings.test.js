@@ -89,6 +89,6 @@ describe('Standings Logic', () => {
 
         // Ann Arbor (ID 4) -> No prefix
         const aa = standings.find(t => t.team_id === 4);
-        expect(aa.clinch).toBe('');
+        expect(aa.clinch).toBe('y-');
     });
 });

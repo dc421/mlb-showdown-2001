@@ -258,21 +258,46 @@ async function sendEmail(to, subject, html) {
 // Template: Pick Confirmation
 async function sendPickConfirmation(pickDetails, nextTeam, client) {
     const recipients = await getLeagueEmails(client);
-    const { player, team, round, pickNumber } = pickDetails;
+    const { player, team, round, pickNumber, addedPlayers, droppedPlayers } = pickDetails;
 
     const subject = nextTeam ? `${nextTeam.name} ON THE CLOCK` : `Draft Complete!`;
 
-    const teamLogoImg = team.logo_url ? `<img src="${team.logo_url}" style="height: 30px; vertical-align: middle; margin-right: 8px;" />` : '';
-    const nextTeamLogoImg = (nextTeam && nextTeam.logo_url) ? `<img src="${nextTeam.logo_url}" style="height: 30px; vertical-align: middle; margin-right: 8px;" />` : '';
+    const teamLogoImg = team.logo_url ? `<img src="${team.logo_url}" style="height: 30px; width: auto; object-fit: contain; vertical-align: middle; margin-right: 8px;" />` : '';
+    const nextTeamLogoImg = (nextTeam && nextTeam.logo_url) ? `<img src="${nextTeam.logo_url}" style="height: 30px; width: auto; object-fit: contain; vertical-align: middle; margin-right: 8px;" />` : '';
+
+    let messageBody = '';
+    let title = 'The Pick Is In!';
+
+    if (addedPlayers && addedPlayers.length > 0) {
+        title = 'Roster Submitted';
+        let addedHtml = '<h4>Players Added:</h4><ul>';
+        addedPlayers.forEach(p => addedHtml += `<li>${p}</li>`);
+        addedHtml += '</ul>';
+
+        let droppedHtml = '';
+        if (droppedPlayers && droppedPlayers.length > 0) {
+            droppedHtml = '<h4>Players Dropped:</h4><ul>';
+            droppedPlayers.forEach(p => droppedHtml += `<li>${p}</li>`);
+            droppedHtml += '</ul>';
+        }
+
+        messageBody = `
+            <p><strong>${team.name}</strong> has submitted their roster moves for Round ${round}, Pick ${pickNumber}.</p>
+            ${addedHtml}
+            ${droppedHtml}
+        `;
+    } else {
+        messageBody = `<p><strong>${team.name}</strong> has selected <strong>${player.name}</strong> (${player.position || 'Player'}) in Round ${round}, Pick ${pickNumber}.</p>`;
+    }
 
     const html = `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
             <div style="display: flex; align-items: center; margin-bottom: 15px;">
                 ${teamLogoImg}
-                <h2 style="margin: 0;">The Pick Is In!</h2>
+                <h2 style="margin: 0;">${title}</h2>
             </div>
 
-            <p><strong>${team.name}</strong> has selected <strong>${player.name}</strong> (${player.position || 'Player'}) in Round ${round}, Pick ${pickNumber}.</p>
+            ${messageBody}
 
             <hr />
 
