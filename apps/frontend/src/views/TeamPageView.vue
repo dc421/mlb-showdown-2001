@@ -176,81 +176,146 @@ const playerTotalCounts = computed(() => {
     return counts;
 });
 
-const mostCommonPlayers = computed(() => {
-    if (!processedHistory.value.length) return { batters: {}, pitchers: {} };
+const calculateCoreSquads = (history, keys) => {
+    const totalSeasons = history.length;
+    if (totalSeasons === 0) return {};
 
-    const batterCounts = {};
-    const pitcherCounts = {};
+    // 1. Gather stats per slot
+    // slotCandidates: { SlotName -> { PlayerName -> Count } }
+    const slotStats = {};
+    keys.forEach(k => slotStats[k] = {});
 
-    // Dynamic keys
-    const batterKeys = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
-    for (let i = 1; i <= maxCols.value.bench; i++) batterKeys.push(`Bench${i}`);
-
-    const pitcherKeys = ['SP1', 'SP2', 'SP3', 'SP4'];
-    for (let i = 1; i <= maxCols.value.rp; i++) pitcherKeys.push(`RP${i}`);
-
-    // Initialize counters
-    batterKeys.forEach(pos => batterCounts[pos] = {});
-    pitcherKeys.forEach(pos => pitcherCounts[pos] = {});
-
-    processedHistory.value.forEach(row => {
-        batterKeys.forEach(pos => {
-            const p = row.batters[pos];
-            if (p) {
-                const key = p.displayName || p.name;
-                batterCounts[pos][key] = (batterCounts[pos][key] || 0) + 1;
-            }
-        });
-
-        pitcherKeys.forEach(pos => {
-            const p = row.pitchers[pos];
-            if (p) {
-                const key = p.displayName || p.name;
-                pitcherCounts[pos][key] = (pitcherCounts[pos][key] || 0) + 1;
-            }
+    history.forEach(row => {
+        // Merge batters and pitchers rows for generic access (or we call this function twice)
+        // This helper assumes 'row' has the relevant columns directly or we pass in extracted objects.
+        // Actually, this function is generic. We'll pass rows of just the relevant type (batter or pitcher).
+        keys.forEach(k => {
+             const p = row[k];
+             if (p) {
+                 const name = p.displayName || p.name;
+                 slotStats[k][name] = (slotStats[k][name] || 0) + 1;
+             }
         });
     });
 
-    // Modified Logic: Greedy Unique Selection across ALL slots in priority order
-    // We process slots in order (Starters first, then Bench/Relief)
-    const getMostCommonUnique = (countsForPos, keys) => {
-        const result = {};
-        const globalUsedPlayers = new Set(); // Track usage across the entire table (batters or pitchers separate or combined? "List the player... who has appeared once")
-        // The request says: "make sure we don't list the same player twice? So the same player wouldn't be named for SP1 and SP2"
-        // This implies uniqueness within the table (Pitchers Table vs Batters Table).
-        // Since a player is usually EITHER a pitcher OR a batter, we can scope to the table.
+    // 2. Identify Valid Slots (>50% filled) and Candidates
+    const validSlotCandidates = {}; // Slot -> [{name, count, total}]
+    const totalFilled = {};
 
-        keys.forEach(pos => {
-            let max = 0;
-            let winner = null;
+    keys.forEach(slot => {
+        let filledCount = 0;
+        const candidates = [];
+        for (const name in slotStats[slot]) {
+            const count = slotStats[slot][name];
+            filledCount += count;
+            candidates.push({
+                name,
+                count: playerTotalCounts.value[name] || count, // Use Total Appearances per user request
+                slotCount: count // Keep track of slot-specific apps for tie-breaking if needed (though regret logic handles it)
+            });
+        }
 
-            // Find best candidate for this slot who hasn't been used yet
-            for (const name in countsForPos[pos]) {
-                if (globalUsedPlayers.has(name)) continue; // Skip if already assigned to a higher priority slot
+        // Check 50% threshold
+        if (filledCount / totalSeasons >= 0.5) {
+            // Sort candidates by Total Count DESC, then Slot Count DESC
+            candidates.sort((a,b) => {
+                if (b.count !== a.count) return b.count - a.count;
+                return b.slotCount - a.slotCount;
+            });
+            validSlotCandidates[slot] = candidates;
+        }
+    });
 
-                const count = countsForPos[pos][name];
-                if (count > max) {
-                    max = count;
-                    winner = name;
-                } else if (count === max) {
-                    // Tie-breaker logic?
-                    // Maybe prioritize total apps? For now, first found (arbitrary but stable key order)
-                }
-            }
+    // 3. Regret Minimization Assignment
+    const validKeys = Object.keys(validSlotCandidates);
+    let tentativePointers = {}; // Slot -> Index
+    validKeys.forEach(k => tentativePointers[k] = 0);
 
-            if (winner) {
-                const totalCount = playerTotalCounts.value[winner] || max;
-                result[pos] = { name: formatNameShort(winner, true), count: totalCount };
-                globalUsedPlayers.add(winner);
+    let conflict = true;
+    const MAX_ITER = 100; // Safety break
+    let iter = 0;
+
+    while (conflict && iter < MAX_ITER) {
+        iter++;
+        conflict = false;
+        const playerAssignments = {}; // PlayerName -> [SlotName]
+
+        // Assign top picks based on current pointers
+        validKeys.forEach(slot => {
+            const idx = tentativePointers[slot];
+            const candidates = validSlotCandidates[slot];
+            if (idx < candidates.length) {
+                const player = candidates[idx].name;
+                if (!playerAssignments[player]) playerAssignments[player] = [];
+                playerAssignments[player].push(slot);
             }
         });
-        return result;
-    };
 
-    return {
-        batters: getMostCommonUnique(batterCounts, batterKeys),
-        pitchers: getMostCommonUnique(pitcherCounts, pitcherKeys)
-    };
+        // Detect and Resolve Conflicts
+        for (const player in playerAssignments) {
+            const slots = playerAssignments[player];
+            if (slots.length > 1) {
+                conflict = true;
+
+                // Calculate Regret for each slot
+                // Regret = Score(Current) - Score(NextBest)
+                const regrets = slots.map(slot => {
+                    const idx = tentativePointers[slot];
+                    const candidates = validSlotCandidates[slot];
+                    const currentScore = candidates[idx].count;
+                    const nextScore = (idx + 1 < candidates.length) ? candidates[idx+1].count : 0;
+                    return { slot, regret: currentScore - nextScore };
+                });
+
+                // Sort slots by Regret DESC (Higher regret = we want to keep it more)
+                // If tie, arbitrary (stable sort)
+                regrets.sort((a,b) => b.regret - a.regret);
+
+                // The first slot keeps the player. All others must move to next candidate.
+                const slotToKeep = regrets[0].slot;
+
+                slots.forEach(slot => {
+                    if (slot !== slotToKeep) {
+                        tentativePointers[slot]++;
+                    }
+                });
+            }
+        }
+    }
+
+    // 4. Construct Result
+    const result = {};
+    validKeys.forEach(slot => {
+        const idx = tentativePointers[slot];
+        const candidates = validSlotCandidates[slot];
+        if (idx < candidates.length) {
+            const c = candidates[idx];
+            result[slot] = { name: formatNameShort(c.name, true), count: c.count };
+        }
+    });
+
+    return result;
+};
+
+const mostCommonPlayers = computed(() => {
+    if (!processedHistory.value.length) return { batters: {}, pitchers: {} };
+
+    // Batters
+    const batterKeys = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+    for (let i = 1; i <= maxCols.value.bench; i++) batterKeys.push(`Bench${i}`);
+
+    // Extract just the batter rows for calculation
+    const batterRows = processedHistory.value.map(h => h.batters);
+    const batters = calculateCoreSquads(batterRows, batterKeys);
+
+    // Pitchers
+    const pitcherKeys = ['SP1', 'SP2', 'SP3', 'SP4'];
+    for (let i = 1; i <= maxCols.value.rp; i++) pitcherKeys.push(`RP${i}`);
+
+    const pitcherRows = processedHistory.value.map(h => h.pitchers);
+    const pitchers = calculateCoreSquads(pitcherRows, pitcherKeys);
+
+    return { batters, pitchers };
 });
 
 const hoveredBatterCol = ref(null);
@@ -876,8 +941,8 @@ thead th.sticky-col {
     padding: 0;
     margin: 0;
     display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
+    flex-direction: column; /* CHANGED */
+    gap: 0.5rem; /* Reduced gap */
 }
 .identity-item {
     display: flex;
