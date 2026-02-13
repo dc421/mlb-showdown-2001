@@ -1,5 +1,6 @@
 <script setup>
 import RunnerCard from './RunnerCard.vue';
+import { computed } from 'vue';
 
 defineProps({
   bases: Object,
@@ -8,10 +9,14 @@ defineProps({
   isStealAttemptInProgress: Boolean,
 });
 const emit = defineEmits(['attempt-steal']);
+
+// Get the API URL from the environment variable
+const apiUrl = import.meta.env.VITE_API_URL || '';
+const diamondUrl = computed(() => `${apiUrl}/images/diamond.png`);
 </script>
 
 <template>
-  <div v-if="bases" class="diamond-container">
+  <div v-if="bases" class="diamond-container" :style="{ backgroundImage: `url('${diamondUrl}')` }">
     <!-- Runner slots are now absolutely positioned divs -->
     <div class="runner-slot" style="top: 48%; left: 78%;">
       <RunnerCard v-if="bases.first" :runner="bases.first" />
@@ -33,8 +38,7 @@ const emit = defineEmits(['attempt-steal']);
   aspect-ratio: 1 / 1;
   position: relative; /* This is crucial for positioning children */
   
-  /* THIS IS THE KEY CHANGE */
-  background-image: url('https://i.ibb.co/Jjy2kfhR/diamond-for-app.png');
+  /* Background image is now set dynamically via style binding */
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -72,4 +76,3 @@ const emit = defineEmits(['attempt-steal']);
     display: flex; align-items: center; justify-content: center;
 }
 </style>
-
