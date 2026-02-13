@@ -714,7 +714,7 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
 
         const cardIds = cards.map(c => c.card_id);
         const pointsRes = await client.query(
-            `SELECT cp.card_id, cp.control, cp.fielding_ratings, ppv.points
+            `SELECT cp.card_id, cp.control, cp.fielding_ratings, ppv.points, cp.display_name, cp.name
              FROM cards_player cp
              LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
              WHERE cp.card_id = ANY($2::int[])`,
@@ -786,6 +786,9 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
         // If we are using the saved roster, no need to update or log history (already done by my-roster)
         const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
         let loggedHistory = false;
+        let addedNames = [];
+        let droppedNames = [];
+
         if (!usingSavedRoster) {
             const oldCardsRes = await client.query('SELECT card_id FROM roster_cards WHERE roster_id = $1', [rosterId]);
             const oldCardIds = oldCardsRes.rows.map(c => c.card_id);
@@ -796,9 +799,11 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
 
             if (added.length > 0) {
                 const availabilityCheck = await client.query(
-                    `SELECT rc.card_id
+                    `SELECT rc.card_id, cp.display_name, cp.name, t.city, t.name as team_name
                      FROM roster_cards rc
                      JOIN rosters r ON rc.roster_id = r.roster_id
+                     JOIN teams t ON r.user_id = t.user_id
+                     JOIN cards_player cp ON rc.card_id = cp.card_id
                      WHERE rc.card_id = ANY($1::int[])
                        AND rc.roster_id != $2
                        AND r.roster_type = 'league'`,
@@ -806,7 +811,10 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
                 );
                 if (availabilityCheck.rows.length > 0) {
                     await client.query('ROLLBACK');
-                    return res.status(400).json({ message: `One or more selected players are already owned by another team.` });
+                    const conflictMsgs = availabilityCheck.rows.map(row =>
+                        `${row.display_name || row.name} is owned by ${row.city}`
+                    );
+                    return res.status(400).json({ message: `Conflict(s): ${conflictMsgs.join('; ')}` });
                 }
             }
 
@@ -821,6 +829,21 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
 
             if (added.length > 0 || dropped.length > 0) {
                 loggedHistory = true;
+
+                // Resolve Names for Email
+                addedNames = added.map(id => {
+                    const c = cardMap[id];
+                    return c ? (c.display_name || c.name) : 'Unknown Player';
+                });
+
+                if (dropped.length > 0) {
+                     const droppedRes = await client.query(
+                         'SELECT display_name, name FROM cards_player WHERE card_id = ANY($1::int[])',
+                         [dropped]
+                     );
+                     droppedNames = droppedRes.rows.map(r => r.display_name || r.name);
+                }
+
                 for (const id of added) {
                     await client.query(
                         `INSERT INTO draft_history (season_name, round, team_id, card_id, action, pick_number)
@@ -872,7 +895,9 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
             },
             team: { name: teamDisplayName, logo_url: currentTeam.logo_url },
             round: state.current_round,
-            pickNumber: state.current_pick_number
+            pickNumber: state.current_pick_number,
+            addedPlayers: addedNames,
+            droppedPlayers: droppedNames
         };
 
         try {

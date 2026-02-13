@@ -317,7 +317,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
 
                 if (inSpaceship) team.clinch = 'x-';
                 else if (inSpoon) team.clinch = 'z-';
-                else team.clinch = ''; // Clear intermediate states like y-
+                else team.clinch = 'y-';
 
             } else {
                 // STANDARD MATH LOGIC (Incomplete Season)
@@ -372,6 +372,14 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
         });
 
         standings.sort((a, b) => {
+            // Prioritize clinch status if Postseason is set
+            if (isPostseasonSet) {
+                const rank = { 'x-': 3, 'y-': 2, 'z-': 1, '': 0 };
+                const rankA = rank[a.clinch] || 0;
+                const rankB = rank[b.clinch] || 0;
+                if (rankA !== rankB) return rankB - rankA;
+            }
+
             if (b.winPct !== a.winPct) return b.winPct - a.winPct;
             return b.wins - a.wins;
         });
