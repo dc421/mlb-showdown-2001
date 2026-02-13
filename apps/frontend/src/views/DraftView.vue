@@ -6,6 +6,7 @@ import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 import { getLastName } from '@/utils/playerUtils';
+import { getLogoForTeam } from '@/utils/franchiseUtils';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -102,7 +103,7 @@ const displayRows = computed(() => {
     if (!draftState.value.draft_order || draftState.value.draft_order.length === 0) {
         return draftState.value.history
             .filter(item => (item.action || '').toUpperCase() !== 'REMOVED_RANDOM')
-            .sort((a, b) => (b.points || 0) - (a.points || 0))
+            .sort((a, b) => (a.pick_number || 0) - (b.pick_number || 0))
             .map(h => {
                 let name = h.player_name;
                 if (h.position) name += ` (${h.position})`;
@@ -117,7 +118,7 @@ const displayRows = computed(() => {
                     player_name: name,
                     action: h.action,
                     // Show logo if available and action is not DROPPED
-                    team_logo: (h.action === 'DROPPED') ? null : h.logo_url
+                    team_logo: (h.action === 'DROPPED') ? null : getLogoForTeam(h.team_name, h.logo_url)
                 };
             });
     }
@@ -191,7 +192,7 @@ const displayRows = computed(() => {
                      player_name: name,
                      action: h.action,
                      // Only show logo if not a DROP
-                     team_logo: (h.action === 'DROPPED') ? null : teamLogo
+                     team_logo: (h.action === 'DROPPED') ? null : getLogoForTeam(h.city || h.team_name, teamLogo)
                  });
             });
         } else {
@@ -201,7 +202,7 @@ const displayRows = computed(() => {
                 round: roundNum,
                 pick_number: i,
                 team_name: teamName, // Use the scheduled team name
-                team_logo: teamLogo,
+                 team_logo: getLogoForTeam(teamName, teamLogo),
                 player_name: '',
                 action: 'PENDING'
             });

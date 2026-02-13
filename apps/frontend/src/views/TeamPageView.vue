@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 import { formatNameShort } from '@/utils/playerUtils';
+import { getLogoForTeam } from '@/utils/franchiseUtils';
 
 const route = useRoute();
 const teamId = ref(route.params.teamId);
@@ -310,8 +311,9 @@ const teamDisplayName = computed(() => {
         <div v-if="teamData.identityHistory && teamData.identityHistory.length > 0" class="identity-history">
              <span class="identity-label">Franchise History:</span>
              <ul class="identity-list">
-                 <li v-for="(identity, idx) in teamData.identityHistory" :key="idx">
-                     {{ identity.name }} ({{ identity.start === identity.end ? identity.start : `${identity.start}-${identity.end}` }})
+                 <li v-for="(identity, idx) in teamData.identityHistory" :key="idx" class="identity-item">
+                     <img v-if="getLogoForTeam(identity.name)" :src="getLogoForTeam(identity.name)" class="identity-logo" />
+                     <span>{{ identity.name }} ({{ identity.start === identity.end ? identity.start : `${identity.start}-${identity.end}` }})</span>
                  </li>
              </ul>
         </div>
@@ -862,4 +864,28 @@ thead th.sticky-col {
     color: #666;
     font-size: 0.65rem;
 }
+
+.identity-history {
+     margin-top: 0.5rem;
+     font-size: 0.9rem;
+     color: #555;
+}
+.identity-label { font-weight: bold; margin-right: 0.5rem; display: block; margin-bottom: 0.25rem;}
+.identity-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+.identity-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.5);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+.identity-logo { height: 24px; width: auto; object-fit: contain; }
 </style>

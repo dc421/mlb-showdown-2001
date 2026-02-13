@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 import { formatNameShort } from '@/utils/playerUtils';
+import { getLogoForTeam } from '@/utils/franchiseUtils';
 
 const route = useRoute();
 const teamId = ref(route.params.teamId);
@@ -187,7 +188,10 @@ const teamDisplayName = computed(() => {
         <header class="page-header">
             <RouterLink :to="`/teams/${teamId}`" class="back-link">← Back to Team History</RouterLink>
             <div class="header-content" :style="{ borderLeft: `6px solid ${seasonData.team.primary_color}` }">
-                <h1>{{ teamDisplayName }}</h1>
+                <div class="header-top-row">
+                    <img v-if="seasonData.team.logo_url" :src="seasonData.team.logo_url" class="team-header-logo" alt="Team Logo" />
+                    <h1>{{ teamDisplayName }}</h1>
+                </div>
                 <div class="season-meta">
                     <h2>
                         <RouterLink :to="`/league?season=${encodeURIComponent(seasonData.season)}`" class="league-link">
@@ -252,7 +256,10 @@ const teamDisplayName = computed(() => {
                         <tbody>
                             <tr v-for="(game, index) in sortedResults" :key="index" :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon'}">
                                 <td>{{ new Date(game.date).toLocaleDateString() }}</td>
-                                <td>{{ game.opponent }}</td>
+                                <td class="opponent-cell">
+                                    <img :src="game.opponent_logo || getLogoForTeam(game.opponent)" class="opponent-logo" v-if="game.opponent_logo || getLogoForTeam(game.opponent)" />
+                                    {{ game.opponent }}
+                                </td>
                                 <td :class="{'win': game.result === 'W', 'loss': game.result === 'L'}">{{ game.result }}</td>
                                 <td>{{ game.score }}</td>
                                 <td>{{ game.round }}</td>
@@ -296,6 +303,16 @@ const teamDisplayName = computed(() => {
 .header-content {
     padding-left: 1rem;
     margin-bottom: 2rem;
+}
+.header-top-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.team-header-logo {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
 }
 .header-content h1 { margin: 0; font-size: 2rem; color: #333; }
 .header-content h2 { margin: 0; font-size: 1.5rem; color: #777; font-weight: normal; }
@@ -368,6 +385,8 @@ const teamDisplayName = computed(() => {
 .results-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .results-table th { text-align: left; padding: 0.5rem; background: #f8f9fa; }
 .results-table td { padding: 0.5rem; border-bottom: 1px solid #eee; }
+.opponent-cell { display: flex; align-items: center; gap: 0.5rem; }
+.opponent-logo { height: 24px; width: 24px; object-fit: contain; }
 .win { color: green; font-weight: bold; }
 .loss { color: red; font-weight: bold; }
 .empty-msg { text-align: center; color: #999; padding: 2rem; }
