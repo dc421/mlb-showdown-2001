@@ -823,18 +823,7 @@ async function resetRolls(gameId) {
         bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
         outs = 3;
     } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
-        // If I am NOT ready, I should see the result of the LAST play, waiting for me to click "Next".
-        // The problem was that "pendingStealAttempt" was triggering a logic branch that looked AHEAD to the currentAtBat.
-        // We only want to do that if the steal is part of a consecutive sequence I am actively involved in.
-        // But if I haven't even clicked "Next" to acknowledge the PREVIOUS play (e.g. Tag Up), I shouldn't see the Steal yet.
-
-        // We check if the pending steal belongs to the PREVIOUS batter. If so, it's a consecutive steal (e.g. Walk -> Steal).
-        // If it belongs to the NEW batter (currentAtBat), it's a "Future Steal" that I shouldn't see yet.
-        const isConsecutiveSteal = gameState.value.pendingStealAttempt &&
-                                   gameState.value.lastCompletedAtBat &&
-                                   gameState.value.pendingStealAttempt.batterPlayerId === gameState.value.lastCompletedAtBat.batter.card_id;
-
-        if ((gameState.value.pendingStealAttempt && isConsecutiveSteal) || gameState.value.throwRollResult) {
+        if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
              const src = gameState.value.lastCompletedAtBat;
              if (src) {
                  bases = src.basesBeforePlay || bases;
@@ -843,15 +832,7 @@ async function resetRolls(gameId) {
                  if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
              }
         } else {
-            // Default Rollback: Show the start of the CURRENT at-bat (which is actually the previous play if opponent advanced)
-            // Wait, if opponentReadyForNext is true, `currentAtBat` is the NEW batter.
-            // We want `lastCompletedAtBat` (the OLD batter).
-
-            // Correction: The original code used `currentAtBat` in the `else` block, which seems wrong if opponent advanced.
-            // But `currentAtBat` might be holding the "start of turn" state?
-            // Actually, if opponentReadyForNext is true, `lastCompletedAtBat` holds the state we want (the result of the last play).
-
-            const src = gameState.value.lastCompletedAtBat || gameState.value.currentAtBat;
+            const src = gameState.value.currentAtBat;
             if (src) {
                 bases = src.basesBeforePlay || bases;
                 if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;

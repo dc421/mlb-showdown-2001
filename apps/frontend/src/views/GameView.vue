@@ -1440,9 +1440,11 @@ const batterToDisplay = computed(() => {
     if (!gameStore.gameState) {
         return null;
     }
+
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
     if (!gameStore.amIReadyForNext &&
-     (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) &&
+     (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))
+      || (!gameStore.gameState.lastStealResult && gameStore.gameState.pendingStealAttempt && showDefensiveRollForThrowButton)) &&
       !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing)) {
         return gameStore.gameState.lastCompletedAtBat.batter;
     }
@@ -1759,7 +1761,7 @@ function handleResolveSteal(throwToBase = null) {
 
 
 const isStealAttemptInProgress = computed(() => {
-    if (shouldDelayStealRoll.value) return false;
+    if (shouldDelayStealRoll.value && !gameStore.gameState?.inningEndedOnCaughtStealing) return true;
     if (shouldShowDoublePlayFirst.value) return false;
     if ((isGameOver.value && gameStore.displayGameState.outs < 3 && !gameStore.gameState?.pendingStealAttempt) || !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     // A steal is in progress if there is a pending steal attempt from the backend.
@@ -1783,7 +1785,7 @@ const isStealAttemptInProgress = computed(() => {
     // provided that we have BOTH a past result (lastStealResult) AND a pending one (pendingStealAttempt).
     // This allows the "ROLL FOR THROW" button to appear below the result of the previous steal.
     const isConsecutiveSteal = !!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt;
-
+    
     return (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isPastStealDef && !gameStore.gameState?.throwRollResult;
 });
 
@@ -2278,7 +2280,7 @@ function handleVisibilityChange() {
             <!-- Waiting Indicators -->
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.opponentReadyForNext" class="waiting-text">Waiting for pitch...</div>
-            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings && !(gameStore.inningEndedOnCaughtStealing && gameStore.displayGameState.outs > 0)" class="turn-indicator">Waiting for swing...</div>
+            <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !showDefensiveRollForThrowButton && !gameStore.isEffectivelyBetweenHalfInnings && !(gameStore.inningEndedOnCaughtStealing && gameStore.displayGameState.outs > 0)" class="turn-indicator">Waiting for swing...</div>
             <div v-else-if="isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices)) || (isOffensiveStealInProgress && !gameStore.gameState.pendingStealAttempt)" class="waiting-text">Waiting for throw...</div>
         </div>
 
