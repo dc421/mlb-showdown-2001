@@ -3,7 +3,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { sortSeasons, mapSeasonToPointSet } = require('../utils/seasonUtils');
-const { matchesFranchise, getMappedIds, getFranchiseAliases, getLogoForTeam } = require('../utils/franchiseUtils');
+const { matchesFranchise, getMappedIds, getFranchiseAliases, getLogoForTeam, parseHistoricalIdentity } = require('../utils/franchiseUtils');
 
 // GET TEAM HISTORY (Seasons, Records, Rosters)
 router.get('/:teamId/history', authenticateToken, async (req, res) => {
@@ -551,10 +551,18 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             });
             const rosterRes = { rows: rosterRows };
 
-            // Update logo if historical name requires it
+            // Update logo/name/city if historical name requires it
             if (rosterRows.length > 0) {
                 const historicalName = rosterRows[0].team_name;
                 team.logo_url = getLogoForTeam(historicalName, team.logo_url);
+
+                const identity = parseHistoricalIdentity(historicalName);
+                if (identity) {
+                    team.city = identity.city;
+                    if (identity.name) {
+                        team.name = identity.name;
+                    }
+                }
             }
 
             // FETCH POINTS IF MISSING

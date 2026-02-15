@@ -5,6 +5,7 @@ const { pool, io } = require('../server');
 const { sendPickConfirmation, sendRandomRemovalsEmail } = require('../services/emailService');
 const { getSeasonName, sortSeasons, seasonMap, mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { rolloverPointSets, snapshotRosters, generateSchedule } = require('../services/seasonRolloverService');
+const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
 
 // Helper to get the active draft state
 async function getDraftState(client, seasonName = null) {
@@ -509,6 +510,21 @@ router.get('/state', authenticateToken, async (req, res) => {
              // Double check if any rows have null team_name even if not Sept 2020?
              // User specific request was for Sept 2020.
         }
+
+        // Backfill missing logo_url for historical records (e.g. Fargo -> NY South Logo)
+        // Fetch all teams for context
+        const allTeamsRes = await client.query('SELECT team_id, name, city, logo_url FROM teams');
+        const allTeams = allTeamsRes.rows;
+
+        historyRes.rows.forEach(h => {
+            if (!h.logo_url && h.team_name) {
+                const teamIdToCheck = h.team_id || null;
+                const matchedTeam = allTeams.find(t => matchesFranchise(h.team_name, teamIdToCheck, t, allTeams, getMappedIds(t.team_id)));
+                if (matchedTeam) {
+                    h.logo_url = matchedTeam.logo_url;
+                }
+            }
+        });
 
         let activeTeam = null;
         if (state.active_team_id) {

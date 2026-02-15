@@ -153,9 +153,39 @@ function getLogoForTeam(name, defaultLogo) {
     return defaultLogo;
 }
 
+/**
+ * Parses a historical team name string into city and name components.
+ *
+ * @param {string} fullName - The full historical name (e.g. "Laramie Lugnuts", "San Diego").
+ * @returns {object|null} - { city: string, name: string|null } or null if no match
+ */
+function parseHistoricalIdentity(fullName) {
+    if (!fullName) return null;
+
+    // Check Known "City Name" combos (Detroit Aliases)
+    if (fullName.includes('Laramie')) {
+        return { city: 'Laramie', name: 'Lugnuts' };
+    }
+    if (fullName.includes('Cincinnati')) {
+        return { city: 'Cincinnati', name: 'Catastrophe' };
+    }
+
+    // Check known aliases that are just City names
+    const simpleAliases = ['San Diego', 'Fargo', 'NYDC', 'Redwood City', 'Chicago'];
+    for (const alias of simpleAliases) {
+        if (fullName.includes(alias)) {
+            // Return city override, keep name as is (by returning null for name)
+            return { city: alias, name: null };
+        }
+    }
+
+    return null;
+}
+
 module.exports = {
     matchesFranchise,
     getMappedIds,
     getFranchiseAliases,
-    getLogoForTeam
+    getLogoForTeam,
+    parseHistoricalIdentity
 };

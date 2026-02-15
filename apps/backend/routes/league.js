@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
-const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
+const { matchesFranchise, getMappedIds, parseHistoricalIdentity, getLogoForTeam } = require('../utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { calculateStandings, findTeamForRecord } = require('../utils/standingsUtils');
 
@@ -112,9 +112,28 @@ router.get('/', authenticateToken, async (req, res) => {
                  const matchedTeam = findTeamForRecord(row.team_name, null, currentTeams);
 
                  if (matchedTeam && matchedTeam.team_id && teamsMap[matchedTeam.team_id]) {
-                     // Update logo if historical (from findTeamForRecord logic)
-                     if (matchedTeam.logo_url && matchedTeam.logo_url !== teamsMap[matchedTeam.team_id].logo_url) {
-                         teamsMap[matchedTeam.team_id].logo_url = matchedTeam.logo_url;
+                     // Update logo if historical (Explicit check)
+                     const historicalLogo = getLogoForTeam(row.team_name, matchedTeam.logo_url);
+                     if (historicalLogo && historicalLogo !== teamsMap[matchedTeam.team_id].logo_url) {
+                         teamsMap[matchedTeam.team_id].logo_url = historicalLogo;
+                     }
+
+                     // Update Name/City based on historical identity
+                     const identity = parseHistoricalIdentity(row.team_name);
+                     if (identity) {
+                         teamsMap[matchedTeam.team_id].city = identity.city;
+                         if (identity.name) {
+                             teamsMap[matchedTeam.team_id].name = identity.name;
+                         }
+                         // Recompute full display name (ignoring display_format potentially to ensure override works?)
+                         // Actually display_format might rely on "Name" meaning "Nickame".
+                         // If we change City/Name, we should re-apply the format.
+                         const t = teamsMap[matchedTeam.team_id];
+                         const format = t.display_format || '{city} {name}';
+                         // Ensure we don't have lingering undefined/null
+                         const c = t.city || '';
+                         const n = t.name || '';
+                         teamsMap[matchedTeam.team_id].full_display_name = format.replace('{city}', c).replace('{name}', n);
                      }
 
                      // Add to the correct team bucket
