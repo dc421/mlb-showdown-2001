@@ -377,8 +377,8 @@ const teamDisplayName = computed(() => {
              <span class="identity-label">Franchise History:</span>
              <ul class="identity-list">
                  <li v-for="(identity, idx) in teamData.identityHistory" :key="idx" class="identity-item">
-                     <img v-if="getLogoForTeam(identity.name)" :src="getLogoForTeam(identity.name)" class="identity-logo" />
                      <span>{{ identity.name }} ({{ identity.start === identity.end ? identity.start : `${identity.start}-${identity.end}` }})</span>
+                     <img v-if="getLogoForTeam(identity.name)" :src="getLogoForTeam(identity.name)" class="identity-logo" />
                  </li>
              </ul>
         </div>

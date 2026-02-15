@@ -43,7 +43,7 @@ async function checkStalledDrafts() {
         if (shouldNotify) {
             const teamRes = await client.query('SELECT name, city FROM teams WHERE team_id = $1', [state.active_team_id]);
             const team = teamRes.rows[0];
-            const teamName = { name: `${team.city} ${team.name}` };
+            const teamName = { name: team.city };
 
             console.log(`Broadcasting Level ${newLevel} notification about ${teamName.name} to the league`);
 
