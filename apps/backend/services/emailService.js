@@ -286,6 +286,8 @@ async function sendPickConfirmation(pickDetails, nextTeam, client) {
             ${addedHtml}
             ${droppedHtml}
         `;
+    } else if (player.position === 'Multi') {
+        messageBody = `<p><strong>${team.name}</strong> has confirmed current roster with no changes.</p>`;
     } else {
         messageBody = `<p><strong>${team.name}</strong> has selected <strong>${player.name}</strong> (${player.position || 'Player'}) in Round ${round}, Pick ${pickNumber}.</p>`;
     }
