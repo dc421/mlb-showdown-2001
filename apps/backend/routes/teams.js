@@ -487,12 +487,54 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
     try {
         const teamRes = await client.query('SELECT * FROM teams WHERE team_id = $1', [teamId]);
         if (teamRes.rows.length === 0) return res.status(404).json({ message: 'Team not found.' });
-        const team = teamRes.rows[0];
+        const currentTeam = teamRes.rows[0];
+        // Create a copy for modification (display purposes)
+        const team = { ...currentTeam };
 
         // Need all teams for context in matchesFranchise
         const allTeamsRes = await client.query('SELECT team_id, city, name, logo_url FROM teams');
         const allTeams = allTeamsRes.rows;
         const mappedIds = getMappedIds(teamId);
+
+        // 2. Fetch Series Results (Done earlier to get Historical Name)
+        const resultsQuery = `
+            SELECT * FROM series_results
+            WHERE season_name = $1
+            ORDER BY date DESC
+        `;
+        const allResultsRes = await client.query(resultsQuery, [seasonName]);
+
+        // --- DETERMINE HISTORICAL IDENTITY FROM RESULTS ---
+        let historicalName = null;
+        const representativeGame = allResultsRes.rows.find(r =>
+            matchesFranchise(r.winning_team_name, r.winning_team_id, currentTeam, allTeams, mappedIds) ||
+            matchesFranchise(r.losing_team_name, r.losing_team_id, currentTeam, allTeams, mappedIds)
+        );
+
+        if (representativeGame) {
+             if (matchesFranchise(representativeGame.winning_team_name, representativeGame.winning_team_id, currentTeam, allTeams, mappedIds)) {
+                 historicalName = representativeGame.winning_team_name;
+             } else {
+                 historicalName = representativeGame.losing_team_name;
+             }
+        }
+
+        if (historicalName) {
+            team.logo_url = getLogoForTeam(historicalName, team.logo_url);
+            const identity = parseHistoricalIdentity(historicalName);
+            if (identity) {
+                team.city = identity.city;
+                if (identity.name) {
+                    team.name = identity.name;
+                }
+            } else if (historicalName && historicalName !== `${team.city} ${team.name}` && historicalName !== team.city) {
+                // Fallback
+                team.display_format = '{full_name}';
+                team.city = '';
+                team.name = historicalName;
+            }
+        }
+        // --------------------------------------------------
 
         let roster = [];
 
@@ -547,26 +589,26 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
 
             // Filter the rows that belong to this franchise
             const rosterRows = allRostersRes.rows.filter(r => {
-                return matchesFranchise(r.team_name, null, team, allTeams, mappedIds);
+                return matchesFranchise(r.team_name, null, currentTeam, allTeams, mappedIds);
             });
             const rosterRes = { rows: rosterRows };
 
-            // Update logo/name/city if historical name requires it
-            if (rosterRows.length > 0) {
-                const historicalName = rosterRows[0].team_name;
-                team.logo_url = getLogoForTeam(historicalName, team.logo_url);
+            // Update logo/name/city if historical name requires it (FALLBACK if not found in results)
+            if (!historicalName && rosterRows.length > 0) {
+                const hName = rosterRows[0].team_name;
+                team.logo_url = getLogoForTeam(hName, team.logo_url);
 
-                const identity = parseHistoricalIdentity(historicalName);
+                const identity = parseHistoricalIdentity(hName);
                 if (identity) {
                     team.city = identity.city;
                     if (identity.name) {
                         team.name = identity.name;
                     }
-                } else if (historicalName && historicalName !== `${team.city} ${team.name}` && historicalName !== team.city) {
+                } else if (hName && hName !== `${team.city} ${team.name}` && hName !== team.city) {
                     // Fallback for unparsed historical names
                     team.display_format = '{full_name}';
                     team.city = '';
-                    team.name = historicalName;
+                    team.name = hName;
                 }
             }
 
@@ -620,14 +662,6 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             });
         }
 
-        // 2. Fetch Series Results
-        const resultsQuery = `
-            SELECT * FROM series_results
-            WHERE season_name = $1
-            ORDER BY date DESC
-        `;
-        const allResultsRes = await client.query(resultsQuery, [seasonName]);
-
         const results = [];
         allResultsRes.rows.forEach(r => {
             // FILTER BY STYLE
@@ -637,8 +671,8 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 if (r.style === 'Classic') return;
             }
 
-            const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, team, allTeams, mappedIds);
-            const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, team, allTeams, mappedIds);
+            const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, currentTeam, allTeams, mappedIds);
+            const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, currentTeam, allTeams, mappedIds);
 
             if (isWinner) {
                 // Resolve Opponent Logo

@@ -107,6 +107,45 @@ router.get('/', authenticateToken, async (req, res) => {
                 }
             }
 
+            // --- NEW: Fetch Historical Identity from Series Results ---
+            const identityQuery = `
+                SELECT DISTINCT name, id FROM (
+                    SELECT winning_team_name as name, winning_team_id as id FROM series_results WHERE season_name = $1
+                    UNION
+                    SELECT losing_team_name as name, losing_team_id as id FROM series_results WHERE season_name = $1
+                ) as combined
+                ORDER BY LENGTH(name) DESC
+            `;
+            const identityRes = await pool.query(identityQuery, [season]);
+
+            identityRes.rows.forEach(row => {
+                const matchedTeam = findTeamForRecord(row.name, row.id, currentTeams);
+                if (matchedTeam && teamsMap[matchedTeam.team_id]) {
+                     const t = teamsMap[matchedTeam.team_id];
+
+                     // Update Logo
+                     t.logo_url = getLogoForTeam(row.name, t.logo_url);
+
+                     // Update Name/City
+                     const identity = parseHistoricalIdentity(row.name);
+                     if (identity) {
+                         t.city = identity.city;
+                         if (identity.name) t.name = identity.name;
+                         t.hasStrongIdentity = true;
+                         t.hasHistoricalIdentity = true;
+
+                         // Recompute full display name
+                         const format = t.display_format || '{city} {name}';
+                         t.full_display_name = format.replace('{city}', t.city).replace('{name}', t.name);
+                     } else if (!t.hasStrongIdentity && row.name && row.name !== `${t.city} ${t.name}` && row.name !== t.city) {
+                         // Only apply fallback if no strong identity found yet
+                         t.full_display_name = row.name;
+                         t.hasHistoricalIdentity = true;
+                     }
+                }
+            });
+            // -----------------------------------------------------------
+
             // Fetch all historical rosters for this season
             const rosterQuery = `
                 SELECT
@@ -131,26 +170,27 @@ router.get('/', authenticateToken, async (req, res) => {
                          teamsMap[matchedTeam.team_id].logo_url = historicalLogo;
                      }
 
-                     // Update Name/City based on historical identity
-                     const identity = parseHistoricalIdentity(row.team_name);
-                     if (identity) {
-                         teamsMap[matchedTeam.team_id].city = identity.city;
-                         if (identity.name) {
-                             teamsMap[matchedTeam.team_id].name = identity.name;
-                         }
-                     } else if (row.team_name && row.team_name !== matchedTeam.name && row.team_name !== matchedTeam.city) {
-                         // Fallback: If no explicit identity parsed but name differs significantly, use it.
-                         // This handles partial matches or unmapped aliases.
-                         teamsMap[matchedTeam.team_id].full_display_name = row.team_name;
-                     }
+                     // Update Name/City based on historical identity (FALLBACK only)
+                     if (!teamsMap[matchedTeam.team_id].hasHistoricalIdentity) {
+                        const identity = parseHistoricalIdentity(row.team_name);
+                        if (identity) {
+                            teamsMap[matchedTeam.team_id].city = identity.city;
+                            if (identity.name) {
+                                teamsMap[matchedTeam.team_id].name = identity.name;
+                            }
+                        } else if (row.team_name && row.team_name !== matchedTeam.name && row.team_name !== matchedTeam.city) {
+                            // Fallback: If no explicit identity parsed but name differs significantly, use it.
+                            teamsMap[matchedTeam.team_id].full_display_name = row.team_name;
+                        }
 
-                     // Recompute full display name if identity was found
-                     if (identity) {
-                         const t = teamsMap[matchedTeam.team_id];
-                         const format = t.display_format || '{city} {name}';
-                         const c = t.city || '';
-                         const n = t.name || '';
-                         teamsMap[matchedTeam.team_id].full_display_name = format.replace('{city}', c).replace('{name}', n);
+                        // Recompute full display name if identity was found
+                        if (identity) {
+                            const t = teamsMap[matchedTeam.team_id];
+                            const format = t.display_format || '{city} {name}';
+                            const c = t.city || '';
+                            const n = t.name || '';
+                            teamsMap[matchedTeam.team_id].full_display_name = format.replace('{city}', c).replace('{name}', n);
+                        }
                      }
 
                      // Add to the correct team bucket
