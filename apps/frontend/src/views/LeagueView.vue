@@ -33,6 +33,12 @@ const resultForm = ref({
 // Use VITE_API_URL or default to empty string for proxy
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
+function getLogoUrl(url) {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${apiUrl}${url}`;
+}
+
 async function fetchSeasons() {
     try {
         const response = await apiClient('/api/league/seasons');
@@ -337,7 +343,7 @@ onMounted(async () => {
                                  </div>
                              </div>
                              <div class="finale-logo-column">
-                                 <img v-if="result.winner_logo" :src="result.winner_logo" class="winner-logo-lg" />
+                                 <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="winner-logo-lg" />
                              </div>
                          </div>
                     </div>
@@ -364,7 +370,7 @@ onMounted(async () => {
                         <tr v-for="team in seasonSummary.standings" :key="team.team_id">
                             <td class="team-cell">
                                 <span v-if="team.clinch" class="clinch-indicator">{{ team.clinch }}</span>
-                                <img v-if="team.logo_url" :src="team.logo_url" class="mini-logo" alt="" />
+                                <img v-if="team.logo_url" :src="getLogoUrl(team.logo_url)" class="mini-logo" alt="" />
                                 <RouterLink v-if="team.team_id && !team.isFranchise" :to="`/teams/${team.team_id}`" class="team-link">
                                     {{ team.name }}
                                 </RouterLink>
@@ -401,7 +407,7 @@ onMounted(async () => {
                     <h3>Franchise Accolades</h3>
                     <div v-for="team in seasonSummary.standings" :key="team.team_id" class="franchise-accolade-row">
                         <div class="franchise-info">
-                             <img v-if="team.logo_url" :src="team.logo_url" class="mini-logo" alt="" />
+                             <img v-if="team.logo_url" :src="getLogoUrl(team.logo_url)" class="mini-logo" alt="" />
                              <b>{{ team.name }}</b>
                         </div>
                         <div class="accolade-icons-column">
@@ -446,7 +452,7 @@ onMounted(async () => {
                                  </div>
                              </div>
                              <div class="finale-logo-column">
-                                 <img v-if="result.loser_logo" :src="result.loser_logo" class="winner-logo-lg" />
+                                 <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="winner-logo-lg" />
                              </div>
                          </div>
                     </div>
@@ -457,24 +463,24 @@ onMounted(async () => {
                     <div v-for="result in filteredRecentResults" :key="result.id" class="result-item">
                         <template v-if="result.score">
                             <div class="result-participant">
-                                <img v-if="result.winner_logo" :src="result.winner_logo" class="tiny-logo" alt=""/>
+                                <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="tiny-logo" alt=""/>
                                 <span class="result-winner">{{ result.winner_name || result.winner }}</span>
                             </div>
                             <span class="def-text">def.</span>
                             <div class="result-participant">
-                                <img v-if="result.loser_logo" :src="result.loser_logo" class="tiny-logo" alt=""/>
+                                <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="tiny-logo" alt=""/>
                                 <span class="result-loser">{{ result.loser_name || result.loser }}</span>
                             </div>
                             <span class="result-score">({{ result.score }})</span>
                         </template>
                         <template v-else>
                             <div class="result-participant">
-                                <img v-if="result.winner_logo" :src="result.winner_logo" class="tiny-logo" alt=""/>
+                                <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="tiny-logo" alt=""/>
                                 <span class="result-matchup">{{ result.winner_name || result.winner }}</span>
                             </div>
                             <span class="vs-text">vs.</span>
                             <div class="result-participant">
-                                <img v-if="result.loser_logo" :src="result.loser_logo" class="tiny-logo" alt=""/>
+                                <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="tiny-logo" alt=""/>
                                 <span class="result-matchup">{{ result.loser_name || result.loser }}</span>
                             </div>
                             <!-- Add Result Button -->
@@ -530,7 +536,7 @@ onMounted(async () => {
         <div v-if="leagueData.length > 0" class="teams-list">
             <div v-for="team in visibleTeams" :key="team.team_id" class="team-block">
                 <div class="team-header" >
-                    <img :src="team.logo_url" :alt="team.name" class="team-logo" />
+                    <img :src="getLogoUrl(team.logo_url)" :alt="team.name" class="team-logo" />
                     <div class="team-info">
                         <h2>
                             <RouterLink :to="`/teams/${team.team_id}`" class="team-link-header">
