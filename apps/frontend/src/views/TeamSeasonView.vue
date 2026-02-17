@@ -388,7 +388,7 @@ const teamDisplayName = computed(() => {
 
 /* Results Table */
 .table-container { overflow-x: auto; }
-.results-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.results-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 500px; }
 .results-table th { text-align: left; padding: 0.5rem; background: #f8f9fa; }
 .results-table td { padding: 0.5rem; border-bottom: 1px solid #eee; }
 .opponent-cell { display: flex; align-items: center; gap: 0.5rem; }

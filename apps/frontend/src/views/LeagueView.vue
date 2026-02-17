@@ -27,7 +27,9 @@ const resultForm = ref({
     losingScore: 0,
     winnerId: null, // User selected winner
     winningTeamId: null, // From DB
-    losingTeamId: null // From DB
+    losingTeamId: null, // From DB
+    mva: '',
+    lvsc: ''
 });
 
 // Use VITE_API_URL or default to empty string for proxy
@@ -132,14 +134,18 @@ function padRoster(roster) {
         const copy = { ...p };
         // Check for Bench assignment and if points look like they need division (heuristic or explicit)
         // Note: Backend usually handles this, but frontend enforcement ensures consistency, especially during drafts
-        if ((copy.assignment === 'BENCH' || copy.assignment === 'B') && copy.points) {
-             // If points are abnormally high for a bench player (e.g., > 100), assume they are raw and divide
-             // Or simpler: just rely on the fact that if assignment is BENCH (raw), it needs division.
-             // If it is 'B' (processed), it might be done. But checking prevents double division?
-             // Actually, backend sets assignment to 'B' AFTER dividing. So if it is 'BENCH', definitely divide.
-             if (copy.assignment === 'BENCH') {
+        // Historical rosters might come as 'BENCH' or 'B' or 'Bench'.
+        const isBench = ['BENCH', 'B', 'Bench'].includes(copy.assignment) || ['BENCH', 'B', 'Bench'].includes(copy.position);
+
+        if (isBench && copy.points) {
+             // Heuristic: If points are abnormally high (>100 usually means starting value), divide.
+             // Or if assignment explicitly says 'BENCH' (which implies raw).
+             // To be safe, if > 100, divide. Most bench players are < 100 pts.
+             if (copy.points > 100 || copy.assignment === 'BENCH') {
                  copy.points = Math.round(copy.points / 5);
              }
+             // Ensure display code uses 'B'
+             copy.assignment = 'B';
         }
         return copy;
     });
@@ -200,7 +206,9 @@ function openResultModal(series) {
         losingScore: 0,
         winnerId: series.winning_team_id,
         winningTeamId: series.winning_team_id,
-        losingTeamId: series.losing_team_id
+        losingTeamId: series.losing_team_id,
+        mva: series.mva || '',
+        lvsc: series.lvsc || ''
     };
     showResultModal.value = true;
 }
@@ -221,7 +229,9 @@ async function submitResult() {
             id: resultForm.value.id,
             winning_score: resultForm.value.winningScore,
             losing_score: resultForm.value.losingScore,
-            winner_id: resultForm.value.winnerId
+            winner_id: resultForm.value.winnerId,
+            mva: resultForm.value.mva,
+            lvsc: resultForm.value.lvsc
         };
 
         const res = await apiClient('/api/league/result', {
@@ -241,12 +251,19 @@ async function submitResult() {
     }
 }
 
-// Filter out spaceship/spoon results for the main list
+// Filter out spaceship/spoon results for the main list and Sort
 const filteredRecentResults = computed(() => {
     if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
-    return seasonSummary.value.recentResults.filter(r =>
+    const filtered = seasonSummary.value.recentResults.filter(r =>
         !['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(r.round)
     );
+    // Sort by Most Wins (Winning Score), then Most Losses (Losing Score - wait, typically fewer losses is better, but prompt said 'most losses'?)
+    // "sort them by most wins, then most losses" -> interpreted as score magnitude: 4-0 > 4-1 > 4-2
+    // If we sort by winning_score DESC, then losing_score ASC (4-0, 4-1, 4-2).
+    return filtered.sort((a, b) => {
+        if (b.winning_score !== a.winning_score) return (b.winning_score || 0) - (a.winning_score || 0);
+        return (a.losing_score || 0) - (b.losing_score || 0);
+    });
 });
 
 const spaceshipSeries = computed(() => {
@@ -339,7 +356,9 @@ onMounted(async () => {
                                      <span class="winner-name-lg">{{ result.winner_name || result.winner }}</span>
                                  </div>
                                  <div class="finale-score-line">
-                                     W {{ result.score }} vs {{ result.loser_name || result.loser }}
+                                     <span>W {{ result.score }} vs {{ result.loser_name || result.loser }}</span>
+                                     <span v-if="result.mva" class="accolade-text right-justify">MVA: {{ result.mva }}</span>
+                                     <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
                                  </div>
                              </div>
                              <div class="finale-logo-column">
@@ -448,7 +467,8 @@ onMounted(async () => {
                                      <span class="winner-name-lg">{{ result.loser_name || result.loser }}</span>
                                  </div>
                                  <div class="finale-score-line">
-                                     L {{ result.score }} vs {{ result.winner_name || result.winner }}
+                                     <span>L {{ result.score }} vs {{ result.winner_name || result.winner }}</span>
+                                     <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
                                  </div>
                              </div>
                              <div class="finale-logo-column">
@@ -493,6 +513,34 @@ onMounted(async () => {
                 </div>
             </div>
 
+        </div>
+
+        <!-- ALL-TIME CHRONOLOGICAL LIST -->
+        <div v-if="selectedSeason === 'all-time' && seasonSummary && seasonSummary.finalSeries && seasonSummary.finalSeries.length > 0" class="history-list-section">
+            <h3>Championship History</h3>
+            <div class="history-list">
+                <div v-for="series in seasonSummary.finalSeries" :key="series.id" class="history-card" :class="{'history-spaceship': series.round === 'Golden Spaceship', 'history-spoon': series.round === 'Wooden Spoon', 'history-sub': series.round === 'Silver Submarine'}">
+                    <div class="history-season">{{ series.season }}</div>
+                    <div class="history-content">
+                        <div class="history-trophy">
+                            <img v-if="series.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" />
+                            <img v-if="series.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" />
+                            <img v-if="series.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" />
+                        </div>
+                        <div class="history-details">
+                            <div class="history-matchup">
+                                <span class="history-winner" :class="{'spoon-loser': series.round === 'Wooden Spoon'}">{{ series.round === 'Wooden Spoon' ? series.loser_name : series.winner_name }}</span>
+                                <span class="history-score">{{ series.score }}</span>
+                                <span class="history-loser">{{ series.round === 'Wooden Spoon' ? series.winner_name : series.loser_name }}</span>
+                            </div>
+                            <div class="history-accolades" v-if="series.mva || series.lvsc">
+                                <span v-if="series.mva" class="accolade-tag mva">MVA: {{ series.mva }}</span>
+                                <span v-if="series.lvsc" class="accolade-tag lvsc">LVSC: {{ series.lvsc }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- MATRIX VIEW (Only for All-Time) -->
@@ -618,6 +666,15 @@ onMounted(async () => {
                         <option :value="resultForm.winningTeamId">{{ resultForm.winnerName }}</option>
                         <option :value="resultForm.losingTeamId">{{ resultForm.loserName }}</option>
                     </select>
+                </div>
+
+                <div class="accolade-input">
+                    <label>MVA (Most Valuable Alien):</label>
+                    <input type="text" v-model="resultForm.mva" placeholder="Player Name" />
+                </div>
+                <div class="accolade-input">
+                    <label>LVSC (Least Valuable Space Cadet):</label>
+                    <input type="text" v-model="resultForm.lvsc" placeholder="Player Name" />
                 </div>
             </div>
             <div class="modal-footer">
@@ -1355,9 +1412,94 @@ h1 {
     font-size: 1rem;
     font-weight: 700;
     opacity: 0.9;
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+.right-justify {
+    margin-left: auto;
+    font-weight: normal;
+    font-size: 0.9rem;
+    font-style: italic;
 }
 .spaceship-card .finale-score-line { color: #218838; }
 .spoon-card .finale-score-line { color: red; }
+
+.accolade-input {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.accolade-input input {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* History List Styles */
+.history-list-section {
+    margin-bottom: 2rem;
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.history-card {
+    display: flex;
+    align-items: center;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    gap: 1rem;
+}
+.history-spaceship { background-color: rgba(255, 215, 0, 0.1); border-color: #ffd700; }
+.history-spoon { background-color: rgba(139, 69, 19, 0.1); border-color: #8b4513; }
+.history-sub { background-color: #f8f9fa; border-color: #dee2e6; }
+
+.history-season {
+    font-weight: bold;
+    font-size: 1.1rem;
+    width: 80px;
+    flex-shrink: 0;
+}
+.history-trophy img {
+    height: 40px;
+    width: auto;
+}
+.history-content {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    gap: 1rem;
+}
+.history-details {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.history-matchup {
+    font-size: 1.1rem;
+}
+.history-winner { font-weight: bold; }
+.history-score { margin: 0 0.5rem; color: #666; font-weight: bold; }
+.history-loser { color: #555; }
+.spoon-loser { color: #8b4513; } /* Special color for Spoon 'winner' (loser) */
+
+.history-accolades {
+    font-size: 0.9rem;
+    display: flex;
+    gap: 1rem;
+}
+.accolade-tag {
+    font-style: italic;
+    color: #666;
+}
 
 /* Responsive adjustments */
 @media (max-width: 1000px) {

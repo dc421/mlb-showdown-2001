@@ -748,6 +748,7 @@ const teamDisplayName = computed(() => {
 }
 .accolade-row { display: flex; gap: 0.25rem; }
 .accolade-item { width: 40px; display: flex; justify-content: center; }
+.accolade-item.mobile-only { width: auto; white-space: nowrap; }
 .accolade-icon { height: 35px; width: auto; }
 .accolade-count { font-size: 1.5rem; font-weight: bold; margin-left: 0.5rem; align-self: center; color: white;}
 
