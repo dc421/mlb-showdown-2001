@@ -4,7 +4,7 @@ const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
 const { sendPickConfirmation, sendRandomRemovalsEmail } = require('../services/emailService');
 const { getSeasonName, sortSeasons, seasonMap, mapSeasonToPointSet } = require('../utils/seasonUtils');
-const { rolloverPointSets, snapshotRosters, generateSchedule } = require('../services/seasonRolloverService');
+const { generateSchedule } = require('../services/seasonRolloverService');
 const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
 
 // Helper to get the active draft state
@@ -151,12 +151,8 @@ async function advanceDraftState(client, currentState) {
         // 1. Generate empty schedule in series_results (marks season as "started/active")
         await generateSchedule(client, season_name, order);
 
-        // 2. Snapshot current rosters to historical_rosters
-        await snapshotRosters(client, season_name);
-
-        // 3. Rollover point sets (calculate new points)
-        // Ensure this happens AFTER snapshot because it relies on the snapshot being present in historical_rosters
-        await rolloverPointSets(client, season_name);
+        // NOTE: Snapshotting and Point Rollover are now deferred until after the first game of the season.
+        // See seasonRolloverService.js and league.js for trigger logic.
         // ---------------------------------
 
     } else {
