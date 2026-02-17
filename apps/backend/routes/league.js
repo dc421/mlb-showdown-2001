@@ -138,12 +138,16 @@ router.get('/', authenticateToken, async (req, res) => {
                          if (identity.name) {
                              teamsMap[matchedTeam.team_id].name = identity.name;
                          }
-                         // Recompute full display name (ignoring display_format potentially to ensure override works?)
-                         // Actually display_format might rely on "Name" meaning "Nickame".
-                         // If we change City/Name, we should re-apply the format.
+                     } else if (row.team_name && row.team_name !== matchedTeam.name && row.team_name !== matchedTeam.city) {
+                         // Fallback: If no explicit identity parsed but name differs significantly, use it.
+                         // This handles partial matches or unmapped aliases.
+                         teamsMap[matchedTeam.team_id].full_display_name = row.team_name;
+                     }
+
+                     // Recompute full display name if identity was found
+                     if (identity) {
                          const t = teamsMap[matchedTeam.team_id];
                          const format = t.display_format || '{city} {name}';
-                         // Ensure we don't have lingering undefined/null
                          const c = t.city || '';
                          const n = t.name || '';
                          teamsMap[matchedTeam.team_id].full_display_name = format.replace('{city}', c).replace('{name}', n);

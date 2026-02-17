@@ -14,6 +14,12 @@ const loading = ref(true);
 const selectedPlayer = ref(null);
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
+function getLogoUrl(url) {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${apiUrl}${url}`;
+}
+
 async function fetchSeasonData() {
     loading.value = true;
     try {
@@ -189,7 +195,7 @@ const teamDisplayName = computed(() => {
             <RouterLink :to="`/teams/${teamId}`" class="back-link">← Back to Team History</RouterLink>
             <div class="header-content" :style="{ borderLeft: `6px solid ${seasonData.team.primary_color}` }">
                 <div class="header-top-row">
-                    <img v-if="seasonData.team.logo_url" :src="seasonData.team.logo_url" class="team-header-logo" alt="Team Logo" />
+                    <img v-if="seasonData.team.logo_url" :src="getLogoUrl(seasonData.team.logo_url)" class="team-header-logo" alt="Team Logo" />
                     <h1>{{ teamDisplayName }}</h1>
                 </div>
                 <div class="season-meta">
@@ -257,7 +263,7 @@ const teamDisplayName = computed(() => {
                             <tr v-for="(game, index) in sortedResults" :key="index" :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon'}">
                                 <td>{{ new Date(game.date).toLocaleDateString() }}</td>
                                 <td class="opponent-cell">
-                                    <img :src="game.opponent_logo || getLogoForTeam(game.opponent)" class="opponent-logo" v-if="game.opponent_logo || getLogoForTeam(game.opponent)" />
+                                    <img :src="getLogoUrl(game.opponent_logo || getLogoForTeam(game.opponent))" class="opponent-logo" v-if="game.opponent_logo || getLogoForTeam(game.opponent)" />
                                     {{ game.opponent }}
                                 </td>
                                 <td :class="{'win': game.result === 'W', 'loss': game.result === 'L'}">{{ game.result }}</td>

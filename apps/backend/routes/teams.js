@@ -562,6 +562,11 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     if (identity.name) {
                         team.name = identity.name;
                     }
+                } else if (historicalName && historicalName !== `${team.city} ${team.name}` && historicalName !== team.city) {
+                    // Fallback for unparsed historical names
+                    team.display_format = '{full_name}';
+                    team.city = '';
+                    team.name = historicalName;
                 }
             }
 
@@ -638,7 +643,8 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             if (isWinner) {
                 // Resolve Opponent Logo
                 let opponentLogo = null;
-                const opTeam = allTeams.find(t => Number(t.team_id) === Number(r.losing_team_id));
+                // Use robust matching to find the correct current team, handling ID/Name mismatches
+                const opTeam = allTeams.find(t => matchesFranchise(r.losing_team_name, r.losing_team_id, t, allTeams, getMappedIds(t.team_id)));
                 if (opTeam) opponentLogo = opTeam.logo_url;
                 opponentLogo = getLogoForTeam(r.losing_team_name, opponentLogo);
 
@@ -654,7 +660,8 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 });
             } else if (isLoser) {
                 let opponentLogo = null;
-                const opTeam = allTeams.find(t => Number(t.team_id) === Number(r.winning_team_id));
+                // Use robust matching to find the correct current team, handling ID/Name mismatches
+                const opTeam = allTeams.find(t => matchesFranchise(r.winning_team_name, r.winning_team_id, t, allTeams, getMappedIds(t.team_id)));
                 if (opTeam) opponentLogo = opTeam.logo_url;
                 opponentLogo = getLogoForTeam(r.winning_team_name, opponentLogo);
 
