@@ -426,10 +426,45 @@ async function sendRandomRemovalsEmail(removalsByTeam, firstPickTeamName, client
     await sendEmail(recipients, subject, html);
 }
 
+// Template: Roster Update Notification (Manual Edits)
+async function sendRosterUpdateEmail(teamName, added, dropped, client) {
+    const recipients = await getLeagueEmails(client);
+
+    let addedHtml = '';
+    if (added && added.length > 0) {
+        addedHtml = '<h4>Added:</h4><ul>';
+        added.forEach(p => addedHtml += `<li>${p.name || p}</li>`);
+        addedHtml += '</ul>';
+    }
+
+    let droppedHtml = '';
+    if (dropped && dropped.length > 0) {
+        droppedHtml = '<h4>Dropped:</h4><ul>';
+        dropped.forEach(p => droppedHtml += `<li>${p.name || p}</li>`);
+        droppedHtml += '</ul>';
+    }
+
+    const subject = `Roster Update: ${teamName}`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>${teamName} has updated their roster.</h2>
+            ${addedHtml}
+            ${droppedHtml}
+            <hr />
+            <p>
+                <a href="${process.env.FRONTEND_URL}/league" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View League Page</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
 module.exports = {
     sendPickConfirmation,
     sendStalledDraftNotification,
     sendClassicRosterSubmissionEmail,
     sendRandomRemovalsEmail,
+    sendRosterUpdateEmail,
     verifyConnection
 };

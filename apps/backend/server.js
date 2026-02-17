@@ -1053,6 +1053,44 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
                 }
                 io.emit('draft-updated');
             }
+        } else {
+            // Not a draft turn. Check if we need to send a roster update email (League only).
+            // We need to compare oldCards vs new cards (from request).
+            // oldCards is array of IDs. 'cards' is array of objects {card_id, ...}.
+            if (rosterType === 'league' && oldCards.length > 0) {
+                const newCardIds = cards.map(c => c.card_id);
+
+                // Identify added and dropped IDs
+                const addedIds = newCardIds.filter(id => !oldCards.includes(id));
+                const droppedIds = oldCards.filter(id => !newCardIds.includes(id));
+
+                if (addedIds.length > 0 || droppedIds.length > 0) {
+                    // Fetch player names for email
+                    const allIds = [...addedIds, ...droppedIds];
+                    const playerNamesRes = await client.query('SELECT card_id, name, display_name FROM cards_player WHERE card_id = ANY($1::int[])', [allIds]);
+                    const playerMap = {};
+                    playerNamesRes.rows.forEach(p => playerMap[p.card_id] = p.display_name || p.name);
+
+                    const addedNames = addedIds.map(id => playerMap[id]);
+                    const droppedNames = droppedIds.map(id => playerMap[id]);
+
+                    // Get Team Name
+                    const teamRes = await client.query('SELECT city, name FROM teams WHERE user_id = $1', [userId]);
+                    let teamName = "Unknown Team";
+                    if (teamRes.rows.length > 0) {
+                        const t = teamRes.rows[0];
+                        teamName = `${t.city} ${t.name}`;
+                    }
+
+                    const { sendRosterUpdateEmail } = require('./services/emailService');
+                    // Fire and forget
+                    try {
+                        sendRosterUpdateEmail(teamName, addedNames, droppedNames, client);
+                    } catch(err) {
+                        console.error("Error sending roster update email:", err);
+                    }
+                }
+            }
         }
         // ----------------------------------------------------
 

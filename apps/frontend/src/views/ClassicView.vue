@@ -918,7 +918,7 @@ h2 {
 }
 
 .roster-table-container {
-    overflow-x: hidden;
+    overflow-x: auto;
 }
 
 .roster-table {

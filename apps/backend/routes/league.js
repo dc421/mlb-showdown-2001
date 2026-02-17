@@ -325,9 +325,33 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
         const standings = calculateStandings(seriesResults, currentTeams, season === 'all-time');
 
         if (season === 'all-time') {
+            // Include Final Series for All-Time list
+            const finalSeries = seriesResults.filter(r =>
+                ['Golden Spaceship', 'Silver Submarine', 'Wooden Spoon'].includes(r.round)
+            ).map(r => {
+                const hasScore = r.winning_score !== null && r.losing_score !== null;
+                const winner = findTeamForRecord(r.winning_team_name, r.winning_team_id, currentTeams);
+                const loser = findTeamForRecord(r.losing_team_name, r.losing_team_id, currentTeams);
+
+                return {
+                    id: r.id,
+                    date: r.date,
+                    round: r.round,
+                    season: r.season_name,
+                    winner_name: winner.displayName,
+                    loser_name: loser.displayName,
+                    winner_logo: winner.logo_url,
+                    loser_logo: loser.logo_url,
+                    score: hasScore ? `${r.winning_score}-${r.losing_score}` : null,
+                    mva: r.mva,
+                    lvsc: r.lvsc
+                };
+            }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Chronological order
+
             res.json({
                 standings,
-                recentResults: [] // Hide recent results for all-time
+                recentResults: [], // Still empty for the main list
+                finalSeries // New field for the chronological list
             });
         } else {
             res.json({
@@ -350,7 +374,11 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
 
                         winner_logo: winner.logo_url,
                         loser_logo: loser.logo_url,
-                        score: hasScore ? `${r.winning_score}-${r.losing_score}` : null
+                        score: hasScore ? `${r.winning_score}-${r.losing_score}` : null,
+                        winning_score: r.winning_score, // Passed for sorting
+                        losing_score: r.losing_score, // Passed for sorting
+                        mva: r.mva,
+                        lvsc: r.lvsc
                     };
                 })
             });
@@ -429,7 +457,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
 
 // SUBMIT/UPDATE RESULT (POST)
 router.post('/result', authenticateToken, async (req, res) => {
-    const { id, winning_score, losing_score, winner_id } = req.body;
+    const { id, winning_score, losing_score, winner_id, mva, lvsc } = req.body;
 
     if (!id || winning_score === undefined || losing_score === undefined || !winner_id) {
         return res.status(400).json({ message: 'Missing required fields.' });
@@ -462,11 +490,16 @@ router.post('/result', authenticateToken, async (req, res) => {
             newLosingId = original.winning_team_id;
         }
 
+        // We update mva/lvsc if provided, otherwise keep existing (or set to null? usually partial update logic, but here we can just overwrite)
+        // If undefined in body, it might overwrite with null? The frontend should send current value if editing.
+        // Assuming body contains all fields from modal.
+
         const updateQuery = `
             UPDATE series_results
             SET winning_score = $1, losing_score = $2,
                 winning_team_id = $3, losing_team_id = $4,
-                winning_team_name = $5, losing_team_name = $6
+                winning_team_name = $5, losing_team_name = $6,
+                mva = $8, lvsc = $9
             WHERE id = $7
         `;
 
@@ -474,7 +507,8 @@ router.post('/result', authenticateToken, async (req, res) => {
             winning_score, losing_score,
             newWinningId, newLosingId,
             newWinningName, newLosingName,
-            id
+            id,
+            mva, lvsc
         ]);
 
         // --- NEW: Check for Season Rollover ---

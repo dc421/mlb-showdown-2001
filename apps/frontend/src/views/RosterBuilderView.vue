@@ -369,16 +369,19 @@ onMounted(async () => {
 
   await authStore.fetchPointSets();
 
+  // Set default point set to Upcoming Season if available (User Request)
+  if (rosterType.value === 'league') {
+      const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
+      if (upcoming) {
+          authStore.selectedPointSetId = upcoming.point_set_id;
+      }
+  }
+
   try {
       const resp = await apiClient(`/api/draft/state`);
       if (resp.ok) {
           draftState.value = await resp.json();
-          if (draftState.value.is_active && rosterType.value === 'league') {
-              const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
-              if (upcoming) {
-                  authStore.selectedPointSetId = upcoming.point_set_id;
-              }
-          }
+          // If draft is active, it might force something, but we already set upcoming above.
       }
   } catch (e) { console.error(e); }
 
