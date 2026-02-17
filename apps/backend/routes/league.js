@@ -109,7 +109,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
             // --- NEW: Fetch Historical Identity from Series Results ---
             const identityQuery = `
-                SELECT DISTINCT name, id FROM (
+                SELECT name, id FROM (
                     SELECT winning_team_name as name, winning_team_id as id FROM series_results WHERE season_name = $1
                     UNION
                     SELECT losing_team_name as name, losing_team_id as id FROM series_results WHERE season_name = $1
