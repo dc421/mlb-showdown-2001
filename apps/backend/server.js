@@ -14,6 +14,7 @@ const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, reco
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { verifyConnection } = require('./services/emailService');
+const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
 
@@ -939,6 +940,29 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
 
     if (!cards || cards.length !== 20) {
         return res.status(400).json({ message: 'A valid roster requires a name and 20 cards.' });
+    }
+
+    if (rosterType === 'league') {
+        try {
+            const seasonRes = await pool.query('SELECT season_name FROM series_results ORDER BY date DESC LIMIT 1');
+            if (seasonRes.rows.length > 0) {
+                const seasonName = seasonRes.rows[0].season_name;
+                // Check if this season is finished (has a champion)
+                const finishedRes = await pool.query("SELECT 1 FROM series_results WHERE season_name = $1 AND round = 'Golden Spaceship'", [seasonName]);
+                const isFinished = finishedRes.rows.length > 0;
+
+                if (!isFinished) {
+                    const hasPlayed = await checkTeamHasPlayed(pool, userId, seasonName);
+                    if (hasPlayed) {
+                        return res.status(403).json({ message: "Roster is locked because your team has already played a game this season." });
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error checking roster lock status:", e);
+            // Proceed cautiously or fail? Failsafe to allow save if check errors?
+            // Better to log and allow, or block? Assuming allow for now to prevent lockout on DB error.
+        }
     }
 
     const client = await pool.connect();

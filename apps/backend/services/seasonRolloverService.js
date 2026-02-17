@@ -6,11 +6,6 @@ const { getSeasonName, sortSeasons } = require('../utils/seasonUtils');
  * @param {string} seasonName - The season name to tag these records with (e.g. "Winter 2026")
  */
 async function snapshotRosters(client, seasonName) {
-    // We want to capture the state of 'league' rosters right now.
-    // Join rosters -> roster_cards -> cards_player to get all details.
-    // Also need team name (from teams table via roster.user_id -> teams.user_id)
-    // Actually, roster table has user_id. teams table has user_id.
-
     const query = `
         INSERT INTO historical_rosters (season, team_name, player_name, position, points, card_id)
         SELECT
@@ -18,8 +13,9 @@ async function snapshotRosters(client, seasonName) {
             COALESCE(t.city || ' ' || t.name, 'Unknown Team') as team_name,
             COALESCE(cp.display_name, cp.name) as player_name,
             CASE
-                WHEN cp.control IS NOT NULL THEN (CASE WHEN cp.ip > 3 THEN 'SP' ELSE 'RP' END)
-                ELSE array_to_string(ARRAY(SELECT jsonb_object_keys(cp.fielding_ratings)), '/')
+                WHEN rc.assignment = 'BENCH' THEN 'BENCH'
+                WHEN rc.assignment = 'PITCHING_STAFF' THEN (CASE WHEN cp.ip > 3 THEN 'SP' ELSE 'RP' END)
+                ELSE rc.assignment
             END as position,
             COALESCE(ppv.points, 0) as points,
             rc.card_id
@@ -27,7 +23,7 @@ async function snapshotRosters(client, seasonName) {
         JOIN rosters r ON rc.roster_id = r.roster_id
         JOIN teams t ON r.user_id = t.user_id
         JOIN cards_player cp ON rc.card_id = cp.card_id
-        LEFT JOIN point_sets ps ON ps.name = 'Upcoming Season' -- We use current point values for the snapshot? Or the ones about to be rolled? Usually snapshot implies "what they were during this draft/season". Since we are at END of draft, "Upcoming Season" is actually the set used for this draft.
+        LEFT JOIN point_sets ps ON ps.name = 'Upcoming Season'
         LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = ps.point_set_id
         WHERE r.roster_type = 'league'
     `;
@@ -42,9 +38,6 @@ async function snapshotRosters(client, seasonName) {
  * @param {Array<number>} teamIds
  */
 async function generateSchedule(client, seasonName, teamIds) {
-    // 5 teams, round robin = 10 pairings.
-    // teamIds is array of 5 integers.
-
     if (!teamIds || teamIds.length < 2) return;
 
     // Fetch team cities
@@ -83,14 +76,14 @@ async function generateSchedule(client, seasonName, teamIds) {
  */
 async function rolloverPointSets(client, currentSeasonName) {
     // 1. Rename existing "Upcoming Season" to the season name (e.g. "Winter 2026")
-    // This preserves the point values used for that draft.
     const renameRes = await client.query(
         `UPDATE point_sets SET name = $1 WHERE name = 'Upcoming Season' RETURNING point_set_id`,
         [currentSeasonName]
     );
 
     if (renameRes.rowCount === 0) {
-        throw new Error("Could not find 'Upcoming Season' point set to rename.");
+        console.warn("Could not find 'Upcoming Season' point set to rename. Skipping point set rollover.");
+        return;
     }
     const oldPointSetId = renameRes.rows[0].point_set_id;
 
@@ -101,39 +94,23 @@ async function rolloverPointSets(client, currentSeasonName) {
     const newPointSetId = createRes.rows[0].point_set_id;
 
     // 3. Determine Previous Season
-    // Fetch all seasons from historical_rosters distinct
     const histRes = await client.query(`SELECT DISTINCT season FROM historical_rosters`);
     const allSeasons = histRes.rows.map(r => r.season);
-
-    // Add currentSeasonName to list for sorting context (it might not be in hist yet if snapshot happened in same transaction but we can't see it? Wait, snapshot IS in same transaction, so it should be visible if we select?)
-    // Actually, we just called snapshotRosters in the same transaction, so yes, currentSeasonName should be in historical_rosters now.
-
-    // Sort
     const sortedSeasons = sortSeasons(allSeasons);
-
-    // Find currentSeasonName index
     const idx = sortedSeasons.indexOf(currentSeasonName);
     let prevSeasonName = null;
     if (idx !== -1 && idx < sortedSeasons.length - 1) {
-        prevSeasonName = sortedSeasons[idx + 1]; // Next one in list is previous chronologically (descending sort)
+        prevSeasonName = sortedSeasons[idx + 1];
     }
 
     // 4. Calculate Points
-    // We need:
-    // - Base points (from oldPointSetId)
-    // - Set of card_ids in currentSeasonName roster (from historical_rosters)
-    // - Set of card_ids in prevSeasonName roster (from historical_rosters)
-    // - Set of card_ids EVER in historical_rosters
-
-    // Fetch Base Points
     const basePointsRes = await client.query(
         `SELECT card_id, points FROM player_point_values WHERE point_set_id = $1`,
         [oldPointSetId]
     );
-    const basePoints = {}; // card_id -> points
+    const basePoints = {};
     basePointsRes.rows.forEach(r => basePoints[r.card_id] = r.points);
 
-    // Helper to get roster IDs
     async function getRosterIds(season) {
         if (!season) return new Set();
         const r = await client.query(`SELECT card_id FROM historical_rosters WHERE season = $1`, [season]);
@@ -142,41 +119,24 @@ async function rolloverPointSets(client, currentSeasonName) {
 
     const currentRosterIds = await getRosterIds(currentSeasonName);
     const prevRosterIds = await getRosterIds(prevSeasonName);
-
-    // Fetch ALL historical IDs (for the "never on roster" check)
-    // This includes current season since we just snapshotted it.
     const allHistoryRes = await client.query(`SELECT DISTINCT card_id FROM historical_rosters`);
     const allHistoryIds = new Set(allHistoryRes.rows.map(r => r.card_id));
 
-    // Calculate new values
-    // Iterate over all cards that have base points
     for (const [cardIdStr, points] of Object.entries(basePoints)) {
         const cardId = parseInt(cardIdStr);
         let newPoints = points;
-
         const isCurrent = currentRosterIds.has(cardId);
         const isPrev = prevRosterIds.has(cardId);
         const everRostered = allHistoryIds.has(cardId);
 
         if (isCurrent) {
-            if (isPrev) {
-                // Consecutive seasons -> +10
-                newPoints += 10;
-            }
-            // If current but not prev -> No change (neutral)
+            if (isPrev) newPoints += 10;
         } else {
-            // Not in current -> -10
             newPoints -= 10;
         }
 
-        // Floor Logic
-        // "players can only be valued at less than 10 points if they have never been on a league roster."
-        // Meaning: If everRostered is true, min points = 10.
-        if (everRostered) {
-            if (newPoints < 10) newPoints = 10;
-        }
+        if (everRostered && newPoints < 10) newPoints = 10;
 
-        // Insert into new point set
         await client.query(
             `INSERT INTO player_point_values (point_set_id, card_id, points) VALUES ($1, $2, $3)`,
             [newPointSetId, cardId, newPoints]
@@ -184,8 +144,75 @@ async function rolloverPointSets(client, currentSeasonName) {
     }
 }
 
+/**
+ * Checks if a specific team has played (finished) any game in the given season.
+ * @param {Object} client
+ * @param {number} userId - The user ID of the team owner
+ * @param {string} seasonName
+ * @returns {Promise<boolean>}
+ */
+async function checkTeamHasPlayed(client, userId, seasonName) {
+    if (!seasonName) return false;
+
+    // Get Team ID
+    const teamRes = await client.query('SELECT team_id FROM teams WHERE user_id = $1', [userId]);
+    if (teamRes.rows.length === 0) return false;
+    const teamId = teamRes.rows[0].team_id;
+
+    // Check for any completed game (score is not null)
+    const gameRes = await client.query(
+        `SELECT 1 FROM series_results
+         WHERE season_name = $1
+           AND (winning_team_id = $2 OR losing_team_id = $2)
+           AND winning_score IS NOT NULL
+         LIMIT 1`,
+        [seasonName, teamId]
+    );
+
+    return gameRes.rows.length > 0;
+}
+
+/**
+ * Checks if ALL teams scheduled in a season have finished at least one game.
+ * @param {Object} client
+ * @param {string} seasonName
+ * @returns {Promise<boolean>}
+ */
+async function checkAllTeamsPlayed(client, seasonName) {
+    if (!seasonName) return false;
+
+    // Get all teams involved in this season
+    const teamsRes = await client.query(
+        `SELECT DISTINCT winning_team_id as id FROM series_results WHERE season_name = $1
+         UNION
+         SELECT DISTINCT losing_team_id as id FROM series_results WHERE season_name = $1`,
+        [seasonName]
+    );
+    const allTeams = teamsRes.rows.map(r => r.id).filter(id => id !== null);
+
+    if (allTeams.length === 0) return false;
+
+    // Check for teams that have NOT played (have NO finished games)
+    const unplayedRes = await client.query(
+        `SELECT team_id FROM (
+            SELECT unnest($1::int[]) as team_id
+         ) as t
+         WHERE NOT EXISTS (
+            SELECT 1 FROM series_results sr
+            WHERE sr.season_name = $2
+              AND (sr.winning_team_id = t.team_id OR sr.losing_team_id = t.team_id)
+              AND sr.winning_score IS NOT NULL
+         )`,
+        [allTeams, seasonName]
+    );
+
+    return unplayedRes.rows.length === 0;
+}
+
 module.exports = {
     snapshotRosters,
     generateSchedule,
-    rolloverPointSets
+    rolloverPointSets,
+    checkTeamHasPlayed,
+    checkAllTeamsPlayed
 };

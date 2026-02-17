@@ -6,6 +6,7 @@ const authenticateToken = require('../middleware/authenticateToken');
 const { matchesFranchise, getMappedIds, parseHistoricalIdentity, getLogoForTeam } = require('../utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { calculateStandings, findTeamForRecord } = require('../utils/standingsUtils');
+const { checkAllTeamsPlayed, snapshotRosters, rolloverPointSets } = require('../services/seasonRolloverService');
 
 function processPlayers(playersToProcess) {
     if (!playersToProcess) return [];
@@ -67,7 +68,19 @@ router.get('/', authenticateToken, async (req, res) => {
              if (season === 'Upcoming Season' || season === 'Live Draft') isDraftSeason = true;
         }
 
-        // --- FIX: Force 'Upcoming Season' point set for active draft ---
+        // --- Check for Active Season (Pre-Rollover) ---
+        // If the season is the latest in series_results BUT has no historical rosters, it's "Live"
+        if (season && !isDraftSeason) {
+            const histCheck = await pool.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [season]);
+            if (histCheck.rows.length === 0) {
+                const latestSeasonRes = await pool.query('SELECT season_name FROM series_results ORDER BY date DESC LIMIT 1');
+                if (latestSeasonRes.rows.length > 0 && latestSeasonRes.rows[0].season_name === season) {
+                    isDraftSeason = true; // Treat as live
+                }
+            }
+        }
+
+        // --- FIX: Force 'Upcoming Season' point set for active draft or pre-rollover season ---
         if (isDraftSeason) {
             const upcomingPsRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
             if (upcomingPsRes.rows.length > 0) {
@@ -422,9 +435,15 @@ router.post('/result', authenticateToken, async (req, res) => {
         return res.status(400).json({ message: 'Missing required fields.' });
     }
 
+    const client = await pool.connect();
     try {
-        const originalRes = await pool.query('SELECT * FROM series_results WHERE id = $1', [id]);
-        if (originalRes.rows.length === 0) return res.status(404).json({ message: 'Result not found.' });
+        await client.query('BEGIN');
+
+        const originalRes = await client.query('SELECT * FROM series_results WHERE id = $1', [id]);
+        if (originalRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Result not found.' });
+        }
 
         const original = originalRes.rows[0];
 
@@ -451,18 +470,41 @@ router.post('/result', authenticateToken, async (req, res) => {
             WHERE id = $7
         `;
 
-        await pool.query(updateQuery, [
+        await client.query(updateQuery, [
             winning_score, losing_score,
             newWinningId, newLosingId,
             newWinningName, newLosingName,
             id
         ]);
 
+        // --- NEW: Check for Season Rollover ---
+        const seasonName = original.season_name;
+        // Check if this game being finished triggers the "All Teams Played" condition
+        const allPlayed = await checkAllTeamsPlayed(client, seasonName);
+
+        if (allPlayed) {
+            const histCheck = await client.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [seasonName]);
+            if (histCheck.rows.length === 0) {
+                console.log(`Triggering Season Rollover for ${seasonName}...`);
+                await snapshotRosters(client, seasonName);
+
+                const psCheck = await client.query('SELECT 1 FROM point_sets WHERE name = $1', [seasonName]);
+                if (psCheck.rows.length === 0) {
+                    await rolloverPointSets(client, seasonName);
+                }
+            }
+        }
+        // ------------------------------------
+
+        await client.query('COMMIT');
         res.json({ message: 'Result updated successfully.' });
 
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error updating result:', error);
         res.status(500).json({ message: 'Server error updating result.' });
+    } finally {
+        client.release();
     }
 });
 
