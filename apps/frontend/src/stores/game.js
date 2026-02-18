@@ -52,11 +52,6 @@ async function fetchGame(gameId) {
       
       const data = await response.json();
 
-      // --- START PRODUCTION DEBUGGING ---
-      console.log('--- Raw data from fetchGame ---');
-      console.log(JSON.stringify(data, null, 2));
-      // --- END PRODUCTION DEBUGGING ---
-      
       game.value = data.game;
       if (data.nextGameId) {
         nextGameId.value = data.nextGameId;
@@ -478,7 +473,30 @@ async function resetRolls(gameId) {
 
   const gameEventsToDisplay = computed(() => {
     if (!gameEvents.value) return [];
+// --- FIX FOR TAG UP SPOILERS ---
+    const isDisplayDefensive = displayGameState.value && myTeam.value ?
+        ((displayGameState.value.isTopInning && myTeam.value === 'home') ||
+         (!displayGameState.value.isTopInning && myTeam.value === 'away')) :
+        amIDefensivePlayer.value;
 
+    
+// Hide steal result for defensive player in inning-ended-on-CS until they roll
+if (gameState.value?.inningEndedOnCaughtStealing && 
+    gameState.value.pendingStealAttempt &&
+    !gameState.value.lastStealResult) {  // ← Removed amIReadyForNext check
+    // Only filter if I was the defensive player during the steal
+    const runnerTeamId = gameState.value.pendingStealAttempt.runnerTeamId;
+    const myTeamId = teams.value[myTeam.value]?.team_id;
+    const wasIDefensive = Number(runnerTeamId) !== Number(myTeamId);
+    
+    if (wasIDefensive) {
+        for (let i = gameEvents.value.length - 1; i >= 0; i--) {
+            if (gameEvents.value[i].event_type !== 'steal' && gameEvents.value[i].event_type !== 'system') {
+                return gameEvents.value.slice(0, i + 1);
+            }
+        }
+    }
+}
     if (gameState.value?.isStealResultHiddenForDefense && amIDefensivePlayer.value) {
       let nonStealEventIndex = -1;
       for (let i = gameEvents.value.length - 1; i >= 0; i--) {
@@ -492,12 +510,6 @@ async function resetRolls(gameId) {
 
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
-
-    // --- FIX FOR TAG UP SPOILERS ---
-    const isDisplayDefensive = displayGameState.value && myTeam.value ?
-        ((displayGameState.value.isTopInning && myTeam.value === 'home') ||
-         (!displayGameState.value.isTopInning && myTeam.value === 'away')) :
-        amIDefensivePlayer.value;
 
     if (isDisplayDefensive && gameState.value?.currentPlay?.type === 'TAG_UP' && !amIReadyForNext.value && opponentReadyForNext.value) {
         const filteredEvents = [];
@@ -561,6 +573,10 @@ async function resetRolls(gameId) {
 
   function updateGameData(data) {
     console.log('📥 STORE: Received game data from socket.');
+    if (data.gameState) {
+        console.log('Updating gameState, isTopInning changing from', gameState.value?.isTopInning, 'to', data.gameState.state_data.isTopInning);
+        gameState.value = data.gameState.state_data;
+    }
     if (data.game) game.value = data.game;
     if (data.nextGameId) nextGameId.value = data.nextGameId;
     if (data.series) series.value = data.series;
@@ -640,16 +656,31 @@ async function resetRolls(gameId) {
                           gameState.value.lastCompletedAtBat &&
                           gameState.value.currentAtBat.outsBeforePlay < gameState.value.lastCompletedAtBat.outsBeforePlay;
 
-    if (gameState.value.pendingStealAttempt) {
+    const outsResetInEndedInning = gameState.value.inningEndedOnCaughtStealing &&
+                                   gameState.value.currentAtBat &&
+                                   gameState.value.lastCompletedAtBat &&
+                                   gameState.value.currentAtBat.outsBeforePlay < gameState.value.lastCompletedAtBat.outsBeforePlay;
+
+    if (gameState.value.pendingStealAttempt && !gameState.value.inningEndedOnCaughtStealing) {
       return false;
     }
 
     if (!amIReadyForNext.value && opponentReadyForNext.value && gameState.value.lastStealResult && !isStealResultVisible.value) {
+        console.log('isEffectivelyBetweenHalfInnings returning FALSE due to lastStealResult check');
         return false;
     }
 
-    return hasBetweenInningsFlags || outsHaveReset;
-  });
+    const result = hasBetweenInningsFlags || outsHaveReset || outsResetInEndedInning;
+    console.log('isEffectivelyBetweenHalfInnings result:', result, {
+        hasBetweenInningsFlags,
+        outsHaveReset,
+        outsResetInEndedInning,
+        amIReadyForNext: amIReadyForNext.value,
+        opponentReadyForNext: opponentReadyForNext.value,
+        lastStealResult: !!gameState.value.lastStealResult
+    });
+    return result;
+});
 
   const displayOuts = computed(() => {
     if (!gameState.value) return 0;
@@ -689,21 +720,39 @@ async function resetRolls(gameId) {
     return gameState.value.outs;
   });
 
+
+  const shouldShowThreeOuts = computed(() => {
+    if (!isEffectivelyBetweenHalfInnings.value) return false;
+    if (!gameState.value?.pendingStealAttempt) return true;
+    
+    // If there's a pending steal, only defensive player should wait
+    const runnerTeamId = gameState.value.pendingStealAttempt.runnerTeamId;
+    const myTeamId = teams.value[myTeam.value]?.team_id;
+    const wasIOffensive = Number(runnerTeamId) === Number(myTeamId);
+    
+    return wasIOffensive; // Offensive player sees 3 outs
+});
+
   const displayGameState = computed(() => {
+    console.log('displayGameState computing, isEffectivelyBetweenHalfInnings:', isEffectivelyBetweenHalfInnings.value, 'isTopInning:', gameState.value?.isTopInning);
     const auth = useAuthStore();
 
     if (game.value?.status === 'completed' && !isOutcomeHidden.value) {
+      console.log('Early return: game completed');
       return gameState.value;
     }
     if (!gameState.value) {
+      console.log('Early return: no gameState');
       // Return a default, safe object to prevent crashes.
       return {
         inning: 1, isTopInning: true, outs: 0, homeScore: 0, awayScore: 0, bases: {},
         isBetweenHalfInningsAway: false, isBetweenHalfInningsHome: false
       };
     }
+    
 
     if (isStealResultVisible.value && gameState.value.currentPlay?.type === 'STEAL_ATTEMPT' && gameState.value.currentPlay.payload.results) {
+      console.log('Early return: steal result visible');
       const { decisions, results } = gameState.value.currentPlay.payload;
       const newBases = { ...gameState.value.bases };
       let newOuts = gameState.value.outs;
@@ -739,6 +788,8 @@ async function resetRolls(gameId) {
     const isConsecutiveSteal = gameState.value.lastStealResult && gameState.value.pendingStealAttempt;
 
     if (isConsecutiveSteal && amIDefensivePlayer.value) {
+         console.log('Early return: consecutive steal');
+          console.log('CONSECUTIVE STEAL BLOCK FIRING - this should not happen!');
          const pending = gameState.value.pendingStealAttempt;
          const toBase = pending.throwToBase;
          const fromBase = toBase - 1;
@@ -770,6 +821,7 @@ async function resetRolls(gameId) {
         const lastEvent = gameEvents.value[gameEvents.value.length - 1];
         const prevEvent = gameEvents.value[gameEvents.value.length - 2];
         if (lastEvent.log_message?.includes('intentionally walked') && prevEvent.log_message?.includes('intentionally walked')) {
+            console.log('Early return: consecutive IBB');
             const rollbackSource = gameState.value.lastCompletedAtBat;
             return {
                 ...gameState.value,
@@ -781,7 +833,45 @@ async function resetRolls(gameId) {
         }
     }
 
+if (gameState.value?.inningEndedOnCaughtStealing &&
+    gameState.value.pendingStealAttempt) {  // ← Just check pendingStealAttempt exists
+    const runnerTeamId = gameState.value.pendingStealAttempt.runnerTeamId;
+    const myTeamId = teams.value[myTeam.value]?.team_id;
+    const wasIDefensive = Number(runnerTeamId) !== Number(myTeamId);
+    
+    if (wasIDefensive) {
+        const bases = gameState.value.currentAtBat?.basesBeforePlay || { first: null, second: null, third: null };
+        
+        return {
+            ...gameState.value,
+            outs: 2,
+            bases: bases,
+            homeScore: gameState.value.homeScore,
+            awayScore: gameState.value.awayScore,
+            inning: gameState.value.inning,
+            isTopInning: gameState.value.isTopInning,
+        };
+    }
+}
+
     if (isOutcomeHidden.value) {
+    // Special handling for inning-ended-on-CS
+    if (gameState.value.inningEndedOnCaughtStealing && 
+        isEffectivelyBetweenHalfInnings.value &&
+        !gameState.value.pendingStealAttempt &&
+        (amIReadyForNext.value || opponentReadyForNext.value)) {  // ← Add this back
+        return {
+            ...gameState.value,
+            outs: 3,
+            bases: gameState.value.lastCompletedAtBat.basesBeforePlay,  // ← Always use last completed
+        homeScore: gameState.value.homeScore,
+            awayScore: gameState.value.awayScore,
+            inning: gameState.value.inning,
+            isTopInning: !gameState.value.isTopInning,
+        };
+    }
+
+    
         const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
         if (rollbackSource && rollbackSource.basesBeforePlay) {
             let inning = gameState.value.inning;
@@ -811,19 +901,22 @@ async function resetRolls(gameId) {
         }
         return calculateDisplayGameState(gameState.value, auth.user?.userId, !isOutcomeHidden.value);
     }
-
-    const shouldShowThreeOuts = isEffectivelyBetweenHalfInnings.value;
-
+    console.log('No early return, proceeding to main logic');
+    
     let bases = gameState.value.bases;
     let outs = gameState.value.outs;
     let homeScore = gameState.value.homeScore;
     let awayScore = gameState.value.awayScore;
 
-    if (shouldShowThreeOuts) {
-        bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
-        outs = 3;
-    } else if (!amIReadyForNext.value && opponentReadyForNext.value) {
-        if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
+    if (shouldShowThreeOuts.value) {  // ← Now .value
+    bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
+    outs = 3;
+    } else if (!amIReadyForNext.value && opponentReadyForNext.value &&
+          !(gameState.value.inningEndedOnCaughtStealing && 
+            gameState.value.pendingStealAttempt && 
+            Number(gameState.value.pendingStealAttempt.runnerTeamId) === Number(teams.value[myTeam.value]?.team_id))) {
+    // Existing rollback logic
+    if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
              const src = gameState.value.lastCompletedAtBat;
              if (src) {
                  bases = src.basesBeforePlay || bases;
@@ -878,6 +971,8 @@ async function resetRolls(gameId) {
         isTopInning = true;
       }
     }
+
+    console.log('About to return displayGameState with outs:', outs);
 
     return {
       ...gameState.value,

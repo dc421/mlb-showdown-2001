@@ -10,7 +10,8 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
-const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange } = require('./gameLogic');
+const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
+  recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher } = require('./gameLogic');
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { verifyConnection } = require('./services/emailService');
@@ -3757,6 +3758,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
                     // This is the UNCONTESTED runner.
                     if (targetBase === 4) {
                         newState[scoreKey]++;
+                        recordRunForPitcher(newState, runner, newState.currentAtBat.pitcher);
                         allEvents.push(`${runner.name} scores.`);
                     } else {
                         finalBases[baseMap[targetBase]] = runner;
@@ -3815,6 +3817,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
             if (isSafe) {
                 if (throwTo === 4) {
                     newState[scoreKey]++;
+                    recordRunForPitcher(newState, contestedRunner, newState.currentAtBat.pitcher);
                     allEvents.push(`${contestedRunner.name} is SAFE at home!`);
                 } else {
                     finalBases[baseMap[throwTo]] = contestedRunner;
@@ -3967,6 +3970,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
             if (isSafe) {
                 newState[scoreKey]++;
+                recordRunForPitcher(newState, runnerOnThird, newState.currentAtBat.pitcher);
                 events.push(`${runnerOnThird.name} is SENT HOME... SAFE! ${batter.displayName} reaches on a fielder's choice.`);
                 if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
                     newState.gameOver = true;

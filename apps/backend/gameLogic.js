@@ -725,6 +725,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
+        recordRunForPitcher(newState, runnerToChallenge, newState.currentAtBat.pitcher);
         outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
         // --- Walk-off Win Check ---
         if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
@@ -811,4 +812,17 @@ function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHom
     return logMessage;
 }
 
-module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog, recordOutsForPitcher: recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange };
+function recordRunForPitcher(state, runner, currentPitcher) {
+  const pitcherId = (runner && runner.pitcherOfRecordId)
+    ? runner.pitcherOfRecordId
+    : (currentPitcher ? currentPitcher.card_id : null);
+  if (!pitcherId) return;
+  if (!state.pitcherStats) state.pitcherStats = {};
+  if (!state.pitcherStats[pitcherId]) {
+    state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
+  }
+  state.pitcherStats[pitcherId].runs++;
+}
+
+module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
+  recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher };
