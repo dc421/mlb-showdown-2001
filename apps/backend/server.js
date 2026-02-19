@@ -3064,7 +3064,12 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     // If you are the FIRST player to click, advance the game state.
     if (!originalState.homePlayerReadyForNext && !originalState.awayPlayerReadyForNext) {
       // 1. Save the completed/interrupted at-bat for the other player to see.
-      newState.lastCompletedAtBat = { ...newState.currentAtBat,
+      // NEW: If a steal is in progress, the at-bat was already advanced before
+      // the steal was initiated. Skip re-advancement to prevent double batting
+      // order increment and duplicate lastCompletedAtBat creation.
+      if (originalState.pendingStealAttempt) {
+          // No advancement needed — just fall through to mark the player as ready.
+      } else {newState.lastCompletedAtBat = { ...newState.currentAtBat,
         bases: newState.currentAtBat.basesBeforePlay,
         eventCount: newState.currentAtBat.swingRollResult?.eventCount || 1,
         outs: newState.outsBeforePlay
@@ -3085,6 +3090,14 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         newState = advanceToNextHalfInning(newState);
         const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
         newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+        
+        // Clear all transient state from the previous inning.
+        // Safe because the pendingStealAttempt guard above ensures we only
+        // reach here after the steal has been fully resolved.
+        newState.inningEndedOnCaughtStealing = false;
+        newState.lastStealResult = null;
+        newState.throwRollResult = null;
+        newState.currentPlay = null;
       } else {
         // Otherwise, it's a normal at-bat, advance the current team's order.
         const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
@@ -3137,6 +3150,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
           newState.currentAtBat.infieldIn = false;
       }
     }
+    }
 
     // Mark the current player as ready.
     if (isHomePlayer) {
@@ -3146,18 +3160,58 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     }
     
     // If BOTH players are now ready, reset the flags for the next cycle.
-    if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext) {
-      newState.homePlayerReadyForNext = false;
+    // BUT: if a steal is still pending (ROLL FOR THROW not yet clicked),
+    // skip this entirely — the steal must be resolved first.
+if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext && !newState.pendingStealAttempt && newState.currentPlay?.type !== 'STEAL_ATTEMPT') {        newState.homePlayerReadyForNext = false;
       newState.awayPlayerReadyForNext = false;
-      newState.defensivePlayerWentSecond = false; // Reset for the new at-bat cycle
+      newState.defensivePlayerWentSecond = false;
 
       newState.doublePlayDetails = null;
-      newState.throwRollResult = null;
-      newState.lastStealResult = null;
-      newState.inningEndedOnCaughtStealing = false;
 
-      if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
-        newState.currentPlay = null;
+      // Only clear steal state and attempt deferred advancement if the steal
+      // has been fully resolved. If pendingStealAttempt still exists, the
+      // defensive player hasn't clicked ROLL FOR THROW yet — we must wait.
+      if (!newState.pendingStealAttempt) {
+        newState.throwRollResult = null;
+        newState.lastStealResult = null;
+        newState.inningEndedOnCaughtStealing = false;
+
+        if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
+          newState.currentPlay = null;
+        }
+
+        // Deferred inning transition: if the first player's advancement was
+        // skipped because a steal was in progress, perform it now.
+        const stillBetweenInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
+        if (stillBetweenInnings) {
+          newState.currentPlay = null;
+          newState = advanceToNextHalfInning(newState);
+          const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+          newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+
+          const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, newState);
+          newState = updatePitcherFatigueForNewInning(newState, pitcher);
+          if (pitcher) {
+              pitcher.effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
+          }
+          newState.currentAtBat = {
+              batter: batter,
+              pitcher: pitcher,
+              pitcherAction: null, batterAction: null,
+              pitchRollResult: null, swingRollResult: null,
+              outsBeforePlay: newState.outs,
+              basesBeforePlay: newState.bases,
+              homeScoreBeforePlay: newState.homeScore,
+              awayScoreBeforePlay: newState.awayScore
+          };
+          if (defensiveTeam && defensiveTeam.lineup) {
+              newState = await validateLineup(defensiveTeam, newState, gameId, client);
+          }
+          await createInningChangeEvent(gameId, newState, userId, currentTurn + 1, client);
+          if (!newState.bases.third || newState.outs >= 2) {
+              newState.currentAtBat.infieldIn = false;
+          }
+        }
       }
     }
     
@@ -3371,6 +3425,11 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
     const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
+
+    // Reset ready-for-next flags. Resolving a steal is a new game action that
+    // invalidates any previous "ready for next" synchronization.
+    newState.awayPlayerReadyForNext = false;
+    newState.homePlayerReadyForNext = false;
 
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 

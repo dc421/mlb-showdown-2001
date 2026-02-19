@@ -649,7 +649,30 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
   const isEffectivelyBetweenHalfInnings = computed(() => {
     if (!gameState.value) return false;
 
+    // If the between-innings flags are already cleared and the current at-bat
+    // is completely fresh (no actions, no steal in progress), the inning has
+    // fully transitioned. Don't treat this as "between innings" even if outs
+    // appear to have reset — that's just the new inning starting at 0.
     const hasBetweenInningsFlags = gameState.value.isBetweenHalfInningsAway || gameState.value.isBetweenHalfInningsHome;
+    
+    // Guard 1: Blank at-bat, flags cleared, no steal, and I'm not behind
+    if (!hasBetweenInningsFlags && 
+        gameState.value.currentAtBat &&
+        !gameState.value.currentAtBat.pitcherAction && 
+        !gameState.value.currentAtBat.batterAction &&
+        !gameState.value.pendingStealAttempt &&
+        !gameState.value.currentPlay &&
+        !opponentReadyForNext.value) {
+      return false;
+    }
+
+    // Guard 2: At-bat with actions underway, flags cleared, and I'm not behind
+    if (!hasBetweenInningsFlags && 
+        gameState.value.currentAtBat &&
+        (gameState.value.currentAtBat.pitcherAction || gameState.value.currentAtBat.batterAction) &&
+        !opponentReadyForNext.value) {
+      return false;
+    }
 
     const outsHaveReset = opponentReadyForNext.value &&
                           gameState.value.currentAtBat &&
@@ -661,7 +684,18 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
                                    gameState.value.lastCompletedAtBat &&
                                    gameState.value.currentAtBat.outsBeforePlay < gameState.value.lastCompletedAtBat.outsBeforePlay;
 
-    if (gameState.value.pendingStealAttempt && !gameState.value.inningEndedOnCaughtStealing) {
+
+    if (gameState.value.pendingStealAttempt) {
+   return false;
+}
+
+    // NEW: After a caught stealing is fully resolved (steal result shown,
+    // no pending steal), the raw state already has outs=3 and correct bases.
+    // Returning true here would cause displayGameState to roll back to
+    // lastCompletedAtBat (the previous batter), which is wrong.
+    if (gameState.value.inningEndedOnCaughtStealing && 
+        gameState.value.lastStealResult && 
+        !gameState.value.pendingStealAttempt) {
       return false;
     }
 
