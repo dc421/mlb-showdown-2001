@@ -3099,10 +3099,15 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         newState.throwRollResult = null;
         newState.currentPlay = null;
       } else {
-        // Otherwise, it's a normal at-bat, advance the current team's order.
-        const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
-        newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
-      }
+    // Otherwise, it's a normal at-bat, advance the current team's order.
+    const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
+    newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
+
+    // Clear resolved throw/play data so the other player's displayGameState
+    // doesn't mistakenly roll back (throwRollResult triggers a steal-style rollback).
+    newState.throwRollResult = null;
+    newState.doublePlayDetails = null;
+}
 
       // Now that the state is correct for the new at-bat, get the players.
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, newState);
@@ -3825,10 +3830,10 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
                     }
                 }
             } else {
-                // This runner was HELD. They stay at their optimistically advanced base.
-                const advancedBase = from + 1;
-                finalBases[baseMap[advancedBase]] = runner;
-            }
+    const isTagUp = newState.currentPlay.type === 'TAG_UP';
+    const advancedBase = isTagUp ? from : from + 1;
+    finalBases[baseMap[advancedBase]] = runner;
+}
         }
 
         // 3. Resolve the contested throw.

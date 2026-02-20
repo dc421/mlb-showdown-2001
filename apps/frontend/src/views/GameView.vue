@@ -752,7 +752,10 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   // at-bat, and there is no longer an outcome to hide. This prevents the
   // flicker that happens when `isSwingResultVisible` is reset to false.
   if (isTransitioningToNextHitter.value) return false;
-  if (!gameStore.gameState) return false;
+  // If I've already clicked Next Hitter, I've seen the previous result.
+// Don't hide anything (e.g. during a pending steal after both players advanced).
+if (gameStore.amIReadyForNext) return false;
+if (!gameStore.gameState) return false;
 
     // If the inning ended on a caught stealing that has been fully resolved
   // (lastStealResult exists, no pending steal), both players have seen the result.
@@ -1823,14 +1826,18 @@ function handleResolveSteal(throwToBase = null) {
 
 
 const isStealAttemptInProgress = computed(() => {
-    if (shouldDelayStealRoll.value) return false;
+    if (shouldDelayStealRoll.value && !gameStore.gameState?.inningEndedOnCaughtStealing) return true;
     if (shouldShowDoublePlayFirst.value) return false;
+
     // NEW: Game-ending steal — defensive player must still ROLL FOR THROW
-    if (isGameOver.value && 
-        gameStore.gameState?.pendingStealAttempt && 
-        amIDisplayDefensivePlayer.value) {
-        return true;
-    }
+  if (isGameOver.value && 
+    !!gameStore.gameState?.pendingStealAttempt && 
+    amIDisplayDefensivePlayer.value) {
+    return true;
+  }
+  // existing line, unchanged
+  if ((isGameOver.value && gameStore.displayGameState.outs < 3 && !gameStore.gameState?.pendingStealAttempt) || 
+    !amIDisplayDefensivePlayer.value || !isMyTurn.value) return false;
     
     // NEW: Special handling for inning-ended-on-CS
     if (gameStore.gameState?.inningEndedOnCaughtStealing && 
@@ -2296,8 +2303,8 @@ function handleVisibilityChange() {
       <!-- PLAYER CARDS & ACTIONS -->
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-        <div v-if="!(isGameOver && isSwingResultVisible && !((showDefensiveRollForThrowButton || showRollForDoublePlayButton) && !showThrowRollResult))" class="actions-container">
-            <!-- PITCHER SELECTION STATE -->
+<div v-if="!showSetLineupForNextGameButton && !(isGameOver && isSwingResultVisible && !((showDefensiveRollForThrowButton || showRollForDoublePlayButton) && !showThrowRollResult))" class="actions-container">
+              <!-- PITCHER SELECTION STATE -->
         <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
                 <h3>Invalid Lineup</h3>
                 <p>One or more players are out of position. Please correct your lineup to continue.</p>
