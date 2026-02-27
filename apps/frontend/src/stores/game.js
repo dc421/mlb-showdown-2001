@@ -710,21 +710,6 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
    return false;
 }
 
-    // NEW: After a caught stealing is fully resolved (steal result shown,
-    // no pending steal), the raw state already has outs=3 and correct bases.
-    // Returning true here would cause displayGameState to roll back to
-    // lastCompletedAtBat (the previous batter), which is wrong.
-    if (gameState.value.inningEndedOnCaughtStealing && 
-        gameState.value.lastStealResult && 
-        !gameState.value.pendingStealAttempt) {
-      return false;
-    }
-
-if (!amIReadyForNext.value && opponentReadyForNext.value && gameState.value.lastStealResult && !isStealResultVisible.value && gameState.value.inningEndedOnCaughtStealing) {
-          console.log('isEffectivelyBetweenHalfInnings returning FALSE due to lastStealResult check');
-        return false;
-    }
-
     const result = hasBetweenInningsFlags || outsHaveReset || outsResetInEndedInning;
     console.log('isEffectivelyBetweenHalfInnings result:', result, {
         hasBetweenInningsFlags,

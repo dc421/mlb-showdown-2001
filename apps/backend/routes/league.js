@@ -165,7 +165,8 @@ router.get('/', authenticateToken, async (req, res) => {
 
                  if (matchedTeam && matchedTeam.team_id && teamsMap[matchedTeam.team_id]) {
                      // Update logo if historical (Explicit check)
-                     const historicalLogo = getLogoForTeam(row.team_name, matchedTeam.logo_url);
+                     // Only update if we find a specific historical logo (pass null as default)
+                     const historicalLogo = getLogoForTeam(row.team_name, null);
                      if (historicalLogo && historicalLogo !== teamsMap[matchedTeam.team_id].logo_url) {
                          teamsMap[matchedTeam.team_id].logo_url = historicalLogo;
                      }
@@ -251,7 +252,8 @@ router.get('/', authenticateToken, async (req, res) => {
 
             // Apply transformations and sorting
             team.roster.forEach(p => {
-                if (p.assignment === 'BENCH') {
+                const isBench = ['BENCH', 'B', 'Bench'].includes(p.assignment) || ['BENCH', 'B', 'Bench'].includes(p.position);
+                if (isBench) {
                     p.assignment = 'B';
                     if (p.points) p.points = Math.round(p.points / 5);
                 }

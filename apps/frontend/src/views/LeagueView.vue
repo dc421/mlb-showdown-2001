@@ -303,6 +303,16 @@ const sortedMatrixData = computed(() => {
     return data;
 });
 
+const spaceshipHistory = computed(() => {
+    if (!seasonSummary.value || !seasonSummary.value.finalSeries) return [];
+    return seasonSummary.value.finalSeries.filter(s => ['Golden Spaceship', 'Silver Submarine'].includes(s.round));
+});
+
+const spoonHistory = computed(() => {
+    if (!seasonSummary.value || !seasonSummary.value.finalSeries) return [];
+    return seasonSummary.value.finalSeries.filter(s => s.round === 'Wooden Spoon');
+});
+
 // Helper to get win pct
 function getWinPct(wins, losses) {
     const total = wins + losses;
@@ -518,24 +528,45 @@ onMounted(async () => {
         <!-- ALL-TIME CHRONOLOGICAL LIST -->
         <div v-if="selectedSeason === 'all-time' && seasonSummary && seasonSummary.finalSeries && seasonSummary.finalSeries.length > 0" class="history-list-section">
             <h3>Championship History</h3>
+
             <div class="history-list">
-                <div v-for="series in seasonSummary.finalSeries" :key="series.id" class="history-card" :class="{'history-spaceship': series.round === 'Golden Spaceship', 'history-spoon': series.round === 'Wooden Spoon', 'history-sub': series.round === 'Silver Submarine'}">
+                <!-- SPACESHIP & SUBMARINE SERIES -->
+                <div v-for="series in spaceshipHistory" :key="series.id" class="history-card" :class="{'history-spaceship': series.round === 'Golden Spaceship', 'history-sub': series.round === 'Silver Submarine'}">
                     <div class="history-season">{{ series.season }}</div>
                     <div class="history-content">
                         <div class="history-trophy">
                             <img v-if="series.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" />
-                            <img v-if="series.round === 'Wooden Spoon'" :src="`${apiUrl}/images/wooden_spoon.png`" />
                             <img v-if="series.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" />
                         </div>
                         <div class="history-details">
                             <div class="history-matchup">
-                                <span class="history-winner" :class="{'spoon-loser': series.round === 'Wooden Spoon'}">{{ series.round === 'Wooden Spoon' ? series.loser_name : series.winner_name }}</span>
+                                <span class="history-winner">{{ series.winner_name }}</span>
                                 <span class="history-score">{{ series.score }}</span>
-                                <span class="history-loser">{{ series.round === 'Wooden Spoon' ? series.winner_name : series.loser_name }}</span>
+                                <span class="history-loser">{{ series.loser_name }}</span>
                             </div>
-                            <div class="history-accolades" v-if="series.mva || series.lvsc">
-                                <span v-if="series.mva" class="accolade-tag mva">MVA: {{ series.mva }}</span>
-                                <span v-if="series.lvsc" class="accolade-tag lvsc">LVSC: {{ series.lvsc }}</span>
+                            <div class="history-accolades" v-if="series.mva">
+                                <span class="accolade-tag mva">MVA: {{ series.mva }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SPOON SERIES -->
+                <h4 v-if="spoonHistory.length > 0" class="spoon-history-header">Wooden Spoon History</h4>
+                <div v-for="series in spoonHistory" :key="series.id" class="history-card history-spoon">
+                    <div class="history-season">{{ series.season }}</div>
+                    <div class="history-content">
+                        <div class="history-trophy">
+                            <img :src="`${apiUrl}/images/wooden_spoon.png`" />
+                        </div>
+                        <div class="history-details">
+                            <div class="history-matchup">
+                                <span class="history-winner spoon-loser">{{ series.loser_name }}</span>
+                                <span class="history-score">{{ series.score }}</span>
+                                <span class="history-loser">{{ series.winner_name }}</span>
+                            </div>
+                            <div class="history-accolades" v-if="series.lvsc">
+                                <span class="accolade-tag lvsc">LVSC: {{ series.lvsc }}</span>
                             </div>
                         </div>
                     </div>
@@ -1460,6 +1491,14 @@ h1 {
 .history-spaceship { background-color: rgba(255, 215, 0, 0.1); border-color: #ffd700; }
 .history-spoon { background-color: rgba(139, 69, 19, 0.1); border-color: #8b4513; }
 .history-sub { background-color: #f8f9fa; border-color: #dee2e6; }
+
+.spoon-history-header {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+    color: #8b4513;
+}
 
 .history-season {
     font-weight: bold;
