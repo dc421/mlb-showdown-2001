@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useGameStore } from '@/stores/game';
 import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
+import PlayerCard from '@/components/PlayerCard.vue';
 
 const authStore = useAuthStore();
 const gameStore = useGameStore();
@@ -18,6 +19,7 @@ const hasSubmitted = ref(false); // New state for the waiting screen
 const opponentLineup = ref(null);
 const mandatoryPitcherId = ref(null);
 const unavailablePitcherIds = ref([]);
+const selectedCard = ref(null); // For displaying player card
 const useDh = computed(() => gameStore.game?.use_dh !== false);
 
 const defensivePositions = computed(() => {
@@ -271,6 +273,10 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
+    <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
+      <div @click.stop><PlayerCard :player="selectedCard" /></div>
+    </div>
+
     <div v-if="!hasSubmitted">
       <h1>Set Your Starting Lineup</h1>
       <h2 class="subtitle" v-if="!useDh">Pitcher will bat</h2>
@@ -281,16 +287,25 @@ onUnmounted(() => {
             <div class="player-list">
                 <h3>Position Players ({{ positionPlayers.length }})</h3>
                 <div v-for="p in availableBatters" :key="p.card_id" class="player-item" @click="addToLineup(p)">
-                {{ p.displayName }} ({{ p.displayPosition }})
+                  <span class="player-name">{{ p.displayName }} ({{ p.displayPosition }})</span>
+                  <span class="view-icon" @click.stop="selectedCard = p">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </span>
                 </div>
                 <h3>Starting Pitchers ({{ availableStartingPitchers.length }})</h3>
                 <div v-for="p in availableStartingPitchers" :key="p.card_id" class="player-item">
-                {{ p.displayName }} (SP)
+                  <span class="player-name">{{ p.displayName }} (SP)</span>
+                  <span class="view-icon" @click.stop="selectedCard = p">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </span>
                 </div>
                 <div v-if="unavailableStartingPitchers.length > 0">
                     <h3 class="unavailable-header">Unavailable SPs</h3>
                     <div v-for="p in unavailableStartingPitchers" :key="p.card_id" class="player-item unavailable" title="Pitched recently in this series">
-                    {{ p.displayName }} (SP)
+                      <span class="player-name">{{ p.displayName }} (SP)</span>
+                      <span class="view-icon" @click.stop="selectedCard = p">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </span>
                     </div>
                 </div>
             </div>
@@ -301,36 +316,52 @@ onUnmounted(() => {
                     <div v-for="(spot, index) in opponentLineup.battingOrder" :key="index" class="lineup-row">
                         <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                         <span class="name">{{ spot.player.displayName }}</span>
+                        <span class="view-icon ml-auto" @click.stop="selectedCard = spot.player">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
                     </div>
                     <div v-if="useDh" class="lineup-row sp-row">
                         <span class="pos"><strong>SP</strong></span>
                         <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
+                        <span class="view-icon ml-auto" @click.stop="selectedCard = opponentLineup.startingPitcher">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
                     </div>
                 </div>
             </div>
         </div>
         <div class="panel">
           <h2>Starting Pitcher</h2>
-          <select v-model="startingPitcher" class="pitcher-select" :disabled="mandatoryPitcherId">
-            <option :value="null" disabled>Select an SP...</option>
-            <optgroup label="Available">
-                <option v-for="p in availableStartingPitchers" :key="p.card_id" :value="p">
-                {{ p.displayName }}
-                </option>
-            </optgroup>
-            <optgroup label="Unavailable" v-if="unavailableStartingPitchers.length > 0">
-                <option v-for="p in unavailableStartingPitchers" :key="p.card_id" :value="p" disabled>
-                {{ p.displayName }}
-                </option>
-            </optgroup>
-          </select>
+          <div class="pitcher-select-container">
+            <select v-model="startingPitcher" class="pitcher-select" :disabled="mandatoryPitcherId">
+              <option :value="null" disabled>Select an SP...</option>
+              <optgroup label="Available">
+                  <option v-for="p in availableStartingPitchers" :key="p.card_id" :value="p">
+                  {{ p.displayName }}
+                  </option>
+              </optgroup>
+              <optgroup label="Unavailable" v-if="unavailableStartingPitchers.length > 0">
+                  <option v-for="p in unavailableStartingPitchers" :key="p.card_id" :value="p" disabled>
+                  {{ p.displayName }}
+                  </option>
+              </optgroup>
+            </select>
+            <span v-if="startingPitcher" class="view-icon pitcher-view-icon" @click.stop="selectedCard = startingPitcher">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </span>
+          </div>
           <p v-if="mandatoryPitcherId" class="rotation-notice">
             Pitching rotation is set for this game.
           </p>
           <h2>Batting Order ({{ battingOrder.length }} / 9)</h2>
           <div class="lineup-slots">
             <div v-for="(spot, index) in battingOrder" :key="spot.player.card_id" class="lineup-item">
-              <span>{{ index + 1 }}. {{ spot.player.displayName }}</span>
+              <div class="player-info">
+                <span>{{ index + 1 }}. {{ spot.player.displayName }}</span>
+                <span class="view-icon inline-icon" @click.stop="selectedCard = spot.player">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </span>
+              </div>
               <div>
                 <select v-model="spot.position" 
                   :class="{ 
@@ -362,10 +393,16 @@ onUnmounted(() => {
                 <div v-for="(spot, index) in opponentLineup.battingOrder" :key="index" class="lineup-row">
                     <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
                     <span class="name">{{ spot.player.displayName }}</span>
+                    <span class="view-icon ml-auto" @click.stop="selectedCard = spot.player">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </span>
                 </div>
                 <div v-if="useDh" class="lineup-row sp-row">
                     <span class="pos">SP</span>
                     <span class="name">{{ opponentLineup.startingPitcher.displayName }}</span>
+                    <span class="view-icon ml-auto" @click.stop="selectedCard = opponentLineup.startingPitcher">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </span>
                 </div>
                 
             </div>
@@ -384,11 +421,19 @@ onUnmounted(() => {
   .panel { padding: 1rem; background-color: #f9f9f9; border-radius: 8px; }
   .player-list { max-height: 60vh; overflow-y: auto; }
   h3 { margin-top: 1rem; margin-bottom: 0.5rem; }
-  .player-item { padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #eee; }
+  .player-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #eee; }
   .player-item:hover { background-color: #eef8ff; }
-  .pitcher-select { width: 100%; padding: 0.5rem; margin-bottom: 1rem; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
+  .player-name { flex-grow: 1; }
+  .view-icon { color: #666; cursor: pointer; display: flex; align-items: center; padding: 0 4px; }
+  .view-icon:hover { color: #000; }
+  .ml-auto { margin-left: auto; }
+  .pitcher-select-container { display: flex; align-items: center; margin-bottom: 1rem; }
+  .pitcher-select { flex-grow: 1; padding: 0.5rem; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 0; }
+  .pitcher-view-icon { margin-left: 0.5rem; }
   .lineup-slots { max-height: 50vh; overflow-y: auto; }
   .lineup-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid #eee; }
+  .player-info { display: flex; align-items: center; gap: 0.5rem; }
+  .inline-icon { display: inline-flex; vertical-align: middle; }
   .lineup-item select { border-radius: 4px; border: 1px solid #ccc; }
   .lineup-item select.invalid-position, .lineup-item select.duplicate-position { border-color: orange; background-color: #fff3e0; }
   .remove-btn { color: red; margin-left: 0.5rem; background: transparent; border: none; font-size: 1.2rem; cursor: pointer; }
@@ -418,6 +463,7 @@ onUnmounted(() => {
       gap: .25rem;
       border-bottom: 1px solid #eee;
       padding-bottom: 0.25rem;
+      align-items: center;
   }
   .lineup-row .pos {
       font-weight: bold;
@@ -429,4 +475,6 @@ onUnmounted(() => {
   .sp-row {
       margin-top: 0px;
   }
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+  .modal-overlay > div { max-width: 320px; }
 </style>
