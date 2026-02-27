@@ -752,10 +752,7 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   // at-bat, and there is no longer an outcome to hide. This prevents the
   // flicker that happens when `isSwingResultVisible` is reset to false.
   if (isTransitioningToNextHitter.value) return false;
-  // If I've already clicked Next Hitter, I've seen the previous result.
-// Don't hide anything (e.g. during a pending steal after both players advanced).
-if (gameStore.amIReadyForNext) return false;
-if (!gameStore.gameState) return false;
+  if (!gameStore.gameState) return false;
 
     // If the inning ended on a caught stealing that has been fully resolved
   // (lastStealResult exists, no pending steal), both players have seen the result.
@@ -765,6 +762,7 @@ if (!gameStore.gameState) return false;
       !gameStore.gameState.pendingStealAttempt) {
     return false;
   }
+  
   // NEW: If the game is over and ended on a non-batter action (like a steal), do not hide.
   if (gameStore.game?.status === 'completed' && !gameStore.gameState.currentAtBat?.batterAction) {
       if (amIDefensivePlayer.value && gameStore.gameState.pendingStealAttempt) {
@@ -1364,11 +1362,16 @@ const batterResultTextColor = computed(() => getContrastingTextColor(batterTeamC
 
 const atBatToDisplay = computed(() => {
     if (!gameStore.gameState) {
-      // During component teardown or initial load, gameState can be null.
-      // Return a default, safe structure to prevent cascading errors.
       return { batterAction: null, pitcherAction: null, pitchRollResult: null, swingRollResult: null };
     }
     if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
+        // If a steal is pending and the current at-bat hasn't started,
+        // we're already in the new at-bat — don't show the old one.
+        if (gameStore.gameState.pendingStealAttempt &&
+            !gameStore.gameState.currentAtBat.pitcherAction &&
+            !gameStore.gameState.currentAtBat.batterAction) {
+            return gameStore.gameState.currentAtBat;
+        }
         return gameStore.gameState.lastCompletedAtBat;
     }
     return gameStore.gameState.currentAtBat;
@@ -1496,11 +1499,20 @@ const batterToDisplay = computed(() => {
 
     // NEW: Only show the "last at bat" to the player who is WAITING for the other player.
     if (!gameStore.amIReadyForNext &&
-     (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))
-      || (gameStore.gameState.pendingStealAttempt && amIDisplayDefensivePlayer.value && gameStore.gameState.inningEndedOnCaughtStealing && gameStore.displayGameState.outs > 0)) &&
-      !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing)) {
-        return gameStore.gameState.lastCompletedAtBat.batter;
+ (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))
+  || (!gameStore.gameState.lastStealResult && gameStore.gameState.pendingStealAttempt && showDefensiveRollForThrowButton)) &&
+  !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing)) {
+    // Don't roll back if a steal is pending and the new at-bat hasn't started
+    if (gameStore.gameState.pendingStealAttempt &&
+        !gameStore.gameState.currentAtBat?.pitcherAction &&
+        !gameStore.gameState.currentAtBat?.batterAction) {
+        return gameStore.batter;
     }
+    return gameStore.gameState.lastCompletedAtBat.batter;
+}
+
+
+
     // The single source of truth for the current batter is the store's `batter` ref.
     return gameStore.batter;
 });
