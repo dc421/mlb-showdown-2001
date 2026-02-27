@@ -508,6 +508,18 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
       return gameEvents.value.slice(0, nonStealEventIndex + 1);
     }
 
+    // NEW: Hide steal events from offensive player while steal is pending (awaiting defense roll)
+if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult && !amIDefensivePlayer.value) {
+    let nonStealEventIndex = -1;
+    for (let i = gameEvents.value.length - 1; i >= 0; i--) {
+        if (gameEvents.value[i].event_type !== 'steal') {
+            nonStealEventIndex = i;
+            break;
+        }
+    }
+    return gameEvents.value.slice(0, nonStealEventIndex + 1);
+}
+
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
@@ -552,11 +564,20 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
 
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
     if (isEffectivelyBetween && !amIReadyForNext.value) {
-        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
-        if (lastEvent && lastEvent.event_type === 'system') {
-            return gameEvents.value.slice(0, gameEvents.value.length - 1);
+    let endIndex = gameEvents.value.length;
+    for (let i = gameEvents.value.length - 1; i >= 0; i--) {
+        const evt = gameEvents.value[i];
+        if (evt.event_type === 'system' || 
+            (evt.log_message && evt.log_message.includes('inning-change-message'))) {
+            endIndex = i;
+        } else {
+            break;
         }
     }
+    if (endIndex < gameEvents.value.length) {
+        return gameEvents.value.slice(0, endIndex);
+    }
+}
 
     // Condition 3: Consecutive "Automatic" events
     if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2) {
@@ -699,8 +720,8 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
       return false;
     }
 
-    if (!amIReadyForNext.value && opponentReadyForNext.value && gameState.value.lastStealResult && !isStealResultVisible.value) {
-        console.log('isEffectivelyBetweenHalfInnings returning FALSE due to lastStealResult check');
+if (!amIReadyForNext.value && opponentReadyForNext.value && gameState.value.lastStealResult && !isStealResultVisible.value && gameState.value.inningEndedOnCaughtStealing) {
+          console.log('isEffectivelyBetweenHalfInnings returning FALSE due to lastStealResult check');
         return false;
     }
 
@@ -942,10 +963,22 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     let homeScore = gameState.value.homeScore;
     let awayScore = gameState.value.awayScore;
 
-    if (shouldShowThreeOuts.value) {  // ← Now .value
+    if (shouldShowThreeOuts.value) {
     bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
     outs = 3;
-    } else if (!amIReadyForNext.value && opponentReadyForNext.value &&
+    // When the server has fully transitioned (outs reset to 0, flags cleared),
+    // flip isTopInning back to show the completed half-inning
+    if (gameState.value.outs === 0) {
+        if (gameState.value.isTopInning) {
+            // Raw is top of N → was bottom of N-1
+            isTopInning = false;
+            inning = Math.max(1, gameState.value.inning - 1);
+        } else {
+            // Raw is bottom of N → was top of N
+            isTopInning = true;
+        }
+    }
+} else if (!amIReadyForNext.value && opponentReadyForNext.value &&
           !(gameState.value.inningEndedOnCaughtStealing && 
             gameState.value.pendingStealAttempt && 
             Number(gameState.value.pendingStealAttempt.runnerTeamId) === Number(teams.value[myTeam.value]?.team_id))) {

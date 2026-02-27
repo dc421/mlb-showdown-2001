@@ -324,12 +324,26 @@ async function submitLineup(gameId, lineupData) {
       }
   }
 
+  async function bulkHideGames(gameIds) {
+    if (!token.value || !gameIds || gameIds.length === 0) return;
+    try {
+      await Promise.all(gameIds.map(id => 
+        apiClient(`/api/games/${id}/hide`, { method: 'POST' })
+      ));
+      await fetchMyGames();
+    } catch (error) {
+      console.error('Error bulk hiding games:', error);
+      alert('Failed to delete selected games.');
+      await fetchMyGames();
+    }
+  }
+
   return { 
     token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
     pointSets, selectedPointSetId,
     isAuthenticated, login, register, logout, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
-    fetchPointSets, isDraftActive, fetchDraftStatus, hideGame
+    fetchPointSets, isDraftActive, fetchDraftStatus, hideGame, bulkHideGames
   }
 })

@@ -15,6 +15,10 @@ const teamAccolades = ref({ spaceships: [], spoons: [], submarines: [] });
 const selectedPlayer = ref(null);
 const activeRosterTab = ref('league'); // 'league' or 'classic'
 
+// Delete Games State
+const isDeleteMode = ref(false);
+const selectedGamesToDelete = ref([]);
+
 // Ensure apiUrl is an empty string if VITE_API_URL is not defined, to allow relative paths (proxied) to work.
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
@@ -173,9 +177,17 @@ function handleJoinGame(game) {
     authStore.joinGame(game.game_id, targetRoster.roster_id);
 }
 
-function handleDeleteGame(gameId) {
-    if (confirm('Are you sure you want to delete this game?')) {
-        authStore.hideGame(gameId);
+function toggleDeleteMode() {
+    isDeleteMode.value = !isDeleteMode.value;
+    selectedGamesToDelete.value = [];
+}
+
+async function handleBulkDelete() {
+    if (selectedGamesToDelete.value.length === 0) return;
+    
+    if (confirm(`Are you sure you want to delete ${selectedGamesToDelete.value.length} game(s)?`)) {
+        await authStore.bulkHideGames(selectedGamesToDelete.value);
+        toggleDeleteMode();
     }
 }
 
@@ -224,10 +236,13 @@ async function switchRosterTab(tab) {
             authStore.fetchRosterDetails(authStore.myRoster.roster_id, original.point_set_id);
         }
     } else {
-        // League defaults
-        // Re-determine current season logic if needed, or rely on authStore.selectedPointSetId which is likely already set correctly for League
-        if (authStore.myRoster && authStore.selectedPointSetId) {
-            authStore.fetchRosterDetails(authStore.myRoster.roster_id, authStore.selectedPointSetId);
+        // League: Prefer "Upcoming Season"
+        let targetSetId = authStore.selectedPointSetId;
+        const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
+        if (upcoming) targetSetId = upcoming.point_set_id;
+
+        if (authStore.myRoster && targetSetId) {
+            authStore.fetchRosterDetails(authStore.myRoster.roster_id, targetSetId);
         }
     }
 }
@@ -242,9 +257,14 @@ onMounted(async () => {
       authStore.fetchMyRoster('classic')
   ]);
 
-  // Now fetch full roster details with points for the selected point set (defaulting to the current active tab)
-  if (authStore.myRoster && authStore.myRoster.roster_id && authStore.selectedPointSetId) {
-      authStore.fetchRosterDetails(authStore.myRoster.roster_id, authStore.selectedPointSetId);
+  // Determine correct point set for initial load (League default)
+  let targetSetId = authStore.selectedPointSetId;
+  const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
+  if (upcoming) targetSetId = upcoming.point_set_id;
+
+  // Now fetch full roster details with points for the selected point set
+  if (authStore.myRoster && authStore.myRoster.roster_id && targetSetId) {
+      authStore.fetchRosterDetails(authStore.myRoster.roster_id, targetSetId);
   }
 
   authStore.fetchMyGames();
@@ -365,21 +385,33 @@ onUnmounted(() => {
       <!-- COLUMN 2: Active Games + New Game / Open Games -->
       <div class="panel">
         <div class="active-games-section">
-            <h2>Active Games</h2>
+            <div class="section-header">
+                <h2>Active Games</h2>
+            </div>
+            
             <ul v-if="activeGames.length > 0" class="game-list">
-                <li v-for="game in activeGames" :key="game.game_id">
+                <li v-for="game in activeGames" :key="game.game_id" class="game-list-item">
+                    <div v-if="isDeleteMode" class="checkbox-wrapper">
+                        <input type="checkbox" :value="game.game_id" v-model="selectedGamesToDelete" />
+                    </div>
                     <RouterLink :to="game.status === 'pending' ? `/game/${game.game_id}/setup` : (game.status === 'lineups' ? `/game/${game.game_id}/lineup` : `/game/${game.game_id}`)">
                         <GameScorecard :game="game" />
                     </RouterLink>
-                    <button class="delete-btn" @click.prevent="handleDeleteGame(game.game_id)" title="Delete Game">
-                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                        </svg>
-                    </button>
                 </li>
             </ul>
             <p v-else>You have no active games.</p>
+
+            <div v-if="activeGames.length > 0" class="delete-controls">
+                <button v-if="!isDeleteMode" @click="toggleDeleteMode" class="text-btn delete-mode-btn">
+                    Select Games to Remove
+                </button>
+                <div v-else class="delete-actions">
+                    <button @click="handleBulkDelete" :disabled="selectedGamesToDelete.length === 0" class="confirm-delete-btn">
+                        Delete Selected ({{ selectedGamesToDelete.length }})
+                    </button>
+                    <button @click="toggleDeleteMode" class="cancel-btn">Cancel</button>
+                </div>
+            </div>
         </div>
 
         <div class="new-games-section">
@@ -790,18 +822,90 @@ onUnmounted(() => {
     cursor: pointer;
 }
 
-.delete-btn {
-    background: transparent;
-    border: none;
-    color: #dc3545;
-    cursor: pointer;
-    padding: 0.5rem;
+.section-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    transition: color 0.2s;
+    margin-bottom: 1rem;
 }
 
-.delete-btn:hover {
+.game-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    padding-left: 0.5rem;
+}
+
+.checkbox-wrapper input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.delete-controls {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+}
+
+.text-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: underline;
+}
+.text-btn:hover {
+    color: #333;
+}
+
+.delete-mode-btn {
+    color: #dc3545;
+}
+.delete-mode-btn:hover {
     color: #a71d2a;
+}
+
+.delete-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.confirm-delete-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.confirm-delete-btn:disabled {
+    background-color: #e2e6ea;
+    color: #aaa;
+    cursor: not-allowed;
+}
+.confirm-delete-btn:not(:disabled):hover {
+    background-color: #c82333;
+}
+
+.cancel-btn {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.cancel-btn:hover {
+    background-color: #e2e6ea;
 }
 </style>

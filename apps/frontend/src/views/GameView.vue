@@ -695,9 +695,16 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
     return true;
   }
 
-  if(!!gameStore.gameState.pendingStealAttempt && 
+if(!!gameStore.gameState.pendingStealAttempt && 
    amIDefensivePlayer.value &&
    !gameStore.gameState.inningEndedOnCaughtStealing) {
+    return true;
+  }
+
+  // NEW: Also hide for offensive player while steal is pending but not yet resolved
+  if (!!gameStore.gameState.pendingStealAttempt && 
+      !gameStore.gameState.lastStealResult && 
+      amIOffensivePlayer.value) {
     return true;
   }
 
@@ -781,7 +788,7 @@ const showRollForPitchButton = computed(() => {
 
 const showSwingAwayButton = computed(() => {
   if (isGameOver.value && (isSwingResultVisible.value || gameStore.displayGameState.outs === 3)) return false;
-  return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
+  return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !gameStore.gameState.pendingStealAttempt && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
 
 const showNextHitterButton = computed(() => {
@@ -938,8 +945,8 @@ const isRunnerOnOffensiveTeam = computed(() => {
     return true;
   }
 
-  if(gameStore.gameState?.pendingStealAttempt && !gameStore.inningEndedOnCaughtStealing){
-    return true
+  if(gameStore.gameState?.pendingStealAttempt && !gameStore.gameState?.inningEndedOnCaughtStealing){
+      return true
   }
 
   if (isDoubleStealResultAvailable.value) return true;
@@ -1064,6 +1071,12 @@ const showStealResult = computed(() => {
                        isDoubleStealResultAvailable.value;
 
   if (!hasStealData) return false;
+  // Don't show steal result to offensive player while defense hasn't resolved yet
+  if (amIDisplayOffensivePlayer.value && 
+      gameStore.gameState.pendingStealAttempt && 
+      !gameStore.gameState.lastStealResult) {
+      return false;
+  }
   
   if (gameStore.gameState?.inningEndedOnCaughtStealing) {
     return !(gameStore.amIReadyForNext && gameStore.gameState?.currentAtBat.batterAction) &&
@@ -1077,6 +1090,8 @@ const showStealResult = computed(() => {
 
   if (amIDisplayOffensivePlayer.value) {
       if (!isRunnerOnOffensiveTeam.value) return false;
+      // NEW: Don't show steal result to offensive player while awaiting defensive roll
+      if (gameStore.gameState.pendingStealAttempt && !gameStore.gameState.lastStealResult) return false;
       const prevIBB =  gameStore.gameState?.lastCompletedAtBat?.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState?.lastCompletedAtBat?.batter.card_id;
       
       return !gameStore.gameState.currentAtBat.batterAction && !prevIBB || gameStore.opponentReadyForNext && !prevIBB;
@@ -1321,7 +1336,14 @@ const batterToDisplay = computed(() => {
     return gameStore.gameState.lastCompletedAtBat.batter;
 }
 
-
+// NEW: During a pending steal, the defensive player should keep showing the previous batter
+// until they've clicked Next Hitter (this handles edge cases where opponentReadyForNext
+// might not correctly gate the display)
+if (!gameStore.amIReadyForNext && amIDefensivePlayer.value &&
+    gameStore.gameState.pendingStealAttempt && !gameStore.gameState.lastStealResult &&
+    gameStore.gameState.lastCompletedAtBat?.batter) {
+    return gameStore.gameState.lastCompletedAtBat.batter;
+}
 
     return gameStore.batter;
 });
