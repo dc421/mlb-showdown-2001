@@ -3094,8 +3094,6 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         // Clear all transient state from the previous inning.
         // Safe because the pendingStealAttempt guard above ensures we only
         // reach here after the steal has been fully resolved.
-        newState.inningEndedOnCaughtStealing = false;
-        newState.lastStealResult = null;
         newState.throwRollResult = null;
         newState.currentPlay = null;
       } else {

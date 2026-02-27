@@ -1312,7 +1312,7 @@ const batterToDisplay = computed(() => {
     if (!gameStore.amIReadyForNext &&
  (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))
   || (!gameStore.gameState.lastStealResult && gameStore.gameState.pendingStealAttempt && false)) &&
-  !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.opponentReadyForNext)) {
+  !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing)) {
     if (gameStore.gameState.pendingStealAttempt &&
         !gameStore.gameState.currentAtBat?.pitcherAction &&
         !gameStore.gameState.currentAtBat?.batterAction) {
@@ -2106,7 +2106,7 @@ function handleVisibilityChange() {
             <div v-else>
                 <!-- SIMUL: No ROLL FOR THROW, ROLL FOR DOUBLE PLAY, or ROLL FOR SWING buttons -->
                 <button v-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>SWING AWAY</strong></button>
+                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>Swing Away</strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
@@ -2132,7 +2132,7 @@ function handleVisibilityChange() {
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings && !(gameStore.inningEndedOnCaughtStealing && gameStore.displayGameState.outs > 0)" class="turn-indicator">Waiting for swing...</div>
             <div v-else-if="isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices)) || (isOffensiveStealInProgress && !gameStore.gameState.pendingStealAttempt)" class="waiting-text">Waiting for throw...</div>
             <!-- SIMUL: Show "Revealing..." during the staged reveal window -->
-            <!--div v-else-if="bothPlayersSetAction && !isSwingResultVisible && simulPitchVisible" class="waiting-text">Revealing...</div-->
+            <div v-else-if="bothPlayersSetAction && !isSwingResultVisible && simulPitchVisible" class="waiting-text">Revealing...</div>
         </div>
 
         <div v-else-if="showSetLineupForNextGameButton" class="actions-container">
