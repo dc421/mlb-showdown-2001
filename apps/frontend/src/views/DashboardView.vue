@@ -161,12 +161,22 @@ function handleCreateGame() {
   }
 }
 
-function handleJoinGame(gameId) {
-    if (authStore.myRoster) {
-    authStore.joinGame(gameId, authStore.myRoster.roster_id);
-  } else {
-    alert('You must create a roster before you can join a game.');
-  }
+function handleJoinGame(game) {
+    const isClassicGame = game.series_type === 'classic';
+    const targetRoster = isClassicGame ? authStore.myClassicRoster : authStore.myLeagueRoster;
+
+    if (!targetRoster) {
+        alert(`You must create a ${isClassicGame ? 'Classic' : 'League'} roster before you can join this game.`);
+        return;
+    }
+
+    authStore.joinGame(game.game_id, targetRoster.roster_id);
+}
+
+function handleDeleteGame(gameId) {
+    if (confirm('Are you sure you want to delete this game?')) {
+        authStore.hideGame(gameId);
+    }
 }
 
 function refreshData() {
@@ -226,10 +236,13 @@ onMounted(async () => {
   // Ensure point sets are loaded to get the current season ID
   await authStore.fetchPointSets();
 
-  // Initial fetch (League by default)
-  await authStore.fetchMyRoster('league');
+  // Fetch BOTH rosters so availability logic works
+  await Promise.all([
+      authStore.fetchMyRoster('league'),
+      authStore.fetchMyRoster('classic')
+  ]);
 
-  // Now fetch full roster details with points for the selected point set
+  // Now fetch full roster details with points for the selected point set (defaulting to the current active tab)
   if (authStore.myRoster && authStore.myRoster.roster_id && authStore.selectedPointSetId) {
       authStore.fetchRosterDetails(authStore.myRoster.roster_id, authStore.selectedPointSetId);
   }
@@ -358,6 +371,12 @@ onUnmounted(() => {
                     <RouterLink :to="game.status === 'pending' ? `/game/${game.game_id}/setup` : (game.status === 'lineups' ? `/game/${game.game_id}/lineup` : `/game/${game.game_id}`)">
                         <GameScorecard :game="game" />
                     </RouterLink>
+                    <button class="delete-btn" @click.prevent="handleDeleteGame(game.game_id)" title="Delete Game">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                          <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                        </svg>
+                    </button>
                 </li>
             </ul>
             <p v-else>You have no active games.</p>
@@ -382,7 +401,7 @@ onUnmounted(() => {
             <ul v-if="gamesToJoin.length > 0" class="game-list">
               <li v-for="game in gamesToJoin" :key="game.game_id">
                 <span>{{ getGameTypeName(game.series_type) }} vs. {{ game.full_display_name }}</span>
-                <button @click="handleJoinGame(game.game_id)" :disabled="!authStore.myRoster || (game.series_type !== 'classic' && authStore.isDraftActive)">
+                <button @click="handleJoinGame(game)" :disabled="(game.series_type === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster) || (game.series_type !== 'classic' && authStore.isDraftActive)">
                     {{ (game.series_type !== 'classic' && authStore.isDraftActive) ? 'Draft Active' : 'Join' }}
                 </button>
               </li>
@@ -769,5 +788,20 @@ onUnmounted(() => {
     color: white;
     font-size: 2rem;
     cursor: pointer;
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.delete-btn:hover {
+    color: #a71d2a;
 }
 </style>

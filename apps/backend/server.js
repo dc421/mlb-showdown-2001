@@ -1973,10 +1973,12 @@ app.get('/api/games/open', authenticateToken, async (req, res) => {
 app.get('/api/games', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
   try {
+    // Filter out games that are hidden for this user
     const gamesResult = await pool.query(
       `SELECT g.game_id, g.status, g.current_turn_user_id, g.home_team_user_id, g.game_in_series, g.created_at, g.completed_at, g.series_id
        FROM games g JOIN game_participants gp ON g.game_id = gp.game_id 
-       WHERE gp.user_id = $1 ORDER BY g.created_at DESC`,
+       WHERE gp.user_id = $1 AND (gp.is_hidden IS FALSE OR gp.is_hidden IS NULL)
+       ORDER BY g.created_at DESC`,
       [userId]
     );
 
@@ -2430,11 +2432,36 @@ app.post('/api/games/:gameId/join', authenticateToken, async (req, res) => {
         const gameResult = await client.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
         if (gameResult.rows.length === 0) return res.status(404).json({ message: 'Game not found.' });
         if (gameResult.rows[0].status !== 'pending') return res.status(400).json({ message: 'This game is not available to join.' });
-        const participantsResult = await client.query('SELECT * FROM game_participants WHERE game_id = $1', [gameId]);
+        
+        // --- VALIDATION: Ensure rosters are compatible ---
+        // Fetch host's roster type
+        const participantsResult = await client.query(`
+            SELECT gp.*, r.roster_type
+            FROM game_participants gp
+            JOIN rosters r ON gp.roster_id = r.roster_id
+            WHERE gp.game_id = $1
+        `, [gameId]);
+        
         if (participantsResult.rows.length >= 2) return res.status(400).json({ message: 'This game is already full.' });
         if (participantsResult.rows[0].user_id === joiningUserId) return res.status(400).json({ message: 'You cannot join your own game.' });
         
         const hostPlayerParticipant = participantsResult.rows[0];
+        const hostRosterType = hostPlayerParticipant.roster_type;
+
+        // Fetch joining player's roster type
+        const joiningRosterResult = await client.query('SELECT roster_type FROM rosters WHERE roster_id = $1', [roster_id]);
+        if (joiningRosterResult.rows.length === 0) {
+             await client.query('ROLLBACK');
+             return res.status(400).json({ message: 'Invalid roster provided.' });
+        }
+        const joiningRosterType = joiningRosterResult.rows[0].roster_type;
+
+        if (hostRosterType !== joiningRosterType) {
+             await client.query('ROLLBACK');
+             return res.status(400).json({ message: `Cannot join a ${hostRosterType} game with a ${joiningRosterType} roster.` });
+        }
+        // -------------------------------------------------
+
         const joiningPlayerHomeOrAway = hostPlayerParticipant.home_or_away === 'home' ? 'away' : 'home';
         const joiningPlayerLeague = hostPlayerParticipant.league_designation === 'AL' ? 'NL' : 'AL';
 
@@ -2449,6 +2476,22 @@ app.post('/api/games/:gameId/join', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Server error while joining game.' });
     } finally {
         client.release();
+    }
+});
+
+// HIDE GAME (Soft Delete)
+app.post('/api/games/:gameId/hide', authenticateToken, async (req, res) => {
+    const { gameId } = req.params;
+    const userId = req.user.userId;
+    try {
+        await pool.query(
+            `UPDATE game_participants SET is_hidden = true WHERE game_id = $1 AND user_id = $2`,
+            [gameId, userId]
+        );
+        res.json({ message: 'Game hidden successfully.' });
+    } catch (error) {
+        console.error('Error hiding game:', error);
+        res.status(500).json({ message: 'Server error while hiding game.' });
     }
 });
 

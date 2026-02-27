@@ -7,6 +7,8 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null);
   const user = ref(JSON.parse(localStorage.getItem('user')) || null);
   const myRoster = ref(null);
+  const myLeagueRoster = ref(null);
+  const myClassicRoster = ref(null);
   const allPlayers = ref([]);
   const pointSets = ref([]);
   const selectedPointSetId = ref(null);
@@ -136,10 +138,22 @@ async function fetchMyRoster(type = 'league') {
     try {
       const response = await apiClient(`/api/my-roster?type=${type}`);
       if (!response.ok) throw new Error('Failed to fetch roster');
-      myRoster.value = await response.json();
+      const data = await response.json();
+      
+      // Update the generic pointer
+      myRoster.value = data;
+
+      // Update specific cache
+      if (type === 'league') {
+          myLeagueRoster.value = data;
+      } else if (type === 'classic') {
+          myClassicRoster.value = data;
+      }
     } catch (error) {
       console.error('Failed to fetch roster:', error);
       myRoster.value = null;
+      if (type === 'league') myLeagueRoster.value = null;
+      if (type === 'classic') myClassicRoster.value = null;
     }
   }
 
@@ -294,12 +308,28 @@ async function submitLineup(gameId, lineupData) {
     }
   }
 
+  async function hideGame(gameId) {
+      if (!token.value) return;
+      try {
+          const response = await apiClient(`/api/games/${gameId}/hide`, {
+              method: 'POST'
+          });
+          if (!response.ok) throw new Error('Failed to hide game');
+          
+          // Refresh games list locally or via fetch
+          await fetchMyGames();
+      } catch (error) {
+          console.error('Error hiding game:', error);
+          alert('Failed to delete game.');
+      }
+  }
+
   return { 
     token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
     pointSets, selectedPointSetId,
-    isAuthenticated, login, register, logout, myRoster,fetchMyRoster, saveRoster,
+    isAuthenticated, login, register, logout, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
-    fetchPointSets, isDraftActive, fetchDraftStatus
+    fetchPointSets, isDraftActive, fetchDraftStatus, hideGame
   }
 })
