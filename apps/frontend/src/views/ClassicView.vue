@@ -880,6 +880,21 @@ h2 {
     overflow-x: auto;
 }
 
+/* Responsive adjustments for Classic rosters */
+@media (max-width: 1000px) {
+    .teams-list {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+}
+@media (max-width: 768px) {
+    .teams-list {
+        grid-template-columns: 1fr; /* Stack vertically on mobile */
+    }
+    .team-block {
+        margin-bottom: 1rem;
+    }
+}
+
 .team-block {
     background: #f9f9f9;
     border-radius: 8px;
