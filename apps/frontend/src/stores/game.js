@@ -963,8 +963,8 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
             isTopInning = true;
         }
     }
-} else if (!amIReadyForNext.value && opponentReadyForNext.value &&
-          !(gameState.value.inningEndedOnCaughtStealing && 
+} else if (!amIReadyForNext.value && opponentReadyForNext.value && isOutcomeHidden.value &&
+          !(gameState.value.inningEndedOnCaughtStealing &&
             gameState.value.pendingStealAttempt && 
             Number(gameState.value.pendingStealAttempt.runnerTeamId) === Number(teams.value[myTeam.value]?.team_id))) {
     // Existing rollback logic

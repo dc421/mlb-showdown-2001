@@ -675,11 +675,17 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
   }
   
   if (gameStore.game?.status === 'completed' && !gameStore.gameState.currentAtBat?.batterAction) {
-      if (amIDefensivePlayer.value && gameStore.gameState.pendingStealAttempt) {
-          return true;
-      }
-      return false;
-  }
+    if (amIDefensivePlayer.value && gameStore.gameState.pendingStealAttempt) {
+        return true;
+    }
+    // Hide for offensive player until defensive player acknowledges the game-ending steal
+    if (amIOffensivePlayer.value && 
+        gameStore.gameState.inningEndedOnCaughtStealing &&
+        !gameStore.opponentReadyForNext) {
+        return true;
+    }
+    return false;
+}
 
   if (gameStore.gameState.currentAtBat && 
       !gameStore.gameState.currentAtBat.pitcherAction && 
@@ -920,7 +926,15 @@ const isGameEndingSteal = computed(() => {
         }
     }
 
-    return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
+    // Don't show game-ending state until defensive player has clicked Next Hitter
+if (amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext) {
+    return false;
+}
+if (amIDisplayOffensivePlayer.value && !gameStore.opponentReadyForNext) {
+    return false;
+}
+
+return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
 });
 
 const showAutoThrowResult = computed(() => {
@@ -1317,12 +1331,15 @@ const batterToDisplay = computed(() => {
     }
 
     if (gameStore.gameState?.inningEndedOnCaughtStealing && 
-        gameStore.isEffectivelyBetweenHalfInnings) {
-        if (gameStore.gameState.currentAtBat?.batter?.card_id === gameStore.gameState.pendingStealAttempt?.batterPlayerId) {
-            return gameStore.gameState.currentAtBat.batter;
-        }
-        return gameStore.gameState.lastCompletedAtBat?.batter;
+    gameStore.isEffectivelyBetweenHalfInnings) {
+    const stealBatterId = gameStore.gameState.pendingStealAttempt?.batterPlayerId || 
+                          gameStore.gameState.lastStealResult?.batterPlayerId ||
+                          gameStore.gameState.currentPlay?.payload?.batterPlayerId;
+    if (!stealBatterId || gameStore.gameState.currentAtBat?.batter?.card_id === stealBatterId) {
+        return gameStore.gameState.currentAtBat?.batter ?? gameStore.gameState.lastCompletedAtBat?.batter;
     }
+    return gameStore.gameState.lastCompletedAtBat?.batter;
+}
 
     if (!gameStore.amIReadyForNext &&
  (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))
@@ -1886,7 +1903,10 @@ const delayInningChange = computed(() => {
     
     if (!wasIOffensive) return false;
     if (gameStore.gameState.lastStealResult || gameStore.gameState.throwRollResult) return false;
-}
+  } else {
+    // All steal data cleared — steal is fully resolved, nothing to delay
+    return false;
+  }
   
   return (!gameStore.gameState.isBetweenHalfInningsHome || 
           !gameStore.gameState.isBetweenHalfInningsAway);
