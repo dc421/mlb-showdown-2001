@@ -1384,7 +1384,8 @@ app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) =>
 
   try {
     await client.query('BEGIN');
-    const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
+const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     const currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
@@ -1797,6 +1798,7 @@ app.post('/api/games/:gameId/swap-positions', authenticateToken, async (req, res
 
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
 
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     const currentState = stateResult.rows[0].state_data;
@@ -1877,6 +1879,7 @@ app.post('/api/games/:gameId/set-defense', authenticateToken, async (req, res) =
 
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -2670,6 +2673,7 @@ app.post('/api/games/:gameId/set-action', authenticateToken, async (req, res) =>
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -2812,6 +2816,7 @@ app.post('/api/games/:gameId/pitch', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -3051,6 +3056,7 @@ app.post('/api/games/:gameId/swing', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let finalState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -3079,6 +3085,7 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     const originalState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -3341,6 +3348,7 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -3489,6 +3497,7 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
@@ -3677,6 +3686,7 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
         const currentState = stateResult.rows[0].state_data;
         let newState = JSON.parse(JSON.stringify(currentState));
@@ -3844,6 +3854,7 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
         const currentState = stateResult.rows[0].state_data;
         let newState = JSON.parse(JSON.stringify(currentState));
@@ -4068,6 +4079,7 @@ app.post('/api/games/:gameId/resolve-infield-in-gb', authenticateToken, async (r
 
     try {
         await client.query('BEGIN');
+await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
         const currentState = stateResult.rows[0].state_data;
         let newState = JSON.parse(JSON.stringify(currentState));

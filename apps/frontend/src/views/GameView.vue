@@ -29,6 +29,8 @@ const isTransitioningToNextHitter = ref(false);
 const wasMultiThrowSituation = ref(false);
 const isConnected = ref(true);
 
+let revealTimeout = null;
+let dpRevealTimeout = null;
 // ============================================================
 // SIMULTANEOUS MODE
 // ============================================================
@@ -888,18 +890,23 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
   const isNewDPPlay = newDetails && !oldDetails;
   const isDPPlayOver = !newDetails && oldDetails;
 
+  if (dpRevealTimeout) clearTimeout(dpRevealTimeout);
+
   if (isNewDPPlay || isDPPlayOver) {
     defensiveDPRollClicked.value = false;
     offensiveDPResultVisible.value = false;
   }
 
   if (isNewDPPlay) {
-    // SIMUL: Defense sees it immediately (auto-click)
-    defensiveDPRollClicked.value = true;
-    // Both players see it after 900ms delay
-    setTimeout(() => {
+    if (hasSeenResult.value) {
+      defensiveDPRollClicked.value = true;
       offensiveDPResultVisible.value = true;
-    }, 900);
+    } else {
+      dpRevealTimeout = setTimeout(() => {
+        defensiveDPRollClicked.value = true;
+        offensiveDPResultVisible.value = true;
+      }, 1800);
+    }
   }
 }, { immediate: true });
 
@@ -1257,12 +1264,14 @@ const bothPlayersSetAction = computed(() => {
 watch(bothPlayersSetAction, (isRevealing) => {
   if (!initialLoadComplete.value || !gameStore.gameState) return;
 
+  if (revealTimeout) clearTimeout(revealTimeout);
+
   if (isRevealing) {
     // SIMUL: Reveal pitch to both players immediately
     simulPitchVisible.value = true;
 
     // SIMUL: Reveal swing to both players after 900ms delay
-    setTimeout(() => {
+    revealTimeout = setTimeout(() => {
       gameStore.setIsSwingResultVisible(true);
       hasSeenResult.value = true;
       localStorage.setItem(seenResultStorageKey, 'true');
@@ -1273,6 +1282,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
 // SIMUL: Handle IBB — reveal immediately since there's no contest
 watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
     if (newAction === 'intentional_walk') {
+        if (revealTimeout) clearTimeout(revealTimeout);
         simulPitchVisible.value = true;
         gameStore.setIsSwingResultVisible(true);
     }
@@ -1635,6 +1645,9 @@ function handleSwing(action = null) {
 }
 
 function handleNextHitter() {
+  if (revealTimeout) clearTimeout(revealTimeout);
+  if (dpRevealTimeout) clearTimeout(dpRevealTimeout);
+
   isTransitioningToNextHitter.value = true;
   gameStore.setIsSwingResultVisible(false);
   gameStore.setIsStealResultVisible(false);
