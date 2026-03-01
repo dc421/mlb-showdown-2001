@@ -680,8 +680,8 @@ const shouldHideCurrentAtBatOutcome = computed(() => {
     }
     // Hide for offensive player until defensive player acknowledges the game-ending steal
     if (amIOffensivePlayer.value && 
-        gameStore.gameState.inningEndedOnCaughtStealing &&
-        !gameStore.opponentReadyForNext) {
+        gameStore.gameState.pendingStealAttempt &&
+        gameStore.amIReadyForNext) {
         return true;
     }
     return false;
@@ -951,13 +951,7 @@ const isGameEndingSteal = computed(() => {
         }
     }
 
-    // Don't show game-ending state until defensive player has clicked Next Hitter
-if (amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext) {
-    return false;
-}
-if (amIDisplayOffensivePlayer.value && !gameStore.opponentReadyForNext) {
-    return false;
-}
+
 
 return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
 });
@@ -1334,8 +1328,11 @@ watch(nextGameId, (newId) => {
 
 const batterToDisplay = computed(() => {
     if (isGameOver.value && isSwingResultVisible.value) {
+      if (gameStore.opponentReadyForNext && gameStore.gameState.pendingStealAttempt) {
+        return gameStore.gameState?.lastCompletedAtBat?.batter ?? null;
+      } else{
         return gameStore.gameState?.currentAtBat?.batter ?? null;
-    }
+    }}
     if (anticipatedBatter.value) {
         return anticipatedBatter.value;
     }
@@ -2101,7 +2098,7 @@ function handleVisibilityChange() {
       <!-- PLAYER CARDS & ACTIONS -->
       <div class="player-cards-and-actions-container">
         <!-- Actions (for layout purposes) -->
-<div v-if="!showSetLineupForNextGameButton && !(isGameOver && isSwingResultVisible && !((gameStore.gameState?.doublePlayDetails && !showThrowRollResult)))" class="actions-container">
+<div v-if="!showSetLineupForNextGameButton && !(isGameOver && isSwingResultVisible && !gameStore.gameState.pendingStealAttempt && !((gameStore.gameState?.doublePlayDetails && !showThrowRollResult)))" class="actions-container">
               <!-- PITCHER SELECTION STATE -->
         <div v-if="isMyTeamAwaitingLineupChange" class="waiting-text">
                 <h3>Invalid Lineup</h3>
