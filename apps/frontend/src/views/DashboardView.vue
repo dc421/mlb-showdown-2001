@@ -157,11 +157,14 @@ function handleCreateGame() {
       return;
   }
 
-  if (authStore.myRoster) {
+  const isClassicGame = seriesType.value === 'classic';
+  const targetRoster = isClassicGame ? authStore.myClassicRoster : authStore.myLeagueRoster;
+
+  if (targetRoster) {
     // Pass the selected series type to the store action
-    authStore.createGame(authStore.myRoster.roster_id, seriesType.value);
+    authStore.createGame(targetRoster.roster_id, seriesType.value);
   } else {
-    alert('You must create a roster before you can create a game.');
+    alert(`You must create a ${isClassicGame ? 'Classic' : 'League'} roster before you can create a game.`);
   }
 }
 
@@ -416,7 +419,7 @@ onUnmounted(() => {
 
         <div class="new-games-section">
             <h2>New Game</h2>
-            <button @click="handleCreateGame" :disabled="!authStore.myRoster || (activeRosterTab === 'league' && authStore.isDraftActive)" class="action-btn">
+            <button @click="handleCreateGame" :disabled="(activeRosterTab === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster) || (activeRosterTab === 'league' && authStore.isDraftActive)" class="action-btn">
                 {{ (activeRosterTab === 'league' && authStore.isDraftActive) ? 'Draft in Progress' : '+ Create New Game' }}
             </button>
             <div class="series-options">

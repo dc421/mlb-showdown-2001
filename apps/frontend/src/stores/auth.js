@@ -242,7 +242,10 @@ async function createGame(rosterId, seriesType) {
       method: 'POST',
       body: JSON.stringify({ roster_id: rosterId, home_or_away: 'home', league_designation: 'AL', series_type: seriesType })
     });
-    if (!response.ok) throw new Error('Failed to create game');
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create game');
+    }
 
     await fetchMyGames();
     await fetchOpenGames();
@@ -259,7 +262,10 @@ async function joinGame(gameId, rosterId) {
           method: 'POST',
           body: JSON.stringify({ roster_id: rosterId })
       });
-      if (!response.ok) throw new Error('Failed to join game');
+      if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to join game');
+      }
 
       await fetchMyGames();
       await fetchOpenGames();

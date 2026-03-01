@@ -520,6 +520,7 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
     return gameEvents.value.slice(0, nonStealEventIndex + 1);
 }
 
+
     // Use the more robust computed property.
     const isEffectivelyBetween = isEffectivelyBetweenHalfInnings.value;
 
@@ -912,7 +913,11 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     }
 
     
-        const rollbackSource = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat : gameState.value.currentAtBat;
+        // Use lastCompletedAtBat for resolved steals since server updates currentAtBat.basesBeforePlay post-steal
+    
+    const rollbackSource = opponentReadyForNext.value 
+        ? gameState.value.lastCompletedAtBat 
+        : gameState.value.currentAtBat;
         if (rollbackSource && rollbackSource.basesBeforePlay) {
             let inning = gameState.value.inning;
             let isTopInning = gameState.value.isTopInning;

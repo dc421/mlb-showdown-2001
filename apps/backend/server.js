@@ -3205,19 +3205,37 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
       newState.awayPlayerReadyForNext = true;
     }
     
-    // If BOTH players are now ready, reset the flags for the next cycle.
-    // BUT: if a steal is still pending (ROLL FOR THROW not yet clicked),
-    // skip this entirely — the steal must be resolved first.
-if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext && !newState.pendingStealAttempt && newState.currentPlay?.type !== 'STEAL_ATTEMPT') {        newState.homePlayerReadyForNext = false;
-      newState.awayPlayerReadyForNext = false;
-      newState.defensivePlayerWentSecond = false;
+    if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext) {
+      if (newState.pendingStealAttempt) {
+        // Resolve the pending steal — move data to lastStealResult so both players see it
+        const pending = newState.pendingStealAttempt;
+        newState.lastStealResult = {
+            runner: pending.runnerName,
+            outcome: pending.outcome,
+            runnerTeamId: pending.runnerTeamId,
+            batterPlayerId: pending.batterPlayerId,
+            roll: pending.roll,
+            defense: pending.defense,
+            target: pending.target,
+            penalty: pending.penalty,
+            throwToBase: pending.throwToBase
+        };
+        newState.pendingStealAttempt = null;
+        newState.currentPlay = null;
+        newState.currentAtBat.basesBeforePlay = { ...newState.bases };
 
-      newState.doublePlayDetails = null;
+        // Reset flags — both players view the result, then each must act again
+        newState.homePlayerReadyForNext = false;
+        newState.awayPlayerReadyForNext = false;
 
-      // Only clear steal state and attempt deferred advancement if the steal
-      // has been fully resolved. If pendingStealAttempt still exists, the
-      // defensive player hasn't clicked ROLL FOR THROW yet — we must wait.
-      if (!newState.pendingStealAttempt) {
+        await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
+      } else {
+        // Normal both-ready logic (non-steal)
+        newState.homePlayerReadyForNext = false;
+        newState.awayPlayerReadyForNext = false;
+        newState.defensivePlayerWentSecond = false;
+        newState.doublePlayDetails = null;
+
         newState.throwRollResult = null;
         newState.lastStealResult = null;
         newState.inningEndedOnCaughtStealing = false;
@@ -3226,8 +3244,7 @@ if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext && !newSt
           newState.currentPlay = null;
         }
 
-        // Deferred inning transition: if the first player's advancement was
-        // skipped because a steal was in progress, perform it now.
+        // Deferred inning transition
         const stillBetweenInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
         if (stillBetweenInnings) {
           newState.currentPlay = null;
@@ -3370,13 +3387,14 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
                 newState.bases[baseMap[fromBase]] = null;
 
                 newState.pendingStealAttempt = {
-                    runner,
-                    runnerName,
-                    throwToBase: toBase,
-                    outcome,
-                    batterPlayerId: batter.card_id,
-                    ...resultDetails
-                };
+    runner,
+    runnerName,
+    throwToBase: toBase,
+    outcome,
+    batterPlayerId: batter.card_id,
+    runnerTeamId: Number(offensiveTeam.team_id),
+    ...resultDetails
+};
                 // We still use currentPlay to manage the overall "steal sequence" state
                 newState.currentPlay = {
                     type: 'STEAL_ATTEMPT',
