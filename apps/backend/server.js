@@ -3455,8 +3455,10 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
         } else if (newState.outs >= 3) {
             if (newState.isTopInning) {
                 newState.isBetweenHalfInningsAway = true;
+                newState.awayTeam.battingOrderPosition = (newState.awayTeam.battingOrderPosition - 1 + 9) % 9;
             } else {
                 newState.isBetweenHalfInningsHome = true;
+                newState.homeTeam.battingOrderPosition = (newState.homeTeam.battingOrderPosition - 1 + 9) % 9;
             }
             newState.inningEndedOnCaughtStealing = true;
             // Reset ready flags to ensure both players must click 'Next Hitter' to see the new inning
@@ -3638,8 +3640,14 @@ app.post('/api/games/:gameId/resolve-steal', authenticateToken, async (req, res)
                   await handleSeriesProgression(gameId, client, newState);
               }
         } else if (newState.outs >= 3) {
-            if (newState.isTopInning) { newState.isBetweenHalfInningsAway = true; }
-            else { newState.isBetweenHalfInningsHome = true; }
+            if (newState.isTopInning) { 
+                newState.isBetweenHalfInningsAway = true; 
+                newState.awayTeam.battingOrderPosition = (newState.awayTeam.battingOrderPosition - 1 + 9) % 9;
+            }
+            else { 
+                newState.isBetweenHalfInningsHome = true; 
+                newState.homeTeam.battingOrderPosition = (newState.homeTeam.battingOrderPosition - 1 + 9) % 9;
+            }
             newState.inningEndedOnCaughtStealing = true;
         }
 
@@ -4020,8 +4028,10 @@ app.post('/api/games/:gameId/resolve-throw', authenticateToken, async (req, res)
         } else if (newState.outs >= 3) {
             if (newState.isTopInning) {
                 newState.isBetweenHalfInningsAway = true;
+                newState.awayTeam.battingOrderPosition = (newState.awayTeam.battingOrderPosition - 1 + 9) % 9;
             } else {
                 newState.isBetweenHalfInningsHome = true;
+                newState.homeTeam.battingOrderPosition = (newState.homeTeam.battingOrderPosition - 1 + 9) % 9;
             }
             newState.inningEndedOnCaughtStealing = true;
             // Reset ready flags to ensure both players must click 'Next Hitter' to see the new inning
