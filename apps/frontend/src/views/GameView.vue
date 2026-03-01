@@ -852,7 +852,7 @@ const showNextHitterButton = computed(() => {
     !gameStore.gameState.pendingStealAttempt &&
     !gameStore.gameState.currentAtBat?.batterAction &&
     !gameStore.gameState.currentAtBat?.pitcherAction;
-    return atBatIsResolved || opponentIsReady || isStealResolved;
+    return atBatIsResolved || opponentIsReady;
     }
   }
 });
@@ -1600,10 +1600,24 @@ function hexToRgba(hex, alpha = 0.95) {
   return `rgba(${[(c>>16)&255, (c>>8)&255, c&255].join(',')},${alpha})`;
 }
 
-function handleInitiateSteal(decisions) {
+async function handleInitiateSteal(decisions) {
     isTransitioningToNextHitter.value = false;
     gameStore.setIsStealResultVisible(true);
-    gameStore.initiateSteal(gameId, decisions);
+    await gameStore.initiateSteal(gameId, decisions);
+    
+
+//inningEndedOnCaughtStealing true, amIReadyForNext true -> don't auto resolve (BEHIND)
+//inningEndedOnCaughtStealing true, amIReadyForNext false -> auto resolve (EVEN)
+
+    // Auto-resolve if both players are already on this at-bat and it's a single steal
+    if (!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext) {
+        const stealingRunners = Object.keys(decisions).filter(key => decisions[key]);
+        if (stealingRunners.length === 1) {
+            const throwToBase = parseInt(stealingRunners[0], 10) + 1;
+            hasRolledForSteal.value = true;
+            gameStore.resolveSteal(gameId, throwToBase);
+        }
+    }
 }
 
 function handlePitch(action = null) {
@@ -2121,13 +2135,8 @@ function handleVisibilityChange() {
                 </div>
             </div>
             <!-- SIMUL: Steal UI — single steals auto-resolve, double steals still need choice -->
-            <div v-else-if="isStealAttemptInProgress && amIDisplayDefensivePlayer && (!showStealResult || (!!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt))">
-                <div v-if="isSingleSteal">
-                    <h3>{{ stealingRunner }} is stealing {{ targetBase }}!</h3>
-                    <!-- SIMUL: Auto-resolved, just show rolling indicator -->
-                    <div class="waiting-text">Rolling...</div>
-                </div>
-                <div v-else>
+            <div v-else-if="isStealAttemptInProgress && !isSingleSteal && amIDisplayDefensivePlayer && (!showStealResult || (!!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt))">
+                <div>
                     <h3>Opponent is attempting a double steal!</h3>
                     <div v-if="!hasRolledForSteal">
                       <p>Choose which base to throw to:</p>
@@ -2136,7 +2145,6 @@ function handleVisibilityChange() {
                         <button @click="handleResolveSteal(3)" v-if="gameStore.gameState.currentPlay.payload.decisions['2']" class="tactile-button">Throw to 3rd ({{ doubleStealDefenseThresholds[3] }}+)</button>
                       </div>
                     </div>
-                    <div v-else class="waiting-text">Rolling...</div>
                 </div>
             </div>
             <div v-else-if="isInfieldInDecision">
@@ -2171,7 +2179,7 @@ function handleVisibilityChange() {
 
             <!-- Waiting Indicators -->
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
-            <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState?.pendingStealAttempt && !gameStore.gameState?.inningEndedOnCaughtStealing" class="waiting-text">Waiting for opponent...</div>
+            <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState?.pendingStealAttempt" class="waiting-text">Waiting for opponent...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.opponentReadyForNext" class="waiting-text">Waiting for pitch...</div>
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings && !(gameStore.inningEndedOnCaughtStealing && gameStore.displayGameState.outs > 0)" class="turn-indicator">Waiting for swing...</div>
             <div v-else-if="isWaitingForQueuedStealResolution || (amIDisplayOffensivePlayer && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices)) || (isOffensiveStealInProgress && !gameStore.gameState.pendingStealAttempt)" class="waiting-text">Waiting for throw...</div>

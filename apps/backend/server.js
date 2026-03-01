@@ -3204,9 +3204,8 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
     } else {
       newState.awayPlayerReadyForNext = true;
     }
-    
-    if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext) {
-      if (newState.pendingStealAttempt) {
+
+    if (newState.pendingStealAttempt) {
         // Resolve the pending steal — move data to lastStealResult so both players see it
         const pending = newState.pendingStealAttempt;
         newState.lastStealResult = {
@@ -3229,7 +3228,10 @@ app.post('/api/games/:gameId/next-hitter', authenticateToken, async (req, res) =
         newState.awayPlayerReadyForNext = false;
 
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
-      } else {
+      }
+    
+    if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext) {
+      if (newState.pendingStealAttempt) {} else {
         // Normal both-ready logic (non-steal)
         newState.homePlayerReadyForNext = false;
         newState.awayPlayerReadyForNext = false;
@@ -3458,8 +3460,8 @@ app.post('/api/games/:gameId/initiate-steal', authenticateToken, async (req, res
             }
             newState.inningEndedOnCaughtStealing = true;
             // Reset ready flags to ensure both players must click 'Next Hitter' to see the new inning
-            newState.homePlayerReadyForNext = false;
-            newState.awayPlayerReadyForNext = false;
+            //newState.homePlayerReadyForNext = false;
+            //newState.awayPlayerReadyForNext = false;
         }
     }
 
