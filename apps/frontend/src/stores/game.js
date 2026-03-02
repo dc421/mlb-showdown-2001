@@ -279,7 +279,7 @@ async function resolveDoublePlay(gameId) {
   } catch (error) { console.error("Error resolving double play:", error); }
 }
 
-  async function nextHitter(gameId) {
+async function nextHitter(gameId) {
   // Optimistic Update
   if (gameState.value && myTeam.value) {
       if (myTeam.value === 'home') {

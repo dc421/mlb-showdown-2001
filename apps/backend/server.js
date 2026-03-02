@@ -3141,20 +3141,11 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
         newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
         
-        // Clear all transient state from the previous inning.
-        // Safe because the pendingStealAttempt guard above ensures we only
-        // reach here after the steal has been fully resolved.
-        newState.throwRollResult = null;
-        newState.currentPlay = null;
       } else {
     // Otherwise, it's a normal at-bat, advance the current team's order.
     const teamToAdvance = newState.isTopInning ? 'awayTeam' : 'homeTeam';
     newState[teamToAdvance].battingOrderPosition = (newState[teamToAdvance].battingOrderPosition + 1) % 9;
 
-    // Clear resolved throw/play data so the other player's displayGameState
-    // doesn't mistakenly roll back (throwRollResult triggers a steal-style rollback).
-    // Note: Do NOT clear doublePlayDetails here, otherwise the other player won't see the result.
-    newState.throwRollResult = null;
 }
 
       // Now that the state is correct for the new at-bat, get the players.
@@ -3238,20 +3229,21 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
       }
     
     if (newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext) {
+        // Clear transient throw/play data now that BOTH players have seen the result
+      newState.throwRollResult = null;
+      newState.doublePlayDetails = null;
+      if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
+        newState.currentPlay = null;
+      }
+
       if (newState.pendingStealAttempt) {} else {
         // Normal both-ready logic (non-steal)
         newState.homePlayerReadyForNext = false;
         newState.awayPlayerReadyForNext = false;
         newState.defensivePlayerWentSecond = false;
-        newState.doublePlayDetails = null;
-
-        newState.throwRollResult = null;
+        
         newState.lastStealResult = null;
         newState.inningEndedOnCaughtStealing = false;
-
-        if (newState.currentPlay?.type !== 'STEAL_ATTEMPT') {
-          newState.currentPlay = null;
-        }
 
         // Deferred inning transition
         const stillBetweenInnings = newState.isBetweenHalfInningsAway || newState.isBetweenHalfInningsHome;
