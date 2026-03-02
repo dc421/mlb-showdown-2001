@@ -3153,8 +3153,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
     // Clear resolved throw/play data so the other player's displayGameState
     // doesn't mistakenly roll back (throwRollResult triggers a steal-style rollback).
+    // Note: Do NOT clear doublePlayDetails here, otherwise the other player won't see the result.
     newState.throwRollResult = null;
-    newState.doublePlayDetails = null;
 }
 
       // Now that the state is correct for the new at-bat, get the players.

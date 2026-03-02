@@ -890,9 +890,9 @@ watch(() => gameStore.gameState?.doublePlayDetails, (newDetails, oldDetails) => 
   const isNewDPPlay = newDetails && !oldDetails;
   const isDPPlayOver = !newDetails && oldDetails;
 
-  if (dpRevealTimeout) clearTimeout(dpRevealTimeout);
-
+  
   if (isNewDPPlay || isDPPlayOver) {
+    if (dpRevealTimeout) clearTimeout(dpRevealTimeout);
     defensiveDPRollClicked.value = false;
     offensiveDPResultVisible.value = false;
   }
