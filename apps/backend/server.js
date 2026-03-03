@@ -3204,6 +3204,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     }
 
     if (newState.pendingStealAttempt) {
+        // Clear transient throw/play data from the previous at-bat now that both players have caught up to the steal
+        newState.throwRollResult = null;
+        newState.doublePlayDetails = null;
+
         // Resolve the pending steal — move data to lastStealResult so both players see it
         const pending = newState.pendingStealAttempt;
         newState.lastStealResult = {

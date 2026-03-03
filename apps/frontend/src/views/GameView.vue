@@ -1077,7 +1077,7 @@ const showAutoThrowResult = computed(() => {
     if (isGameEndingSteal.value) return true;
 
     if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult ||
-    (gameStore.gameState?.currentAtBat.batterAction === 'take' && !gameStore.opponentReadyForNext && gameStore.gameState?.currentAtBat.pitcherAction !== 'intentional_walk') || gameStore.gameState?.currentAtBat.batterAction === 'bunt') {
+    (atBatToDisplay.value?.batterAction === 'take' && !gameStore.opponentReadyForNext && atBatToDisplay.value?.pitcherAction !== 'intentional_walk') || atBatToDisplay.value?.batterAction === 'bunt') {
         return false;
     }
     if (wasMultiThrowSituation.value) {
