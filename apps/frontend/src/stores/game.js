@@ -915,7 +915,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     
         // Use lastCompletedAtBat for resolved steals since server updates currentAtBat.basesBeforePlay post-steal
     
-    const rollbackSource = opponentReadyForNext.value 
+    const rollbackSource = opponentReadyForNext.value && !gameState.value.pendingStealAttempt
         ? gameState.value.lastCompletedAtBat 
         : gameState.value.currentAtBat;
         if (rollbackSource && rollbackSource.basesBeforePlay) {
@@ -973,7 +973,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
             gameState.value.pendingStealAttempt && 
             Number(gameState.value.pendingStealAttempt.runnerTeamId) === Number(teams.value[myTeam.value]?.team_id))) {
     // Existing rollback logic
-    if (gameState.value.pendingStealAttempt || gameState.value.throwRollResult) {
+    if (gameState.value.throwRollResult && !gameState.value.pendingStealAttempt) {
              const src = gameState.value.lastCompletedAtBat;
              if (src) {
                  bases = src.basesBeforePlay || bases;

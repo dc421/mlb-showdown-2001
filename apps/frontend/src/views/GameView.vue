@@ -274,11 +274,16 @@ const runnerDecisionsWithLabels = computed(() => {
         let threshold = (adjustedSpeed - outfieldDefense.value) + 1;
         threshold = Math.max(1, threshold);
 
+        let outThresholdStr = `${threshold}`;
+        if (threshold > 20) {
+            outThresholdStr = 'SAFE';
+        }
+
         return {
             ...decision,
             toBase,
             toBaseLabel,
-            outThreshold: threshold
+            outThreshold: outThresholdStr
         };
     });
 });
@@ -323,9 +328,11 @@ const baserunningOptionGroups = computed(() => {
         const leadRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 2);
         const trailRunnerDecision = sortedDecisions.find(d => parseInt(d.from, 10) === 1);
 
+        const formatThreshold = (str) => str === 'SAFE' ? str : `${str}+`;
+
         return [
-            { text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel} (${leadRunnerDecision.outThreshold}+)`, choices: { '2': true } },
-            { text: `Send Both Runners (${leadRunnerDecision.outThreshold}+, ${trailRunnerDecision.outThreshold}+)`, choices: { '1': true, '2': true } }
+            { text: `Send ${leadRunnerDecision.runner.name} ${leadRunnerDecision.toBaseLabel} (${formatThreshold(leadRunnerDecision.outThreshold)})`, choices: { '2': true } },
+            { text: `Send Runners to ${leadRunnerDecision.toBaseLabel.replace('to ', '')} & ${trailRunnerDecision.toBaseLabel.replace('to ', '')} (${formatThreshold(leadRunnerDecision.outThreshold)}, ${formatThreshold(trailRunnerDecision.outThreshold)})`, choices: { '1': true, '2': true } }
         ];
     }
 
@@ -338,19 +345,21 @@ const baserunningOptionGroups = computed(() => {
         const runnerDestinations = [];
         const runnerThresholds = [];
 
+        const formatThreshold = (str) => str === 'SAFE' ? str : `${str}+`;
+
         for (let i = 0; i < runnerCount; i++) {
             const decision = sortedDecisions[i];
             cumulativeChoices[decision.from] = true;
             runnerDestinations.push(decision.toBaseLabel.replace('to ', ''));
-            runnerThresholds.push(decision.outThreshold);
+            runnerThresholds.push(formatThreshold(decision.outThreshold));
 
             let text = '';
             if (i === 0) {
-                text = `Send ${decision.runner.name} ${decision.toBaseLabel} (${decision.outThreshold}+)`;
+                text = `Send ${decision.runner.name} ${decision.toBaseLabel} (${formatThreshold(decision.outThreshold)})`;
             } else if (i === runnerCount - 1) {
-                text = `Send All Runners (${runnerThresholds.join('+, ')}+)`;
+                text = `Send All Runners (${runnerThresholds.join(', ')})`;
             } else {
-                text = `Send Runners to ${runnerDestinations.join(' & ')} (${runnerThresholds.join('+, ')}+)`;
+                text = `Send Runners to ${runnerDestinations.join(' & ')} (${runnerThresholds.join(', ')})`;
             }
 
             cumulativeOptions.push({
@@ -364,7 +373,108 @@ const baserunningOptionGroups = computed(() => {
     const defaultOptions = [];
     for (const decision of sortedDecisions) {
         const choices = { [decision.from]: true };
-        const text = `Send ${decision.runner.name} ${decision.toBaseLabel} (${decision.outThreshold}+)`;
+        // Check if there are implicitly advancing runners tied to this decision
+        // For ADVANCE plays, if this is a decision for the lead runner (e.g., from 2nd),
+        // and there is an auto_hold for a trail runner (e.g., from 1st) in the payload,
+        // sending the lead runner will also allow the trail runner to advance.
+        // Wait, if it's auto_hold, sending the lead runner means the trail runner auto-advances?
+        // Actually, the `GameView.vue` and `gameLogic.js` says if `type` is manual, it goes into decisions.
+        // If a trail runner has `type === 'auto_advance'` or `type === 'auto_hold'`, they aren't in manual.
+        // If they are auto_advance, they just advance. But wait, if they are auto_advance, they advance REGARDLESS of the lead runner.
+        // Wait, if the lead runner holds, they CANNOT advance past them!
+        // The backend handles this: "If a trail runner has auto_advance but base ahead is occupied, they hold".
+        
+        // So any trail runner (from base < decision.from) that is NOT in `decisions` 
+        // is implicitly tied to this decision if they want to advance to the base the lead runner is currently on (or beyond).
+        // Let's just change the wording based on the presence of multiple runners on base
+        // at the time of the hit where only ONE has a manual decision.
+
+        let text = `Send ${decision.runner.name} ${decision.toBaseLabel} (${decision.outThreshold}+)`;
+        
+
+        const currentPlay = gameStore.gameState.currentPlay;
+        const isAdvance = currentPlay?.type === 'ADVANCE';
+        const isTagUp = currentPlay?.type === 'TAG_UP';
+        const payload = currentPlay?.payload || {};
+
+        if (isAdvance || isTagUp) {
+            const basesBeforePlay = gameStore.gameState.currentAtBat?.basesBeforePlay || {};
+            const baseMap = { first: 1, second: 2, third: 3 };
+            const trailingRunners = Object.keys(basesBeforePlay)
+                .map(k => ({ base: baseMap[k], runner: basesBeforePlay[k] }))
+                .filter(r => r.runner && r.base < parseInt(decision.from, 10))
+                .filter(r => !sortedDecisions.some(d => parseInt(d.from, 10) === parseInt(r.base, 10)));
+
+            if (trailingRunners.length > 0) {
+                const destinations = [decision.toBaseLabel.replace('to ', '')];
+                let isMultipleSending = false;
+                const autoHolds = payload.autoHoldDecisions || [];
+                
+                                const getBaseName = (baseNum) => {
+                    if (baseNum === 2) return '2nd';
+                    if (baseNum === 3) return '3rd';
+                    if (baseNum >= 4) return 'Home';
+                    return '';
+                };
+
+                if (isAdvance) {
+                    let basesToAdvance = 2; // Auto-advancing runner on a single wants 2 bases
+                    if (payload.hitType === '2B' || payload.hitType === '2B+') basesToAdvance = 3;
+                    else if (payload.hitType === '3B') basesToAdvance = 4;
+                    // On a groundout, etc., trailing runners generally advance 1 base but auto_advance logic usually applies to hits and flyouts.
+                    // For a flyout (ADVANCE is not a tag up? Wait, TAG_UP is separate).
+                    // Actually, if a runner has auto_advance on a single, they are trying to go 1st to 3rd (2 bases) or 2nd to home (2 bases).
+
+                    trailingRunners.forEach(tr => {
+                        const isAutoHold = autoHolds.some(ah => parseInt(ah.from, 10) === parseInt(tr.base, 10));
+                        if (!isAutoHold) {
+                            const decisionFrom = parseInt(decision.from, 10);
+                            const decisionTo = parseInt(decision.toBase, 10);
+                            const trBase = parseInt(tr.base, 10);
+                            
+                            const maxAllowedBase = decisionTo - (decisionFrom - trBase);
+                            const attemptedBase = Math.min(trBase + basesToAdvance, maxAllowedBase);
+                            
+                            const trailDest = getBaseName(attemptedBase);
+                            if (trailDest) {
+                                destinations.unshift(trailDest);
+                                isMultipleSending = true;
+                            }
+                        }
+                    });
+                } else if (isTagUp) {
+                    trailingRunners.forEach(tr => {
+                        const isAutoHold = autoHolds.some(ah => parseInt(ah.from, 10) === parseInt(tr.base, 10));
+                        if (!isAutoHold) {
+                            const decisionFrom = parseInt(decision.from, 10);
+                            const decisionTo = parseInt(decision.toBase, 10);
+                            const trBase = parseInt(tr.base, 10);
+                            
+                            const maxAllowedBase = decisionTo - (decisionFrom - trBase);
+                            const attemptedBase = Math.min(trBase + 1, maxAllowedBase);
+                            
+                            const trailDest = getBaseName(attemptedBase);
+                            if (trailDest) {
+                                destinations.unshift(trailDest);
+                                isMultipleSending = true;
+                            }
+                        }
+                    });
+                }
+                
+                // Deduplicate destinations and format
+                const uniqueDestinations = [...new Set(destinations)];
+                if (isMultipleSending && uniqueDestinations.length > 1) {
+                    const thresholds = trailingRunners.filter(tr => {
+                        const isAutoHold = autoHolds.some(ah => parseInt(ah.from, 10) === parseInt(tr.base, 10));
+                        return !isAutoHold;
+                    }).map(() => 'SAFE');
+                    thresholds.push(`${decision.outThreshold}+`);
+                    
+                    text = `Send Runners to ${uniqueDestinations.join(' & ')} (${thresholds.join(', ')})`;
+                }
+            }
+        }
         defaultOptions.push({ text, choices });
     }
     return defaultOptions;
@@ -1242,11 +1352,6 @@ const atBatToDisplay = computed(() => {
       return { batterAction: null, pitcherAction: null, pitchRollResult: null, swingRollResult: null };
     }
     if (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext) {
-        if (gameStore.gameState.pendingStealAttempt &&
-            !gameStore.gameState.currentAtBat.pitcherAction &&
-            !gameStore.gameState.currentAtBat.batterAction) {
-            return gameStore.gameState.currentAtBat;
-        }
         return gameStore.gameState.lastCompletedAtBat;
     }
     return gameStore.gameState.currentAtBat;
@@ -1351,8 +1456,7 @@ const batterToDisplay = computed(() => {
     }
 
     // Inning-ending CS: show the batter who was up during the steal
-    if (gameStore.gameState?.inningEndedOnCaughtStealing && 
-        gameStore.isEffectivelyBetweenHalfInnings) {
+    if (gameStore.gameState?.inningEndedOnCaughtStealing) {
         const stealBatterId = gameStore.gameState.pendingStealAttempt?.batterPlayerId || 
                               gameStore.gameState.lastStealResult?.batterPlayerId ||
                               gameStore.gameState.currentPlay?.payload?.batterPlayerId;
@@ -1394,9 +1498,7 @@ const pitcherToDisplay = computed(() => {
 
     let basePitcher = null;
     
-    if (gameStore.gameState?.inningEndedOnCaughtStealing && 
-        gameStore.isEffectivelyBetweenHalfInnings &&
-        isStealAttemptInProgress.value) {
+    if (gameStore.gameState?.inningEndedOnCaughtStealing) {
         if (gameStore.gameState.currentAtBat?.pitcher?.card_id === gameStore.gameState.pendingStealAttempt?.pitcherPlayerId) {
             basePitcher = gameStore.gameState.currentAtBat.pitcher;
         } else {
@@ -1656,6 +1758,8 @@ function handleNextHitter() {
   hasSeenResult.value = false;
   localStorage.removeItem(seenResultStorageKey);
   defensiveThrowRollClicked.value = false;
+  defensiveDPRollClicked.value = false;
+  offensiveDPResultVisible.value = false;
   wasMultiThrowSituation.value = false;
 
   if (!gameStore.opponentReadyForNext && !gameStore.isEffectivelyBetweenHalfInnings && outsToDisplay.value < 3 && !gameStore.gameState.inningEndedOnCaughtStealing) {

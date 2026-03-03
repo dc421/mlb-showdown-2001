@@ -37,7 +37,7 @@ export function calculateDisplayGameState(gameState, currentUserId, isSwingResul
   // If we are here, we must roll back.
 
   let rollbackSource;
-  if (opponentReadyForNext) {
+  if (opponentReadyForNext && !gameState.pendingStealAttempt) {
       rollbackSource = gameState.lastCompletedAtBat;
   } else {
       rollbackSource = gameState.currentAtBat;

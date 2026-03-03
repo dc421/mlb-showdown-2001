@@ -363,9 +363,17 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         const hasManualDecision = processedDecisions.some(d => d.type === 'manual');
 
         if (hasManualDecision) {
-            processedDecisions = processedDecisions.map(d =>
-                d.type === 'auto_hold' ? { ...d, type: 'manual' } : d
-            );
+            let leadIsManual = false;
+            processedDecisions = processedDecisions.map(d => {
+                if (d.type === 'manual' || d.type === 'auto_hold') {
+                    leadIsManual = true;
+                    return { ...d, type: 'manual' };
+                } else if (d.type === 'auto_advance' && leadIsManual) {
+                    // Trailing behind a manual runner
+                    return { ...d, type: 'manual' };
+                }
+                return d;
+            });
         }
 
         const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
@@ -416,7 +424,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         { runner: runnerFrom1, from: 1 },  // try for third
       ].filter(d => d.runner);
 
-      const processedDecisions = potentialDecisions.map(decision => {
+      let processedDecisions = potentialDecisions.map(decision => {
           const { runner, from } = decision;
           const toBase = from + 2;
           const runnerSpeed = parseInt(getSpeedValue(runner), 10);
@@ -431,7 +439,23 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           if (isAutoAdvance) return { ...decision, type: 'auto_advance' };
           if (isAutoHold) return { ...decision, type: 'auto_hold' };
           return { ...decision, type: 'manual' };
+          
       });
+
+      const hasManualDecision = processedDecisions.some(d => d.type === 'manual');
+
+      if (hasManualDecision) {
+          let leadIsManual = false;
+          processedDecisions = processedDecisions.map(d => {
+              if (d.type === 'manual' || d.type === 'auto_hold') {
+                  leadIsManual = true;
+                  return { ...d, type: 'manual' };
+              } else if (d.type === 'auto_advance' && leadIsManual) {
+                  return { ...d, type: 'manual' };
+              }
+              return d;
+          });
+      }
 
       const manualDecisions = processedDecisions.filter(d => d.type === 'manual');
       const autoHoldDecisions = processedDecisions.filter(d => d.type === 'auto_hold');
