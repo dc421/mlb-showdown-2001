@@ -845,6 +845,11 @@ if (gameStore.gameState.lastStealResult &&
     return true;
 }
 
+// Hide new at-bat when opponent has advanced but I haven't (e.g. they called Intentional Walk)
+  if (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext) {
+    return true;
+  }
+
   if (!gameStore.gameState.currentAtBat) return false;
 
   const atBatIsResolved = !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
@@ -919,13 +924,13 @@ const canDoubleSteal = computed(() => {
 const isRunnerOnThird = computed(() => !!gameStore.gameState?.bases?.third);
 
 const showRollForPitchButton = computed(() => {
-  if (isGameOver.value && (isSwingResultVisible.value || gameStore.displayGameState.outs === 3)) return false;
+  if (isGameOver.value && isSwingResultVisible.value) return false;
   const result = amIDisplayDefensivePlayer.value && !shouldHideCurrentAtBatOutcome.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs > 0);
   return result;
 });
 
 const showSwingAwayButton = computed(() => {
-  if (isGameOver.value && (isSwingResultVisible.value || gameStore.displayGameState.outs === 3)) return false;
+  if (isGameOver.value && isSwingResultVisible.value) return false;
   return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && !shouldHideCurrentAtBatOutcome.value && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !gameStore.gameState.pendingStealAttempt && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
 
@@ -1070,7 +1075,7 @@ const isGameEndingSteal = computed(() => {
 
 
 
-return isGameOver.value && gameStore.displayGameState.outs === 3 && isStealFinish && !isSwingResultVisible.value;
+return isGameOver.value && isStealFinish && !isSwingResultVisible.value;
 });
 
 const showAutoThrowResult = computed(() => {
@@ -1359,8 +1364,8 @@ const atBatToDisplay = computed(() => {
 
 
 const bothPlayersSetAction = computed(() => {
-    if (!gameStore.gameState?.currentAtBat) return false;
-    return !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;
+    if (!atBatToDisplay.value) return false;
+    return !!atBatToDisplay.value.batterAction && !!atBatToDisplay.value.pitcherAction;
 });
 
 // SIMUL: When both players have acted, do a staged reveal:
@@ -1577,7 +1582,7 @@ const outsToDisplay = computed(() => {
 });
 
 const finalScoreMessage = computed(() => {
-  const basicVisibility = (isGameOver.value && gameStore.displayGameState.outs === 3) && (isSwingResultVisible.value || isGameEndingSteal.value);
+  const basicVisibility = isGameOver.value && (isSwingResultVisible.value || isGameEndingSteal.value);
   if (!basicVisibility || (!showAutoThrowResult.value && gameStore.gameState.throwRollResult) || (gameStore.gameState?.doublePlayDetails && !showThrowRollResult.value)) {
     return null;
   }
@@ -1613,7 +1618,7 @@ const finalScoreMessage = computed(() => {
 });
 
 const seriesScoreMessage = computed(() => {
-  const basicVisibility = (isGameOver.value && gameStore.displayGameState.outs === 3) && (isSwingResultVisible.value || isGameEndingSteal.value);
+  const basicVisibility = isGameOver.value && (isSwingResultVisible.value || isGameEndingSteal.value);
   if (!basicVisibility || (!showAutoThrowResult.value && gameStore.gameState.throwRollResult) || (gameStore.gameState?.doublePlayDetails && !showThrowRollResult.value)) {
     return null;
   }
@@ -1784,6 +1789,9 @@ function handleResolveSteal(throwToBase = null) {
 
 
 const isStealAttemptInProgress = computed(() => {
+    const isBehindOpponent = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
+    if (isBehindOpponent) return false;
+
     if (shouldDelayStealRoll.value && !gameStore.gameState?.inningEndedOnCaughtStealing) return true;
     if (shouldShowDoublePlayFirst.value) return false;
 
@@ -1817,13 +1825,12 @@ const isStealAttemptInProgress = computed(() => {
                                 !(gameStore.gameState?.inningEndedOnCaughtStealing && amIDisplayDefensivePlayer.value && !gameStore.amIReadyForNext);
     
     const isViewingPastTurn = !gameStore.opponentReadyForNext && gameStore.amIReadyForNext;
-    const isBehindOpponent = gameStore.opponentReadyForNext && !gameStore.amIReadyForNext;
-
+    
     const isPastStealDef = !!gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.inningEndedOnCaughtStealing
 
     const isConsecutiveSteal = !!gameStore.gameState?.lastStealResult && !!gameStore.gameState?.pendingStealAttempt;
     
-    const finalResult = (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isBehindOpponent && !isPastStealDef && !gameStore.gameState?.throwRollResult;
+    const finalResult = (isSingleStealInProgress || isDoubleStealInProgress) && (!showStealResult.value || isConsecutiveSteal) && !isViewingPastTurn && !isPastStealDef && !gameStore.gameState?.throwRollResult;
     return finalResult;
 });
 

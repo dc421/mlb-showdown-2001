@@ -564,7 +564,7 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
     }
 
     // Condition 2: The outcome has been revealed, but the current user hasn't clicked "Next Hitter" yet.
-    if (isEffectivelyBetween && !amIReadyForNext.value) {
+        if ((isEffectivelyBetween || (!amIReadyForNext.value && opponentReadyForNext.value)) && !amIReadyForNext.value) {
     let endIndex = gameEvents.value.length;
     for (let i = gameEvents.value.length - 1; i >= 0; i--) {
         const evt = gameEvents.value[i];
@@ -915,9 +915,14 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     
         // Use lastCompletedAtBat for resolved steals since server updates currentAtBat.basesBeforePlay post-steal
     
-    const rollbackSource = opponentReadyForNext.value && !gameState.value.pendingStealAttempt
-        ? gameState.value.lastCompletedAtBat 
-        : gameState.value.currentAtBat;
+    // We want to show the state at the start of the *new* at-bat if the opponent advanced
+    // but we are lagging, because that contains the bases *after* our advance decision but
+    // *before* the new at-bat's outcome (like an IBB).
+    const rollbackSource = opponentReadyForNext.value && !amIReadyForNext.value
+        ? gameState.value.currentAtBat
+        : (opponentReadyForNext.value && !gameState.value.pendingStealAttempt
+            ? gameState.value.lastCompletedAtBat 
+            : gameState.value.currentAtBat);
         if (rollbackSource && rollbackSource.basesBeforePlay) {
             let inning = gameState.value.inning;
             let isTopInning = gameState.value.isTopInning;
