@@ -1371,7 +1371,7 @@ const bothPlayersSetAction = computed(() => {
 // SIMUL: When both players have acted, do a staged reveal:
 // - Pitch result appears immediately (0ms)
 // - Swing result appears after 900ms
-watch(bothPlayersSetAction, (isRevealing) => {
+watch([bothPlayersSetAction, () => atBatToDisplay.value], ([isRevealing]) => {
   if (!initialLoadComplete.value || !gameStore.gameState) return;
 
   if (revealTimeout) clearTimeout(revealTimeout);
@@ -1390,7 +1390,7 @@ watch(bothPlayersSetAction, (isRevealing) => {
 }, { immediate: true });
 
 // SIMUL: Handle IBB — reveal immediately since there's no contest
-watch(() => atBatToDisplay.value?.pitcherAction, (newAction) => {
+watch([() => atBatToDisplay.value?.pitcherAction, () => atBatToDisplay.value], ([newAction]) => {
     if (newAction === 'intentional_walk') {
         if (revealTimeout) clearTimeout(revealTimeout);
         simulPitchVisible.value = true;
@@ -1453,9 +1453,6 @@ const batterToDisplay = computed(() => {
       } else{
         return gameStore.gameState?.currentAtBat?.batter ?? null;
     }}
-    if (anticipatedBatter.value) {
-        return anticipatedBatter.value;
-    }
     if (!gameStore.gameState) {
         return null;
     }
@@ -1479,7 +1476,8 @@ const batterToDisplay = computed(() => {
         return gameStore.gameState.lastCompletedAtBat?.batter;
     }
 
-    return gameStore.batter;
+    // The single source of truth for the current batter is now derived from atBatToDisplay.
+    return atBatToDisplay.value?.batter ?? null;
 });
 
 const pitcherToDisplay = computed(() => {
@@ -1517,7 +1515,7 @@ const pitcherToDisplay = computed(() => {
           && !(isStealAttemptInProgress.value && !gameStore.gameState.inningEndedOnCaughtStealing)) {
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
-        basePitcher = gameStore.pitcher;
+        basePitcher = atBatToDisplay.value?.pitcher ?? null;
     }
 
     if (!basePitcher || typeof basePitcher.control !== 'number') {
@@ -1938,6 +1936,13 @@ watch(bothPlayersCaughtUp, (areThey) => {
         isTransitioningToNextHitter.value = false;
     }
 });
+
+watch(nextBatterInLineup, (newBatter) => {
+    if (anticipatedBatter.value && newBatter) {
+        anticipatedBatter.value = newBatter;
+    }
+});
+
 
 watch(isStealAttemptInProgress, (newValue) => {
   if (newValue) {
