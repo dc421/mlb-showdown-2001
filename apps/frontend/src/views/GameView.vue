@@ -1085,6 +1085,7 @@ const showThrowRollResult = computed(() => {
 
 const showAutoThrowResult = computed(() => {
     if (isGameEndingSteal.value && !shouldHideCurrentAtBatOutcome.value) return true;
+    if (gameStore.amIReadyForNext) return false;
 
     if (!isSwingResultVisible.value || !gameStore.gameState?.throwRollResult ||
     (atBatToDisplay.value?.batterAction === 'take' && !gameStore.opponentReadyForNext && atBatToDisplay.value?.pitcherAction !== 'intentional_walk') || atBatToDisplay.value?.batterAction === 'bunt') {
@@ -1253,8 +1254,9 @@ const showStealResult = computed(() => {
       // NEW: Don't show steal result to offensive player while awaiting defensive roll
       if (gameStore.gameState.pendingStealAttempt && !gameStore.gameState.lastStealResult) return false;
       const prevIBB =  gameStore.gameState?.lastCompletedAtBat?.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState?.lastCompletedAtBat?.batter.card_id;
-      
-      return !gameStore.gameState.currentAtBat.batterAction && !prevIBB || gameStore.opponentReadyForNext && !prevIBB;
+      const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
+
+      return (!gameStore.gameState.currentAtBat.batterAction && !prevIBB) || (gameStore.opponentReadyForNext && !prevIBB) || isIBB;
   }
 
   if (amIDisplayDefensivePlayer.value) {
@@ -1265,7 +1267,10 @@ const showStealResult = computed(() => {
       const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
       const prevIBB =  gameStore.gameState.lastCompletedAtBat.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState.lastCompletedAtBat?.batter.card_id;
       
-      return (!pitcherHasActed && !isIBB && !prevIBB & !(amIDisplayDefensivePlayer.value && !isRunnerOnOffensiveTeam.value)) || gameStore.opponentReadyForNext;
+      // If it's an IBB, don't show the steal result to the defensive player, even if opponent is ready.
+      if (isIBB || prevIBB) return false;
+
+      return (!pitcherHasActed && !(amIDisplayDefensivePlayer.value && !isRunnerOnOffensiveTeam.value)) || gameStore.opponentReadyForNext;
   }
 
   return false;

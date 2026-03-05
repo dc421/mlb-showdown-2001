@@ -3203,7 +3203,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
       newState.awayPlayerReadyForNext = true;
     }
 
-    if (newState.pendingStealAttempt) {
+    if (newState.pendingStealAttempt && newState.homePlayerReadyForNext && newState.awayPlayerReadyForNext) {
         // Clear transient throw/play data from the previous at-bat now that both players have caught up to the steal
         newState.throwRollResult = null;
         newState.doublePlayDetails = null;
@@ -3226,9 +3226,15 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         newState.currentAtBat.basesBeforePlay = { ...newState.bases };
 
         // Reset flags — both players view the result, then each must act again
-        newState.homePlayerReadyForNext = false;
-        newState.awayPlayerReadyForNext = false;
-
+        // However, if the at-bat is already resolved (e.g. by an intentional walk),
+        // we DO NOT reset the flags here, so that the logic below can immediately
+        // advance the game state to the next hitter.
+        const isAtBatResolvedForSteal = newState.currentAtBat && newState.currentAtBat.pitcherAction && newState.currentAtBat.batterAction;
+        if (!isAtBatResolvedForSteal) {
+            newState.homePlayerReadyForNext = false;
+            newState.awayPlayerReadyForNext = false;
+        }
+        
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]);
       }
     
