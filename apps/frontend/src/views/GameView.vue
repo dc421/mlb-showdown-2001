@@ -1462,22 +1462,22 @@ const batterToDisplay = computed(() => {
         return null;
     }
 
-    // Inning-ending CS: show the batter who was up during the steal
-    if (gameStore.gameState?.inningEndedOnCaughtStealing) {
-        const stealBatterId = gameStore.gameState.pendingStealAttempt?.batterPlayerId || 
-                              gameStore.gameState.lastStealResult?.batterPlayerId ||
-                              gameStore.gameState.currentPlay?.payload?.batterPlayerId;
-        if (!stealBatterId || gameStore.gameState.currentAtBat?.batter?.card_id === stealBatterId) {
-            return gameStore.gameState.currentAtBat?.batter ?? gameStore.gameState.lastCompletedAtBat?.batter;
-        }
-        return gameStore.gameState.lastCompletedAtBat?.batter;
-    }
-
     // Opponent has advanced but I haven't — show previous at-bat's batter
     if (!gameStore.amIReadyForNext &&
         (gameStore.opponentReadyForNext || 
          (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) &&
         !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.opponentReadyForNext)) {
+        return gameStore.gameState.lastCompletedAtBat?.batter;
+    }
+
+    // Inning-ending CS: show the batter who was up during the steal
+    if (gameStore.gameState?.inningEndedOnCaughtStealing && !(gameStore.amIReadyForNext && !gameStore.opponentReadyForNext)) {
+          const stealBatterId = gameStore.gameState.pendingStealAttempt?.batterPlayerId || 
+                              gameStore.gameState.lastStealResult?.batterPlayerId ||
+                              gameStore.gameState.currentPlay?.payload?.batterPlayerId;
+        if (!stealBatterId || gameStore.gameState.currentAtBat?.batter?.card_id === stealBatterId) {
+            return gameStore.gameState.currentAtBat?.batter ?? gameStore.gameState.lastCompletedAtBat?.batter;
+        }
         return gameStore.gameState.lastCompletedAtBat?.batter;
     }
 
@@ -1506,7 +1506,11 @@ const pitcherToDisplay = computed(() => {
 
     let basePitcher = null;
     
-    if (gameStore.gameState?.inningEndedOnCaughtStealing) {
+    if (!gameStore.amIReadyForNext && 
+          (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext)))
+          && !(isStealAttemptInProgress.value && !gameStore.gameState.inningEndedOnCaughtStealing)) {
+        basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
+    } else if (gameStore.gameState?.inningEndedOnCaughtStealing && !(gameStore.amIReadyForNext && !gameStore.opponentReadyForNext)) {
         if (gameStore.gameState.currentAtBat?.pitcher?.card_id === gameStore.gameState.pendingStealAttempt?.pitcherPlayerId) {
             basePitcher = gameStore.gameState.currentAtBat.pitcher;
         } else {
@@ -1515,10 +1519,6 @@ const pitcherToDisplay = computed(() => {
 
       } else if (shouldHideCurrentAtBatOutcome.value && !isStealAttemptInProgress.value && !showRollForSwingButton.value) {
         basePitcher = atBatToDisplay.value?.pitcher ?? null;
-    } else if (!gameStore.amIReadyForNext && 
-          (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext)))
-          && !(isStealAttemptInProgress.value && !gameStore.gameState.inningEndedOnCaughtStealing)) {
-        basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
     } else {
         basePitcher = atBatToDisplay.value?.pitcher ?? null;
     }

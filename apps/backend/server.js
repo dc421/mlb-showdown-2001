@@ -3736,74 +3736,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 initialEvent += ` ${heldMessages.join(' ')}`;
             }
 
-
-            // --- ADVANCE TRAILING RUNNERS ---
-            // If the user decides to send the lead runner, any trailing runners that were waiting
-            // on this decision need to advance.
-            const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
-            const allDecisionsForPlay = newState.currentPlay.payload.decisions || [];
-            if (type === 'ADVANCE') {
-                const hitType = newState.currentPlay.payload.hitType;
-                let trailingAdvanceBases = hitType === '2B' ? 3 : 2;
-
-                const potentialTrailing = allDecisionsForPlay.filter(d => 
-                    d.from < sentRunnerFromBase &&
-                    d.type === 'manual' // Originally manual, but deferred to lead runner
-                );
-
-                // For any trailing runner that did NOT submit a hold decision explicitly 
-                // AND was not designated as an explicit auto_hold
-                const explicitlyHeldByPayload = autoHoldDecisions.map(d => parseInt(d.from, 10));
-                
-                potentialTrailing.forEach(trailDec => {
-                    const trailBase = parseInt(trailDec.from, 10);
-                    if (!explicitlyHeldByPayload.includes(trailBase)) {
-                        // This runner should advance
-                        const runnerObj = newState.bases[baseMap[trailBase]];
-                        if (runnerObj) {
-                            // Determine max base they can go based on lead runner
-                            const maxAllowedBase = throwTo - (sentRunnerFromBase - trailBase);
-                            const attemptedBase = Math.min(trailBase + trailingAdvanceBases, maxAllowedBase);
-                            
-                            // Advance the trailing runner
-                            if (attemptedBase === 3) {
-                                newState.bases.third = runnerObj;
-                                initialEvent += ` ${runnerObj.name} takes third without a throw.`;
-                            } else if (attemptedBase === 2) {
-                                newState.bases.second = runnerObj;
-                            }
-                            // Clear their old base
-                            if (trailBase !== attemptedBase && newState.bases[baseMap[trailBase]] === runnerObj) {
-                                newState.bases[baseMap[trailBase]] = null;
-                            }
-                        }
-                    }
-                });
-            } else if (type === 'TAG_UP') {
-                const potentialTrailing = allDecisionsForPlay.filter(d => 
-                    d.from < sentRunnerFromBase && d.type === 'manual'
-                );
-                const explicitlyHeldByPayload = autoHoldDecisions.map(d => parseInt(d.from, 10));
-                potentialTrailing.forEach(trailDec => {
-                    const trailBase = parseInt(trailDec.from, 10);
-                    if (!explicitlyHeldByPayload.includes(trailBase)) {
-                        const runnerObj = newState.bases[baseMap[trailBase]];
-                        if (runnerObj) {
-                            const attemptedBase = trailBase + 1; // Tag up is just 1 base
-                            if (attemptedBase === 3) {
-                                newState.bases.third = runnerObj;
-                                initialEvent += ` ${runnerObj.name} tags up and advances to third without a throw.`;
-                            } else if (attemptedBase === 2) {
-                                newState.bases.second = runnerObj;
-                                initialEvent += ` ${runnerObj.name} tags up and advances to second without a throw.`;
-                            }
-                            if (newState.bases[baseMap[trailBase]] === runnerObj) {
-                                newState.bases[baseMap[trailBase]] = null;
-                            }
-                        }
-                    }
-                });
-            }
+            // Trailing runners NOT sent stay at their current positions:
+            // - ADVANCE: already at optimistic positions (original base + 1) from applyOutcome
+            // - TAG_UP: still on their original bases (they hold)
+            // No additional base mutations needed here.
 
             const originalOuts = newState.outs;
 
@@ -3936,6 +3872,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
         const { payload } = newState.currentPlay;
         const { choices, initialEvent, decisions } = payload;
+        const autoHoldDecisions = payload.autoHoldDecisions || [];  // <-- NEW: extract autoHoldDecisions
         const baseMap = { 1: 'first', 2: 'second', 3: 'third', 4: 'home' };
         const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
         const originalOuts = newState.outs;
@@ -3979,6 +3916,16 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     const advancedBase = isTagUp ? from : from + 1;
     finalBases[baseMap[advancedBase]] = runner;
 }
+        }
+
+        // --- NEW: Handle autoHoldDecisions runners (TAG_UP only) ---
+        // These runners were not included in the decisions array but need to be
+        // placed into finalBases so they don't disappear.
+        for (const holdDec of autoHoldDecisions) {
+            const holdBase = holdDec.from + 1; // Tag-up advances 1 base
+            if (holdBase <= 3) {
+                finalBases[baseMap[holdBase]] = holdDec.runner;
+            }
         }
 
         // 3. Resolve the contested throw.
