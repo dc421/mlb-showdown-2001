@@ -39,9 +39,17 @@ export function calculateDisplayGameState(gameState, currentUserId, isSwingResul
   let rollbackSource;
   const amIReadyForNext = isHome ? gameState.homePlayerReadyForNext : gameState.awayPlayerReadyForNext;
 
+  // If the opponent is ahead and we are not, we use currentAtBat
+  // because currentAtBat represents the exact state that we are trying to
+  // catch up to (it holds the bases/scores *after* the previous play but
+  // *before* the new play).
+  // If BOTH players are synced, we also use currentAtBat, but if a mid-inning
+  // outcome is hidden, we want to roll back to the state *before* the play.
   if (opponentReadyForNext && !amIReadyForNext) {
       rollbackSource = gameState.currentAtBat;
   } else if (opponentReadyForNext && !gameState.pendingStealAttempt) {
+      // In the rare edge case both players are flagged ready but haven't advanced the server state?
+      // Actually, if both are ready, the server would have advanced the state immediately.
       rollbackSource = gameState.lastCompletedAtBat;
   } else {
       rollbackSource = gameState.currentAtBat;
