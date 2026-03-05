@@ -858,22 +858,6 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
          };
     }
 
-    if (!amIReadyForNext.value && opponentReadyForNext.value && gameEvents.value.length >= 2 && gameState.value.lastCompletedAtBat) {
-        const lastEvent = gameEvents.value[gameEvents.value.length - 1];
-        const prevEvent = gameEvents.value[gameEvents.value.length - 2];
-        if (lastEvent.log_message?.includes('intentionally walked') && prevEvent.log_message?.includes('intentionally walked')) {
-            console.log('Early return: consecutive IBB');
-            const rollbackSource = gameState.value.lastCompletedAtBat;
-            return {
-                ...gameState.value,
-                bases: rollbackSource.basesBeforePlay,
-                outs: rollbackSource.outsBeforePlay,
-                homeScore: rollbackSource.homeScoreBeforePlay,
-                awayScore: rollbackSource.awayScoreBeforePlay,
-            };
-        }
-    }
-
 if (gameState.value?.inningEndedOnCaughtStealing &&
     gameState.value.pendingStealAttempt) {  // ← Just check pendingStealAttempt exists
     const runnerTeamId = gameState.value.pendingStealAttempt.runnerTeamId;
