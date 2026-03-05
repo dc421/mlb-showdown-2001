@@ -846,10 +846,10 @@ if (gameStore.gameState.lastStealResult &&
 }
 
 // Hide new at-bat when opponent has advanced but I haven't (e.g. they called Intentional Walk)
-  if (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext) {
+  if (gameStore.opponentReadyForNext && !gameStore.amIReadyForNext && !isSwingResultVisible.value) {
     return true;
   }
-
+  
   if (!gameStore.gameState.currentAtBat) return false;
 
   const atBatIsResolved = !!gameStore.gameState.currentAtBat.batterAction && !!gameStore.gameState.currentAtBat.pitcherAction;

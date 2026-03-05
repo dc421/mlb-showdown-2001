@@ -537,46 +537,12 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
 
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
-    // If I am lagging behind (!amIReadyForNext && opponentReadyForNext) and NOT in a mid-reveal,
-    // the last event in the log belongs to the PREVIOUS at-bat which I SHOULD see.
     if (isOutcomeHidden.value && !isStealResultVisible.value) {
 
-      const isPlayerWaitingForReveal = gameState.value?.currentAtBat &&
-            (gameState.value.currentAtBat.batterAction || gameState.value.currentAtBat.pitcherAction) &&
-            !isSwingResultVisible.value &&
-            !(gameState.value.inningEndedOnCaughtStealing);
-
-      // Only slice the last event if the user is literally looking at the mid-reveal
-      // of the *current* event or hasn't advanced while the opponent hasn't either.
-      // If the opponent advanced and we are lagging, we shouldn't slice because the
-      // last event in the list is the one we are supposed to be viewing!
-      const isLaggingBehindNextAtBat = !amIReadyForNext.value && opponentReadyForNext.value;
-
-      if (!isLaggingBehindNextAtBat || isPlayerWaitingForReveal) {
-          const currentPlayType = gameState.value?.currentPlay?.type;
-          if (['ADVANCE', 'TAG_UP', 'INFIELD_IN_CHOICE'].includes(currentPlayType)) {
-            return gameEvents.value;
-          }
-
-          if (isEffectivelyBetween) {
-            return gameEvents.value.slice(0, gameEvents.value.length - 2);
-          }
-
-          const lastEvent = gameEvents.value[gameEvents.value.length - 1];
-          if (lastEvent && lastEvent.event_type === 'substitution') {
-            return gameEvents.value.slice(0, gameEvents.value.length - 2);
-          }
-
-          // Special case for Game Ending Steals: The backend inserts both the "Caught Stealing" event
-          // AND the "Game Over" system event. We must hide both until the defensive player rolls.
-          const secondLastEvent = gameEvents.value.length >= 2 ? gameEvents.value[gameEvents.value.length - 2] : null;
-          if (lastEvent && lastEvent.event_type === 'system' && secondLastEvent && secondLastEvent.event_type === 'steal') {
-              return gameEvents.value.slice(0, gameEvents.value.length - 2);
-          }
-
-          return gameEvents.value.slice(0, gameEvents.value.length - 1);
+      const currentPlayType = gameState.value?.currentPlay?.type;
+      if (['ADVANCE', 'TAG_UP', 'INFIELD_IN_CHOICE'].includes(currentPlayType)) {
+        return gameEvents.value;
       }
-    }
 
       if (isEffectivelyBetween) {
         return gameEvents.value.slice(0, gameEvents.value.length - 2);
@@ -913,49 +879,140 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     }
 }
 
-    if (isOutcomeHidden.value) {
-        // Special handling for inning-ended-on-CS
-        if (gameState.value.inningEndedOnCaughtStealing &&
-            isEffectivelyBetweenHalfInnings.value &&
-            !gameState.value.pendingStealAttempt &&
-            (amIReadyForNext.value || opponentReadyForNext.value)) {  // ← Add this back
+    // Guard: also treat as hidden when at-bat is fully resolved but swing reveal
+    // hasn't fired yet. This covers the one-tick watcher delay between
+    // shouldHideCurrentAtBatOutcome (component) and isOutcomeHidden (store ref).
+    const atBatFullyResolved = gameState.value.currentAtBat?.batterAction && 
+                                gameState.value.currentAtBat?.pitcherAction;
+    if (isOutcomeHidden.value || (atBatFullyResolved && !isSwingResultVisible.value)) {
+    // Special handling for inning-ended-on-CS
+    if (gameState.value.inningEndedOnCaughtStealing &&
+        isEffectivelyBetweenHalfInnings.value &&
+        !gameState.value.pendingStealAttempt &&
+        (amIReadyForNext.value || opponentReadyForNext.value)) {  // ← Add this back
+        return {
+            ...gameState.value,
+            outs: 3,
+            bases: gameState.value.lastCompletedAtBat.basesBeforePlay,  // ← Always use last completed
+        homeScore: gameState.value.homeScore,
+            awayScore: gameState.value.awayScore,
+            inning: gameState.value.inning,
+            isTopInning: !gameState.value.isTopInning,
+        };
+    }
+
+    
+        // Use lastCompletedAtBat for resolved steals since server updates currentAtBat.basesBeforePlay post-steal
+    
+    // We want to show the state at the start of the *new* at-bat if the opponent advanced
+    // but we are lagging, because that contains the bases *after* our advance decision but
+    // *before* the new at-bat's outcome (like an IBB).
+    const rollbackSource = opponentReadyForNext.value && !amIReadyForNext.value
+        ? gameState.value.currentAtBat
+        : (opponentReadyForNext.value && !gameState.value.pendingStealAttempt
+            ? gameState.value.lastCompletedAtBat 
+            : gameState.value.currentAtBat);
+        if (rollbackSource && rollbackSource.basesBeforePlay) {
+            let inning = gameState.value.inning;
+            let isTopInning = gameState.value.isTopInning;
+            const displayOutsValue = rollbackSource.outsBeforePlay;
+
+            if (gameState.value.outs === 0 && displayOutsValue !== 0) {
+                if (gameState.value.isTopInning) {
+                    inning = Math.max(1, gameState.value.inning - 1);
+                    isTopInning = false;
+                } else {
+                    isTopInning = true;
+                }
+            }
+
             return {
                 ...gameState.value,
-                outs: 3,
-                bases: gameState.value.lastCompletedAtBat.basesBeforePlay,  // ← Always use last completed
-                homeScore: gameState.value.homeScore,
-                awayScore: gameState.value.awayScore,
-                inning: gameState.value.inning,
-                isTopInning: !gameState.value.isTopInning,
+                bases: rollbackSource.basesBeforePlay,
+                outs: displayOutsValue,
+                homeScore: rollbackSource.homeScoreBeforePlay,
+                awayScore: rollbackSource.awayScoreBeforePlay,
+                inning,
+                isTopInning,
+                isBetweenHalfInningsAway: false,
+                isBetweenHalfInningsHome: false,
             };
         }
-
         return calculateDisplayGameState(gameState.value, auth.user?.userId, !isOutcomeHidden.value);
     }
+    console.log('No early return, proceeding to main logic');
     
     let bases = gameState.value.bases;
     let outs = gameState.value.outs;
     let homeScore = gameState.value.homeScore;
     let awayScore = gameState.value.awayScore;
-    let inning = gameState.value.inning;
-    let isTopInning = gameState.value.isTopInning;
 
     if (shouldShowThreeOuts.value) {
-        bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
-        outs = 3;
-        // When the server has fully transitioned (outs reset to 0, flags cleared),
-        // flip isTopInning back to show the completed half-inning
-        if (gameState.value.outs === 0) {
-            if (gameState.value.isTopInning) {
-                // Raw is top of N → was bottom of N-1
-                isTopInning = false;
-                inning = Math.max(1, gameState.value.inning - 1);
-            } else {
-                // Raw is bottom of N → was top of N
-                isTopInning = true;
+    bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
+    outs = 3;
+    // When the server has fully transitioned (outs reset to 0, flags cleared),
+    // flip isTopInning back to show the completed half-inning
+    if (gameState.value.outs === 0) {
+        if (gameState.value.isTopInning) {
+            // Raw is top of N → was bottom of N-1
+            isTopInning = false;
+            inning = Math.max(1, gameState.value.inning - 1);
+        } else {
+            // Raw is bottom of N → was top of N
+            isTopInning = true;
+        }
+    }
+} else if (!amIReadyForNext.value && opponentReadyForNext.value && isOutcomeHidden.value &&
+          !(gameState.value.inningEndedOnCaughtStealing &&
+            gameState.value.pendingStealAttempt && 
+            Number(gameState.value.pendingStealAttempt.runnerTeamId) === Number(teams.value[myTeam.value]?.team_id))) {
+    // Existing rollback logic
+    if (gameState.value.throwRollResult && !gameState.value.pendingStealAttempt) {
+             const src = gameState.value.lastCompletedAtBat;
+             if (src) {
+                 bases = src.basesBeforePlay || bases;
+                 if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
+                 if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
+                 if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
+             }
+        } else {
+            const src = gameState.value.currentAtBat;
+            if (src) {
+                bases = src.basesBeforePlay || bases;
+                if (src.outsBeforePlay !== undefined) outs = src.outsBeforePlay;
+                if (src.homeScoreBeforePlay !== undefined) homeScore = src.homeScoreBeforePlay;
+                if (src.awayScoreBeforePlay !== undefined) awayScore = src.awayScoreBeforePlay;
+            }
+        }
+
+        if (gameState.value.lastStealResult && !isStealResultVisible.value) {
+            if (gameState.value.outs === 0) {
+                 if (gameState.value.isTopInning) {
+                    return {
+                        ...gameState.value,
+                        outs: outs,
+                        bases: bases,
+                        homeScore: homeScore,
+                        awayScore: awayScore,
+                        inning: Math.max(1, gameState.value.inning - 1),
+                        isTopInning: false
+                    }
+                } else {
+                    return {
+                        ...gameState.value,
+                        outs: outs,
+                        bases: bases,
+                        homeScore: homeScore,
+                        awayScore: awayScore,
+                        isTopInning: true
+                    }
+                }
             }
         }
     }
+
+    let inning = gameState.value.inning;
+    let isTopInning = gameState.value.isTopInning;
 
     if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
       if (gameState.value.isTopInning) {
@@ -965,6 +1022,8 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
         isTopInning = true;
       }
     }
+
+    console.log('About to return displayGameState with outs:', outs);
 
     return {
       ...gameState.value,
