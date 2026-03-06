@@ -70,7 +70,8 @@ function isPlayerSubEligible(player) {
     }
 
     const pitcherStats = gameStore.gameState?.pitcherStats;
-    const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+    const pitcherId = `${authStore.user?.userId}_${player.card_id}`;
+    const stats = pitcherStats ? pitcherStats[pitcherId] : null;
     if (!stats) {
         return false; // Not enough data, assume ineligible.
     }
