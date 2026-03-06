@@ -351,7 +351,7 @@ function getEffectiveControl(pitcher, pitcherStats, inning, ownerUserId = null) 
     if (!pitcherStats) return pitcher.control;
 
     const pitcherId = ownerUserId ? `${ownerUserId}_${pitcher.card_id}` : pitcher.card_id;
-    const stats = pitcherStats[pitcherId] || pitcherStats[pitcher.card_id] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
     const inningsPitched = stats.innings_pitched || [];
 
     // For UI display purposes, we want to predict the fatigue for the current inning
@@ -1377,16 +1377,17 @@ function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, star
         return { isValid: true };
     }
 
-    const pitcherStats = gameState.pitcherStats ? gameState.pitcherStats[playerOutId] : null;
+    const ownerId = isOffensiveSub ?
+        (gameState.isTopInning ? gameState.awayTeam.userId : gameState.homeTeam.userId) :
+        (gameState.isTopInning ? gameState.homeTeam.userId : gameState.awayTeam.userId);
+
+    const compositeKey = `${ownerId}_${playerOutId}`;
+    const pitcherStats = gameState.pitcherStats ? gameState.pitcherStats[compositeKey] : null;
 
     if (playerOutId == startingPitcherId) {
         const outsRecorded = pitcherStats ? (pitcherStats.outs_recorded || 0) : 0;
         if (outsRecorded < 12) {
             // Check 1: Is the pitcher tired RIGHT NOW? (Primarily for defensive subs)
-            const ownerId = isOffensiveSub ?
-                (gameState.isTopInning ? gameState.awayTeam.userId : gameState.homeTeam.userId) :
-                (gameState.isTopInning ? gameState.homeTeam.userId : gameState.awayTeam.userId);
-
             const effectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, gameState.inning, ownerId);
             if (effectiveControl < playerOutCard.control) {
                 return { isValid: true }; // Pitcher is tired, can be subbed out.
@@ -2645,7 +2646,7 @@ async function getAndProcessGameData(gameId, dbClient) {
             // who were tired from a previous game but hadn't pitched in this one.
             if (player.ip <= 3) { // It's a reliever
                 const compositeKey = `${teamUserId}_${player.card_id}`;
-                const stats = pitcherStats ? (pitcherStats[compositeKey] || pitcherStats[player.card_id]) : null;
+                const stats = pitcherStats ? pitcherStats[compositeKey] : null;
 
                 if (stats) {
                     if (stats.pitchedYesterday) player.pitchedYesterday = true;

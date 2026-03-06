@@ -669,10 +669,10 @@ const rightPanelData = computed(() => {
 });
 
 const usedPlayerIds = computed(() => {
-    if (!gameStore.gameState) return new Set();
-    const homeUsed = gameStore.gameState.homeTeam?.used_player_ids || [];
-    const awayUsed = gameStore.gameState.awayTeam?.used_player_ids || [];
-    return new Set([...homeUsed, ...awayUsed]);
+    if (!gameStore.gameState || !leftPanelData.value?.teamKey) return new Set();
+    const teamKey = leftPanelData.value.teamKey;
+    const teamUsed = gameStore.gameState[teamKey + 'Team']?.used_player_ids || [];
+    return new Set(teamUsed);
 });
 
 
