@@ -4,9 +4,16 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+function getPitcherKey(state, pitcher) {
+    if (!pitcher) return null;
+    if (pitcher.pitcherOfRecordId) return pitcher.pitcherOfRecordId; // For runners
+    const ownerId = state.isTopInning ? state.homeTeam.userId : state.awayTeam.userId;
+    return `${ownerId}_${pitcher.card_id}`;
+}
+
 function recordBatterFaced(state, pitcher) {
     if (!pitcher) return;
-    const pitcherId = pitcher.card_id;
+    const pitcherId = getPitcherKey(state, pitcher);
     if (!state.pitcherStats[pitcherId]) {
         state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
     }
@@ -79,10 +86,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     }
 
     const pitcherId = runnerOnBase.pitcherOfRecordId;
-    if (newState.pitcherStats[pitcherId]) {
-      newState.pitcherStats[pitcherId].runs++;
-    } else {
-      newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0, batters_faced: 0 };
+    if (pitcherId) {
+        if (newState.pitcherStats[pitcherId]) {
+          newState.pitcherStats[pitcherId].runs++;
+        } else {
+          newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0, batters_faced: 0 };
+        }
     }
 
     if (generateLog) {
@@ -203,7 +212,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
   const runnerData = {
     ...batter,
-    pitcherOfRecordId: pitcher.card_id
+    pitcherOfRecordId: getPitcherKey(newState, pitcher)
   };
 
   // --- HANDLE OUTCOMES ---
@@ -684,7 +693,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 function recordOutsForPitcher(state, pitcher, count) {
   state.outs += count;
   if (!pitcher) return;
-  const pitcherId = pitcher.card_id;
+  const pitcherId = getPitcherKey(state, pitcher);
   if (!state.pitcherStats[pitcherId]) {
     state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
   }
@@ -839,7 +848,7 @@ function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHom
 function recordRunForPitcher(state, runner, currentPitcher) {
   const pitcherId = (runner && runner.pitcherOfRecordId)
     ? runner.pitcherOfRecordId
-    : (currentPitcher ? currentPitcher.card_id : null);
+    : getPitcherKey(state, currentPitcher);
   if (!pitcherId) return;
   if (!state.pitcherStats) state.pitcherStats = {};
   if (!state.pitcherStats[pitcherId]) {

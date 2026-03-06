@@ -346,12 +346,12 @@ const getSpeedValue = (runner) => {
   return speed; // Assume it's already a number if not A/B/C
 };
 
-function getEffectiveControl(pitcher, pitcherStats, inning) {
+function getEffectiveControl(pitcher, pitcherStats, inning, ownerUserId = null) {
     if (!pitcher || typeof pitcher.control !== 'number') return null;
     if (!pitcherStats) return pitcher.control;
 
-    const pitcherId = pitcher.card_id;
-    const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
+    const pitcherId = ownerUserId ? `${ownerUserId}_${pitcher.card_id}` : pitcher.card_id;
+    const stats = pitcherStats[pitcherId] || pitcherStats[pitcher.card_id] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
     const inningsPitched = stats.innings_pitched || [];
 
     // For UI display purposes, we want to predict the fatigue for the current inning
@@ -379,7 +379,8 @@ function updatePitcherFatigueForNewInning(state, pitcher) {
     if (!state.pitcherStats) {
         state.pitcherStats = {};
     }
-    const pitcherId = pitcher.card_id;
+    const ownerId = state.isTopInning ? state.homeTeam.userId : state.awayTeam.userId;
+    const pitcherId = `${ownerId}_${pitcher.card_id}`;
 
     let stats = state.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0, batters_faced: 0 };
     if (!stats.innings_pitched) {
@@ -568,13 +569,14 @@ async function initializePitcherFatigue(gameId, client) {
             `SELECT cp.card_id, cp.ip FROM cards_player cp JOIN roster_cards rc ON cp.card_id = rc.card_id WHERE rc.roster_id = $1 AND cp.ip IS NOT NULL AND cp.ip <= 3`,
             [participant.roster_id]
         );
-        allRelievers.push(...rosterCardsResult.rows);
+        const relievers = rosterCardsResult.rows.map(r => ({ ...r, owner_user_id: participant.user_id }));
+        allRelievers.push(...relievers);
     }
 
-    // 3. Initialize tracking map: { card_id: cumulativeFatigue }
+    // 3. Initialize tracking map: { user_id_card_id: cumulativeFatigue }
     const pitcherFatigueScore = {};
     allRelievers.forEach(r => {
-        pitcherFatigueScore[r.card_id] = 0;
+        pitcherFatigueScore[`${r.owner_user_id}_${r.card_id}`] = 0;
     });
 
     // 4. Iterate through history
@@ -589,8 +591,9 @@ async function initializePitcherFatigue(gameId, client) {
 
         // Process game event for each reliever
         allRelievers.forEach(reliever => {
-            const pid = reliever.card_id;
-            const pStats = stats[pid];
+            const pKey = `${reliever.owner_user_id}_${reliever.card_id}`;
+            // If the old state doesn't have the composite key yet, fall back to card_id to support ongoing games
+            const pStats = stats[pKey] || stats[reliever.card_id];
 
             // Did they pitch?
             const pitchedInnings = (pStats && pStats.innings_pitched) ? pStats.innings_pitched.length : 0;
@@ -606,10 +609,10 @@ async function initializePitcherFatigue(gameId, client) {
                 // If innings_pitched is empty but they faced batters, let's add 1 to be safe (min 1 fatigue for appearance).
                 const runPenalty = pitchedWhileTired ? Math.floor(runs / 3) : 0;
                 const fatigueToAdd = Math.max(pitchedInnings, (facedBatters ? 1 : 0)) + runPenalty;
-                pitcherFatigueScore[pid] = (pitcherFatigueScore[pid] || 0) + fatigueToAdd;
+                pitcherFatigueScore[pKey] = (pitcherFatigueScore[pKey] || 0) + fatigueToAdd;
             } else {
                 // Did not pitch -> Recovery
-                pitcherFatigueScore[pid] = Math.max(0, (pitcherFatigueScore[pid] || 0) - 1);
+                pitcherFatigueScore[pKey] = Math.max(0, (pitcherFatigueScore[pKey] || 0) - 1);
             }
         });
 
@@ -617,28 +620,34 @@ async function initializePitcherFatigue(gameId, client) {
         // This happens AFTER the game logic above.
         if (prevGame.game_in_series === 2 || prevGame.game_in_series === 5) {
             allRelievers.forEach(reliever => {
-                const pid = reliever.card_id;
-                pitcherFatigueScore[pid] = Math.max(0, (pitcherFatigueScore[pid] || 0) - 1);
+                const pKey = `${reliever.owner_user_id}_${reliever.card_id}`;
+                pitcherFatigueScore[pKey] = Math.max(0, (pitcherFatigueScore[pKey] || 0) - 1);
             });
         }
     }
 
     // 5. Calculate Final Modifiers for Current Game
     allRelievers.forEach(reliever => {
-        const pid = reliever.card_id;
-        const score = pitcherFatigueScore[pid] || 0;
+        const pKey = `${reliever.owner_user_id}_${reliever.card_id}`;
+        const score = pitcherFatigueScore[pKey] || 0;
         const allowedBuffer = Math.max(0, reliever.ip - 1);
 
         const penalty = Math.max(0, score - allowedBuffer);
         const isBufferUsed = (score > 0 && penalty === 0);
 
         if (penalty > 0 || isBufferUsed) {
-            finalPitcherStats[pid] = {
+            finalPitcherStats[pKey] = {
                 runs: 0,
                 innings_pitched: [],
                 fatigue_modifier: -penalty,
                 isBufferUsed: isBufferUsed
             };
+
+            // We also set the plain card_id for backward compatibility in cases where
+            // the UI might look for it, but only if it doesn't overwrite a different player's.
+            if (!finalPitcherStats[reliever.card_id]) {
+                finalPitcherStats[reliever.card_id] = finalPitcherStats[pKey];
+            }
         }
     });
 
@@ -1353,7 +1362,11 @@ function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, star
         const outsRecorded = pitcherStats ? (pitcherStats.outs_recorded || 0) : 0;
         if (outsRecorded < 12) {
             // Check 1: Is the pitcher tired RIGHT NOW? (Primarily for defensive subs)
-            const effectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, gameState.inning);
+            const ownerId = isOffensiveSub ?
+                (gameState.isTopInning ? gameState.awayTeam.userId : gameState.homeTeam.userId) :
+                (gameState.isTopInning ? gameState.homeTeam.userId : gameState.awayTeam.userId);
+
+            const effectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, gameState.inning, ownerId);
             if (effectiveControl < playerOutCard.control) {
                 return { isValid: true }; // Pitcher is tired, can be subbed out.
             }
@@ -1363,7 +1376,7 @@ function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, star
                 // If the offensive team is the away team (top of inning), their next defensive inning is the bottom of the current inning.
                 // If the offensive team is the home team (bottom of inning), their next defensive inning is the top of the next inning.
                 const nextDefensiveInning = !gameState.isTopInning ? gameState.inning + 1 : gameState.inning;
-                const projectedEffectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, nextDefensiveInning);
+                const projectedEffectiveControl = getEffectiveControl(playerOutCard, gameState.pitcherStats, nextDefensiveInning, ownerId);
                 if (projectedEffectiveControl < playerOutCard.control) {
                     return { isValid: true }; // Pitcher WILL BE tired, can be pinch-hit/run for.
                 }
@@ -1432,9 +1445,6 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
     const isOffensiveSub = teamKey === offensiveTeamKey;
     // --- END REVISED TEAM IDENTIFICATION LOGIC ---
 
-    const homeUsed = newState.homeTeam.used_player_ids || [];
-    const awayUsed = newState.awayTeam.used_player_ids || [];
-    const allUsedPlayerIds = [...homeUsed, ...awayUsed];
     const playerInIdInt = parseInt(playerInId, 10);
 
     let playerOutCard;
@@ -1458,7 +1468,8 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
 
-    if (playerInIdInt > 0 && allUsedPlayerIds.includes(playerInIdInt)) {
+    const teamUsedPlayerIds = newState[teamKey].used_player_ids || [];
+    if (playerInIdInt > 0 && teamUsedPlayerIds.includes(playerInIdInt)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
     }
 
@@ -1590,7 +1601,8 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
                  const { roll } = newState.currentAtBat.pitchRollResult;
                  const pitcher = newState.currentAtBat.pitcher;
                  // Get effective control for the CURRENT inning/at-bat state
-                 const effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
+                 const pitcherOwnerId = newState.isTopInning ? newState.homeTeam.userId : newState.awayTeam.userId;
+                 const effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning, pitcherOwnerId);
                  
                  // If the batter is a pitcher (has a 'control' rating), they can never have the advantage.
                  const newAdvantage = playerInCard.control !== null
@@ -2599,25 +2611,27 @@ async function getAndProcessGameData(gameId, dbClient) {
     if (pitcher) {
         processPlayers([pitcher]);
         // Add effectiveControl to the active pitcher object
-        pitcher.effectiveControl = getEffectiveControl(pitcher, currentState.state_data.pitcherStats, currentState.state_data.inning);
+        const pitcherOwnerId = currentState.state_data.isTopInning ? currentState.state_data.homeTeam.userId : currentState.state_data.awayTeam.userId;
+        pitcher.effectiveControl = getEffectiveControl(pitcher, currentState.state_data.pitcherStats, currentState.state_data.inning, pitcherOwnerId);
     }
 
     // Add fatigue status to all bullpen pitchers in the rosters
-    const processRosterFatigue = (roster, pitcherStats, inning) => {
+    const processRosterFatigue = (roster, pitcherStats, inning, teamUserId) => {
         if (!roster) return;
         roster.forEach(player => {
             // FIX: A reliever is identified by having a base IP of 3 or less.
             // The `player.ip > 0` check was preventing us from flagging relievers
             // who were tired from a previous game but hadn't pitched in this one.
             if (player.ip <= 3) { // It's a reliever
-                const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+                const compositeKey = `${teamUserId}_${player.card_id}`;
+                const stats = pitcherStats ? (pitcherStats[compositeKey] || pitcherStats[player.card_id]) : null;
 
                 if (stats) {
                     if (stats.pitchedYesterday) player.pitchedYesterday = true;
                     if (stats.isBufferUsed) player.isBufferUsed = true;
 
                     // Calculate total penalty (incorporating pre-game and in-game)
-                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning);
+                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning, teamUserId);
                     const totalPenalty = Math.max(0, player.control - effectiveControl);
 
                     // The stored fatigue_modifier is the pre-game state.
@@ -2641,8 +2655,9 @@ async function getAndProcessGameData(gameId, dbClient) {
     };
 
     if (currentState?.state_data?.pitcherStats) {
-        processRosterFatigue(rosters.home, currentState.state_data.pitcherStats, currentState.state_data.inning);
-        processRosterFatigue(rosters.away, currentState.state_data.pitcherStats, currentState.state_data.inning);
+        processRosterFatigue(rosters.home, currentState.state_data.pitcherStats, currentState.state_data.inning, game.home_team_user_id);
+        const awayUserId = participantsResult.rows.find(p => p.user_id !== game.home_team_user_id)?.user_id;
+        processRosterFatigue(rosters.away, currentState.state_data.pitcherStats, currentState.state_data.inning, awayUserId);
     }
   }
 
@@ -2846,7 +2861,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     }
 
     // Retrieve the effectiveControl for the current at-bat.
-    const effectiveControl = getEffectiveControl(pitcher, currentState.pitcherStats, currentState.inning);
+    const pitcherOwnerId = currentState.isTopInning ? currentState.homeTeam.userId : currentState.awayTeam.userId;
+    const effectiveControl = getEffectiveControl(pitcher, currentState.pitcherStats, currentState.inning, pitcherOwnerId);
 
      let finalState = { ...currentState };
     if (finalState.stealAttemptDetails) {
@@ -3156,7 +3172,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
       // Calculate effectiveControl and attach it to the pitcher object for this specific at-bat.
       if (pitcher) {
-          pitcher.effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
+          const pitcherOwnerId = newState.isTopInning ? newState.homeTeam.userId : newState.awayTeam.userId;
+          pitcher.effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning, pitcherOwnerId);
       }
 
       // Create a fresh scorecard for the new at-bat.
@@ -3266,7 +3283,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
           const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, newState);
           newState = updatePitcherFatigueForNewInning(newState, pitcher);
           if (pitcher) {
-              pitcher.effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning);
+              const pitcherOwnerId = newState.isTopInning ? newState.homeTeam.userId : newState.awayTeam.userId;
+              pitcher.effectiveControl = getEffectiveControl(pitcher, newState.pitcherStats, newState.inning, pitcherOwnerId);
           }
           newState.currentAtBat = {
               batter: batter,
