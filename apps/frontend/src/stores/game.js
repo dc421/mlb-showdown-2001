@@ -392,6 +392,11 @@ async function resetRolls(gameId) {
   const isSwingResultVisible = ref(false);
   const isStealResultVisible = ref(false);
   const isDraftActive = ref(false);
+  const isTransitioningToNextHitter = ref(false);
+
+  function setIsTransitioningToNextHitter(value) {
+    isTransitioningToNextHitter.value = value;
+  }
 
   async function fetchSnapshots(gameId) {
     const auth = useAuthStore();
@@ -542,10 +547,6 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
       const currentPlayType = gameState.value?.currentPlay?.type;
       if (['ADVANCE', 'TAG_UP', 'INFIELD_IN_CHOICE'].includes(currentPlayType)) {
         return gameEvents.value;
-      }
-
-      if (isEffectivelyBetween) {
-        return gameEvents.value.slice(0, gameEvents.value.length - 2);
       }
 
       const lastEvent = gameEvents.value[gameEvents.value.length - 1];
@@ -882,9 +883,11 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     // Guard: also treat as hidden when at-bat is fully resolved but swing reveal
     // hasn't fired yet. This covers the one-tick watcher delay between
     // shouldHideCurrentAtBatOutcome (component) and isOutcomeHidden (store ref).
+    // We bypass this guard if we are currently transitioning to the next hitter to prevent
+    // reverting the outs for a split second.
     const atBatFullyResolved = gameState.value.currentAtBat?.batterAction && 
                                 gameState.value.currentAtBat?.pitcherAction;
-    if (isOutcomeHidden.value || (atBatFullyResolved && !isSwingResultVisible.value)) {
+    if (isOutcomeHidden.value || (atBatFullyResolved && !isSwingResultVisible.value && !isTransitioningToNextHitter.value)) {
     // Special handling for inning-ended-on-CS
     if (gameState.value.inningEndedOnCaughtStealing &&
         isEffectivelyBetweenHalfInnings.value &&
@@ -1055,6 +1058,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     isSwingResultVisible,
     isStealResultVisible,
     isDraftActive,
+    isTransitioningToNextHitter,
     gameEventsToDisplay,
     myTeam,
     pitcherTeam,
@@ -1085,6 +1089,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     setOutcomeHidden,
     setIsSwingResultVisible,
     setIsStealResultVisible,
+    setIsTransitioningToNextHitter,
     updateGameData,
     resetGameState,
     fetchGameSetup,

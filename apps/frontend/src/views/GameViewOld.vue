@@ -1802,6 +1802,7 @@ function handleSwing(action = null) {
 }
 function handleNextHitter() {
   isTransitioningToNextHitter.value = true;
+  gameStore.setIsTransitioningToNextHitter(true);
   // Reset the result visibility for the current player.
   gameStore.setIsSwingResultVisible(false);
   gameStore.setIsStealResultVisible(false);
@@ -2010,8 +2011,15 @@ watch(bothPlayersCaughtUp, (areThey) => {
     if (areThey) {
         anticipatedBatter.value = null;
         isTransitioningToNextHitter.value = false;
+        gameStore.setIsTransitioningToNextHitter(false);
     }
 });
+
+watch(isTransitioningToNextHitter, (newVal) => {
+    if (!newVal && gameStore.isTransitioningToNextHitter) {
+         gameStore.setIsTransitioningToNextHitter(false);
+    }
+})
 
 watch(isStealAttemptInProgress, (newValue) => {
   if (newValue) {
