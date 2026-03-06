@@ -70,7 +70,10 @@ function isPlayerSubEligible(player) {
     }
 
     const pitcherStats = gameStore.gameState?.pitcherStats;
-    const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+    const ownerId = gameStore.myTeam === 'home' ? gameStore.gameState.homeTeam.userId : gameStore.gameState.awayTeam.userId;
+    const pitcherKey = `${ownerId}_${player.card_id}`;
+    const stats = pitcherStats ? pitcherStats[pitcherKey] : null;
+
     if (!stats) {
         return false; // Not enough data, assume ineligible.
     }
@@ -87,7 +90,7 @@ function isPlayerSubEligible(player) {
     // If the pitcher is on offense, we project their fatigue for the *next* inning
     // to see if they will be tired when they next take the mound.
     let projectedInnings = inningsPitchedCount;
-    if (amIDisplayOffensivePlayer.value) {
+    if (amIDisplayOffensivePlayer.value && !useDh.value) {
         projectedInnings += 1;
     }
 

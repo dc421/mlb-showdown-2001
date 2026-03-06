@@ -82,7 +82,10 @@ function isPlayerSubEligible(player) {
     }
 
     const pitcherStats = gameStore.gameState?.pitcherStats;
-    const stats = pitcherStats ? pitcherStats[player.card_id] : null;
+    const ownerId = gameStore.myTeam === 'home' ? gameStore.gameState.homeTeam.userId : gameStore.gameState.awayTeam.userId;
+    const pitcherKey = `${ownerId}_${player.card_id}`;
+    const stats = pitcherStats ? pitcherStats[pitcherKey] : null;
+
     if (!stats) {
         return false;
     }
@@ -94,7 +97,7 @@ function isPlayerSubEligible(player) {
     const inningsPitchedCount = stats.innings_pitched?.length || 0;
 
     let projectedInnings = inningsPitchedCount;
-    if (amIDisplayOffensivePlayer.value) {
+    if (amIDisplayOffensivePlayer.value && !useDh.value) {
         projectedInnings += 1;
     }
 
