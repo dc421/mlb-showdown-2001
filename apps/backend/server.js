@@ -585,15 +585,43 @@ async function initializePitcherFatigue(gameId, client) {
         const stateResult = await client.query('SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [prevGame.game_id]);
         const finalState = stateResult.rows.length > 0 ? stateResult.rows[0].state_data : null;
 
-        if (!finalState) continue; // Should not happen for completed games
+        if (!finalState) continue;
 
         const stats = finalState.pitcherStats || {};
+
+        // FIX: Build a card_id -> owner_user_id map for this previous game
+        // so the plain card_id fallback only applies to the correct team.
+        const cardOwnerInPrevGame = {};
+        const prevParticipants = await client.query(
+            'SELECT user_id, roster_id FROM game_participants WHERE game_id = $1',
+            [prevGame.game_id]
+        );
+        for (const pp of prevParticipants.rows) {
+            const cardsResult = await client.query(
+                'SELECT card_id FROM roster_cards WHERE roster_id = $1',
+                [pp.roster_id]
+            );
+            cardsResult.rows.forEach(c => {
+                if (!cardOwnerInPrevGame[c.card_id]) {
+                    cardOwnerInPrevGame[c.card_id] = [];
+                }
+                cardOwnerInPrevGame[c.card_id].push(pp.user_id);
+            });
+        }
 
         // Process game event for each reliever
         allRelievers.forEach(reliever => {
             const pKey = `${reliever.owner_user_id}_${reliever.card_id}`;
-            // If the old state doesn't have the composite key yet, fall back to card_id to support ongoing games
-            const pStats = stats[pKey] || stats[reliever.card_id];
+
+            // FIX: Try composite key first. If not found, only fall back to plain
+            // card_id if this reliever's owner actually had the card in that game.
+            let pStats = stats[pKey];
+            if (!pStats) {
+                const ownedByThisUser = cardOwnerInPrevGame[reliever.card_id]?.includes(reliever.owner_user_id);
+                if (ownedByThisUser) {
+                    pStats = stats[reliever.card_id];
+                }
+            }
 
             // Did they pitch?
             const pitchedInnings = (pStats && pStats.innings_pitched) ? pStats.innings_pitched.length : 0;
@@ -602,11 +630,6 @@ async function initializePitcherFatigue(gameId, client) {
             const pitchedWhileTired = (pStats && pStats.pitchedWhileTired) || false;
 
             if (pitchedInnings > 0 || facedBatters) {
-                // If they faced batters but 0 innings recorded (e.g. 0.1 IP), treat as 1 fatigue point?
-                // The prompt example uses whole innings. Usually length of innings_pitched array is the count.
-                // If they came in and got 0 outs but faced batters, usually that's 0 IP effectively for fatigue in simple rules,
-                // but let's stick to innings_pitched length which is robust.
-                // If innings_pitched is empty but they faced batters, let's add 1 to be safe (min 1 fatigue for appearance).
                 const runPenalty = pitchedWhileTired ? Math.floor(runs / 3) : 0;
                 const fatigueToAdd = Math.max(pitchedInnings, (facedBatters ? 1 : 0)) + runPenalty;
                 pitcherFatigueScore[pKey] = (pitcherFatigueScore[pKey] || 0) + fatigueToAdd;
@@ -617,7 +640,6 @@ async function initializePitcherFatigue(gameId, client) {
         });
 
         // Process Travel Day (After Game 2 and After Game 5)
-        // This happens AFTER the game logic above.
         if (prevGame.game_in_series === 2 || prevGame.game_in_series === 5) {
             allRelievers.forEach(reliever => {
                 const pKey = `${reliever.owner_user_id}_${reliever.card_id}`;
@@ -643,11 +665,10 @@ async function initializePitcherFatigue(gameId, client) {
                 isBufferUsed: isBufferUsed
             };
 
-            // We also set the plain card_id for backward compatibility in cases where
-            // the UI might look for it, but only if it doesn't overwrite a different player's.
-            if (!finalPitcherStats[reliever.card_id]) {
-                finalPitcherStats[reliever.card_id] = finalPitcherStats[pKey];
-            }
+            // FIX: Removed the backward-compat alias that wrote to plain card_id.
+            // All downstream code (getEffectiveControl, processRosterFatigue) already
+            // checks composite key first via the ownerUserId fallback pattern, so
+            // the plain key is no longer needed and was causing cross-team contamination.
         }
     });
 
