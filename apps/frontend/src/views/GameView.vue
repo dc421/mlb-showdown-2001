@@ -1639,7 +1639,7 @@ const seriesScoreMessage = computed(() => {
   }
   const homeTeam = gameStore.teams.home;
   const awayTeam = gameStore.teams.away;
-  const isHomeTeamSeriesHome = homeTeam.userId === series.series_home_user_id;
+  const isHomeTeamSeriesHome = homeTeam.user_id === series.series_home_user_id;
 
   let sHomeWins = series.home_wins;
   let sAwayWins = series.away_wins;
@@ -1689,7 +1689,7 @@ const seriesStatusText = computed(() => {
 
   const gameNumber = game.game_in_series;
   const homeTeam = gameStore.teams.home;
-  const isHomeTeamSeriesHome = homeTeam && homeTeam.userId === series.series_home_user_id;
+  const isHomeTeamSeriesHome = homeTeam && homeTeam.user_id === series.series_home_user_id;
   
   let sHomeWins = series.home_wins;
   let sAwayWins = series.away_wins;
