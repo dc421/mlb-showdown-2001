@@ -949,6 +949,8 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     let outs = gameState.value.outs;
     let homeScore = gameState.value.homeScore;
     let awayScore = gameState.value.awayScore;
+    let inning = gameState.value.inning;
+    let isTopInning = gameState.value.isTopInning;
 
     if (shouldShowThreeOuts.value) {
     bases = opponentReadyForNext.value ? gameState.value.lastCompletedAtBat.basesBeforePlay : gameState.value.currentAtBat.basesBeforePlay;
@@ -1013,9 +1015,6 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
             }
         }
     }
-
-    let inning = gameState.value.inning;
-    let isTopInning = gameState.value.isTopInning;
 
     if (isEffectivelyBetweenHalfInnings.value && gameState.value.awaiting_lineup_change) {
       if (gameState.value.isTopInning) {
