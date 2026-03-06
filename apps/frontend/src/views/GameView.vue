@@ -1688,16 +1688,17 @@ const seriesStatusText = computed(() => {
   }
 
   const gameNumber = game.game_in_series;
-  const isHomeTeamSeriesHome = homeTeam.userId === series.series_home_user_id;
-
+  const homeTeam = gameStore.teams.home;
+  const isHomeTeamSeriesHome = homeTeam && homeTeam.userId === series.series_home_user_id;
+  
   let sHomeWins = series.home_wins;
   let sAwayWins = series.away_wins;
-
+  
   if (isGameOver.value && series.historical_home_wins !== undefined && series.historical_away_wins !== undefined) {
       sHomeWins = series.historical_home_wins;
       sAwayWins = series.historical_away_wins;
   }
-
+  
   const homeWins = isHomeTeamSeriesHome ? sHomeWins : sAwayWins;
   const awayWins = isHomeTeamSeriesHome ? sAwayWins : sHomeWins;
 
