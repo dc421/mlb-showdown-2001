@@ -1639,8 +1639,18 @@ const seriesScoreMessage = computed(() => {
   }
   const homeTeam = gameStore.teams.home;
   const awayTeam = gameStore.teams.away;
-  const homeWins = series.home_wins;
-  const awayWins = series.away_wins;
+  const isHomeTeamSeriesHome = homeTeam.userId === series.series_home_user_id;
+
+  let sHomeWins = series.home_wins;
+  let sAwayWins = series.away_wins;
+
+  if (isGameOver.value && series.historical_home_wins !== undefined && series.historical_away_wins !== undefined) {
+      sHomeWins = series.historical_home_wins;
+      sAwayWins = series.historical_away_wins;
+  }
+
+  const homeWins = isHomeTeamSeriesHome ? sHomeWins : sAwayWins;
+  const awayWins = isHomeTeamSeriesHome ? sAwayWins : sHomeWins;
 
   const gamesToWin = series.number_of_games ? Math.ceil(series.number_of_games / 2) : 999;
 
@@ -1678,8 +1688,18 @@ const seriesStatusText = computed(() => {
   }
 
   const gameNumber = game.game_in_series;
-  const homeWins = series.home_wins;
-  const awayWins = series.away_wins;
+  const isHomeTeamSeriesHome = homeTeam.userId === series.series_home_user_id;
+
+  let sHomeWins = series.home_wins;
+  let sAwayWins = series.away_wins;
+
+  if (isGameOver.value && series.historical_home_wins !== undefined && series.historical_away_wins !== undefined) {
+      sHomeWins = series.historical_home_wins;
+      sAwayWins = series.historical_away_wins;
+  }
+
+  const homeWins = isHomeTeamSeriesHome ? sHomeWins : sAwayWins;
+  const awayWins = isHomeTeamSeriesHome ? sAwayWins : sHomeWins;
 
   if (homeWins === awayWins) {
     return `Game ${gameNumber}, Tied ${homeWins}-${awayWins}`;
