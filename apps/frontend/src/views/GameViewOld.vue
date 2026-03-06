@@ -1590,7 +1590,8 @@ const pitcherToDisplay = computed(() => {
         return { ...pitcherToProcess, effectiveControl: pitcherToProcess.control };
     }
 
-    const pitcherId = pitcherToProcess.card_id;
+    const pitcherOwnerId = isDisplayTopInning.value ? gameStore.gameState.homeTeam.userId : gameStore.gameState.awayTeam.userId;
+    const pitcherId = `${pitcherOwnerId}_${pitcherToProcess.card_id}`;
     const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
     const inningsPitched = stats.innings_pitched || [];
     const inningsPitchedCount = inningsPitched.length;

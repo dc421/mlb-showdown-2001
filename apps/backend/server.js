@@ -1569,7 +1569,8 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
             if (startOfInningStateResult.rows.length > 0) {
                 const startState = startOfInningStateResult.rows[0].state_data;
-                const pitcherId = playerOutCard.card_id;
+                const pitcherOwnerId = newState.isTopInning ? newState.homeTeam.userId : newState.awayTeam.userId;
+                const pitcherId = `${pitcherOwnerId}_${playerOutCard.card_id}`;
 
                 const startBattersFaced = (startState.pitcherStats && startState.pitcherStats[pitcherId])
                     ? (startState.pitcherStats[pitcherId].batters_faced || 0)
@@ -1589,7 +1590,8 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
             } else {
                 // If we can't find the start of the inning (e.g. game just started),
                 // and batters_faced is 0, we can safely remove the inning.
-                 const pitcherId = playerOutCard.card_id;
+                 const pitcherOwnerId = newState.isTopInning ? newState.homeTeam.userId : newState.awayTeam.userId;
+                 const pitcherId = `${pitcherOwnerId}_${playerOutCard.card_id}`;
                  const currentBattersFaced = (newState.pitcherStats && newState.pitcherStats[pitcherId])
                     ? (newState.pitcherStats[pitcherId].batters_faced || 0)
                     : 0;
@@ -2895,7 +2897,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         if (!currentState.pitcherStats) {
             currentState.pitcherStats = {};
         }
-        const pid = pitcher.card_id;
+        const pOwnerId = currentState.isTopInning ? currentState.homeTeam.userId : currentState.awayTeam.userId;
+        const pid = `${pOwnerId}_${pitcher.card_id}`;
         let stats = currentState.pitcherStats[pid] || { runs: 0, innings_pitched: [], fatigue_modifier: 0, batters_faced: 0 };
 
         // Initialize if missing
@@ -2964,7 +2967,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         // --- THIS IS THE FIX: Calculate controlPenalty directly in this route ---
         let controlPenalty = 0;
         if (pitcher && currentState.pitcherStats) {
-            const pitcherId = pitcher.card_id;
+            const pOwnerId = currentState.isTopInning ? currentState.homeTeam.userId : currentState.awayTeam.userId;
+            const pitcherId = `${pOwnerId}_${pitcher.card_id}`;
             const stats = currentState.pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
             const inningsPitched = stats.innings_pitched || [];
             let potentialInningsPitched = [...inningsPitched];
