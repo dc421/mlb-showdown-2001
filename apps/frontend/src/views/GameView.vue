@@ -1766,6 +1766,7 @@ function handleNextHitter() {
   if (dpRevealTimeout) clearTimeout(dpRevealTimeout);
 
   isTransitioningToNextHitter.value = true;
+  gameStore.setIsTransitioningToNextHitter(true);
   gameStore.setIsSwingResultVisible(false);
   gameStore.setIsStealResultVisible(false);
   // SIMUL: Reset pitch visibility for next at-bat
@@ -1946,8 +1947,15 @@ watch(bothPlayersCaughtUp, (areThey) => {
     if (areThey) {
         anticipatedBatter.value = null;
         isTransitioningToNextHitter.value = false;
+        gameStore.setIsTransitioningToNextHitter(false);
     }
 });
+
+watch(isTransitioningToNextHitter, (newVal) => {
+    if (!newVal && gameStore.isTransitioningToNextHitter) {
+         gameStore.setIsTransitioningToNextHitter(false);
+    }
+})
 
 watch(nextBatterInLineup, (newBatter) => {
     if (anticipatedBatter.value && newBatter) {
