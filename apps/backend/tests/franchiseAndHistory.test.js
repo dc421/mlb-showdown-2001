@@ -19,11 +19,11 @@ describe('matchesFranchise', () => {
         expect(matchesFranchise('San Diego', null, boston, allTeams, mappedIds)).toBe(true);
     });
 
-    test('matches Fargo as NY South alias', () => {
-        const nySouth = { team_id: 1, name: 'NY South', city: 'NY South' };
-        // We need to pass the correct mappedIds for NY South or empty if strictly name matching
-        expect(matchesFranchise('Fargo', null, nySouth, allTeams, [])).toBe(true);
-        expect(matchesFranchise('NYDC', null, nySouth, allTeams, [])).toBe(true);
+    test('matches Fargo as Los Angeles alias', () => {
+        const laTeam = { team_id: 1, name: 'Freeze', city: 'Los Angeles' };
+        // We need to pass the correct mappedIds for Los Angeles or empty if strictly name matching
+        expect(matchesFranchise('Fargo', null, laTeam, allTeams, [])).toBe(true);
+        expect(matchesFranchise('NYDC', null, laTeam, allTeams, [])).toBe(true);
     });
 
     test('matches Laramie as Detroit alias', () => {
