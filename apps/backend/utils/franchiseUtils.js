@@ -5,7 +5,7 @@
 const ALIASES = {
     'Boston': ['San Diego'], // Boston (Drew) used to be San Diego
     'New York': ['no aliases'], // New York (Scott) no aliases
-    'NY South': ['Fargo', 'NYDC', 'New York South'], // Alex
+    'Los Angeles': ['Fargo', 'NYDC', 'New York South', 'NY South'], // Alex
     'Detroit': ['Laramie', 'Cincinnati'], // Chris
     'Ann Arbor': ['Chicago', 'Redwood City'] // Ben
 };
@@ -171,7 +171,7 @@ function parseHistoricalIdentity(fullName) {
     }
 
     // Check known aliases that are just City names
-    const simpleAliases = ['San Diego', 'Fargo', 'NYDC', 'Redwood City', 'Chicago'];
+    const simpleAliases = ['San Diego', 'Fargo', 'NYDC', 'Redwood City', 'Chicago', 'NY South', 'New York South'];
     for (const alias of simpleAliases) {
         if (fullName.includes(alias)) {
             // Return city override, keep name as is (by returning null for name)
