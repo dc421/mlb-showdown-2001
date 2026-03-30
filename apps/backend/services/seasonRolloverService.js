@@ -165,6 +165,7 @@ async function checkTeamHasPlayed(client, userId, seasonName) {
          WHERE season_name = $1
            AND (winning_team_id = $2 OR losing_team_id = $2)
            AND winning_score IS NOT NULL
+           AND style IS DISTINCT FROM 'Classic'
          LIMIT 1`,
         [seasonName, teamId]
     );

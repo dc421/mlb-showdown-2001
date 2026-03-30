@@ -4,7 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Helper to handle authentication errors
 function handleAuthError() {
-    console.warn('Authentication failed (401/403). Redirecting to login.');
+    console.warn('Authentication failed (401). Redirecting to login.');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
@@ -13,7 +13,7 @@ function handleAuthError() {
 /**
  * A wrapper around the native fetch API that handles:
  * 1. Automatically attaching the Bearer token.
- * 2. Redirecting to login on 401/403 errors.
+ * 2. Redirecting to login on 401 errors.
  *
  * @param {string} endpoint - The API endpoint (e.g., '/api/games').
  * @param {Object} [options={}] - Fetch options.
@@ -43,7 +43,7 @@ export async function apiClient(endpoint, options = {}) {
     try {
         const response = await fetch(url, config);
 
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
             handleAuthError();
             // We return a rejected promise to stop further processing in the caller
             // (though the page will redirect shortly).
