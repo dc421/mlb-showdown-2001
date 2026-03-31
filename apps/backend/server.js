@@ -746,7 +746,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
     let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
 
     const participantsResult = await client.query('SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1', [gameId]);
-    const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== game_home_user_id);
+    const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== series_home_user_id);
     const gameAwayUserId = gameAwayParticipant.user_id;
 
     // 2. Update series away user if it's the first game and not set yet
