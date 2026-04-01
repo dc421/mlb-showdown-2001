@@ -1436,29 +1436,11 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
     const homeParticipant = allParticipants.find(p => p.user_id === homeUserId);
     const awayParticipant = allParticipants.find(p => p.user_id !== homeUserId);
 
-    const isPlayerInLineup = (p, id) => p && p.lineup && (
-        p.lineup.battingOrder.some(spot => spot.card_id === id) ||
-        p.lineup.startingPitcher === id
-    );
-
-    let participant;
-    let teamKey;
-
-    if (isPlayerInLineup(homeParticipant, playerOutId)) {
-        participant = homeParticipant;
-        teamKey = 'homeTeam';
-    } else if (isPlayerInLineup(awayParticipant, playerOutId)) {
-        participant = awayParticipant;
-        teamKey = 'awayTeam';
-    } else {
-        // Fallback for players not in a lineup (e.g., pinch runners on base)
-        const requestingParticipant = allParticipants.find(p => p.user_id === userId);
-        if (!requestingParticipant) {
-             return res.status(403).json({ message: 'Requesting user not found in this game.' });
-        }
-        participant = requestingParticipant;
-        teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
+    let participant = allParticipants.find(p => p.user_id === userId);
+    if (!participant) {
+        return res.status(403).json({ message: 'Requesting user not found in this game.' });
     }
+    let teamKey = participant.home_or_away === 'home' ? 'homeTeam' : 'awayTeam';
 
     const offensiveTeamKey = newState.isTopInning ? 'awayTeam' : 'homeTeam';
     const isOffensiveSub = teamKey === offensiveTeamKey;
