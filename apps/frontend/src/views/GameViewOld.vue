@@ -116,10 +116,10 @@ function toggleSubMode() {
 function selectPlayerToSubOut(player, position, index = null, source = 'lineup') {
   if (gameStore.playerSelectedForSwap) {
     // A player is already selected, so this click completes the action.
-    const isPlayerOnField = myLineup.value.battingOrder.some(p => p.player.card_id === player.card_id);
+    const isPlayerOnField = myLineup.value.battingOrder.some(p => p.player?.card_id === player.card_id);
 
     // Handle substitution with duplicate replacement players
-    const isSamePlayer = playerToSubOut.value?.player.card_id === player.card_id &&
+    const isSamePlayer = playerToSubOut.value?.player?.card_id === player.card_id &&
                          playerToSubOut.value?.index === index &&
                          playerToSubOut.value?.source === source;
 
@@ -457,7 +457,7 @@ const playersInInvalidPositions = computed(() => {
 
         // New Bench Player Rule
         if (gameStore.gameState?.inning < 7 && player.assignment === 'BENCH') {
-            invalidPlayerIds.add(player.card_id);
+            if (player) invalidPlayerIds.add(player.card_id);
             return; // No need to check other rules if this one fails
         }
 
@@ -487,7 +487,7 @@ const playersInInvalidPositions = computed(() => {
         }
 
         if (isInvalid) {
-            invalidPlayerIds.add(player.card_id);
+            if (player) invalidPlayerIds.add(player.card_id);
         }
     });
 
@@ -500,7 +500,7 @@ const myRoster = computed(() => gameStore.myTeam ? gameStore.rosters[gameStore.m
 
 const myBenchAndBullpen = computed(() => {
     if (!myLineup.value?.battingOrder || !myRoster.value) return [];
-    const onFieldIds = new Set(myLineup.value.battingOrder.map(s => s.player.card_id));
+    const onFieldIds = new Set(myLineup.value.battingOrder.map(s => s.player?.card_id).filter(Boolean));
 
     // --- NEW: Also consider the current pitcher on the mound as "on field" ---
     // Correction: We must consider OUR designated pitcher, even if they aren't on the mound right now (e.g. we are batting).
@@ -527,7 +527,7 @@ const awayPitcher = computed(() => gameStore.gameState?.currentAwayPitcher || ga
 
 const homeBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.home?.battingOrder || !gameStore.rosters.home) return [];
-    const lineupIds = new Set(gameStore.lineups.home.battingOrder.map(s => s.player.card_id));
+    const lineupIds = new Set(gameStore.lineups.home.battingOrder.map(s => s.player?.card_id).filter(Boolean));
 
     // Always exclude the current Home Pitcher (who appears in the "Pitching:" slot)
     if (homePitcher.value) {
@@ -550,7 +550,7 @@ const homeBenchAndBullpen = computed(() => {
 });
 const awayBenchAndBullpen = computed(() => {
     if (!gameStore.lineups.away?.battingOrder || !gameStore.rosters.away) return [];
-    const lineupIds = new Set(gameStore.lineups.away.battingOrder.map(s => s.player.card_id));
+    const lineupIds = new Set(gameStore.lineups.away.battingOrder.map(s => s.player?.card_id).filter(Boolean));
 
     // Always exclude the current Away Pitcher (who appears in the "Pitching:" slot)
     if (awayPitcher.value) {
@@ -2502,10 +2502,10 @@ function handleVisibilityChange() {
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="index"
                   :class="{
-                      'now-batting': amIDisplayOffensivePlayer && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
+                      'now-batting': amIDisplayOffensivePlayer && batterToDisplay && spot.player?.card_id === batterToDisplay.card_id,
                       'next-up': amIDisplayDefensivePlayer && index === defensiveNextBatterIndex,
                       'is-sub-target': playerToSubOut?.source === 'lineup' && playerToSubOut?.index === index,
-                      'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player.card_id)
+                      'invalid-position': isMyTeamAwaitingLineupChange && playersInInvalidPositions.has(spot.player?.card_id)
                   }"
                   :style="playerToSubOut && playerToSubOut.source === 'lineup' && playerToSubOut.index === index ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}"
                   class="lineup-item">
@@ -2610,7 +2610,7 @@ function handleVisibilityChange() {
           <ol>
               <li v-for="(spot, index) in rightPanelData.lineup" :key="index"
                   :class="{
-                      'now-batting': amIDisplayDefensivePlayer && batterToDisplay && spot.player.card_id === batterToDisplay.card_id,
+                      'now-batting': amIDisplayDefensivePlayer && batterToDisplay && spot.player?.card_id === batterToDisplay.card_id,
                       'next-up': amIDisplayOffensivePlayer && index === defensiveNextBatterIndex
                   }"
                   class="lineup-item">
