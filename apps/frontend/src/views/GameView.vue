@@ -404,7 +404,8 @@ const baserunningOptionGroups = computed(() => {
             const trailingRunners = Object.keys(basesBeforePlay)
                 .map(k => ({ base: baseMap[k], runner: basesBeforePlay[k] }))
                 .filter(r => r.runner && r.base < parseInt(decision.from, 10))
-                .filter(r => !sortedDecisions.some(d => parseInt(d.from, 10) === parseInt(r.base, 10)));
+                .filter(r => !sortedDecisions.some(d => parseInt(d.from, 10) === parseInt(r.base, 10)))
+                .filter(r => !sortedDecisions.some(d => d.runner.card_id === r.runner.card_id));
 
             if (trailingRunners.length > 0) {
                 const destinations = [decision.toBaseLabel.replace('to ', '')];
