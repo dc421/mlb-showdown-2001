@@ -3451,25 +3451,45 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 }
                 newState.bases[baseMap[fromBase]] = null;
 
-                // AUTO-RESOLVE: For single steals, skip the pendingStealAttempt
-                // intermediate state entirely. Go straight to lastStealResult so
-                // the frontend doesn't depend on a watcher/callback to call
-                // /resolve-steal.
-                newState.lastStealResult = {
-                    runner: runnerName,
-                    outcome,
-                    throwToBase: toBase,
-                    batterPlayerId: batter.card_id,
-                    runnerTeamId: Number(offensiveTeam.team_id),
-                    ...resultDetails
-                };
-                newState.pendingStealAttempt = null;
-                newState.currentPlay = null;
+    // Check if both players are currently on the same at-bat
+                const bothPlayersEven = !newState.awayPlayerReadyForNext && !newState.homePlayerReadyForNext;
 
-                // CRITICAL CHANGE: If safe, it's both players' turn. If out, it's the defense's turn to clean up.
+                if (bothPlayersEven) {
+                    // Both players are caught up — auto-resolve directly to lastStealResult.
+                    // This prevents the freeze where the frontend auto-resolve watcher
+                    // fails to call /resolve-steal, leaving pendingStealAttempt set
+                    // and lastStealResult null (no buttons for either player).
+                    newState.lastStealResult = {
+                        runner: runnerName,
+                        outcome,
+                        throwToBase: toBase,
+                        batterPlayerId: batter.card_id,
+                        runnerTeamId: Number(offensiveTeam.team_id),
+                        ...resultDetails
+                    };
+                    newState.pendingStealAttempt = null;
+                    newState.currentPlay = null;
+                } else {
+                    // Offensive player is ahead of defensive player — use the intermediate
+                    // pendingStealAttempt state so the offense sees "Waiting..." and the
+                    // defense can click Next Hitter to catch up before seeing the result.
+                    newState.pendingStealAttempt = {
+                        runner,
+                        runnerName,
+                        throwToBase: toBase,
+                        outcome,
+                        batterPlayerId: batter.card_id,
+                        runnerTeamId: Number(offensiveTeam.team_id),
+                        ...resultDetails
+                    };
+                    newState.currentPlay = {
+                        type: 'STEAL_ATTEMPT',
+                        payload: { decisions, batterPlayerId: batter.card_id }
+                    };
+                }
+
                 const nextTurnUserId = isSafe ? 0 : defensiveTeam.user_id;
                 await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [nextTurnUserId, gameId]);
-
             }
         } else { // Double steal
             newState.currentPlay = {
