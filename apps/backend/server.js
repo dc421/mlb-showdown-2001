@@ -3451,20 +3451,20 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 }
                 newState.bases[baseMap[fromBase]] = null;
 
-                // AUTO-RESOLVE: For single steals, skip the pendingStealAttempt
-                // intermediate state entirely. Go straight to lastStealResult so
-                // the frontend doesn't depend on a watcher/callback to call
-                // /resolve-steal.
-                newState.lastStealResult = {
-                    runner: runnerName,
-                    outcome,
+                newState.pendingStealAttempt = {
+                    runner,
+                    runnerName,
                     throwToBase: toBase,
+                    outcome,
                     batterPlayerId: batter.card_id,
                     runnerTeamId: Number(offensiveTeam.team_id),
                     ...resultDetails
                 };
-                newState.pendingStealAttempt = null;
-                newState.currentPlay = null;
+                // We still use currentPlay to manage the overall "steal sequence" state
+                newState.currentPlay = {
+                    type: 'STEAL_ATTEMPT',
+                    payload: { decisions, batterPlayerId: batter.card_id }
+                };
 
                 // CRITICAL CHANGE: If safe, it's both players' turn. If out, it's the defense's turn to clean up.
                 const nextTurnUserId = isSafe ? 0 : defensiveTeam.user_id;
