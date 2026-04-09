@@ -56,10 +56,25 @@ async function fetchTeams() {
 onMounted(async () => {
   if (authStore.token) {
     try {
-        const res = await apiClient('/api/draft/state');
-        if (res.ok) {
-            const data = await res.json();
+        const [draftRes, classicRes, leagueRes] = await Promise.all([
+            apiClient('/api/draft/state'),
+            apiClient('/api/classic/state'),
+            apiClient('/api/league/state')
+        ]);
+
+        if (draftRes.ok) {
+            const data = await draftRes.json();
             gameStore.isDraftActive = data.is_active;
+        }
+
+        if (classicRes.ok) {
+            const data = await classicRes.json();
+            gameStore.isClassicActive = data.classic?.is_active || false;
+        }
+
+        if (leagueRes.ok) {
+            const data = await leagueRes.json();
+            gameStore.isLeagueActive = data.isActive;
         }
     } catch (e) { console.error(e); }
 
@@ -75,7 +90,7 @@ onMounted(async () => {
         <img v-if="authStore.user?.team" :src="authStore.user.team.logo_url" alt="Team Logo" class="nav-team-logo" />
       </RouterLink>
       <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text">League</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text" :class="{ 'active-league': gameStore.isLeagueActive }">League</RouterLink>
 
       <!-- Teams Dropdown (Desktop) -->
       <div v-if="!isGamePage" class="teams-dropdown-container" @mouseenter="isTeamsMenuOpen = true" @mouseleave="closeTeamsMenu">
@@ -95,7 +110,7 @@ onMounted(async () => {
           </div>
       </div>
 
-      <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text active-classic">Classic</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text" :class="{ 'active-classic': gameStore.isClassicActive }">Classic</RouterLink>
       <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
     </div>
     
@@ -118,7 +133,7 @@ onMounted(async () => {
 
     <div v-if="isMenuOpen" class="mobile-menu">
       <RouterLink to="/dashboard" @click="closeMenu" class="mobile-link">Dashboard</RouterLink>
-      <RouterLink to="/league" @click="closeMenu" class="mobile-link">League</RouterLink>
+      <RouterLink to="/league" @click="closeMenu" class="mobile-link" :class="{ 'active-league': gameStore.isLeagueActive }">League</RouterLink>
 
       <!-- Mobile Teams List (Toggleable) -->
       <div class="mobile-teams-section">
@@ -139,7 +154,7 @@ onMounted(async () => {
           </div>
       </div>
 
-      <RouterLink to="/classic" @click="closeMenu" class="mobile-link active-classic">Classic</RouterLink>
+      <RouterLink to="/classic" @click="closeMenu" class="mobile-link" :class="{ 'active-classic': gameStore.isClassicActive }">Classic</RouterLink>
       <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
       <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
     </div>
@@ -368,7 +383,7 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
-.active-classic {
+.active-classic, .active-league {
   color: #20c997 !important;
   font-weight: bold;
   border: 2px solid #20c997;

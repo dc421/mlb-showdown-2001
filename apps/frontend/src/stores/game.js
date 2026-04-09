@@ -392,6 +392,8 @@ async function resetRolls(gameId) {
   const isSwingResultVisible = ref(false);
   const isStealResultVisible = ref(false);
   const isDraftActive = ref(false);
+  const isClassicActive = ref(false);
+  const isLeagueActive = ref(false);
   const isTransitioningToNextHitter = ref(false);
 
   function setIsTransitioningToNextHitter(value) {
@@ -1053,6 +1055,8 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     isSwingResultVisible,
     isStealResultVisible,
     isDraftActive,
+    isClassicActive,
+    isLeagueActive,
     isTransitioningToNextHitter,
     gameEventsToDisplay,
     myTeam,
