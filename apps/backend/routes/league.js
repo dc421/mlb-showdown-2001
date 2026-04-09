@@ -23,6 +23,25 @@ function processPlayers(playersToProcess) {
     return playersToProcess;
 };
 
+// GET LEAGUE STATE
+router.get('/state', authenticateToken, async (req, res) => {
+    try {
+        const query = `
+            SELECT 1
+            FROM series_results
+            WHERE winning_score IS NULL
+            AND style IS DISTINCT FROM 'Classic'
+            LIMIT 1
+        `;
+        const result = await pool.query(query);
+
+        res.json({ isActive: result.rows.length > 0 });
+    } catch (error) {
+        console.error('Error fetching league state:', error);
+        res.status(500).json({ message: 'Server error fetching league state.' });
+    }
+});
+
 // GET LEAGUE ROSTERS (Modified to accept season)
 router.get('/', authenticateToken, async (req, res) => {
     let { point_set_id, season } = req.query;
