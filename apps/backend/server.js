@@ -3157,15 +3157,6 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     const originalState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
-// Idempotency guard: if this player already clicked "next hitter", don't process again
-    const isHome = userId === newState.homeTeam.userId;
-    if ((isHome && newState.homePlayerReadyForNext) || (!isHome && newState.awayPlayerReadyForNext)) {
-        await client.query('ROLLBACK');
-        console.log(`Idempotency guard: /next-hitter duplicate blocked for game ${gameId}, user ${userId}`);
-        const gameData = await getAndProcessGameData(gameId, client);
-        return res.status(200).json(gameData);
-    }
-
     let newState = JSON.parse(JSON.stringify(originalState));
 
     const isHomePlayer = Number(userId) === Number(newState.homeTeam.userId);
