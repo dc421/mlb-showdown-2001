@@ -2726,6 +2726,14 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
+    // Idempotency guard: if the at-bat already has a swing result, this is a duplicate request
+    if (currentState.currentAtBat.swingRollResult) {
+        await client.query('ROLLBACK');
+        console.log(`Idempotency guard: /set-action duplicate blocked for game ${gameId}`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
+
     let finalState = { ...currentState };
     if (finalState.stealAttemptDetails) {
         finalState.stealAttemptDetails.clearedForOffense = true;
@@ -2868,6 +2876,14 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     let stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let currentState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
+
+     // Idempotency guard: if a pitch result already exists, this is a duplicate request
+    if (currentState.currentAtBat.pitchRollResult) {
+        await client.query('ROLLBACK');
+        console.log(`Idempotency guard: /pitch duplicate blocked for game ${gameId}`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
 
     const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
@@ -3140,6 +3156,16 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     const originalState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
+
+// Idempotency guard: if this player already clicked "next hitter", don't process again
+    const isHome = userId === newState.homeTeam.userId;
+    if ((isHome && newState.homePlayerReadyForNext) || (!isHome && newState.awayPlayerReadyForNext)) {
+        await client.query('ROLLBACK');
+        console.log(`Idempotency guard: /next-hitter duplicate blocked for game ${gameId}, user ${userId}`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
+
     let newState = JSON.parse(JSON.stringify(originalState));
 
     const isHomePlayer = Number(userId) === Number(newState.homeTeam.userId);
@@ -3408,6 +3434,19 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
 
+    // Idempotency guard: if a steal is already pending for this exact runner/base combo, this is a duplicate
+const requestedBases = Object.keys(decisions).filter(k => decisions[k]);
+if (newState.pendingStealAttempt && requestedBases.length === 1) {
+    const alreadyStealingToBase = newState.pendingStealAttempt.throwToBase;
+    const requestedFromBase = parseInt(requestedBases[0], 10);
+    if (requestedFromBase + 1 === alreadyStealingToBase) {
+        await client.query('ROLLBACK');
+        console.log(`Idempotency guard: /initiate-steal duplicate blocked for game ${gameId}`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
+}
+
     const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
@@ -3554,6 +3593,15 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
     let newState = stateResult.rows[0].state_data;
     const currentTurn = stateResult.rows[0].turn_number;
+
+    // Idempotency guard: if there's no pending steal to resolve, this is a duplicate
+    if (!newState.pendingStealAttempt && !newState.currentPlay?.type?.includes('STEAL')) {
+        await client.query('ROLLBACK');
+        console.log(`Idempotency guard: /resolve-steal duplicate blocked for game ${gameId}`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
+
     const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
 
     // Reset ready-for-next flags. Resolving a steal is a new game action that
