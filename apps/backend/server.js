@@ -30,7 +30,7 @@ const REPLACEMENT_HITTER_CARD = {
 const REPLACEMENT_PITCHER_CARD = {
     card_id: -2, name: 'Replacement Pitcher', display_name: 'Replacement Pitcher', control: -1, ip: 1, speed: 10,
     points: 0,
-    chart_data: { '1-3': 'PU', '4-9': 'SO', '10-13': 'GB', '14-16': 'FB', '17':'BB', '18-19':'1B','20':'2B'},
+    chart_data: { '1-3': 'PU', '4-9': 'SO', '10-13': 'GB', '14-16': 'FB', '17-17': 'BB', '18-19': '1B', '20-20': '2B' },
     fielding_ratings: {},
     image_url: `https://mlbshowdown2001.netlify.app/images/replacement_pitcher.jpg`
 };
@@ -345,6 +345,7 @@ const getSpeedValue = (runner) => {
 
 function getEffectiveControl(pitcher, pitcherStats, inning, ownerUserId = null) {
     if (!pitcher || typeof pitcher.control !== 'number') return null;
+    if (pitcher.card_id < 0) return pitcher.control; // Replacement pitchers are exempt from fatigue
     if (!pitcherStats) return pitcher.control;
 
     const pitcherId = ownerUserId ? `${ownerUserId}_${pitcher.card_id}` : pitcher.card_id;
