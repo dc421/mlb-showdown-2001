@@ -69,7 +69,7 @@ onMounted(async () => {
 
         if (classicRes.ok) {
             const data = await classicRes.json();
-            gameStore.isClassicActive = data.classic?.is_active || false;
+            gameStore.isClassicActive = data.isActive ?? (data.classic?.is_active || false);
         }
 
         if (leagueRes.ok) {
@@ -375,7 +375,7 @@ onMounted(async () => {
   }
 }
 
-.active-draft {
+.active-draft, .active-league {
   color: #ffc107 !important;
   font-weight: bold;
   border: 2px solid #ffc107;
@@ -383,7 +383,7 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
-.active-classic, .active-league {
+.active-classic {
   color: #20c997 !important;
   font-weight: bold;
   border: 2px solid #20c997;
