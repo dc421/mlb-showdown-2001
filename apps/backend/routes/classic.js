@@ -183,7 +183,19 @@ router.get('/state', authenticateToken, async (req, res) => {
             rosters = Object.values(rosterMap);
         }
 
+        // 4. Check for uncompleted Classic games to determine active state for navbar
+        const activeQuery = `
+            SELECT 1
+            FROM series_results
+            WHERE winning_score IS NULL
+            AND style = 'Classic'
+            LIMIT 1
+        `;
+        const activeResult = await pool.query(activeQuery);
+        const isActive = activeResult.rows.length > 0;
+
         res.json({
+            isActive,
             classic: {
                 id: classic.id,
                 name: classic.name,
