@@ -134,6 +134,13 @@ function selectPlayerToSubOut(player, position, index = null, source = 'lineup')
     }
 
     if (isPlayerOnField) {
+      if (playerToSubOut.value?.position === 'DH' || position === 'DH') {
+          alert('The DH cannot change positions defensively.');
+          isSubModeActive.value = false;
+          playerToSubOut.value = null;
+          gameStore.playerSelectedForSwap = null;
+          return;
+      }
       gameStore.swapPlayerPositions(gameId, gameStore.playerSelectedForSwap.card_id, player.card_id);
     } else {
       handleSubstitution(player);
@@ -2430,7 +2437,7 @@ function handleVisibilityChange() {
                   <span @click.stop="selectPlayerToSubOut(spot.player, spot.position, index, 'lineup')"
                         class="sub-icon"
                         :class="{
-                            'visible': isSubModeActive && leftPanelData.isMyTeam && spot.position !== 'DH' && isPlayerSubEligible(spot.player),
+                            'visible': isSubModeActive && leftPanelData.isMyTeam && isPlayerSubEligible(spot.player),
                             'active': playerToSubOut?.source === 'lineup' && playerToSubOut?.index === index
                         }">
                       ⇄
