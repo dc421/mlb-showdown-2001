@@ -4,7 +4,7 @@ exports.up = pgm => {
   // The error "duplicate key value violates unique constraint 'one_roster_per_user'"
   // indicates this constraint exists on the rosters table, likely on the user_id column.
   // This conflicts with the new multi-roster design (using roster_type).
-  pgm.dropConstraint('rosters', 'one_roster_per_user');
+  pgm.dropConstraint('rosters', 'one_roster_per_user', { ifExists: true });
 };
 
 exports.down = pgm => {

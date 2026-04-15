@@ -194,6 +194,27 @@ router.get('/state', authenticateToken, async (req, res) => {
         const activeResult = await pool.query(activeQuery);
         const isActive = activeResult.rows.length > 0;
 
+        // 5. Fetch Silver Submarine (Finale) for this Classic
+        // We match by checking if the teams in the Silver Submarine result correspond to any series in this classic.
+        // The most robust way is to join series on teams, but since series_results is chronological,
+        // we can just fetch the latest Silver Submarine result that involves one of the teams in the bracket.
+        const finaleQuery = `
+            SELECT sr.*, ht.logo_url as winner_logo, at.logo_url as loser_logo
+            FROM series_results sr
+            LEFT JOIN teams ht ON sr.winning_team_id = ht.team_id
+            LEFT JOIN teams at ON sr.losing_team_id = at.team_id
+            WHERE sr.style = 'Classic' AND sr.round = 'Silver Submarine'
+            AND EXISTS (
+                SELECT 1 FROM series s
+                WHERE s.classic_id = $1
+                AND (s.series_home_user_id = ht.user_id OR s.series_away_user_id = ht.user_id)
+            )
+            ORDER BY sr.date DESC
+            LIMIT 1
+        `;
+        const finaleResult = await pool.query(finaleQuery, [classic.id]);
+        const finale = finaleResult.rows.length > 0 ? finaleResult.rows[0] : null;
+
         res.json({
             isActive,
             classic: {
@@ -204,6 +225,7 @@ router.get('/state', authenticateToken, async (req, res) => {
             },
             seeding: seeds,
             series: seriesData,
+            finale,
             revealed,
             rosters,
             readyCount

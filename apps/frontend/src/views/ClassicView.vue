@@ -16,7 +16,8 @@ const state = ref({
     series: [],
     revealed: false,
     rosters: [],
-    readyCount: 0
+    readyCount: 0,
+    finale: null
 });
 const selectedPlayer = ref(null);
 
@@ -303,7 +304,9 @@ async function loadState() {
         }
         const res = await apiClient(url);
         if (res.ok) {
-            state.value = await res.json();
+            const data = await res.json();
+            // Default finale to null to avoid undefined errors if missing
+            state.value = { finale: null, ...data };
 
             // Sync selection if not set (initial load)
             if (state.value.classic && selectedClassicId.value !== state.value.classic.id) {
@@ -354,6 +357,29 @@ onMounted(async () => {
         <div v-if="loading">Loading...</div>
 
         <div v-else>
+            <!-- SILVER SUBMARINE FINALE CARD -->
+            <div v-if="state.finale" class="season-finales">
+                <div class="finale-card silver-submarine-card">
+                     <div class="finale-header-text">
+                         SILVER SUBMARINE
+                     </div>
+                     <div class="finale-content-row">
+                         <div class="finale-trophy-column">
+                             <img :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
+                         </div>
+                         <div class="finale-details-column">
+                             <div class="finale-winner-line">
+                                 <span class="winner-name-lg">{{ state.finale.winning_team_name }}</span>
+                             </div>
+                             <div class="finale-score-line">
+                                 <span>W {{ state.finale.winning_score }}-{{ state.finale.losing_score }} vs {{ state.finale.losing_team_name }}</span>
+                                 <span v-if="state.finale.notes" class="accolade-text right-justify">TGAOOT: {{ state.finale.notes }}</span>
+                             </div>
+                         </div>
+                     </div>
+                </div>
+            </div>
+
             <!-- ABSOLUTE POSITIONED BRACKET WITH EXPLICIT LINES -->
             <div class="section bracket-section" v-if="bracket">
                 <div class="bracket-container">
@@ -485,6 +511,7 @@ onMounted(async () => {
                     <!-- FINALS -->
                     <!-- Top Team (Winner Semi 1) -->
                     <div class="text-container" style="top: 40px; left: 500px;">
+                         <span class="seed" v-if="!bracket.matchups.final.team1.isPlaceholder && bracket.matchups.final.team1.seed">{{ bracket.matchups.final.team1.seed }}</span>
                          <img v-if="!bracket.matchups.final.team1.isPlaceholder && bracket.matchups.final.team1.logo_url" :src="bracket.matchups.final.team1.logo_url" class="team-logo" />
                         <span class="name" v-if="!bracket.matchups.final.team1.isPlaceholder">{{ bracket.matchups.final.team1.city }}</span>
                         <span v-if="bracket.matchups.final.series" class="score">
@@ -496,6 +523,7 @@ onMounted(async () => {
 
                     <!-- Bottom Team (Winner Semi 2) -->
                     <div class="text-container" style="top: 240px; left: 500px;">
+                         <span class="seed" v-if="!bracket.matchups.final.team2.isPlaceholder && bracket.matchups.final.team2.seed">{{ bracket.matchups.final.team2.seed }}</span>
                          <img v-if="!bracket.matchups.final.team2.isPlaceholder && bracket.matchups.final.team2.logo_url" :src="bracket.matchups.final.team2.logo_url" class="team-logo" />
                         <span class="name" v-if="!bracket.matchups.final.team2.isPlaceholder">{{ bracket.matchups.final.team2.city }}</span>
                         <span v-if="bracket.matchups.final.series" class="score">
@@ -520,6 +548,7 @@ onMounted(async () => {
 
                     <!-- CHAMPION -->
                     <div class="text-container text-centered" style="top: 140px; left: 725px; width: 200px;">
+                        <span class="seed" v-if="bracket.matchups.final.winner && bracket.matchups.final.winner.seed">{{ bracket.matchups.final.winner.seed }}</span>
                         <img v-if="bracket.matchups.final.winner && bracket.matchups.final.winner.logo_url" :src="bracket.matchups.final.winner.logo_url" class="team-logo" />
                         <span class="name" v-if="bracket.matchups.final.winner">{{ bracket.matchups.final.winner.city }}</span>
                         <span class="name" v-else></span>
@@ -663,7 +692,7 @@ onMounted(async () => {
 .enter-result-btn {
     position: absolute;
     transform: translate(-50%, -50%);
-    background: #007bff;
+    background: #28a745;
     color: white;
     border: none;
     border-radius: 50%;
@@ -676,7 +705,7 @@ onMounted(async () => {
     z-index: 10;
 }
 .enter-result-btn:hover {
-    background: #0056b3;
+    background: #218838;
 }
 
 .score {
@@ -791,6 +820,8 @@ h2 {
 .team-logo {
     height: 25px;
     width: auto;
+    max-width: 40px;
+    object-fit: contain;
     margin-right: 8px;
     margin-bottom: 2px;
 }
@@ -804,6 +835,7 @@ h2 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-grow: 1;
 }
 
 /* --- BRACKET LINES --- */
@@ -825,6 +857,100 @@ h2 {
     position: absolute;
     height: 2px;
     background: #000;
+}
+
+/* Postseason Styles (Redesigned) */
+.season-finales {
+    margin-bottom: 2rem;
+}
+
+.finale-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 0;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+}
+
+.silver-submarine-card {
+    background-color: #e0e0e0;
+    background-image: linear-gradient(135deg, #f5f5f5 0%, #dcdcdc 50%, #b0b0b0 100%);
+    border: 1px solid #9e9e9e;
+}
+
+.finale-header-text {
+    background: rgba(0,0,0,0.05);
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: #495057;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    text-align: left;
+}
+
+.finale-content-row {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    gap: 1.5rem;
+}
+
+.finale-trophy-column {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.finale-trophy-lg {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.finale-details-column {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.finale-winner-line {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.winner-name-lg {
+    font-size: 1.5rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #000;
+    line-height: 1.1;
+}
+
+.finale-score-line {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1rem;
+    color: #495057;
+    font-weight: 600;
+}
+
+.silver-submarine-card .finale-score-line { color: #218838; }
+
+.accolade-text {
+    margin-left: auto;
+    font-weight: normal;
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #000;
 }
 
 /* --- TROPHY --- */
