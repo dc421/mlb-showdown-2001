@@ -16,6 +16,7 @@ const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { verifyConnection } = require('./services/emailService');
 const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
+const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
 
 const BACKEND_URL = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
 
@@ -4436,33 +4437,55 @@ app.get('/api/games/:gameId/my-roster', authenticateToken, async (req, res) => {
 app.get('/api/teams/:teamId/accolades', authenticateToken, async (req, res) => {
     const { teamId } = req.params;
     try {
+        const teamRes = await pool.query(`SELECT team_id, city, name FROM teams WHERE team_id = $1`, [teamId]);
+        if (teamRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Team not found.' });
+        }
+        const team = teamRes.rows[0];
+
+        const namePattern = `%${team.name}%`;
+        const mappedIds = getMappedIds(teamId);
+        const aliases = getFranchiseAliases(team.name);
+        const searchPatterns = [namePattern, ...aliases.map(a => `%${a}%`)];
+
+        const allTeamsRes = await pool.query('SELECT team_id, city, name FROM teams');
+        const allTeams = allTeamsRes.rows;
+
         const spaceshipQuery = `
-            SELECT season_name, date
-            FROM series_results
-            WHERE winning_team_id = $1 AND round = 'Golden Spaceship'
+            SELECT season_name, date, winning_team_id, winning_team_name, round FROM series_results
+            WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE ANY($2::text[]))
+            AND round = 'Golden Spaceship'
             ORDER BY date DESC
         `;
         const spoonQuery = `
-            SELECT season_name, date
-            FROM series_results
-            WHERE losing_team_id = $1 AND round = 'Wooden Spoon'
+            SELECT season_name, date, losing_team_id, losing_team_name, round FROM series_results
+            WHERE (losing_team_id = ANY($1::int[]) OR losing_team_name ILIKE ANY($2::text[]))
+            AND round = 'Wooden Spoon'
             ORDER BY date DESC
         `;
         const submarineQuery = `
-            SELECT season_name, date
-            FROM series_results
-            WHERE winning_team_id = $1 AND round = 'Silver Submarine'
+            SELECT season_name, date, winning_team_id, winning_team_name, round FROM series_results
+            WHERE (winning_team_id = ANY($1::int[]) OR winning_team_name ILIKE ANY($2::text[]))
+            AND round = 'Silver Submarine'
             ORDER BY date DESC
         `;
 
-        const spaceships = await pool.query(spaceshipQuery, [teamId]);
-        const spoons = await pool.query(spoonQuery, [teamId]);
-        const submarines = await pool.query(submarineQuery, [teamId]);
+        const spaceshipsRes = await pool.query(spaceshipQuery, [mappedIds, searchPatterns]);
+        const spoonsRes = await pool.query(spoonQuery, [mappedIds, searchPatterns]);
+        const submarinesRes = await pool.query(submarineQuery, [mappedIds, searchPatterns]);
+
+        const filterAccolades = (rows, isWinner) => {
+            return rows.filter(r => {
+                const idToCheck = isWinner ? r.winning_team_id : r.losing_team_id;
+                const nameToCheck = isWinner ? r.winning_team_name : r.losing_team_name;
+                return matchesFranchise(nameToCheck, idToCheck, team, allTeams, mappedIds);
+            }).map(r => ({ season_name: r.season_name, date: r.date }));
+        };
 
         res.json({
-            spaceships: spaceships.rows, // Array of { season_name, date }
-            spoons: spoons.rows, // Array of { season_name, date }
-            submarines: submarines.rows // Array of { season_name, date }
+            spaceships: filterAccolades(spaceshipsRes.rows, true),
+            spoons: filterAccolades(spoonsRes.rows, false),
+            submarines: filterAccolades(submarinesRes.rows, true)
         });
     } catch (error) {
         console.error('Error fetching team accolades:', error);
