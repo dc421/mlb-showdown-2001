@@ -769,7 +769,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
 
     // 4. Check if the series is over
     let isSeriesOver = false;
-    if (series_type === 'playoff' && (home_wins >= 4 || away_wins >= 4)) {
+    if ((series_type === 'playoff' || series_type === 'classic') && (home_wins >= 4 || away_wins >= 4)) {
         isSeriesOver = true;
     }
     if (series_type === 'regular_season' && game_in_series >= 7) {
