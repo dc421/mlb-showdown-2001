@@ -215,14 +215,14 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
 
         // 3. Find previous game in series with SAME DH rule
         const sameRuleQuery = `
-            SELECT gp.lineup
+            SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup
             FROM game_participants gp
             JOIN games g ON gp.game_id = g.game_id
             WHERE g.series_id = $1
               AND gp.user_id = $2
               AND g.game_in_series < $3
               AND g.use_dh = $4
-              AND gp.lineup IS NOT NULL
+              AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
             ORDER BY g.game_in_series DESC
             LIMIT 1
         `;
@@ -241,13 +241,13 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
 
         // 4. If no same-rule game, find the most recent game regardless of rule
         const anyGameQuery = `
-            SELECT gp.lineup, g.use_dh as prev_use_dh
+            SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup, g.use_dh as prev_use_dh
             FROM game_participants gp
             JOIN games g ON gp.game_id = g.game_id
             WHERE g.series_id = $1
               AND gp.user_id = $2
               AND g.game_in_series < $3
-              AND gp.lineup IS NOT NULL
+              AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
             ORDER BY g.game_in_series DESC
             LIMIT 1
         `;
@@ -1200,7 +1200,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
     }
     
     await client.query(
-      `UPDATE game_participants SET lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3`,
+      `UPDATE game_participants SET lineup = $1::jsonb, starting_lineup = $1::jsonb WHERE game_id = $2 AND user_id = $3`,
       [JSON.stringify({ battingOrder, startingPitcher }), gameId, userId]
     );
 
