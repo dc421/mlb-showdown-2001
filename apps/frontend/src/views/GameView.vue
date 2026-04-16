@@ -963,6 +963,14 @@ const showSwingAwayButton = computed(() => {
   return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && !shouldHideCurrentAtBatOutcome.value && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !gameStore.gameState.pendingStealAttempt && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
 
+const showBuntButton = computed(() => {
+  if (!showSwingAwayButton.value) return false;
+  if ((gameStore.displayGameState?.outs ?? 0) >= 2) return false;
+  const bases = gameStore.gameState?.bases;
+  if (!bases) return false;
+  return !!bases.first || (!!bases.second && !bases.third);
+});
+
 const showNextHitterButton = computed(() => {
   if (gameStore.gameState?.pendingStealAttempt && amIOffensivePlayer.value) {
     return false;
@@ -2347,7 +2355,7 @@ function handleVisibilityChange() {
                             Infield In
                         </label>
                     </div>
-                    <button v-if="showSwingAwayButton" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
+                    <button v-if="showBuntButton" class="tactile-button" @click="handleOffensiveAction('bunt')">Bunt</button>
                     <button v-if="canStealSecond && showSwingAwayButton" @click="handleInitiateSteal({ '1': true })" class="tactile-button">Steal 2nd ({{ stealOutThresholds['2'] }}+)</button>
                     <button v-if="canStealThird && showSwingAwayButton" @click="handleInitiateSteal({ '2': true })" class="tactile-button">Steal 3rd ({{ stealOutThresholds['3'] }}+)</button>
                     <button v-if="canDoubleSteal && showSwingAwayButton" @click="handleInitiateSteal({ '1': true, '2': true })" class="tactile-button">Double Steal ({{ stealOutThresholds['3'] }}+, {{ stealOutThresholds['2'] }}+)</button>
