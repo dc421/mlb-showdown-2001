@@ -267,9 +267,24 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
             } else if (!prev_use_dh && use_dh) {
                 // Previous: DH (NO) -> Current: DH (YES)
                 // Need to replace 'P' with 'DH' (placeholder for DH)
+
+                // Check if the team has a designated DH on their roster
+                let dhCardId = 'DH_PLACEHOLDER';
+                const dhQuery = `
+                    SELECT rc.card_id
+                    FROM roster_cards rc
+                    JOIN game_participants gp ON gp.roster_id = rc.roster_id
+                    WHERE gp.game_id = $1 AND gp.user_id = $2 AND rc.assignment = 'DH'
+                    LIMIT 1
+                `;
+                const dhResult = await dbClient.query(dhQuery, [gameId, userId]);
+                if (dhResult.rows.length > 0) {
+                    dhCardId = dhResult.rows[0].card_id;
+                }
+
                 return battingOrder.map(spot => {
                     if (spot.position === 'P') {
-                         return { ...spot, position: 'DH', card_id: 'DH_PLACEHOLDER' };
+                         return { ...spot, position: 'DH', card_id: dhCardId };
                     }
                     return spot;
                 });
