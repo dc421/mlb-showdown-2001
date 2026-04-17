@@ -252,5 +252,144 @@ router.post('/games/:gameId/set-state', async (req, res) => {
   }
 });
 
+// DELETE a series game and re-create it with correct home/away assignments.
+// This is useful when a game was created with the wrong home team due to the
+// series_home_user_id bug (where the creator was assumed to be the Game 1 home team).
+router.post('/games/:gameId/recreate', async (req, res) => {
+    const { gameId } = req.params;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // 1. Get info about the game we're deleting
+        const gameResult = await client.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
+        if (gameResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Game not found.' });
+        }
+        const game = gameResult.rows[0];
+
+        if (!game.series_id) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'This game is not part of a series.' });
+        }
+
+        const gameInSeries = game.game_in_series;
+
+        // 2. Get the previous game in the series (to re-derive correct home/away)
+        const prevGameResult = await client.query(
+            'SELECT * FROM games WHERE series_id = $1 AND game_in_series = $2',
+            [game.series_id, gameInSeries - 1]
+        );
+        if (prevGameResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'Cannot find the previous game in the series to derive home/away.' });
+        }
+        const prevGame = prevGameResult.rows[0];
+
+        // 3. Get series info
+        const seriesResult = await client.query('SELECT * FROM series WHERE id = $1', [game.series_id]);
+        const series = seriesResult.rows[0];
+
+        // 4. Fix series_home_user_id if it doesn't match Game 1's actual home team
+        const game1Result = await client.query(
+            'SELECT home_team_user_id, use_dh FROM games WHERE series_id = $1 AND game_in_series = 1',
+            [game.series_id]
+        );
+        const game1 = game1Result.rows[0];
+        let seriesHomeUserId = series.series_home_user_id;
+        let seriesAwayUserId = series.series_away_user_id;
+
+        if (game1.home_team_user_id && seriesHomeUserId !== game1.home_team_user_id) {
+            console.log(`[recreate] Fixing series_home_user_id: ${seriesHomeUserId} -> ${game1.home_team_user_id}`);
+            await client.query('UPDATE series SET series_home_user_id = $1 WHERE id = $2', [game1.home_team_user_id, game.series_id]);
+            seriesHomeUserId = game1.home_team_user_id;
+            // Also fix series_away_user_id
+            const prevParticipants = await client.query('SELECT user_id FROM game_participants WHERE game_id = $1', [prevGame.game_id]);
+            const awayUser = prevParticipants.rows.find(p => p.user_id !== game1.home_team_user_id);
+            if (awayUser) {
+                await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [awayUser.user_id, game.series_id]);
+                seriesAwayUserId = awayUser.user_id;
+            }
+        }
+
+        // 5. Determine correct home/away for the new game
+        const nextHomeUserId = [3, 4, 5].includes(gameInSeries) ? seriesAwayUserId : seriesHomeUserId;
+        const nextAwayUserId = nextHomeUserId === seriesHomeUserId ? seriesAwayUserId : seriesHomeUserId;
+
+        // 6. Get DH and status settings
+        let useDh = prevGame.use_dh;
+        let nextStatus = 'lineups';
+        if (gameInSeries === 3) {
+            nextStatus = 'pending';
+        } else if (gameInSeries === 6) {
+            useDh = game1.use_dh;
+        }
+
+        // 7. Get participant info from previous game (for roster_id and league_designation)
+        const prevParticipantsResult = await client.query(
+            'SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1',
+            [prevGame.game_id]
+        );
+
+        const homePlayerInfo = prevParticipantsResult.rows.find(p => p.user_id === nextHomeUserId);
+        const awayPlayerInfo = prevParticipantsResult.rows.find(p => p.user_id === nextAwayUserId);
+
+        if (!homePlayerInfo || !awayPlayerInfo) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'Could not find participant info for both players.' });
+        }
+
+        // 8. Delete the old game (cascading deletes handle states, events, participants, rosters, snapshots)
+        await client.query('DELETE FROM game_snapshots WHERE game_id = $1', [gameId]);
+        await client.query('DELETE FROM game_events WHERE game_id = $1', [gameId]);
+        await client.query('DELETE FROM game_states WHERE game_id = $1', [gameId]);
+        await client.query('DELETE FROM game_rosters WHERE game_id = $1', [gameId]);
+        await client.query('DELETE FROM game_participants WHERE game_id = $1', [gameId]);
+        await client.query('DELETE FROM games WHERE game_id = $1', [gameId]);
+
+        // 9. Create the new game with correct home/away
+        const newGameResult = await client.query(
+            `INSERT INTO games (status, series_id, game_in_series, home_team_user_id, use_dh)
+             VALUES ($1, $2, $3, $4, $5) RETURNING game_id`,
+            [nextStatus, game.series_id, gameInSeries, nextHomeUserId, useDh]
+        );
+        const newGameId = newGameResult.rows[0].game_id;
+
+        await client.query(
+            `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation)
+             VALUES ($1, $2, $3, 'home', $4)`,
+            [newGameId, nextHomeUserId, homePlayerInfo.roster_id, homePlayerInfo.league_designation]
+        );
+        await client.query(
+            `INSERT INTO game_participants (game_id, user_id, roster_id, home_or_away, league_designation)
+             VALUES ($1, $2, $3, 'away', $4)`,
+            [newGameId, nextAwayUserId, awayPlayerInfo.roster_id, awayPlayerInfo.league_designation]
+        );
+
+        await client.query('COMMIT');
+
+        console.log(`[recreate] Deleted game ${gameId}, created new game ${newGameId} for series ${game.series_id} game #${gameInSeries}`);
+        console.log(`[recreate] Home: user ${nextHomeUserId}, Away: user ${nextAwayUserId}`);
+
+        io.emit('games-updated');
+
+        res.status(200).json({
+            message: `Game ${gameId} deleted and replaced with game ${newGameId}.`,
+            oldGameId: parseInt(gameId),
+            newGameId: newGameId,
+            homeUserId: nextHomeUserId,
+            awayUserId: nextAwayUserId
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Error recreating game ${gameId}:`, error);
+        res.status(500).json({ message: 'Server error while recreating game.' });
+    } finally {
+        client.release();
+    }
+});
 
 module.exports = router;

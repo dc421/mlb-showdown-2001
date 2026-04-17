@@ -744,15 +744,23 @@ async function handleSeriesProgression(gameId, client, finalState) {
     }
 
     const seriesInfo = gameAndSeriesResult.rows[0];
-    const { series_id, game_home_user_id, game_in_series, series_home_user_id, series_type } = seriesInfo;
+    const { series_id, game_home_user_id, game_in_series, series_type } = seriesInfo;
+    let { series_home_user_id } = seriesInfo;
     let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
 
     const participantsResult = await client.query('SELECT user_id, roster_id, league_designation FROM game_participants WHERE game_id = $1', [gameId]);
-    const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== series_home_user_id);
+    // FIX: Use game_home_user_id (the actual home team from Game 1 setup), not series_home_user_id (the creator)
+    const gameAwayParticipant = participantsResult.rows.find(p => p.user_id !== game_home_user_id);
     const gameAwayUserId = gameAwayParticipant.user_id;
 
-    // 2. Update series away user if it's the first game and not set yet
+    // 2. Update series home/away users if it's the first game and not set yet.
+    // FIX: Align series_home_user_id with whoever was actually home in Game 1,
+    // since the creator may have lost the setup roll and been away.
     if (!series_away_user_id) {
+        if (series_home_user_id !== game_home_user_id) {
+            await client.query('UPDATE series SET series_home_user_id = $1 WHERE id = $2', [game_home_user_id, series_id]);
+            series_home_user_id = game_home_user_id;
+        }
         await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [gameAwayUserId, series_id]);
         series_away_user_id = gameAwayUserId; // Update local copy
     }
