@@ -20,11 +20,12 @@ const linescore = computed(() => {
 
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
-      if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN') || event.log_message.includes('SAFE at home')) {
+      if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN') || event.log_message.includes('SAFE at home') || event.log_message.includes('SENT HOME... SAFE!')) {
         const runsFromScores = (event.log_message.match(/scores/g) || []).length;
         const runsFromHomeRun = event.log_message.includes('HOME RUN') ? 1 : 0;
         const runsFromSAFEathome = event.log_message.includes('SAFE at home') ? 1 : 0;
-        const totalRunsInEvent = runsFromScores + runsFromHomeRun + runsFromSAFEathome;
+        const runsFromSentHomeSafe = event.log_message.includes('SENT HOME... SAFE!') ? 1 : 0;
+        const totalRunsInEvent = runsFromScores + runsFromHomeRun + runsFromSAFEathome + runsFromSentHomeSafe;
         if (isTop) {
           awayRunsInInning += totalRunsInEvent;
         } else {
