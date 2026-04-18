@@ -21,13 +21,13 @@ const hoveredSlotId = ref(null);
 const showResultModal = ref(false);
 const resultForm = ref({
     id: null,
-    winnerName: '',
-    loserName: '',
-    winningScore: 0,
-    losingScore: 0,
-    winnerId: null, // User selected winner
-    winningTeamId: null, // From DB
-    losingTeamId: null, // From DB
+    team1Name: '',
+    team2Name: '',
+    team1Score: 0,
+    team2Score: 0,
+    team1Id: null,
+    team2Id: null,
+    round: '',
     mva: '',
     lvsc: ''
 });
@@ -200,13 +200,13 @@ function padRoster(roster) {
 function openResultModal(series) {
     resultForm.value = {
         id: series.id,
-        winnerName: series.winner,
-        loserName: series.loser,
-        winningScore: 0,
-        losingScore: 0,
-        winnerId: series.winning_team_id,
-        winningTeamId: series.winning_team_id,
-        losingTeamId: series.losing_team_id,
+        team1Name: series.winner, // Originally winning_team_name before score
+        team2Name: series.loser,  // Originally losing_team_name before score
+        team1Score: 0,
+        team2Score: 0,
+        team1Id: series.winning_team_id,
+        team2Id: series.losing_team_id,
+        round: series.round,
         mva: series.mva || '',
         lvsc: series.lvsc || ''
     };
@@ -219,7 +219,7 @@ function closeResultModal() {
 
 async function submitResult() {
     // Validate scores
-    if (resultForm.value.winningScore < 0 || resultForm.value.losingScore < 0) {
+    if (resultForm.value.team1Score < 0 || resultForm.value.team2Score < 0) {
         alert("Scores cannot be negative.");
         return;
     }
@@ -227,9 +227,10 @@ async function submitResult() {
     try {
         const payload = {
             id: resultForm.value.id,
-            winning_score: resultForm.value.winningScore,
-            losing_score: resultForm.value.losingScore,
-            winner_id: resultForm.value.winnerId,
+            team1_score: resultForm.value.team1Score,
+            team2_score: resultForm.value.team2Score,
+            team1_id: resultForm.value.team1Id,
+            team2_id: resultForm.value.team2Id,
             mva: resultForm.value.mva,
             lvsc: resultForm.value.lvsc
         };
@@ -683,28 +684,20 @@ onMounted(async () => {
             <h3>Enter Series Result</h3>
             <div class="modal-body">
                 <div class="team-score-input">
-                    <label>{{ resultForm.winnerName }}</label>
-                    <input type="number" v-model.number="resultForm.winningScore" min="0" />
+                    <label>{{ resultForm.team1Name }}</label>
+                    <input type="number" v-model.number="resultForm.team1Score" min="0" />
                 </div>
                 <div class="team-score-input">
-                    <label>{{ resultForm.loserName }}</label>
-                    <input type="number" v-model.number="resultForm.losingScore" min="0" />
+                    <label>{{ resultForm.team2Name }}</label>
+                    <input type="number" v-model.number="resultForm.team2Score" min="0" />
                 </div>
 
-                <div class="winner-selector">
-                    <label>Winner:</label>
-                    <select v-model="resultForm.winnerId">
-                        <option :value="resultForm.winningTeamId">{{ resultForm.winnerName }}</option>
-                        <option :value="resultForm.losingTeamId">{{ resultForm.loserName }}</option>
-                    </select>
-                </div>
-
-                <div class="accolade-input">
-                    <label>MVA (Most Valuable Alien):</label>
+                <div v-if="resultForm.round === 'Golden Spaceship'" class="accolade-input">
+                    <label>MVA:</label>
                     <input type="text" v-model="resultForm.mva" placeholder="Player Name" />
                 </div>
-                <div class="accolade-input">
-                    <label>LVSC (Least Valuable Space Cadet):</label>
+                <div v-if="resultForm.round === 'Wooden Spoon'" class="accolade-input">
+                    <label>LVSC:</label>
                     <input type="text" v-model="resultForm.lvsc" placeholder="Player Name" />
                 </div>
             </div>
