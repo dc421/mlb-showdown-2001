@@ -434,6 +434,7 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                         winning_team_id: r.winning_team_id,
                         losing_team_id: r.losing_team_id,
                         winner: r.winning_team_name,
+                        loser: r.losing_team_name,
                         winner_name: winner.displayName,
                         loser_name: loser.displayName,
 
@@ -522,9 +523,9 @@ router.get('/matrix', authenticateToken, async (req, res) => {
 
 // SUBMIT/UPDATE RESULT (POST)
 router.post('/result', authenticateToken, async (req, res) => {
-    const { id, winning_score, losing_score, winner_id, mva, lvsc } = req.body;
+    const { id, team1_score, team2_score, team1_id, team2_id, mva, lvsc } = req.body;
 
-    if (!id || winning_score === undefined || losing_score === undefined || !winner_id) {
+    if (!id || team1_score === undefined || team2_score === undefined || !team1_id || !team2_id) {
         return res.status(400).json({ message: 'Missing required fields.' });
     }
 
@@ -540,19 +541,33 @@ router.post('/result', authenticateToken, async (req, res) => {
 
         const original = originalRes.rows[0];
 
-        let newWinningId = winner_id;
-        let newLosingId = (original.winning_team_id === winner_id) ? original.losing_team_id : original.winning_team_id;
-
+        // Determine winner and loser based on scores
+        let newWinningId, newLosingId, winning_score, losing_score;
         let newWinningName, newLosingName;
-        if (winner_id === original.winning_team_id) {
+
+        if (team1_score >= team2_score) {
+            newWinningId = team1_id;
+            newLosingId = team2_id;
+            winning_score = team1_score;
+            losing_score = team2_score;
+        } else {
+            newWinningId = team2_id;
+            newLosingId = team1_id;
+            winning_score = team2_score;
+            losing_score = team1_score;
+        }
+
+        // Figure out names using the original record
+        if (newWinningId === original.winning_team_id) {
             newWinningName = original.winning_team_name;
             newLosingName = original.losing_team_name;
-            newLosingId = original.losing_team_id;
-        } else {
-            // Swap
+        } else if (newWinningId === original.losing_team_id) {
             newWinningName = original.losing_team_name;
             newLosingName = original.winning_team_name;
-            newLosingId = original.winning_team_id;
+        } else {
+            // Fallback (shouldn't happen unless IDs changed drastically)
+            newWinningName = original.winning_team_name;
+            newLosingName = original.losing_team_name;
         }
 
         // We update mva/lvsc if provided, otherwise keep existing (or set to null? usually partial update logic, but here we can just overwrite)

@@ -200,8 +200,8 @@ function padRoster(roster) {
 function openResultModal(series) {
     resultForm.value = {
         id: series.id,
-        team1Name: series.winner, // Originally winning_team_name before score
-        team2Name: series.loser,  // Originally losing_team_name before score
+        team1Name: series.winner_name || series.winner,
+        team2Name: series.loser_name || series.loser,
         team1Score: 0,
         team2Score: 0,
         team1Id: series.winning_team_id,
