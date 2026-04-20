@@ -513,6 +513,12 @@ const REPLACEMENT_PITCHER = { card_id: 'replacement_pitcher', displayName: 'Repl
 
 const isMyTeamAwaitingLineupChange = computed(() => {
     if (!gameStore.gameState || !gameStore.myTeam) return false;
+
+    // Do not show the Invalid Lineup screen if we are still viewing the outcome of the previous at-bat
+    if (shouldHideCurrentAtBatOutcome.value || (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext)) {
+        return false;
+    }
+
     return gameStore.gameState.awaiting_lineup_change &&
            amIDisplayDefensivePlayer.value &&
            playersInInvalidPositions.value.size > 0;
