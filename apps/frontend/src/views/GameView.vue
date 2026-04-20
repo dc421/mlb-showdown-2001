@@ -18,8 +18,8 @@ const { isSwingResultVisible, isStealResultVisible, nextGameId } = storeToRefs(g
 const authStore = useAuthStore();
 const gameId = route.params.id;
 const initialLoadComplete = ref(false);
-const seenResultStorageKey = `showdown-game-${gameId}-swing-result-seen`;
-const hasSeenResult = ref(JSON.parse(localStorage.getItem(seenResultStorageKey)) || false);
+const seenResultStorageKey = computed(() => `showdown-game-${gameId}-turn-${gameStore.gameState?.turn_number || 0}-swing-result-seen`);
+const hasSeenResult = ref(false);
 const seriesUpdateMessage = ref('');
 const offensiveDPResultVisible = ref(false);
 const defensiveDPRollClicked = ref(false);
@@ -1425,8 +1425,10 @@ watch([bothPlayersSetAction, () => atBatToDisplay.value], ([isRevealing]) => {
     revealTimeout = setTimeout(() => {
       gameStore.setIsSwingResultVisible(true);
       hasSeenResult.value = true;
-      localStorage.setItem(seenResultStorageKey, 'true');
+      localStorage.setItem(seenResultStorageKey.value, 'true');
     }, 900);
+  } else if (atBatToDisplay.value?.pitcherAction !== 'intentional_walk') {
+    simulPitchVisible.value = false;
   }
 }, { immediate: true });
 
@@ -1825,7 +1827,7 @@ function handleNextHitter() {
   // SIMUL: Reset pitch visibility for next at-bat
   simulPitchVisible.value = false;
   hasSeenResult.value = false;
-  localStorage.removeItem(seenResultStorageKey);
+  localStorage.removeItem(seenResultStorageKey.value);
   defensiveThrowRollClicked.value = false;
   defensiveDPRollClicked.value = false;
   offensiveDPResultVisible.value = false;
@@ -2130,12 +2132,11 @@ const delayInningChange = computed(() => {
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
 
-  const storedResultSeen = JSON.parse(localStorage.getItem(seenResultStorageKey)) || false;
-  if (storedResultSeen) {
+  hasSeenResult.value = JSON.parse(localStorage.getItem(seenResultStorageKey.value)) || false;
+  if (hasSeenResult.value) {
       gameStore.setIsSwingResultVisible(true);
       // SIMUL: Also restore pitch visibility
       simulPitchVisible.value = true;
-      hasSeenResult.value = true;
   }
 
   initialLoadComplete.value = true;
@@ -2256,6 +2257,7 @@ function handleVisibilityChange() {
           </div>
           <!-- SIMUL: Pitch box only shows after simulPitchVisible is set (when both players have acted) -->
           <div v-if="atBatToDisplay.pitchRollResult && simulPitchVisible &&
+            (bothPlayersSetAction || atBatToDisplay.pitcherAction === 'intentional_walk') &&
             !(isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)) &&
             !isStealAttemptInProgress && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
