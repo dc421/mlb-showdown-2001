@@ -133,7 +133,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-async function fetchMyRoster(type = 'league') {
+async function fetchMyRoster(type = 'league', setActive = true) {
     if (!token.value) return;
     try {
       const response = await apiClient(`/api/my-roster?type=${type}`);
@@ -141,7 +141,9 @@ async function fetchMyRoster(type = 'league') {
       const data = await response.json();
       
       // Update the generic pointer
-      myRoster.value = data;
+      if (setActive) {
+          myRoster.value = data;
+      }
 
       // Update specific cache
       if (type === 'league') {
@@ -151,7 +153,9 @@ async function fetchMyRoster(type = 'league') {
       }
     } catch (error) {
       console.error('Failed to fetch roster:', error);
-      myRoster.value = null;
+      if (setActive) {
+          myRoster.value = null;
+      }
       if (type === 'league') myLeagueRoster.value = null;
       if (type === 'classic') myClassicRoster.value = null;
     }
