@@ -376,6 +376,19 @@ async function submitInfieldInDecision(gameId, sendRunner) {
   }
 }
 
+async function submitInfieldInDefenseChoice(gameId, throwHome) {
+  const auth = useAuthStore();
+  if (!auth.token) return;
+  try {
+    await apiClient(`/api/games/${gameId}/resolve-infield-in-defense-choice`, {
+      method: 'POST',
+      body: JSON.stringify({ throwHome })
+    });
+  } catch (error) {
+    console.error("Error submitting infield in defense choice:", error);
+  }
+}
+
 async function resetRolls(gameId) {
   const auth = useAuthStore();
   if (!auth.token) return;
@@ -1084,6 +1097,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     initiateSteal,
     resolveSteal,
     submitInfieldInDecision,
+    submitInfieldInDefenseChoice,
     resetRolls,
     setOutcomeHidden,
     setIsSwingResultVisible,
