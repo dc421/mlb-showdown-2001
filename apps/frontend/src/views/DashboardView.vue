@@ -217,13 +217,12 @@ function closePlayerCard() {
 
 async function switchRosterTab(tab) {
     activeRosterTab.value = tab;
+
+    // Clear active cards immediately to prevent showing old cards while loading
+    authStore.activeRosterCards = [];
+
     // Reload roster for the new tab
     await authStore.fetchMyRoster(tab);
-
-    // If fetchMyRoster failed or returned null (no roster), clear the active cards display
-    if (!authStore.myRoster) {
-        authStore.activeRosterCards = [];
-    }
 
     // Update Series Type Logic based on tab
     if (tab === 'classic') {
@@ -232,10 +231,15 @@ async function switchRosterTab(tab) {
         seriesType.value = 'exhibition';
     }
 
+    // If fetchMyRoster failed or returned null (no roster), we're done
+    if (!authStore.myRoster) {
+        return;
+    }
+
     // Determine appropriate point set
     if (tab === 'classic') {
         const original = authStore.pointSets.find(ps => ps.name === 'Original Pts');
-        if (original && authStore.myRoster) {
+        if (original) {
             authStore.fetchRosterDetails(authStore.myRoster.roster_id, original.point_set_id);
         }
     } else {
@@ -244,7 +248,7 @@ async function switchRosterTab(tab) {
         const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
         if (upcoming) targetSetId = upcoming.point_set_id;
 
-        if (authStore.myRoster && targetSetId) {
+        if (targetSetId) {
             authStore.fetchRosterDetails(authStore.myRoster.roster_id, targetSetId);
         }
     }
@@ -254,21 +258,13 @@ onMounted(async () => {
   // Ensure point sets are loaded to get the current season ID
   await authStore.fetchPointSets();
 
-  // Fetch BOTH rosters so availability logic works
-  await Promise.all([
-      authStore.fetchMyRoster('league'),
-      authStore.fetchMyRoster('classic')
-  ]);
+  // Fetch the active roster immediately to display it
+  await switchRosterTab(activeRosterTab.value);
 
-  // Determine correct point set for initial load (League default)
-  let targetSetId = authStore.selectedPointSetId;
-  const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
-  if (upcoming) targetSetId = upcoming.point_set_id;
-
-  // Now fetch full roster details with points for the selected point set
-  if (authStore.myRoster && authStore.myRoster.roster_id && targetSetId) {
-      authStore.fetchRosterDetails(authStore.myRoster.roster_id, targetSetId);
-  }
+  // Fetch the other roster quietly in the background so availability logic works
+  // We pass false to setActive so it doesn't overwrite myRoster.value
+  const otherTab = activeRosterTab.value === 'league' ? 'classic' : 'league';
+  authStore.fetchMyRoster(otherTab, false);
 
   authStore.fetchMyGames();
   authStore.fetchOpenGames();
