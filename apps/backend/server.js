@@ -25,6 +25,9 @@ function commitTransientPlayerIds(state) {
             state[teamKey].used_player_ids.push(...state[teamKey].transient_used_player_ids);
             state[teamKey].transient_used_player_ids = [];
         }
+        if (state[teamKey].transient_subbed_in_player_ids) {
+            state[teamKey].transient_subbed_in_player_ids = [];
+        }
     }
 }
 
@@ -1524,8 +1527,15 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
     }
 
     // If the player is being subbed back in and they are in the transient list, we remove them from the transient list
-    if (newState[teamKey].transient_used_player_ids) {
+    if (newState[teamKey].transient_used_player_ids && newState[teamKey].transient_used_player_ids.includes(playerInIdInt)) {
         newState[teamKey].transient_used_player_ids = newState[teamKey].transient_used_player_ids.filter(id => id !== playerInIdInt);
+    } else {
+        if (!newState[teamKey].transient_subbed_in_player_ids) {
+            newState[teamKey].transient_subbed_in_player_ids = [];
+        }
+        if (playerInIdInt > 0 && !newState[teamKey].transient_subbed_in_player_ids.includes(playerInIdInt)) {
+            newState[teamKey].transient_subbed_in_player_ids.push(playerInIdInt);
+        }
     }
 
 
@@ -1820,11 +1830,17 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
     const playerOutIdInt = parseInt(playerOutId, 10);
     if (playerOutIdInt > 0) { // Don't add replacement players to the used list
-        if (!newState[teamKey].transient_used_player_ids) {
-            newState[teamKey].transient_used_player_ids = [];
-        }
-        if (!newState[teamKey].transient_used_player_ids.includes(playerOutIdInt) && !(newState[teamKey].used_player_ids && newState[teamKey].used_player_ids.includes(playerOutIdInt))) {
-            newState[teamKey].transient_used_player_ids.push(playerOutIdInt);
+        if (newState[teamKey].transient_subbed_in_player_ids && newState[teamKey].transient_subbed_in_player_ids.includes(playerOutIdInt)) {
+            // The player was subbed in during this transient state, so they haven't actually played.
+            // Just remove them from the subbed in list, and don't add to used list.
+            newState[teamKey].transient_subbed_in_player_ids = newState[teamKey].transient_subbed_in_player_ids.filter(id => id !== playerOutIdInt);
+        } else {
+            if (!newState[teamKey].transient_used_player_ids) {
+                newState[teamKey].transient_used_player_ids = [];
+            }
+            if (!newState[teamKey].transient_used_player_ids.includes(playerOutIdInt) && !(newState[teamKey].used_player_ids && newState[teamKey].used_player_ids.includes(playerOutIdInt))) {
+                newState[teamKey].transient_used_player_ids.push(playerOutIdInt);
+            }
         }
     }
 
