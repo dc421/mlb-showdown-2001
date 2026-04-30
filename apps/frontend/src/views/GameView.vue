@@ -584,7 +584,9 @@ const myBenchAndBullpen = computed(() => {
 
     const myPitcher = gameStore.myTeam === 'home' ? homePitcher.value : awayPitcher.value;
     if (myPitcher) {
-        onFieldIds.add(myPitcher.card_id);
+        if (useDh.value || myLineup.value.battingOrder.some(s => s.player?.card_id === myPitcher.card_id)) {
+            onFieldIds.add(myPitcher.card_id);
+        }
     }
 
     const benchAndBullpen = myRoster.value.filter(p => !onFieldIds.has(p.card_id));
@@ -607,10 +609,14 @@ const homeBenchAndBullpen = computed(() => {
     const lineupIds = new Set(gameStore.lineups.home.battingOrder.map(s => s.player?.card_id).filter(Boolean));
 
     if (homePitcher.value) {
-        lineupIds.add(homePitcher.value.card_id);
+        if (useDh.value || gameStore.lineups.home.battingOrder.some(s => s.player?.card_id === homePitcher.value.card_id)) {
+            lineupIds.add(homePitcher.value.card_id);
+        }
     }
     if (isDisplayTopInning.value && pitcherToDisplay.value) {
-        lineupIds.add(pitcherToDisplay.value.card_id);
+        if (useDh.value || gameStore.lineups.home.battingOrder.some(s => s.player?.card_id === pitcherToDisplay.value.card_id)) {
+            lineupIds.add(pitcherToDisplay.value.card_id);
+        }
     }
 
     const benchAndBullpen = gameStore.rosters.home.filter(p => !lineupIds.has(p.card_id));
@@ -627,10 +633,14 @@ const awayBenchAndBullpen = computed(() => {
     const lineupIds = new Set(gameStore.lineups.away.battingOrder.map(s => s.player?.card_id).filter(Boolean));
 
     if (awayPitcher.value) {
-        lineupIds.add(awayPitcher.value.card_id);
+        if (useDh.value || gameStore.lineups.away.battingOrder.some(s => s.player?.card_id === awayPitcher.value.card_id)) {
+            lineupIds.add(awayPitcher.value.card_id);
+        }
     }
     if (isDisplayTopInning.value === false && pitcherToDisplay.value) {
-        lineupIds.add(pitcherToDisplay.value.card_id);
+        if (useDh.value || gameStore.lineups.away.battingOrder.some(s => s.player?.card_id === pitcherToDisplay.value.card_id)) {
+            lineupIds.add(pitcherToDisplay.value.card_id);
+        }
     }
 
     const benchAndBullpen = gameStore.rosters.away.filter(p => !lineupIds.has(p.card_id));
