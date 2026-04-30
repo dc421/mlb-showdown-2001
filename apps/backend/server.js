@@ -18,6 +18,17 @@ const { verifyConnection } = require('./services/emailService');
 const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
 
+
+function commitTransientPlayerIds(state) {
+    for (const teamKey of ['homeTeam', 'awayTeam']) {
+        if (state[teamKey].transient_used_player_ids && state[teamKey].transient_used_player_ids.length > 0) {
+            if (!state[teamKey].used_player_ids) state[teamKey].used_player_ids = [];
+            state[teamKey].used_player_ids.push(...state[teamKey].transient_used_player_ids);
+            state[teamKey].transient_used_player_ids = [];
+        }
+    }
+}
+
 const BACKEND_URL = process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
 
 const REPLACEMENT_HITTER_CARD = {
@@ -1499,6 +1510,11 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
     }
 
+    // If the player is being subbed back in and they are in the transient list, we remove them from the transient list
+    if (newState[teamKey].transient_used_player_ids) {
+        newState[teamKey].transient_used_player_ids = newState[teamKey].transient_used_player_ids.filter(id => id !== playerInIdInt);
+    }
+
     let logMessage = '';
     let playerInCard;
 
@@ -1790,11 +1806,11 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
     const playerOutIdInt = parseInt(playerOutId, 10);
     if (playerOutIdInt > 0) { // Don't add replacement players to the used list
-        if (!newState[teamKey].used_player_ids) {
-            newState[teamKey].used_player_ids = [];
+        if (!newState[teamKey].transient_used_player_ids) {
+            newState[teamKey].transient_used_player_ids = [];
         }
-        if (!newState[teamKey].used_player_ids.includes(playerOutIdInt)) {
-            newState[teamKey].used_player_ids.push(playerOutIdInt);
+        if (!newState[teamKey].transient_used_player_ids.includes(playerOutIdInt) && !(newState[teamKey].used_player_ids && newState[teamKey].used_player_ids.includes(playerOutIdInt))) {
+            newState[teamKey].transient_used_player_ids.push(playerOutIdInt);
         }
     }
 
@@ -2768,6 +2784,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     }
     const { offensiveTeam } = await getActivePlayers(gameId, finalState);
 
+    commitTransientPlayerIds(finalState);
+
     finalState.currentAtBat.batterAction = action;
 
     // If the pitcher has already acted, we resolve the at-bat now.
@@ -2910,6 +2928,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         return res.status(200).json(gameData);
     }
 
+    commitTransientPlayerIds(currentState);
     const { batter, pitcher, offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, currentState);
     processPlayers([batter, pitcher]);
     
@@ -3183,6 +3202,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
     const currentTurn = stateResult.rows[0].turn_number;
 
     let newState = JSON.parse(JSON.stringify(originalState));
+
+    commitTransientPlayerIds(newState);
 
     const isHomePlayer = Number(userId) === Number(newState.homeTeam.userId);
 
@@ -3463,6 +3484,7 @@ if (newState.pendingStealAttempt && requestedBases.length === 1) {
     }
 }
 
+    commitTransientPlayerIds(newState);
     const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
     const baseMap = { 1: 'first', 2: 'second', 3: 'third' };
 
@@ -3618,6 +3640,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         return res.status(200).json(gameData);
     }
 
+    commitTransientPlayerIds(newState);
     const { offensiveTeam, defensiveTeam, batter } = await getActivePlayers(gameId, newState);
 
     // Reset ready-for-next flags. Resolving a steal is a new game action that
@@ -3808,6 +3831,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         const currentState = stateResult.rows[0].state_data;
         let newState = JSON.parse(JSON.stringify(currentState));
         const currentTurn = stateResult.rows[0].turn_number;
+        commitTransientPlayerIds(newState);
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
 
         const sentRunners = Object.keys(decisions).filter(key => decisions[key]);
@@ -3982,6 +4006,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         let newState = JSON.parse(JSON.stringify(currentState));
         const currentTurn = stateResult.rows[0].turn_number;
         
+        commitTransientPlayerIds(newState);
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
         const outfieldDefense = await getOutfieldDefense(defensiveTeam);
 
@@ -4222,6 +4247,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
             return res.status(400).json({ message: 'Invalid game state for this action.' });
         }
 
+        commitTransientPlayerIds(newState);
         const { offensiveTeam, defensiveTeam } = await getActivePlayers(gameId, newState);
         const { batter, runnerOnThird, runnerOnSecond, runnerOnFirst } = newState.currentPlay.payload;
         const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
