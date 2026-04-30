@@ -218,12 +218,6 @@ function closePlayerCard() {
 async function switchRosterTab(tab) {
     activeRosterTab.value = tab;
 
-    // Clear active cards immediately to prevent showing old cards while loading
-    authStore.activeRosterCards = [];
-
-    // Reload roster for the new tab
-    await authStore.fetchMyRoster(tab);
-
     // Update Series Type Logic based on tab
     if (tab === 'classic') {
         seriesType.value = 'classic';
@@ -231,27 +225,21 @@ async function switchRosterTab(tab) {
         seriesType.value = 'exhibition';
     }
 
-    // If fetchMyRoster failed or returned null (no roster), we're done
-    if (!authStore.myRoster) {
-        return;
-    }
-
-    // Determine appropriate point set
+    // Determine appropriate point set BEFORE fetching
+    let targetSetId = null;
     if (tab === 'classic') {
         const original = authStore.pointSets.find(ps => ps.name === 'Original Pts');
-        if (original) {
-            authStore.fetchRosterDetails(authStore.myRoster.roster_id, original.point_set_id);
-        }
+        if (original) targetSetId = original.point_set_id;
     } else {
         // League: Prefer "Upcoming Season"
-        let targetSetId = authStore.selectedPointSetId;
+        targetSetId = authStore.selectedPointSetId;
         const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
         if (upcoming) targetSetId = upcoming.point_set_id;
-
-        if (targetSetId) {
-            authStore.fetchRosterDetails(authStore.myRoster.roster_id, targetSetId);
-        }
     }
+
+    // Reload roster for the new tab, passing targetSetId so it fetches cards immediately
+    // We do NOT clear authStore.activeRosterCards here to prevent "empty roster" message flickering
+    await authStore.fetchMyRoster(tab, true, targetSetId);
 }
 
 onMounted(async () => {
@@ -349,7 +337,10 @@ onUnmounted(() => {
           <!-- Empty Check: Only if NO players at all (length 0 before padding, but we pad now).
                So if only placeholders exist, it's empty.
                We check if the first element is empty. -->
-          <div v-if="processedRoster.length === 0 || processedRoster[0].isEmpty" class="empty-roster-message">
+          <div v-if="authStore.isFetchingRoster" class="empty-roster-message">
+              <p>Loading {{ activeRosterTab === 'classic' ? 'Classic' : 'League' }} roster...</p>
+          </div>
+          <div v-else-if="processedRoster.length === 0 || processedRoster[0].isEmpty" class="empty-roster-message">
               <p>Your {{ activeRosterTab === 'classic' ? 'Classic' : 'League' }} roster is empty.</p>
               <button @click="goToRosterBuilder" class="create-roster-btn">Create Roster</button>
           </div>

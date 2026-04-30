@@ -133,16 +133,28 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-async function fetchMyRoster(type = 'league', setActive = true) {
+  const isFetchingRoster = ref(false);
+
+  async function fetchMyRoster(type = 'league', setActive = true, pointSetId = null) {
     if (!token.value) return;
+    if (setActive) isFetchingRoster.value = true;
     try {
-      const response = await apiClient(`/api/my-roster?type=${type}`);
+      let url = `/api/my-roster?type=${type}`;
+      if (pointSetId) {
+          url += `&point_set_id=${pointSetId}`;
+      }
+      const response = await apiClient(url);
       if (!response.ok) throw new Error('Failed to fetch roster');
       const data = await response.json();
       
       // Update the generic pointer
       if (setActive) {
           myRoster.value = data;
+          if (data && data.cards) {
+              activeRosterCards.value = data.cards;
+          } else {
+              activeRosterCards.value = [];
+          }
       }
 
       // Update specific cache
@@ -155,9 +167,12 @@ async function fetchMyRoster(type = 'league', setActive = true) {
       console.error('Failed to fetch roster:', error);
       if (setActive) {
           myRoster.value = null;
+          activeRosterCards.value = [];
       }
       if (type === 'league') myLeagueRoster.value = null;
       if (type === 'classic') myClassicRoster.value = null;
+    } finally {
+      if (setActive) isFetchingRoster.value = false;
     }
   }
 
@@ -350,7 +365,7 @@ async function submitLineup(gameId, lineupData) {
 
   return { 
     token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
-    pointSets, selectedPointSetId,
+    pointSets, selectedPointSetId, isFetchingRoster,
     isAuthenticated, login, register, logout, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,

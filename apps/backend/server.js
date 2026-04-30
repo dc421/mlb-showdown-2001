@@ -944,7 +944,7 @@ app.post('/api/login', async (req, res) => {
 // in server.js
 app.get('/api/my-roster', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const { type } = req.query;
+    const { type, point_set_id } = req.query;
     const rosterType = type || 'league'; // Default to 'league'
 
     try {
@@ -969,15 +969,29 @@ app.get('/api/my-roster', authenticateToken, async (req, res) => {
         }
         
         const roster = rosterResult.rows[0];
-        const cardsResult = await pool.query(
-            `SELECT cp.*, rc.is_starter, rc.assignment 
-             FROM cards_player cp 
-             JOIN roster_cards rc ON cp.card_id = rc.card_id 
-             WHERE rc.roster_id = $1`,
-            [roster.roster_id]
-        );
+        let cardsResult;
+
+        if (point_set_id) {
+            cardsResult = await pool.query(
+                `SELECT cp.*, rc.is_starter, rc.assignment, ppv.points
+                 FROM cards_player cp
+                 JOIN roster_cards rc ON cp.card_id = rc.card_id
+                 LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
+                 WHERE rc.roster_id = $1`,
+                [roster.roster_id, point_set_id]
+            );
+        } else {
+            cardsResult = await pool.query(
+                `SELECT cp.*, rc.is_starter, rc.assignment
+                 FROM cards_player cp
+                 JOIN roster_cards rc ON cp.card_id = rc.card_id
+                 WHERE rc.roster_id = $1`,
+                [roster.roster_id]
+            );
+        }
         
-        res.json({ ...roster, cards: cardsResult.rows });
+        const processedCards = processPlayers(cardsResult.rows);
+        res.json({ ...roster, cards: processedCards });
 
     } catch (error) {
         console.error('Error fetching user roster:', error);
