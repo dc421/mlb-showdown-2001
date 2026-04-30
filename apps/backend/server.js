@@ -1823,7 +1823,7 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         if (!newState[teamKey].transient_used_player_ids) {
             newState[teamKey].transient_used_player_ids = [];
         }
-        f (!newState[teamKey].transient_used_player_ids.includes(playerOutIdInt) && !(newState[teamKey].used_player_ids && newState[teamKey].used_player_ids.includes(playerOutIdInt))) {
+        if (!newState[teamKey].transient_used_player_ids.includes(playerOutIdInt) && !(newState[teamKey].used_player_ids && newState[teamKey].used_player_ids.includes(playerOutIdInt))) {
             newState[teamKey].transient_used_player_ids.push(playerOutIdInt);
         }
     }
