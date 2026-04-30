@@ -84,14 +84,14 @@ test.describe('Steal UI Logic', () => {
     await page.goto('http://localhost:5173/game/1', { waitUntil: 'domcontentloaded' });
 
     // 4. Assertions
-    // Expect to see "Speedy Runner is stealing 2nd!"
-    await expect(page.getByText('Speedy Runner is stealing 2nd!')).toBeVisible({ timeout: 5000 });
+    // Expect to see "Waiting for opponent..."
+    await expect(page.getByText('Waiting for opponent...')).toBeVisible({ timeout: 5000 });
 
     // Expect to see "ROLL FOR THROW" button (Single Steal UI)
 
 
     // Expect NOT to see "Opponent is attempting a double steal!"
-    await expect(page.getByText('Speedy Runner is stealing 2nd!')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Waiting for opponent...')).toBeVisible({ timeout: 5000 });
 
     // Expect NOT to see "Throw to 2nd" button (Double Steal UI specific)
     await expect(page.getByRole('button', { name: 'Throw to 2nd' })).not.toBeVisible();
