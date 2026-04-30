@@ -379,7 +379,8 @@ onUnmounted(() => {
                 <h2>Active Games</h2>
             </div>
             
-            <ul v-if="activeGames.length > 0" class="game-list">
+            <p v-if="authStore.isFetchingGames">Loading active games...</p>
+            <ul v-else-if="activeGames.length > 0" class="game-list">
                 <li v-for="game in activeGames" :key="game.game_id" class="game-list-item">
                     <div v-if="isDeleteMode" class="checkbox-wrapper">
                         <input type="checkbox" :value="game.game_id" v-model="selectedGamesToDelete" />
@@ -420,7 +421,8 @@ onUnmounted(() => {
                 </template>
             </div>
             <h3 class="join-header">Open Games to Join</h3>
-            <ul v-if="gamesToJoin.length > 0" class="game-list">
+            <p v-if="authStore.isFetchingOpenGames">Loading open games...</p>
+            <ul v-else-if="gamesToJoin.length > 0" class="game-list">
               <li v-for="game in gamesToJoin" :key="game.game_id">
                 <span>{{ getGameTypeName(game.series_type) }} vs. {{ game.full_display_name }}</span>
                 <button @click="handleJoinGame(game)" :disabled="(game.series_type === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster) || (game.series_type !== 'classic' && authStore.isDraftActive)">
@@ -435,7 +437,8 @@ onUnmounted(() => {
       <!-- COLUMN 3: Completed Games -->
        <div class="panel">
         <h2>Completed Games</h2>
-        <ul v-if="completedGames.length > 0" class="game-list">
+        <p v-if="authStore.isFetchingGames">Loading completed games...</p>
+        <ul v-else-if="completedGames.length > 0" class="game-list">
           <li v-for="game in completedGames" :key="game.game_id">
             <RouterLink :to="`/game/${game.game_id}`">
               <GameScorecard :game="game" />

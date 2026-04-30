@@ -15,6 +15,8 @@ export const useAuthStore = defineStore('auth', () => {
   const myGames = ref([]);
   const openGames = ref([]);
   const activeRosterCards = ref([]);
+  const isFetchingGames = ref(false);
+  const isFetchingOpenGames = ref(false);
   // API_URL is handled inside apiClient, but we expose it if needed by components
   // (though they should prefer using apiClient or store actions)
   const API_URL = import.meta.env.VITE_API_URL || '';
@@ -234,23 +236,29 @@ async function fetchAvailableTeams() {
   
   async function fetchMyGames() {
     if (!token.value) return;
+    isFetchingGames.value = true;
     try {
         const response = await apiClient(`/api/games`);
         if (!response.ok) throw new Error('Failed to fetch games');
         myGames.value = await response.json();
     } catch (error) {
         console.error(error);
+    } finally {
+        isFetchingGames.value = false;
     }
   }
 
   async function fetchOpenGames() {
     if (!token.value) return;
+    isFetchingOpenGames.value = true;
     try {
         const response = await apiClient(`/api/games/open`);
         if (!response.ok) throw new Error('Failed to fetch open games');
         openGames.value = await response.json();
     } catch (error) {
         console.error(error);
+    } finally {
+        isFetchingOpenGames.value = false;
     }
   }
 
@@ -365,7 +373,7 @@ async function submitLineup(gameId, lineupData) {
 
   return { 
     token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
-    pointSets, selectedPointSetId, isFetchingRoster,
+    pointSets, selectedPointSetId, isFetchingRoster, isFetchingGames, isFetchingOpenGames,
     isAuthenticated, login, register, logout, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
