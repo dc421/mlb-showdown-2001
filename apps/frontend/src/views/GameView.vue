@@ -755,9 +755,10 @@ const scoreUpdateVisible = computed(() => {
 const isDisplayTopInning = computed(() => {
   if (!gameStore.gameState) return null;
 
-  if (gameStore.gameState.awaiting_lineup_change &&
-           playersInInvalidPositions.value.size > 0) {
-      return gameStore.gameState.isTopInning;
+  // If we are intentionally holding back the UI, do not evaluate awaiting_lineup_change
+  const effectivelyAwaitingLineupChange = gameStore.gameState.awaiting_lineup_change && !(shouldHideCurrentAtBatOutcome.value || (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext));
+  if (effectivelyAwaitingLineupChange && playersInInvalidPositions.value.size > 0) {
+        return gameStore.gameState.isTopInning;
   }
 
   if (shouldHideCurrentAtBatOutcome.value && gameStore.displayGameState) {
@@ -1524,7 +1525,9 @@ const batterToDisplay = computed(() => {
 });
 
 const pitcherToDisplay = computed(() => {
-    if (gameStore.gameState?.awaiting_lineup_change) {
+    // If we are intentionally holding back the UI, we should not treat it as an awaiting_lineup_change state visually
+    const effectivelyAwaitingLineupChange = gameStore.gameState?.awaiting_lineup_change && !(shouldHideCurrentAtBatOutcome.value || (!gameStore.amIReadyForNext && gameStore.opponentReadyForNext));
+    if (effectivelyAwaitingLineupChange) {
         if (amIDisplayDefensivePlayer.value) {
             const pitcherOnMound = gameStore.pitcher;
             if (!pitcherOnMound || playersInInvalidPositions.value.has(pitcherOnMound.card_id)) {
