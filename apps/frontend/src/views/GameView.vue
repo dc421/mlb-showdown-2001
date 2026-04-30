@@ -1248,7 +1248,7 @@ const doublePlayOutThreshold = computed(() => {
 });
 
 const infieldInOutThreshold = computed(() => {
-    if (!isInfieldInDecision.value) return null;
+    if (!isInfieldInDecision.value && !isInfieldInDefenseChoice.value) return null;
     const runner = gameStore.gameState.currentPlay.payload.runnerOnThird;
     if (!runner) return null;
     const speed = getSpeedValue(runner);
@@ -1973,9 +1973,18 @@ const isInfieldInDecision = computed(() => {
     return amIOffensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_CHOICE' && !showRollForSwingButton.value;
 });
 
+const isInfieldInDefenseChoice = computed(() => {
+    if (isGameOver.value) return false;
+    return amIDefensivePlayer.value && isMyTurn.value && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_DEFENSE_CHOICE' && !showRollForPitchButton.value;
+});
+
 
 function handleInfieldInDecision(sendRunner) {
     gameStore.submitInfieldInDecision(gameId, sendRunner);
+}
+
+function handleInfieldInDefenseChoice(throwHome) {
+    gameStore.submitInfieldInDefenseChoice(gameId, throwHome);
 }
 
 
@@ -2356,6 +2365,14 @@ function handleVisibilityChange() {
                     <button @click="handleInfieldInDecision(false)" class="tactile-button">Hold Runner</button>
                 </div>
             </div>
+            <div v-else-if="isInfieldInDefenseChoice">
+                <h3>Infield In Play</h3>
+                <p>The runner on third is heading home! Where will you throw?</p>
+                <div class="infield-in-decisions">
+                    <button @click="handleInfieldInDefenseChoice(true)" class="tactile-button">Throw Home ({{ infieldInOutThreshold }}+)</button>
+                    <button @click="handleInfieldInDefenseChoice(false)" class="tactile-button">Throw to 1st</button>
+                </div>
+            </div>
             <div v-else>
                 <!-- SIMUL: No ROLL FOR THROW, ROLL FOR DOUBLE PLAY, or ROLL FOR SWING buttons -->
                 <button v-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
@@ -2380,6 +2397,7 @@ function handleVisibilityChange() {
 
             <!-- Waiting Indicators -->
             <div v-if="isAwaitingBaserunningDecision" class="waiting-text">Waiting on baserunning decision...</div>
+            <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState?.currentPlay?.type === 'INFIELD_IN_DEFENSE_CHOICE'" class="waiting-text">Waiting for defense to throw...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState?.pendingStealAttempt" class="waiting-text">Waiting for opponent...</div>
             <div v-else-if="amIDisplayOffensivePlayer && gameStore.gameState.currentAtBat.batterAction && !gameStore.gameState.currentAtBat.pitcherAction && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.opponentReadyForNext" class="waiting-text">Waiting for pitch...</div>
             <div v-else-if="amIDisplayDefensivePlayer && gameStore.gameState.currentAtBat.pitcherAction && (!gameStore.gameState.currentAtBat.batterAction || gameStore.gameState.currentAtBat.batterAction === 'take' && !showNextHitterButton) && !isStealAttemptInProgress && !isAdvancementOrTagUpDecision && !isDefensiveThrowDecision && !gameStore.isEffectivelyBetweenHalfInnings && !(gameStore.inningEndedOnCaughtStealing && gameStore.displayGameState.outs > 0)" class="turn-indicator">Waiting for swing...</div>
