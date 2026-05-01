@@ -700,6 +700,27 @@ const usedPlayerIds = computed(() => {
     return new Set(teamUsed);
 });
 
+const myTransientLineupSlots = computed(() => {
+    if (!gameStore.gameState || !leftPanelData.value?.teamKey) return {};
+    const teamKey = leftPanelData.value.teamKey;
+    return gameStore.gameState[teamKey + 'Team']?.transient_lineup_slots || {};
+});
+
+const isPlayerValidSubTarget = (player) => {
+    if (!player) return false;
+    if (usedPlayerIds.value.has(player.card_id)) return false;
+
+    // Check if player is transiently subbed out and restricted to a specific slot
+    const transientSlot = myTransientLineupSlots.value[player.card_id];
+    if (transientSlot !== undefined && playerToSubOut.value) {
+        const currentSlotKey = playerToSubOut.value.source === 'lineup' ? playerToSubOut.value.index.toString() : 'pitcher';
+        if (transientSlot !== currentSlotKey) {
+            return false;
+        }
+    }
+    return true;
+};
+
 const opponentUsedPlayerIds = computed(() => {
     if (!gameStore.gameState || !rightPanelData.value?.teamKey) return new Set();
     const teamKey = rightPanelData.value.teamKey;
@@ -2520,10 +2541,10 @@ function handleVisibilityChange() {
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
               <ul>
-                  <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
+                  <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && isPlayerValidSubTarget(p)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
-                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && isStartingPitcherEligible }">
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && isPlayerValidSubTarget(p) && isStartingPitcherEligible }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
@@ -2537,10 +2558,10 @@ function handleVisibilityChange() {
           <div v-if="leftPanelData.bench.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
               <ul>
-                  <li v-for="(p, index) in leftPanelData.bench" :key="index" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && !usedPlayerIds.has(p.card_id)}">
+                  <li v-for="(p, index) in leftPanelData.bench" :key="index" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && isPlayerValidSubTarget(p)}">
                       <span @click.stop="handleSubstitution(p)"
                             class="sub-icon"
-                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && !usedPlayerIds.has(p.card_id) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7 || p.assignment !== 'BENCH') }">
+                            :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && isPlayerValidSubTarget(p) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7 || p.assignment !== 'BENCH') }">
                           ⇄
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>

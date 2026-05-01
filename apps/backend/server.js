@@ -28,6 +28,9 @@ function commitTransientPlayerIds(state) {
         if (state[teamKey].transient_subbed_in_player_ids) {
             state[teamKey].transient_subbed_in_player_ids = [];
         }
+        if (state[teamKey].transient_lineup_slots) {
+            state[teamKey].transient_lineup_slots = {};
+        }
     }
 }
 
@@ -1528,7 +1531,20 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
     // If the player is being subbed back in and they are in the transient list, we remove them from the transient list
     if (newState[teamKey].transient_used_player_ids && newState[teamKey].transient_used_player_ids.includes(playerInIdInt)) {
+        // Enforce that transiently removed players can only be subbed back into their original slot
+        const expectedSlot = newState[teamKey].transient_lineup_slots?.[playerInIdInt];
+        const currentSlotKey = lineupIndex >= 0 ? lineupIndex.toString() : 'pitcher';
+
+        if (expectedSlot !== undefined && expectedSlot !== currentSlotKey) {
+            let slotName = expectedSlot === 'pitcher' ? "the pitcher's spot" : `lineup spot ${parseInt(expectedSlot) + 1}`;
+            return res.status(400).json({ message: `This player was removed from ${slotName} and can only be placed back into that spot.` });
+        }
+
         newState[teamKey].transient_used_player_ids = newState[teamKey].transient_used_player_ids.filter(id => id !== playerInIdInt);
+
+        if (newState[teamKey].transient_lineup_slots) {
+            delete newState[teamKey].transient_lineup_slots[playerInIdInt];
+        }
     } else {
         if (!newState[teamKey].transient_subbed_in_player_ids) {
             newState[teamKey].transient_subbed_in_player_ids = [];
@@ -1840,6 +1856,13 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
             }
             if (!newState[teamKey].transient_used_player_ids.includes(playerOutIdInt) && !(newState[teamKey].used_player_ids && newState[teamKey].used_player_ids.includes(playerOutIdInt))) {
                 newState[teamKey].transient_used_player_ids.push(playerOutIdInt);
+
+                // Record the slot they were removed from
+                if (!newState[teamKey].transient_lineup_slots) {
+                    newState[teamKey].transient_lineup_slots = {};
+                }
+                const removedSlotKey = lineupIndex >= 0 ? lineupIndex.toString() : 'pitcher';
+                newState[teamKey].transient_lineup_slots[playerOutIdInt] = removedSlotKey;
             }
         }
     }
