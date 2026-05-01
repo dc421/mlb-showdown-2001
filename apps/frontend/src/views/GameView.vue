@@ -1012,6 +1012,8 @@ const showNextHitterButton = computed(() => {
     return false;
   } else if (amIDisplayDefensivePlayer.value && gameStore.gameState.currentPlay?.type === 'INFIELD_IN_CHOICE' && isSwingResultVisible) {
     return false;
+  } else if (gameStore.gameState.currentPlay?.type === 'INFIELD_IN_DEFENSE_CHOICE') {
+    return false;
   } else if ((amIDisplayOffensivePlayer.value && ((gameStore.gameState.currentPlay?.type === 'ADVANCE' || gameStore.gameState.currentPlay?.type === 'TAG_UP') && isSwingResultVisible && !!gameStore.gameState.currentPlay.payload.choices))) {
     return false;
   } else if (gameStore.amIReadyForNext) {
