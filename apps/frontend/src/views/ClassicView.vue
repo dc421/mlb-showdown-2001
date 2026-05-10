@@ -373,8 +373,11 @@ onMounted(async () => {
                              </div>
                              <div class="finale-score-line">
                                  <span>W {{ state.finale.winning_score }}-{{ state.finale.losing_score }} vs {{ state.finale.losing_team_name }}</span>
-                                 <span v-if="state.finale.notes" class="accolade-text right-justify">TGAOOT: {{ state.finale.notes }}</span>
+                                 <span v-if="state.finale.notes" class="accolade-text right-justify">{{ state.finale.notes }}</span>
                              </div>
+                         </div>
+                         <div class="finale-logo-column">
+                             <img v-if="state.finale.winner_logo" :src="state.finale.winner_logo" class="winner-logo-lg" />
                          </div>
                      </div>
                 </div>
@@ -819,10 +822,9 @@ h2 {
 
 .team-logo {
     height: 25px;
-    width: auto;
-    max-width: 40px;
+    width: 30px;
     object-fit: contain;
-    margin-right: 8px;
+    margin-right: 6px;
     margin-bottom: 2px;
 }
 
@@ -918,6 +920,23 @@ h2 {
     flex-direction: column;
     justify-content: center;
     gap: 0.25rem;
+}
+
+.finale-logo-column {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.winner-logo-lg {
+    height: 50px;
+    width: 50px;
+    object-fit: contain;
+    background: white;
+    border-radius: 20%;
+    padding: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .finale-winner-line {
