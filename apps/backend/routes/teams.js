@@ -150,6 +150,13 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                     }
                 } else if (s.rounds.has('Playoffs') || s.rounds.has('Semi-Finals')) {
                     result = 'Playoffs';
+                } else if (s.rounds.has('Silver Submarine')) {
+                    const subGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Silver Submarine');
+                    if (subGame && matchesFranchise(subGame.winning_team_name, subGame.winning_team_id, team, allTeams, mappedIds)) {
+                        result = 'Silver Submarine';
+                    } else if (subGame) {
+                        result = 'Silver Submarine Participant';
+                    }
                 } else if (s.rounds.has('Wooden Spoon')) {
                     const spoonGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Wooden Spoon');
                     // Usually winning the spoon match means you avoid the spoon

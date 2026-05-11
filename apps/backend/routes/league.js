@@ -390,14 +390,28 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
         const standings = calculateStandings(seriesResults, currentTeams, season === 'all-time');
 
         if (season === 'all-time') {
-            // Include Final Series for All-Time list
-            const finalSeries = seriesResults.filter(r =>
-                ['Golden Spaceship', 'Silver Submarine', 'Wooden Spoon'].includes(r.round)
-            ).map(r => {
+            // Fetch ALL Silver Submarines across all styles (Classic results are filtered out of
+            // seriesResults by the main query, so we query them separately here)
+            const allSubsRes = await pool.query(`
+                SELECT * FROM series_results
+                WHERE round = 'Silver Submarine' AND season_name IS NOT NULL
+                ORDER BY date ASC
+            `);
+            const allSubs = allSubsRes.rows;
+
+            // Recount submarines in standings from the authoritative full list
+            standings.forEach(s => { s.submarines = 0; });
+            allSubs.forEach(sub => {
+                const winner = findTeamForRecord(sub.winning_team_name, sub.winning_team_id, currentTeams);
+                if (!winner.team_id) return;
+                const entry = standings.find(s => s.team_id === winner.team_id);
+                if (entry) entry.submarines++;
+            });
+
+            const mapRow = (r) => {
                 const hasScore = r.winning_score !== null && r.losing_score !== null;
                 const winner = findTeamForRecord(r.winning_team_name, r.winning_team_id, currentTeams);
                 const loser = findTeamForRecord(r.losing_team_name, r.losing_team_id, currentTeams);
-
                 return {
                     id: r.id,
                     date: r.date,
@@ -411,12 +425,20 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                     mva: r.mva,
                     lvsc: r.lvsc
                 };
-            }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Chronological order
+            };
+
+            const nonSubFinals = seriesResults
+                .filter(r => ['Golden Spaceship', 'Wooden Spoon'].includes(r.round))
+                .map(mapRow);
+            const subFinals = allSubs.map(mapRow);
+
+            const finalSeries = [...nonSubFinals, ...subFinals]
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
 
             res.json({
                 standings,
-                recentResults: [], // Still empty for the main list
-                finalSeries // New field for the chronological list
+                recentResults: [],
+                finalSeries
             });
         } else {
             res.json({

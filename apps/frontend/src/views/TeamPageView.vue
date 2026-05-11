@@ -433,7 +433,7 @@ const teamDisplayName = computed(() => {
                     <tbody>
                         <!-- ADDED HIGHLIGHT CLASSES -->
                         <tr v-for="season in teamData.history" :key="season.season"
-                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'brown-bg': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant')}">
+                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'silver-bg': season.result && season.result.includes('Silver Submarine') && !season.result.includes('Participant'), 'brown-bg': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant')}">
                             <td class="season-name">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${season.season}`" class="season-link">
                                     {{ season.season }}
@@ -470,7 +470,7 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="row in processedHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
+                        <tr v-for="row in processedHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'silver-bg': row.result && row.result.includes('Silver Submarine') && !row.result.includes('Participant'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
                             <td class="season-cell sticky-col">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${row.season}`" class="season-link">
                                     {{ row.season }}
@@ -542,7 +542,7 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="row in processedHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
+                        <tr v-for="row in processedHistory" :key="row.season" :class="{'gold-bg': row.result && row.result.includes('Champion'), 'silver-bg': row.result && row.result.includes('Silver Submarine') && !row.result.includes('Participant'), 'brown-bg': row.result && row.result.includes('Wooden Spoon') && !row.result.includes('Participant')}">
                             <td class="season-cell sticky-col">
                                 <RouterLink :to="`/teams/${teamId}/seasons/${row.season}`" class="season-link">
                                     {{ row.season }}
@@ -821,6 +821,9 @@ thead th.sticky-col {
 /* HIGHLIGHTS */
 .gold-bg {
     background-color: rgba(255, 215, 0, 0.15) !important;
+}
+.silver-bg {
+    background-color: rgba(192, 192, 192, 0.2) !important;
 }
 .brown-bg {
     background-color: rgba(139, 69, 19, 0.1) !important;
