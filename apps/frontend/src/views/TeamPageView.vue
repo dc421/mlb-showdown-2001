@@ -125,18 +125,36 @@ const processedHistory = computed(() => {
     return teamData.value.rosters.map(r => {
         const { batterRow, pitchersRow } = organizeRosterForMatrix(r.players);
 
-        // Find season result for highlighting
-        const historyItem = teamData.value.history.find(h => h.season === r.season);
+        // Find the regular-season entry (history now contains both regular + classic)
+        const historyItem = teamData.value.history.find(h => h.season === r.season && !h.isClassic);
         const result = historyItem ? historyItem.result : '';
 
         return {
             season: r.season,
             batters: batterRow,
             pitchers: pitchersRow,
-            result
+            result,
+            mvaName: extractAwardPlayerName(historyItem?.mva),
+            lvscName: extractAwardPlayerName(historyItem?.lvsc)
         };
     });
 });
+
+// Backend now returns a pre-sorted combined list with isClassic flag
+const combinedHistory = computed(() => teamData.value?.history || []);
+
+// Extract just the player name portion from award text like "Alex Rodriguez (TEX) (BOS), notes..."
+const extractAwardPlayerName = (awardText) => {
+    if (!awardText) return null;
+    const match = awardText.match(/^([^(,]+)/);
+    return match ? match[1].trim() : null;
+};
+
+const isAwardWinner = (player, awardName) => {
+    if (!player || !awardName) return false;
+    const name = (player.displayName || player.name || '').toLowerCase();
+    return name.includes(awardName.toLowerCase());
+};
 
 const processedClassicHistory = computed(() => {
     if (!teamData.value?.classicRosters) return [];
@@ -145,14 +163,16 @@ const processedClassicHistory = computed(() => {
         const { batterRow, pitchersRow } = organizeRosterForMatrix(r.players);
 
         // Find season result for highlighting
-        const historyItem = teamData.value.history.find(h => h.season === r.season);
+        const historyItem = teamData.value.classicHistory?.find(h => h.season === r.season);
         const result = historyItem ? historyItem.result : '';
 
         return {
             season: r.season,
             batters: batterRow,
             pitchers: pitchersRow,
-            result
+            result,
+            mvaName: extractAwardPlayerName(historyItem?.mva),
+            lvscName: extractAwardPlayerName(historyItem?.lvsc)
         };
     });
 });
@@ -432,16 +452,20 @@ const teamDisplayName = computed(() => {
                     </thead>
                     <tbody>
                         <!-- ADDED HIGHLIGHT CLASSES -->
-                        <tr v-for="season in teamData.history" :key="season.season"
-                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'silver-bg': season.result && season.result.includes('Silver Submarine') && !season.result.includes('Participant'), 'brown-bg': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant')}">
+                        <tr v-for="season in combinedHistory" :key="season.season + (season.isClassic ? '-classic' : '')"
+                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'silver-bg': season.result && season.result.includes('Silver Submarine') && !season.result.includes('Participant'), 'brown-bg': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant'), 'classic-row': season.isClassic}">
                             <td class="season-name">
-                                <RouterLink :to="`/teams/${teamId}/seasons/${season.season}`" class="season-link">
-                                    {{ season.season }}
+                                <RouterLink :to="season.isClassic ? { path: `/teams/${teamId}/seasons/${season.originalSeason || season.season}`, query: { type: 'Classic' } } : `/teams/${teamId}/seasons/${season.season}`" class="season-link">
+                                    {{ season.isClassic ? (season.classicName || season.season) : season.season }}<span v-if="season.isClassic" class="classic-badge">C</span>
                                 </RouterLink>
                             </td>
                             <td>{{ season.wins }}-{{ season.losses }}</td>
                             <td>{{ season.winPct }}</td>
-                            <td class="result-cell" :class="{'champion-text': season.result === 'Champion', 'spoon-text': season.result === 'Wooden Spoon'}">{{ season.result }}</td>
+                            <td class="result-cell" :class="{'champion-text': season.result && season.result.includes('Champion'), 'spoon-text': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant')}">
+                                {{ season.result }}
+                                <div v-if="season.mva" class="award-line mva-line">MVA: {{ season.mva }}</div>
+                                <div v-if="season.lvsc" class="award-line lvsc-line">LVSC: {{ season.lvsc }}</div>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -479,7 +503,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="(pos, idx) in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
                                 @click="openPlayerCard(row.batters[pos])"
                                 class="player-cell"
-                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx}"
+                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName)}"
                                 @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
                                     {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
@@ -489,7 +513,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="i in maxCols.bench" :key="`bench-${i}`"
                                 @click="openPlayerCard(row.batters[`Bench${i}`])"
                                 class="player-cell"
-                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i}"
+                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName)}"
                                 @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
                                     {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
@@ -551,7 +575,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="(pos, idx) in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
                                 @click="openPlayerCard(row.pitchers[pos])"
                                 class="player-cell"
-                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx}"
+                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName)}"
                                 @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
                                     {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
@@ -561,7 +585,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="i in maxCols.rp" :key="`rp-${i}`"
                                 @click="openPlayerCard(row.pitchers[`RP${i}`])"
                                 class="player-cell"
-                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i}"
+                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName)}"
                                 @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
                                     {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
@@ -932,6 +956,46 @@ thead th.sticky-col {
 .common-count {
     color: #666;
     font-size: 0.65rem;
+}
+
+.classic-row td {
+    color: #555;
+    font-style: italic;
+}
+
+.award-line {
+    font-size: 0.75rem;
+    font-weight: normal;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+}
+.mva-line { color: #c8960c; }
+.lvsc-line { color: #888; }
+
+.mva-winner {
+    background-color: rgba(255, 200, 0, 0.25) !important;
+    outline: 1px solid rgba(200, 150, 0, 0.4);
+}
+.lvsc-winner {
+    background-color: rgba(180, 180, 180, 0.25) !important;
+    outline: 1px solid rgba(130, 130, 130, 0.4);
+}
+
+.classic-badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    font-size: 0.65rem;
+    font-style: normal;
+    font-weight: bold;
+    background: #6c757d;
+    color: white;
+    border-radius: 3px;
+    padding: 0 3px;
+    vertical-align: middle;
+    line-height: 1.4;
 }
 
 .identity-history {

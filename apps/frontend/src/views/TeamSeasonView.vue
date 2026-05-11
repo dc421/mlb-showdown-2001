@@ -9,6 +9,19 @@ import { getLogoForTeam } from '@/utils/franchiseUtils';
 const route = useRoute();
 const teamId = ref(route.params.teamId);
 const seasonName = ref(route.params.seasonName);
+const isClassic = computed(() => route.query.type === 'Classic');
+
+const extractAwardPlayerName = (awardText) => {
+    if (!awardText) return null;
+    const match = awardText.match(/^([^(,]+)/);
+    return match ? match[1].trim() : null;
+};
+
+const isAwardWinner = (player, awardName) => {
+    if (!player || !awardName) return false;
+    const name = (player.displayName || player.name || '').toLowerCase();
+    return name.includes(awardName.toLowerCase());
+};
 const seasonData = ref(null);
 const loading = ref(true);
 const selectedPlayer = ref(null);
@@ -187,6 +200,9 @@ const teamDisplayName = computed(() => {
   const format = team.display_format || '{city} {name}';
   return format.replace('{city}', team.city).replace('{name}', team.name);
 });
+
+const mvaPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.mva));
+const lvscPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.lvsc));
 </script>
 
 <template>
@@ -203,6 +219,7 @@ const teamDisplayName = computed(() => {
                         <RouterLink :to="`/league?season=${encodeURIComponent(seasonData.season)}`" class="league-link">
                             {{ seasonData.season }} Season
                         </RouterLink>
+                        <span v-if="isClassic" class="classic-tag">Classic</span>
                     </h2>
                     <div class="season-rank">
                          <!-- Trophy Icons -->
@@ -213,6 +230,10 @@ const teamDisplayName = computed(() => {
                          <span class="record-text">
                              ({{ seasonStats.regularWins }}-{{ seasonStats.regularLosses }}<span v-if="seasonStats.postseasonWins > 0 || seasonStats.postseasonLosses > 0">, {{ seasonStats.postseasonWins }}-{{ seasonStats.postseasonLosses }}</span>)
                          </span>
+                    </div>
+                    <div class="season-awards" v-if="seasonData.mva || seasonData.lvsc">
+                        <span v-if="seasonData.mva" class="award-item mva-item">MVA: {{ seasonData.mva }}</span>
+                        <span v-if="seasonData.lvsc" class="award-item lvsc-item">LVSC: {{ seasonData.lvsc }}</span>
                     </div>
                 </div>
             </div>
@@ -233,7 +254,8 @@ const teamDisplayName = computed(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="player in displayRoster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row">
+                            <tr v-for="player in displayRoster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row"
+                                :class="{'mva-winner': isAwardWinner(player, mvaPlayerName), 'lvsc-winner': isAwardWinner(player, lvscPlayerName)}">
                                 <td class="pos-cell">
                                     {{ player.assignment === 'BENCH' ? 'B' : (player.assignment || player.position) }}
                                 </td>
@@ -396,6 +418,38 @@ const teamDisplayName = computed(() => {
 .win { color: green; font-weight: bold; }
 .loss { color: red; font-weight: bold; }
 .empty-msg { text-align: center; color: #999; padding: 2rem; }
+
+.classic-tag {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: bold;
+    background: #6c757d;
+    color: white;
+    border-radius: 3px;
+    padding: 1px 5px;
+    vertical-align: middle;
+}
+
+.season-awards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 0.4rem;
+}
+.award-item {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.mva-item { color: #c8960c; }
+.lvsc-item { color: #888; }
+
+.mva-winner {
+    background-color: rgba(255, 200, 0, 0.2) !important;
+}
+.lvsc-winner {
+    background-color: rgba(180, 180, 180, 0.2) !important;
+}
 
 /* HIGHLIGHTS */
 .gold-bg {

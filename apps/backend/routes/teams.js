@@ -93,7 +93,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
             // Treat 'Round Robin' as Regular Season to fix 0-0 records issue
             // Treat 'Semifinal' as Regular Season per user request
-            const isPostseason = r.round && r.round !== 'Regular Season' && r.round !== 'Round Robin' && r.round !== 'Semifinal';
+            // Classics have no Regular Season round — count all their results in the regular record
+            const isPostseason = !isClassic && r.round && r.round !== 'Regular Season' && r.round !== 'Round Robin' && r.round !== 'Semifinal';
 
             if (relevantSide === 'winner') {
                 const w = r.winning_score || 0;
@@ -131,55 +132,99 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             }
         });
 
+        // Fetch MVA/LVSC awards for all seasons this team participated in
+        const participatedSeasonNames = [...new Set(historyRes.rows.map(r => r.season_name))];
+        const seasonAwards = {};
+        if (participatedSeasonNames.length > 0) {
+            const awardsRes = await client.query(`
+                SELECT season_name, mva, lvsc FROM series_results
+                WHERE round IN ('Golden Spaceship', 'Wooden Spoon') AND season_name = ANY($1::text[])
+            `, [participatedSeasonNames]);
+            awardsRes.rows.forEach(r => {
+                if (!seasonAwards[r.season_name]) seasonAwards[r.season_name] = {};
+                if (r.mva) seasonAwards[r.season_name].mva = r.mva;
+                if (r.lvsc) seasonAwards[r.season_name].lvsc = r.lvsc;
+            });
+        }
+
+        // Extract the LAST parenthetical from award text — that's the draft team abbreviation
+        const extractAwardTeamAbbrev = (awardText) => {
+            if (!awardText) return null;
+            const playerPart = awardText.split(',')[0].trim();
+            const matches = [...playerPart.matchAll(/\(([^)]+)\)/g)];
+            return matches.length > 0 ? matches[matches.length - 1][1].trim() : null;
+        };
+
+        // Build candidate abbreviations for a name string (first N chars, word initials)
+        const getPotentialAbbrevs = (str) => {
+            if (!str || str === 'no aliases') return [];
+            const words = str.trim().split(/\s+/);
+            const abbrevs = new Set();
+            for (let n = 1; n <= 5; n++) {
+                if (str.length >= n) abbrevs.add(str.substring(0, n).toUpperCase());
+            }
+            abbrevs.add(words.map(w => w[0]).join('').toUpperCase());
+            return [...abbrevs];
+        };
+
+        // Check if the team abbreviation in an award text matches the current franchise
+        const awardBelongsToTeam = (awardText) => {
+            const abbrev = extractAwardTeamAbbrev(awardText);
+            if (!abbrev) return false;
+            const a = abbrev.toUpperCase();
+            const aliases = getFranchiseAliases(team.name);
+            const namesToCheck = [team.city, team.name, `${team.city} ${team.name}`, ...aliases];
+            return namesToCheck.some(name => getPotentialAbbrevs(name).includes(a));
+        };
+
         // Convert stats to array
         const processStats = (statsObj) => {
             const list = Object.values(statsObj).map(s => {
                 const total = s.regularWins + s.regularLosses;
                 const winPct = total > 0 ? (s.regularWins / total).toFixed(3).replace(/^0+/, '') : '.000';
 
-                // Determine "Result"
                 let result = '-';
 
                 if (s.rounds.has('Golden Spaceship')) {
                     const finals = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Golden Spaceship');
-                    // Use robust matching to see if WE won
                     if (finals && matchesFranchise(finals.winning_team_name, finals.winning_team_id, team, allTeams, mappedIds)) {
-                        result = 'Champion';
+                        result = `Champion (${s.postseasonWins}-${s.postseasonLosses})`;
                     } else if (finals) {
-                        result = 'Runner Up';
+                        result = `Runner Up (${s.postseasonWins}-${s.postseasonLosses})`;
                     }
                 } else if (s.rounds.has('Playoffs') || s.rounds.has('Semi-Finals')) {
-                    result = 'Playoffs';
+                    result = `Playoffs (${s.postseasonWins}-${s.postseasonLosses})`;
                 } else if (s.rounds.has('Silver Submarine')) {
+                    // Use direct game scores to avoid the aggregated-0-0 bug
                     const subGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Silver Submarine');
-                    if (subGame && matchesFranchise(subGame.winning_team_name, subGame.winning_team_id, team, allTeams, mappedIds)) {
-                        result = 'Silver Submarine';
-                    } else if (subGame) {
-                        result = 'Silver Submarine Participant';
+                    if (subGame) {
+                        const weWon = matchesFranchise(subGame.winning_team_name, subGame.winning_team_id, team, allTeams, mappedIds);
+                        const label = weWon ? 'Silver Submarine' : 'Silver Submarine Participant';
+                        const w = weWon ? (subGame.winning_score ?? 0) : (subGame.losing_score ?? 0);
+                        const l = weWon ? (subGame.losing_score ?? 0) : (subGame.winning_score ?? 0);
+                        result = (w || l) ? `${label} (${w}-${l})` : label;
                     }
                 } else if (s.rounds.has('Wooden Spoon')) {
                     const spoonGame = historyRes.rows.find(r => r.season_name === s.season_name && r.round === 'Wooden Spoon');
-                    // Usually winning the spoon match means you avoid the spoon
-                    // If we LOST the spoon match, we are the Spoon Winner.
-                    if (spoonGame && matchesFranchise(spoonGame.losing_team_name, spoonGame.losing_team_id, team, allTeams, mappedIds)) {
-                         result = 'Wooden Spoon';
-                    } else {
-                         result = 'Wooden Spoon Participant';
+                    if (spoonGame) {
+                        const weHoldSpoon = matchesFranchise(spoonGame.losing_team_name, spoonGame.losing_team_id, team, allTeams, mappedIds);
+                        const label = weHoldSpoon ? 'Wooden Spoon' : 'Wooden Spoon Participant';
+                        const w = weHoldSpoon ? (spoonGame.losing_score ?? 0) : (spoonGame.winning_score ?? 0);
+                        const l = weHoldSpoon ? (spoonGame.winning_score ?? 0) : (spoonGame.losing_score ?? 0);
+                        result = (w || l) ? `${label} (${w}-${l})` : label;
                     }
                 }
 
-                // Append Postseason Record if applicable
-                if (result !== '-') {
-                     result = `${result} (${s.postseasonWins}-${s.postseasonLosses})`;
-                }
-
+                const awards = seasonAwards[s.season_name] || {};
                 return {
                     season: s.season_name,
-                    wins: s.regularWins, // Return Regular Season W-L
+                    wins: s.regularWins,
                     losses: s.regularLosses,
                     winPct,
                     result,
-                    teamNameUsed: s.teamNameUsed
+                    teamNameUsed: s.teamNameUsed,
+                    mva: awards.mva && awardBelongsToTeam(awards.mva) ? awards.mva : null,
+                    lvsc: awards.lvsc && awardBelongsToTeam(awards.lvsc) ? awards.lvsc : null
                 };
             });
             return list;
@@ -188,8 +233,56 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
         const historyList = processStats(seasonStats);
         const classicHistoryList = processStats(classicStats);
 
-        const sortedSeasonNames = sortSeasons(historyList.map(h => h.season));
-        historyList.sort((a, b) => sortedSeasonNames.indexOf(a.season) - sortedSeasonNames.indexOf(b.season));
+        // Sort regular history for identity-history calculation (which walks historyList)
+        const regularSeasonNames = sortSeasons(historyList.map(h => h.season));
+        historyList.sort((a, b) => regularSeasonNames.indexOf(a.season) - regularSeasonNames.indexOf(b.season));
+
+        // Look up human-readable classic names by joining through series → classics
+        const classicSeasonNamesForLookup = classicHistoryList.map(h => h.season).filter(Boolean);
+        const classicNameMap = {};
+        if (classicSeasonNamesForLookup.length > 0) {
+            try {
+                const classicNameRes = await client.query(`
+                    SELECT DISTINCT ON (sr.season_name) sr.season_name, c.name AS classic_name
+                    FROM series_results sr
+                    JOIN teams wt ON wt.team_id = sr.winning_team_id
+                    JOIN teams lt ON lt.team_id = sr.losing_team_id
+                    JOIN series s ON s.series_type = 'classic'
+                        AND (
+                            (s.series_home_user_id = wt.user_id AND s.series_away_user_id = lt.user_id)
+                            OR (s.series_home_user_id = lt.user_id AND s.series_away_user_id = wt.user_id)
+                        )
+                    JOIN classics c ON c.id = s.classic_id
+                    WHERE sr.style = 'Classic'
+                    AND sr.season_name = ANY($1::text[])
+                    ORDER BY sr.season_name, c.id
+                `, [classicSeasonNamesForLookup]);
+                classicNameRes.rows.forEach(r => {
+                    classicNameMap[r.season_name] = r.classic_name;
+                });
+            } catch (_) {
+                // series table may not exist in all environments; fall back to season_name
+            }
+        }
+
+        // Build one combined chronologically-sorted list (regular + classic interleaved)
+        const allHistoryEntries = [
+            ...historyList.map(h => ({ ...h, isClassic: false })),
+            ...classicHistoryList.map(h => ({
+                ...h,
+                isClassic: true,
+                classicName: classicNameMap[h.season] || null,
+                originalSeason: h.season  // Preserved for URL params (season detail uses season_name, not classic name)
+            }))
+        ];
+        const uniqueAllSeasonNames = [...new Set(allHistoryEntries.map(h => h.season))];
+        const sortedAllSeasonNames = sortSeasons([...uniqueAllSeasonNames]);
+        allHistoryEntries.sort((a, b) => {
+            const idxA = sortedAllSeasonNames.indexOf(a.season);
+            const idxB = sortedAllSeasonNames.indexOf(b.season);
+            if (idxA !== idxB) return idxA - idxB;
+            return (a.isClassic ? 1 : 0) - (b.isClassic ? 1 : 0);
+        });
 
         // CALCULATE IDENTITY HISTORY (Chronological)
         // Group consecutive seasons with the same team name
@@ -465,8 +558,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
 
         res.json({
             team,
-            history: historyList,
-            classicHistory: classicHistoryList,
+            history: allHistoryEntries,       // Combined sorted list with isClassic flag
+            classicHistory: classicHistoryList, // Kept separate for roster-matrix lookups
             identityHistory: identityHistory.reverse(), // Send Newest -> Oldest for display
             rosters: formattedRosters,
             classicRosters: formattedClassicRosters,
@@ -697,7 +790,9 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     round: r.round,
                     date: r.date,
                     game_wins: r.winning_score,
-                    game_losses: r.losing_score
+                    game_losses: r.losing_score,
+                    mva: r.mva || null,
+                    lvsc: r.lvsc || null
                 });
             } else if (isLoser) {
                 let opponentLogo = null;
@@ -714,14 +809,23 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     round: r.round,
                     date: r.date,
                     game_wins: r.losing_score,
-                    game_losses: r.winning_score
+                    game_losses: r.winning_score,
+                    mva: r.mva || null,
+                    lvsc: r.lvsc || null
                 });
             }
         });
 
+        // Extract season-level awards from the spaceship/spoon result rows
+        const spaceshipRow = allResultsRes.rows.find(r => r.round === 'Golden Spaceship');
+        const spoonRow = allResultsRes.rows.find(r => r.round === 'Wooden Spoon');
+
         res.json({
             team,
             season: seasonName,
+            isClassic: type === 'Classic',
+            mva: spaceshipRow?.mva || null,
+            lvsc: spoonRow?.lvsc || null,
             roster,
             results
         });
