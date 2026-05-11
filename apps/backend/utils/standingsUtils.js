@@ -105,6 +105,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                     seasonsPlayed: 0,
                     totalRank: 0,
                     spaceships: 0,
+                    submarines: 0,
                     spoons: 0,
                     spaceshipAppearances: 0,
                     spoonAppearances: 0
@@ -163,6 +164,8 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                 wStats.spaceshipAppearances++;
                 lStats.spaceshipAppearances++;
                 wStats.spaceships++;
+            } else if (series.round === 'Silver Submarine') {
+                wStats.submarines++;
             } else if (series.round === 'Wooden Spoon') {
                 wStats.spoonAppearances++;
                 lStats.spoonAppearances++;

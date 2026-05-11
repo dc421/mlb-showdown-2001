@@ -314,6 +314,33 @@ const spoonHistory = computed(() => {
     return seasonSummary.value.finalSeries.filter(s => s.round === 'Wooden Spoon');
 });
 
+const groupedHistory = computed(() => {
+    if (!seasonSummary.value?.finalSeries) return [];
+    const bySeasonMap = new Map();
+    for (const series of seasonSummary.value.finalSeries) {
+        if (['Golden Spaceship', 'Wooden Spoon'].includes(series.round)) {
+            if (!bySeasonMap.has(series.season)) {
+                bySeasonMap.set(series.season, { season: series.season, spaceship: null, spoon: null });
+            }
+            const entry = bySeasonMap.get(series.season);
+            if (series.round === 'Golden Spaceship') entry.spaceship = series;
+            else if (series.round === 'Wooden Spoon') entry.spoon = series;
+        }
+    }
+    return Array.from(bySeasonMap.values()).reverse();
+});
+
+const submarineHistory = computed(() => {
+    if (!seasonSummary.value?.finalSeries) return [];
+    return seasonSummary.value.finalSeries.filter(s => s.round === 'Silver Submarine').reverse();
+});
+
+function flipScore(score) {
+    if (!score) return score;
+    const [a, b] = score.split('-');
+    return `${b}-${a}`;
+}
+
 // Helper to get win pct
 function getWinPct(wins, losses) {
     const total = wins + losses;
@@ -394,6 +421,7 @@ onMounted(async () => {
                             <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">App</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /></th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">App</th>
+                            <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/silver_submarine.png`" class="micro-icon" /></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -428,6 +456,11 @@ onMounted(async () => {
                             <td v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">
                                 <span v-if="team.spoonAppearances > 0">{{ team.spoonAppearances }}</span>
                             </td>
+                            <td v-if="selectedSeason === 'all-time'" class="text-center">
+                                <span v-if="team.submarines > 0" class="trophy-count">
+                                    <img :src="`${apiUrl}/images/silver_submarine.png`" class="micro-icon" /> {{ team.submarines }}
+                                </span>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -445,13 +478,10 @@ onMounted(async () => {
                             <div v-if="team.spaceships > 0" class="accolade-row">
                                 <img v-for="n in team.spaceships" :key="`s-${n}`" :src="`${apiUrl}/images/golden_spaceship.png`" class="trophy-icon-lg" title="Golden Spaceship Champion" />
                             </div>
-                            <!-- Submarines Row (If we have data, logic for submarine count wasn't explicitly in league.js franchiseStats, but just in case) -->
-                            <!-- league.js doesn't currently agg submarines in All-Time franchiseStats object explicitly except maybe implicit count?
-                                 Wait, franchiseStats object in league.js has spaceships and spoons. I should check if I need to add submarines there.
-                                 The user said "showing spaceships above submarines above spoons".
-                                 I'll add Submarines support to league.js later if needed, but assuming for now we just show what we have.
-                            -->
-
+                            <!-- Submarines Row -->
+                            <div v-if="team.submarines > 0" class="accolade-row">
+                                <img v-for="n in team.submarines" :key="`sub-${n}`" :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-icon-lg" title="Silver Submarine" />
+                            </div>
                             <!-- Spoons Row -->
                             <div v-if="team.spoons > 0" class="accolade-row">
                                 <img v-for="n in team.spoons" :key="`sp-${n}`" :src="`${apiUrl}/images/wooden_spoon.png`" class="trophy-icon-lg" title="Wooden Spoon" />
@@ -478,7 +508,7 @@ onMounted(async () => {
                                      <span class="winner-name-lg">{{ result.loser_name || result.loser }}</span>
                                  </div>
                                  <div class="finale-score-line">
-                                     <span>L {{ result.score }} vs {{ result.winner_name || result.winner }}</span>
+                                     <span>L {{ flipScore(result.score) }} vs {{ result.winner_name || result.winner }}</span>
                                      <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
                                  </div>
                              </div>
@@ -527,52 +557,80 @@ onMounted(async () => {
         </div>
 
         <!-- ALL-TIME CHRONOLOGICAL LIST -->
-        <div v-if="selectedSeason === 'all-time' && seasonSummary && seasonSummary.finalSeries && seasonSummary.finalSeries.length > 0" class="history-list-section">
+        <div v-if="selectedSeason === 'all-time' && groupedHistory.length > 0" class="history-list-section">
             <h3>Championship History</h3>
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th class="history-col-season">Season</th>
+                        <th class="history-col-award"><img :src="`${apiUrl}/images/golden_spaceship.png`" class="history-header-icon" /> Spaceship</th>
+                        <th class="history-col-award"><img :src="`${apiUrl}/images/wooden_spoon.png`" class="history-header-icon" /> Spoon</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in groupedHistory" :key="row.season" class="history-row">
+                        <td class="history-col-season">{{ row.season }}</td>
+                        <td class="history-col-award history-spaceship-cell">
+                            <div v-if="row.spaceship" class="history-cell-content">
+                                <div class="history-matchup-line">
+                                    <span class="history-logo-wrap">
+                                        <img v-if="row.spaceship.winner_logo" :src="getLogoUrl(row.spaceship.winner_logo)" class="history-team-logo" />
+                                    </span>
+                                    <span class="history-winner">{{ row.spaceship.winner_name }}</span>
+                                    <span class="history-score">{{ row.spaceship.score }}</span>
+                                    <span class="history-loser">{{ row.spaceship.loser_name }}</span>
+                                </div>
+                                <div v-if="row.spaceship.mva" class="history-accolade">MVA: {{ row.spaceship.mva }}</div>
+                            </div>
+                            <span v-else class="history-empty">—</span>
+                        </td>
+                        <td class="history-col-award history-spoon-cell">
+                            <div v-if="row.spoon" class="history-cell-content">
+                                <div class="history-matchup-line">
+                                    <span class="history-logo-wrap">
+                                        <img v-if="row.spoon.loser_logo" :src="getLogoUrl(row.spoon.loser_logo)" class="history-team-logo" />
+                                    </span>
+                                    <span class="history-winner spoon-loser">{{ row.spoon.loser_name }}</span>
+                                    <span class="history-score">{{ flipScore(row.spoon.score) }}</span>
+                                    <span class="history-loser">{{ row.spoon.winner_name }}</span>
+                                </div>
+                                <div v-if="row.spoon.lvsc" class="history-accolade">LVSC: {{ row.spoon.lvsc }}</div>
+                            </div>
+                            <span v-else class="history-empty">—</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
-            <div class="history-list">
-                <!-- SPACESHIP & SUBMARINE SERIES -->
-                <div v-for="series in spaceshipHistory" :key="series.id" class="history-card" :class="{'history-spaceship': series.round === 'Golden Spaceship', 'history-sub': series.round === 'Silver Submarine'}">
-                    <div class="history-season">{{ series.season }}</div>
-                    <div class="history-content">
-                        <div class="history-trophy">
-                            <img v-if="series.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" />
-                            <img v-if="series.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" />
-                        </div>
-                        <div class="history-details">
-                            <div class="history-matchup">
-                                <span class="history-winner">{{ series.winner_name }}</span>
-                                <span class="history-score">{{ series.score }}</span>
-                                <span class="history-loser">{{ series.loser_name }}</span>
+        <!-- CLASSIC HISTORY (Silver Submarine) -->
+        <div v-if="selectedSeason === 'all-time' && submarineHistory.length > 0" class="history-list-section">
+            <h3>Classic History</h3>
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th class="history-col-season">Season</th>
+                        <th class="history-col-award"><img :src="`${apiUrl}/images/silver_submarine.png`" class="history-header-icon" /> Silver Submarine</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="series in submarineHistory" :key="series.id" class="history-row">
+                        <td class="history-col-season">{{ series.season }}</td>
+                        <td class="history-col-award history-sub-cell">
+                            <div class="history-cell-content">
+                                <div class="history-matchup-line">
+                                    <span class="history-logo-wrap">
+                                        <img v-if="series.winner_logo" :src="getLogoUrl(series.winner_logo)" class="history-team-logo" />
+                                    </span>
+                                    <span class="history-winner">{{ series.winner_name }}</span>
+                                    <span class="history-score">{{ series.score }}</span>
+                                    <span class="history-loser">{{ series.loser_name }}</span>
+                                </div>
                             </div>
-                            <div class="history-accolades" v-if="series.mva">
-                                <span class="accolade-tag mva">MVA: {{ series.mva }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SPOON SERIES -->
-                <h4 v-if="spoonHistory.length > 0" class="spoon-history-header">Wooden Spoon History</h4>
-                <div v-for="series in spoonHistory" :key="series.id" class="history-card history-spoon">
-                    <div class="history-season">{{ series.season }}</div>
-                    <div class="history-content">
-                        <div class="history-trophy">
-                            <img :src="`${apiUrl}/images/wooden_spoon.png`" />
-                        </div>
-                        <div class="history-details">
-                            <div class="history-matchup">
-                                <span class="history-winner spoon-loser">{{ series.loser_name }}</span>
-                                <span class="history-score">{{ series.score }}</span>
-                                <span class="history-loser">{{ series.winner_name }}</span>
-                            </div>
-                            <div class="history-accolades" v-if="series.lvsc">
-                                <span class="accolade-tag lvsc">LVSC: {{ series.lvsc }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <!-- MATRIX VIEW (Only for All-Time) -->
@@ -1468,70 +1526,85 @@ h1 {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
-.history-list {
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.history-table thead th {
+    padding: 0.4rem 0.75rem;
+    text-align: left;
+    border-bottom: 2px solid #eee;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    color: #555;
+}
+.history-table thead th img.history-header-icon {
+    height: 18px;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+.history-row td {
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+}
+.history-row:last-child td { border-bottom: none; }
+.history-col-season {
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #444;
+    width: 1%;
+}
+.history-col-award { }
+.history-spaceship-cell { background-color: rgba(255, 215, 0, 0.06); }
+.history-sub-cell { background-color: rgba(192, 192, 192, 0.06); }
+.history-spoon-cell { background-color: rgba(139, 69, 19, 0.04); }
+.history-cell-content {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 2px;
 }
-.history-card {
+.history-matchup-line {
     display: flex;
     align-items: center;
-    border: 1px solid #eee;
-    border-radius: 8px;
-    padding: 0.5rem 1rem;
-    gap: 1rem;
+    gap: 6px;
 }
-.history-spaceship { background-color: rgba(255, 215, 0, 0.1); border-color: #ffd700; }
-.history-spoon { background-color: rgba(139, 69, 19, 0.1); border-color: #8b4513; }
-.history-sub { background-color: #f8f9fa; border-color: #dee2e6; }
-
-.spoon-history-header {
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 0.5rem;
-    color: #8b4513;
+.history-logo-wrap {
+    width: 26px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-
-.history-season {
-    font-weight: bold;
-    font-size: 1.1rem;
-    width: 80px;
+.history-team-logo {
+    max-width: 26px;
+    max-height: 20px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+.history-winner {
+    font-weight: 700;
+    color: #1a1a1a;
+}
+.history-score {
+    color: #aaa;
+    font-size: 0.82rem;
+    font-weight: 500;
     flex-shrink: 0;
 }
-.history-trophy img {
-    height: 40px;
-    width: auto;
-}
-.history-content {
-    display: flex;
-    align-items: center;
-    flex-grow: 1;
-    gap: 1rem;
-}
-.history-details {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-.history-matchup {
-    font-size: 1.1rem;
-}
-.history-winner { font-weight: bold; }
-.history-score { margin: 0 0.5rem; color: #666; font-weight: bold; }
-.history-loser { color: #555; }
-.spoon-loser { color: #8b4513; } /* Special color for Spoon 'winner' (loser) */
-
-.history-accolades {
-    font-size: 0.9rem;
-    display: flex;
-    gap: 1rem;
-}
-.accolade-tag {
+.history-loser { color: #888; }
+.spoon-loser { color: #8b4513; }
+.history-accolade {
+    font-size: 0.75rem;
     font-style: italic;
-    color: #666;
+    color: #aaa;
+    padding-left: 32px;
 }
+.history-empty { color: #ccc; }
 
 /* Responsive adjustments */
 @media (max-width: 1000px) {
