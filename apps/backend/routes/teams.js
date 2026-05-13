@@ -147,36 +147,6 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             });
         }
 
-        // Extract the LAST parenthetical from award text — that's the draft team abbreviation
-        const extractAwardTeamAbbrev = (awardText) => {
-            if (!awardText) return null;
-            const playerPart = awardText.split(',')[0].trim();
-            const matches = [...playerPart.matchAll(/\(([^)]+)\)/g)];
-            return matches.length > 0 ? matches[matches.length - 1][1].trim() : null;
-        };
-
-        // Build candidate abbreviations for a name string (first N chars, word initials)
-        const getPotentialAbbrevs = (str) => {
-            if (!str || str === 'no aliases') return [];
-            const words = str.trim().split(/\s+/);
-            const abbrevs = new Set();
-            for (let n = 1; n <= 5; n++) {
-                if (str.length >= n) abbrevs.add(str.substring(0, n).toUpperCase());
-            }
-            abbrevs.add(words.map(w => w[0]).join('').toUpperCase());
-            return [...abbrevs];
-        };
-
-        // Check if the team abbreviation in an award text matches the current franchise
-        const awardBelongsToTeam = (awardText) => {
-            const abbrev = extractAwardTeamAbbrev(awardText);
-            if (!abbrev) return false;
-            const a = abbrev.toUpperCase();
-            const aliases = getFranchiseAliases(team.name);
-            const namesToCheck = [team.city, team.name, `${team.city} ${team.name}`, ...aliases];
-            return namesToCheck.some(name => getPotentialAbbrevs(name).includes(a));
-        };
-
         // Convert stats to array
         const processStats = (statsObj) => {
             const list = Object.values(statsObj).map(s => {
@@ -216,6 +186,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 }
 
                 const awards = seasonAwards[s.season_name] || {};
+                const wonChampionship = result.startsWith('Champion');
+                const holdsSpoon = result.startsWith('Wooden Spoon') && !result.includes('Participant');
                 return {
                     season: s.season_name,
                     wins: s.regularWins,
@@ -223,8 +195,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                     winPct,
                     result,
                     teamNameUsed: s.teamNameUsed,
-                    mva: awards.mva && awardBelongsToTeam(awards.mva) ? awards.mva : null,
-                    lvsc: awards.lvsc && awardBelongsToTeam(awards.lvsc) ? awards.lvsc : null
+                    mva: wonChampionship ? (awards.mva || null) : null,
+                    lvsc: holdsSpoon ? (awards.lvsc || null) : null
                 };
             });
             return list;
@@ -820,12 +792,16 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
         const spaceshipRow = allResultsRes.rows.find(r => r.round === 'Golden Spaceship');
         const spoonRow = allResultsRes.rows.find(r => r.round === 'Wooden Spoon');
 
+        // Only surface awards for the team that won the corresponding trophy
+        const teamWonChampionship = spaceshipRow && matchesFranchise(spaceshipRow.winning_team_name, spaceshipRow.winning_team_id, currentTeam, allTeams, mappedIds);
+        const teamHoldsSpoon = spoonRow && matchesFranchise(spoonRow.losing_team_name, spoonRow.losing_team_id, currentTeam, allTeams, mappedIds);
+
         res.json({
             team,
             season: seasonName,
             isClassic: type === 'Classic',
-            mva: spaceshipRow?.mva || null,
-            lvsc: spoonRow?.lvsc || null,
+            mva: teamWonChampionship ? (spaceshipRow?.mva || null) : null,
+            lvsc: teamHoldsSpoon ? (spoonRow?.lvsc || null) : null,
             roster,
             results
         });
