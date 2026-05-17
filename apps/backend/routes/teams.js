@@ -132,18 +132,20 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             }
         });
 
-        // Fetch MVA/LVSC awards for all seasons this team participated in
+        // Fetch MVA/LVSC/TGOAAT awards for all seasons this team participated in
         const participatedSeasonNames = [...new Set(historyRes.rows.map(r => r.season_name))];
         const seasonAwards = {};
         if (participatedSeasonNames.length > 0) {
             const awardsRes = await client.query(`
-                SELECT season_name, mva, lvsc FROM series_results
-                WHERE round IN ('Golden Spaceship', 'Wooden Spoon') AND season_name = ANY($1::text[])
+                SELECT season_name, mva, lvsc, tgoaat FROM series_results
+                WHERE (round IN ('Golden Spaceship', 'Wooden Spoon') OR (style = 'Classic' AND round = 'Silver Submarine'))
+                AND season_name = ANY($1::text[])
             `, [participatedSeasonNames]);
             awardsRes.rows.forEach(r => {
                 if (!seasonAwards[r.season_name]) seasonAwards[r.season_name] = {};
                 if (r.mva) seasonAwards[r.season_name].mva = r.mva;
                 if (r.lvsc) seasonAwards[r.season_name].lvsc = r.lvsc;
+                if (r.tgoaat) seasonAwards[r.season_name].tgoaat = r.tgoaat;
             });
         }
 
@@ -188,6 +190,8 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 const awards = seasonAwards[s.season_name] || {};
                 const wonChampionship = result.startsWith('Champion');
                 const holdsSpoon = result.startsWith('Wooden Spoon') && !result.includes('Participant');
+                const wonSilverSub = result.startsWith('Silver Submarine') && !result.includes('Participant');
+                const wonTrophy = wonChampionship || wonSilverSub;
                 return {
                     season: s.season_name,
                     wins: s.regularWins,
@@ -195,8 +199,9 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                     winPct,
                     result,
                     teamNameUsed: s.teamNameUsed,
-                    mva: wonChampionship ? (awards.mva || null) : null,
-                    lvsc: holdsSpoon ? (awards.lvsc || null) : null
+                    mva: wonTrophy ? (awards.mva || null) : null,
+                    lvsc: holdsSpoon ? (awards.lvsc || null) : null,
+                    tgoaat: wonTrophy ? (awards.tgoaat || null) : null
                 };
             });
             return list;
@@ -237,13 +242,18 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             }
         }
 
+        // Stamp classicName onto classicHistoryList so roster-matrix lookups can match by classic name
+        classicHistoryList.forEach(h => {
+            h.classicName = classicNameMap[h.season] || null;
+        });
+
         // Build one combined chronologically-sorted list (regular + classic interleaved)
         const allHistoryEntries = [
             ...historyList.map(h => ({ ...h, isClassic: false })),
             ...classicHistoryList.map(h => ({
                 ...h,
                 isClassic: true,
-                classicName: classicNameMap[h.season] || null,
+                classicName: h.classicName,
                 originalSeason: h.season  // Preserved for URL params (season detail uses season_name, not classic name)
             }))
         ];
@@ -490,15 +500,15 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                     image_url: r.image_url
                 };
 
-                // Re-derive position like we do for regular rosters
+                // Re-derive position for pitchers (handles PITCHING_STAFF assignment)
                 if (r.control !== null) {
-                     if (!player.position || player.position.includes('/')) {
-                         player.position = r.ip > 3 ? 'SP' : 'RP';
-                     }
+                    const derivedPos = Number(r.ip) > 3 ? 'SP' : 'RP';
+                    player.position = derivedPos;
+                    if (!player.assignment || player.assignment.includes('/') || player.assignment === 'PITCHING_STAFF') {
+                        player.assignment = derivedPos;
+                    }
                 } else {
-                     if (!player.position) {
-                         player.position = r.assignment;
-                     }
+                    if (!player.position) player.position = r.assignment;
                 }
 
                 classicRosterHistory[seasonKey].push(player);
@@ -568,13 +578,56 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
         const allTeams = allTeamsRes.rows;
         const mappedIds = getMappedIds(teamId);
 
+        // For Classic seasons, resolve classic name <-> underlying season_name bidirectionally.
+        // The URL uses the classic name (e.g. "Inaugural Classic") but series_results stores
+        // the regular season name (e.g. "Winter 2026") in season_name. We need both.
+        let resultsSeasonName = seasonName;
+        let classicNameForRoster = seasonName;
+        if (type === 'Classic') {
+            try {
+                const classicLookupRes = await client.query(`
+                    SELECT DISTINCT sr.season_name
+                    FROM series_results sr
+                    JOIN teams wt ON sr.winning_team_id = wt.team_id
+                    JOIN teams lt ON sr.losing_team_id = lt.team_id
+                    JOIN series s ON s.series_type = 'classic'
+                        AND (
+                            (s.series_home_user_id = wt.user_id AND s.series_away_user_id = lt.user_id)
+                            OR (s.series_home_user_id = lt.user_id AND s.series_away_user_id = wt.user_id)
+                        )
+                    JOIN classics c ON c.id = s.classic_id
+                    WHERE sr.style = 'Classic' AND c.name = $1
+                    LIMIT 1
+                `, [seasonName]);
+                if (classicLookupRes.rows.length > 0) {
+                    resultsSeasonName = classicLookupRes.rows[0].season_name;
+                } else {
+                    const reverseRes = await client.query(`
+                        SELECT DISTINCT c.name as classic_name
+                        FROM series_results sr
+                        JOIN teams wt ON sr.winning_team_id = wt.team_id
+                        JOIN teams lt ON sr.losing_team_id = lt.team_id
+                        JOIN series s ON s.series_type = 'classic'
+                            AND (
+                                (s.series_home_user_id = wt.user_id AND s.series_away_user_id = lt.user_id)
+                                OR (s.series_home_user_id = lt.user_id AND s.series_away_user_id = wt.user_id)
+                            )
+                        JOIN classics c ON c.id = s.classic_id
+                        WHERE sr.style = 'Classic' AND sr.season_name = $1
+                        LIMIT 1
+                    `, [seasonName]);
+                    if (reverseRes.rows.length > 0) classicNameForRoster = reverseRes.rows[0].classic_name;
+                }
+            } catch (_) { /* series table may not exist in some environments */ }
+        }
+
         // 2. Fetch Series Results (Done earlier to get Historical Name)
         const resultsQuery = `
             SELECT * FROM series_results
             WHERE season_name = $1
             ORDER BY date DESC
         `;
-        const allResultsRes = await client.query(resultsQuery, [seasonName]);
+        const allResultsRes = await client.query(resultsQuery, [resultsSeasonName]);
 
         // --- DETERMINE HISTORICAL IDENTITY FROM RESULTS ---
         let historicalName = null;
@@ -625,7 +678,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = ps.point_set_id
                 WHERE c.name = $1 AND r.user_id = $2 AND r.roster_type = 'classic'
             `;
-            const classicRosterRes = await client.query(classicRosterQuery, [seasonName, team.user_id]);
+            const classicRosterRes = await client.query(classicRosterQuery, [classicNameForRoster, team.user_id]);
 
             roster = classicRosterRes.rows.map(r => {
                 const player = {
@@ -640,9 +693,12 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     fielding_ratings: r.fielding_ratings,
                     image_url: r.image_url
                 };
+                // Re-derive position for pitchers (handles PITCHING_STAFF assignment)
                 if (r.control !== null) {
-                    if (!player.position || player.position.includes('/')) {
-                        player.position = r.ip > 3 ? 'SP' : 'RP';
+                    const derivedPos = Number(r.ip) > 3 ? 'SP' : 'RP';
+                    player.position = derivedPos;
+                    if (!player.assignment || player.assignment.includes('/') || player.assignment === 'PITCHING_STAFF') {
+                        player.assignment = derivedPos;
                     }
                 } else {
                     if (!player.position) player.position = r.assignment;
@@ -788,20 +844,26 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             }
         });
 
-        // Extract season-level awards from the spaceship/spoon result rows
+        // Extract season-level awards; classics use Silver Submarine instead of Golden Spaceship
         const spaceshipRow = allResultsRes.rows.find(r => r.round === 'Golden Spaceship');
         const spoonRow = allResultsRes.rows.find(r => r.round === 'Wooden Spoon');
+        const subRow = allResultsRes.rows.find(r => r.round === 'Silver Submarine');
 
         // Only surface awards for the team that won the corresponding trophy
         const teamWonChampionship = spaceshipRow && matchesFranchise(spaceshipRow.winning_team_name, spaceshipRow.winning_team_id, currentTeam, allTeams, mappedIds);
+        const teamWonSilverSub = subRow && matchesFranchise(subRow.winning_team_name, subRow.winning_team_id, currentTeam, allTeams, mappedIds);
         const teamHoldsSpoon = spoonRow && matchesFranchise(spoonRow.losing_team_name, spoonRow.losing_team_id, currentTeam, allTeams, mappedIds);
+
+        const awardSourceRow = teamWonChampionship ? spaceshipRow : (teamWonSilverSub ? subRow : null);
 
         res.json({
             team,
-            season: seasonName,
+            season: classicNameForRoster,
+            originalSeason: resultsSeasonName,
             isClassic: type === 'Classic',
-            mva: teamWonChampionship ? (spaceshipRow?.mva || null) : null,
-            lvsc: teamHoldsSpoon ? (spoonRow?.lvsc || null) : null,
+            mva: awardSourceRow ? (awardSourceRow.mva || null) : null,
+            lvsc: teamHoldsSpoon ? (spoonRow.lvsc || null) : null,
+            tgoaat: awardSourceRow ? (awardSourceRow.tgoaat || null) : null,
             roster,
             results
         });

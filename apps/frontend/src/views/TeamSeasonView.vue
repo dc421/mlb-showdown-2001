@@ -150,24 +150,20 @@ const seasonStats = computed(() => {
         const w = Number(g.game_wins) || 0;
         const l = Number(g.game_losses) || 0;
 
-        if (g.round === 'Regular Season' || g.round === 'Round Robin' || g.round === 'Semifinal' || g.round === 'Semi-Finals' || !g.round) {
-             regularWins += w;
-             regularLosses += l;
+        // For classic seasons all rounds count as the overall record (no postseason split)
+        const isRegularRound = g.round === 'Regular Season' || g.round === 'Round Robin' || g.round === 'Semifinal' || g.round === 'Semi-Finals' || !g.round;
+        if (isRegularRound || isClassic.value) {
+            regularWins += w;
+            regularLosses += l;
         } else {
-             // Postseason
-             postseasonWins += w;
-             postseasonLosses += l;
+            postseasonWins += w;
+            postseasonLosses += l;
         }
     });
 
     // Determine Rank
-    // 1st: Golden Spaceship Winner
-    // 2nd: Golden Spaceship Loser
-    // 4th: Wooden Spoon Winner (Winner of the spoon match avoids the spoon? Wait, context from prompt: "1 being Golden Spaceship winner... 5 being Wooden Spoon holder")
-    // Prompt said: "1st-5th place finish (1 being Golden Spaceship winner, 5 being Wooden Spoon holder)"
-    // "Golden Spaceship appearance is 2nd, wooden spoon appearance is 4th, otherwise 3rd"
-
     const spaceshipGame = results.find(g => g.round === 'Golden Spaceship');
+    const subGame = results.find(g => g.round === 'Silver Submarine');
     const spoonGame = results.find(g => g.round === 'Wooden Spoon');
 
     if (spaceshipGame) {
@@ -178,9 +174,15 @@ const seasonStats = computed(() => {
             rank = '2nd Place';
             accolade = 'Runner Up';
         }
+    } else if (subGame) {
+        if (subGame.result === 'W') {
+            rank = '1st Place';
+            accolade = 'Silver Submarine Winner';
+        } else {
+            rank = '2nd Place';
+            accolade = 'Silver Submarine Runner Up';
+        }
     } else if (spoonGame) {
-        // In Teams.js backend logic: "If we LOST the spoon match, we are the Spoon Winner (Holder)."
-        // Prompt says "Wooden Spoon holder" is 5th.
         if (spoonGame.result === 'L') {
             rank = '5th Place';
             accolade = 'Wooden Spoon Holder';
@@ -203,6 +205,7 @@ const teamDisplayName = computed(() => {
 
 const mvaPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.mva));
 const lvscPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.lvsc));
+const tgoaatPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.tgoaat));
 </script>
 
 <template>
@@ -216,24 +219,27 @@ const lvscPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.l
                 </div>
                 <div class="season-meta">
                     <h2>
-                        <RouterLink :to="`/league?season=${encodeURIComponent(seasonData.season)}`" class="league-link">
+                        <RouterLink v-if="!isClassic" :to="`/league?season=${encodeURIComponent(seasonData.originalSeason || seasonData.season)}`" class="league-link">
                             {{ seasonData.season }} Season
                         </RouterLink>
+                        <span v-if="isClassic">{{ seasonData.season }}</span>
                         <span v-if="isClassic" class="classic-tag">Classic</span>
                     </h2>
                     <div class="season-rank">
                          <!-- Trophy Icons -->
                          <img v-if="seasonStats.accolade === 'Golden Spaceship Winner'" :src="`${apiUrl}/images/golden_spaceship.png`" class="trophy-icon" alt="Golden Spaceship" />
+                         <img v-if="seasonStats.accolade === 'Silver Submarine Winner'" :src="`${apiUrl}/images/silver_submarine.png`" class="trophy-icon" alt="Silver Submarine" />
                          <img v-if="seasonStats.accolade === 'Wooden Spoon Holder'" :src="`${apiUrl}/images/wooden_spoon.png`" class="trophy-icon" alt="Wooden Spoon" />
 
                          <span class="rank-text">{{ seasonStats.rank }}</span>
                          <span class="record-text">
-                             ({{ seasonStats.regularWins }}-{{ seasonStats.regularLosses }}<span v-if="seasonStats.postseasonWins > 0 || seasonStats.postseasonLosses > 0">, {{ seasonStats.postseasonWins }}-{{ seasonStats.postseasonLosses }}</span>)
+                             ({{ seasonStats.regularWins }}-{{ seasonStats.regularLosses }}<span v-if="!isClassic && (seasonStats.postseasonWins > 0 || seasonStats.postseasonLosses > 0)">, {{ seasonStats.postseasonWins }}-{{ seasonStats.postseasonLosses }}</span>)
                          </span>
                     </div>
-                    <div class="season-awards" v-if="seasonData.mva || seasonData.lvsc">
+                    <div class="season-awards" v-if="seasonData.mva || seasonData.lvsc || seasonData.tgoaat">
                         <span v-if="seasonData.mva" class="award-item mva-item">MVA: {{ seasonData.mva }}</span>
                         <span v-if="seasonData.lvsc" class="award-item lvsc-item">LVSC: {{ seasonData.lvsc }}</span>
+                        <span v-if="seasonData.tgoaat" class="award-item tgoaat-item">TGOAAT: {{ seasonData.tgoaat }}</span>
                     </div>
                 </div>
             </div>
@@ -255,7 +261,7 @@ const lvscPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.l
                         </thead>
                         <tbody>
                             <tr v-for="player in displayRoster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row"
-                                :class="{'mva-winner': isAwardWinner(player, mvaPlayerName), 'lvsc-winner': isAwardWinner(player, lvscPlayerName)}">
+                                :class="{'mva-winner': isAwardWinner(player, mvaPlayerName), 'lvsc-winner': isAwardWinner(player, lvscPlayerName), 'tgoaat-winner': isAwardWinner(player, tgoaatPlayerName)}">
                                 <td class="pos-cell">
                                     {{ player.assignment === 'BENCH' ? 'B' : (player.assignment || player.position) }}
                                 </td>
@@ -442,13 +448,18 @@ const lvscPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.l
     font-weight: 500;
 }
 .mva-item { color: #c8960c; }
-.lvsc-item { color: #888; }
+.lvsc-item { color: #8b4513; }
 
 .mva-winner {
     background-color: rgba(255, 200, 0, 0.2) !important;
 }
 .lvsc-winner {
-    background-color: rgba(180, 180, 180, 0.2) !important;
+    background-color: rgba(139, 69, 19, 0.12) !important;
+}
+.tgoaat-item { color: #2e7d32; }
+.tgoaat-winner {
+    background-color: rgba(46, 125, 50, 0.15) !important;
+    outline: 1px solid rgba(46, 125, 50, 0.35);
 }
 
 /* HIGHLIGHTS */

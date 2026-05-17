@@ -174,8 +174,9 @@ function parseHistoricalIdentity(fullName) {
     const simpleAliases = ['San Diego', 'Fargo', 'NYDC', 'Redwood City', 'Chicago', 'NY South', 'New York South'];
     for (const alias of simpleAliases) {
         if (fullName.includes(alias)) {
-            // Return city override, keep name as is (by returning null for name)
-            return { city: alias, name: null };
+            // Resolve alias to current canonical franchise name so rosters always show the current name
+            const canonicalCity = Object.keys(ALIASES).find(franchise => ALIASES[franchise].includes(alias)) || alias;
+            return { city: canonicalCity, name: null };
         }
     }
 
