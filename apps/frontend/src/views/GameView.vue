@@ -498,6 +498,7 @@ const isAdvancementOrTagUpDecision = computed(() => {
 });
 
 const isAwaitingBaserunningDecision = computed(() => {
+    if (!isSwingResultVisible.value) return false;
     if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
         const type = gameStore.gameState.currentPlay.type;
         return (type === 'ADVANCE' || type === 'TAG_UP' || type === 'INFIELD_IN_CHOICE');
@@ -1477,6 +1478,21 @@ watch([() => atBatToDisplay.value?.pitcherAction, () => atBatToDisplay.value], (
     }
 });
 
+// Snapshot effectiveControl when swing result is revealed to freeze the value during
+// the hide window (the server adds the current inning to innings_pitched as part of
+// processing the pitch, which would otherwise change the displayed control number
+// before the result is visible).
+const pitcherControlSnapshot = ref({});
+watch(isSwingResultVisible, (visible) => {
+    if (visible && pitcherToDisplay.value) {
+        const p = pitcherToDisplay.value;
+        const ec = typeof p.effectiveControl === 'number' ? p.effectiveControl : p.control;
+        if (p.card_id && typeof ec === 'number') {
+            pitcherControlSnapshot.value = { ...pitcherControlSnapshot.value, [p.card_id]: ec };
+        }
+    }
+});
+
 // SIMUL: Auto-resolve single steals (no ROLL FOR THROW click needed)
 watch(() => gameStore.gameState?.pendingStealAttempt, (newVal, oldVal) => {
   // Reset hasRolledForSteal on new/different steal attempts
@@ -1656,6 +1672,15 @@ const pitcherToDisplay = computed(() => {
 
     const effectiveControl = pitcherToProcess.control - controlPenalty;
 
+    // While hiding the outcome, freeze the displayed control at the last revealed value so
+    // the fatigue badge doesn't update before the swing result is visible.
+    if (shouldHideCurrentAtBatOutcome.value && !hasBeenSubstituted) {
+        const snapshotControl = pitcherControlSnapshot.value[pitcherToProcess.card_id];
+        if (snapshotControl !== undefined) {
+            return { ...pitcherToProcess, effectiveControl: snapshotControl };
+        }
+    }
+
     return {
         ...pitcherToProcess,
         effectiveControl,
@@ -1801,7 +1826,8 @@ const seriesStatusText = computed(() => {
   const leadingTeamAbbr = homeWins > awayWins ? homeTeamAbbr : awayTeamAbbr;
   const leadingWins = Math.max(homeWins, awayWins);
   const trailingWins = Math.min(homeWins, awayWins);
-  return `Game ${gameNumber}, ${leadingTeamAbbr} leads ${leadingWins}-${trailingWins}`;
+  const verb = (isGameOver.value && !nextGameId.value) ? 'wins' : 'leads';
+  return `Game ${gameNumber}, ${leadingTeamAbbr} ${verb} ${leadingWins}-${trailingWins}`;
 });
 
 function proceedToNextGame() {
@@ -1816,9 +1842,10 @@ function proceedToNextGame() {
 
 const showSetLineupForNextGameButton = computed(() => {
   return isGameOver.value && nextGameId.value && !gameStore.nextLineupIsSet
-   && (isSwingResultVisible.value || isGameEndingSteal.value) 
+   && (isSwingResultVisible.value || isGameEndingSteal.value)
    && !(!showAutoThrowResult.value && gameStore.gameState?.throwRollResult)
    && !(gameStore.gameState?.pendingStealAttempt && amIDisplayDefensivePlayer.value)
+   && !(gameStore.gameState?.doublePlayDetails && !showThrowRollResult.value)
    ;
 });
  

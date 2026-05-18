@@ -17,6 +17,7 @@ const linescore = computed(() => {
   let homeRunsInInning = 0;
   let isTop = true;
   let inningMarkersFound = 0;
+  let closedHalfInTheLoop = false;
 
   gameStore.gameEventsToDisplay.forEach(event => {
     if (typeof event.log_message === 'string') {
@@ -38,6 +39,7 @@ const linescore = computed(() => {
           } else {
             scores.home.push(homeRunsInInning);
           }
+          closedHalfInTheLoop = true;
         }
         inningMarkersFound++;
         awayRunsInInning = 0;
@@ -53,7 +55,10 @@ const linescore = computed(() => {
 
   // Case 1: We are between half-innings. The final "inning change" event is hidden,
   // so we need to manually add the score for the inning that just concluded.
-  if (isBetweenHalfInnings) {
+  // Skip if the loop already closed the half-inning — this happens briefly during the
+  // optimistic readyForNext update when the transition marker becomes visible before
+  // the server clears the between-innings flags.
+  if (isBetweenHalfInnings && !closedHalfInTheLoop) {
     // The `isBetweenHalfInningsAway` flag means the away team just finished batting.
     if (state.isBetweenHalfInningsAway) {
       scores.away.push(awayRunsInInning);

@@ -979,7 +979,7 @@ thead th.sticky-col {
 }
 .mva-line { color: #c8960c; }
 .lvsc-line { color: #8b4513; }
-.tgaoot-line { color: #2e7d32; }
+.tgaoot-line { color: #757575; }
 
 .mva-winner {
     background-color: rgba(255, 200, 0, 0.25) !important;
@@ -990,8 +990,8 @@ thead th.sticky-col {
     outline: 1px solid rgba(139, 69, 19, 0.35);
 }
 .tgaoot-winner {
-    background-color: rgba(46, 125, 50, 0.15) !important;
-    outline: 1px solid rgba(46, 125, 50, 0.35);
+    background-color: rgba(120, 120, 120, 0.15) !important;
+    outline: 1px solid rgba(120, 120, 120, 0.35);
 }
 
 .classic-badge {

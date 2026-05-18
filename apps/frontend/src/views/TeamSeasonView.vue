@@ -456,10 +456,10 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
 .lvsc-winner {
     background-color: rgba(139, 69, 19, 0.12) !important;
 }
-.tgaoot-item { color: #2e7d32; }
+.tgaoot-item { color: #757575; }
 .tgaoot-winner {
-    background-color: rgba(46, 125, 50, 0.15) !important;
-    outline: 1px solid rgba(46, 125, 50, 0.35);
+    background-color: rgba(120, 120, 120, 0.15) !important;
+    outline: 1px solid rgba(120, 120, 120, 0.35);
 }
 
 /* HIGHLIGHTS */
