@@ -132,12 +132,12 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             }
         });
 
-        // Fetch MVA/LVSC/TGOAAT awards for all seasons this team participated in
+        // Fetch MVA/LVSC/TGAOOT awards for all seasons this team participated in
         const participatedSeasonNames = [...new Set(historyRes.rows.map(r => r.season_name))];
         const seasonAwards = {};
         if (participatedSeasonNames.length > 0) {
             const awardsRes = await client.query(`
-                SELECT season_name, mva, lvsc, tgoaat FROM series_results
+                SELECT season_name, mva, lvsc, tgaoot FROM series_results
                 WHERE (round IN ('Golden Spaceship', 'Wooden Spoon') OR (style = 'Classic' AND round = 'Silver Submarine'))
                 AND season_name = ANY($1::text[])
             `, [participatedSeasonNames]);
@@ -145,7 +145,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                 if (!seasonAwards[r.season_name]) seasonAwards[r.season_name] = {};
                 if (r.mva) seasonAwards[r.season_name].mva = r.mva;
                 if (r.lvsc) seasonAwards[r.season_name].lvsc = r.lvsc;
-                if (r.tgoaat) seasonAwards[r.season_name].tgoaat = r.tgoaat;
+                if (r.tgaoot) seasonAwards[r.season_name].tgaoot = r.tgaoot;
             });
         }
 
@@ -201,7 +201,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
                     teamNameUsed: s.teamNameUsed,
                     mva: wonTrophy ? (awards.mva || null) : null,
                     lvsc: holdsSpoon ? (awards.lvsc || null) : null,
-                    tgoaat: wonTrophy ? (awards.tgoaat || null) : null
+                    tgaoot: wonTrophy ? (awards.tgaoot || null) : null
                 };
             });
             return list;
@@ -863,7 +863,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             isClassic: type === 'Classic',
             mva: awardSourceRow ? (awardSourceRow.mva || null) : null,
             lvsc: teamHoldsSpoon ? (spoonRow.lvsc || null) : null,
-            tgoaat: awardSourceRow ? (awardSourceRow.tgoaat || null) : null,
+            tgaoot: awardSourceRow ? (awardSourceRow.tgaoot || null) : null,
             roster,
             results
         });

@@ -205,7 +205,7 @@ const teamDisplayName = computed(() => {
 
 const mvaPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.mva));
 const lvscPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.lvsc));
-const tgoaatPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.tgoaat));
+const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?.tgaoot));
 </script>
 
 <template>
@@ -236,10 +236,10 @@ const tgoaatPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
                              ({{ seasonStats.regularWins }}-{{ seasonStats.regularLosses }}<span v-if="!isClassic && (seasonStats.postseasonWins > 0 || seasonStats.postseasonLosses > 0)">, {{ seasonStats.postseasonWins }}-{{ seasonStats.postseasonLosses }}</span>)
                          </span>
                     </div>
-                    <div class="season-awards" v-if="seasonData.mva || seasonData.lvsc || seasonData.tgoaat">
+                    <div class="season-awards" v-if="seasonData.mva || seasonData.lvsc || seasonData.tgaoot">
                         <span v-if="seasonData.mva" class="award-item mva-item">MVA: {{ seasonData.mva }}</span>
                         <span v-if="seasonData.lvsc" class="award-item lvsc-item">LVSC: {{ seasonData.lvsc }}</span>
-                        <span v-if="seasonData.tgoaat" class="award-item tgoaat-item">TGOAAT: {{ seasonData.tgoaat }}</span>
+                        <span v-if="seasonData.tgaoot" class="award-item tgaoot-item">TGOAAT: {{ seasonData.tgaoot }}</span>
                     </div>
                 </div>
             </div>
@@ -261,7 +261,7 @@ const tgoaatPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
                         </thead>
                         <tbody>
                             <tr v-for="player in displayRoster" :key="player.card_id" @click="openPlayerCard(player)" class="player-row"
-                                :class="{'mva-winner': isAwardWinner(player, mvaPlayerName), 'lvsc-winner': isAwardWinner(player, lvscPlayerName), 'tgoaat-winner': isAwardWinner(player, tgoaatPlayerName)}">
+                                :class="{'mva-winner': isAwardWinner(player, mvaPlayerName), 'lvsc-winner': isAwardWinner(player, lvscPlayerName), 'tgaoot-winner': isAwardWinner(player, tgaootPlayerName)}">
                                 <td class="pos-cell">
                                     {{ player.assignment === 'BENCH' ? 'B' : (player.assignment || player.position) }}
                                 </td>
@@ -456,8 +456,8 @@ const tgoaatPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
 .lvsc-winner {
     background-color: rgba(139, 69, 19, 0.12) !important;
 }
-.tgoaat-item { color: #2e7d32; }
-.tgoaat-winner {
+.tgaoot-item { color: #2e7d32; }
+.tgaoot-winner {
     background-color: rgba(46, 125, 50, 0.15) !important;
     outline: 1px solid rgba(46, 125, 50, 0.35);
 }

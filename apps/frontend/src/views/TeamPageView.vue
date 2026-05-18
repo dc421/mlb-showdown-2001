@@ -136,7 +136,7 @@ const processedHistory = computed(() => {
             result,
             mvaName: extractAwardPlayerName(historyItem?.mva),
             lvscName: extractAwardPlayerName(historyItem?.lvsc),
-            tgoaatName: extractAwardPlayerName(historyItem?.tgoaat)
+            tgaootName: extractAwardPlayerName(historyItem?.tgaoot)
         };
     });
 });
@@ -176,7 +176,7 @@ const processedClassicHistory = computed(() => {
             result,
             mvaName: extractAwardPlayerName(historyItem?.mva),
             lvscName: extractAwardPlayerName(historyItem?.lvsc),
-            tgoaatName: extractAwardPlayerName(historyItem?.tgoaat)
+            tgaootName: extractAwardPlayerName(historyItem?.tgaoot)
         };
     });
 });
@@ -469,7 +469,7 @@ const teamDisplayName = computed(() => {
                                 {{ season.result }}
                                 <div v-if="season.mva" class="award-line mva-line">MVA: {{ season.mva }}</div>
                                 <div v-if="season.lvsc" class="award-line lvsc-line">LVSC: {{ season.lvsc }}</div>
-                                <div v-if="season.tgoaat" class="award-line tgoaat-line">TGOAAT: {{ season.tgoaat }}</div>
+                                <div v-if="season.tgaoot" class="award-line tgaoot-line">TGOAAT: {{ season.tgaoot }}</div>
                             </td>
                         </tr>
                     </tbody>
@@ -508,7 +508,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="(pos, idx) in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
                                 @click="openPlayerCard(row.batters[pos])"
                                 class="player-cell"
-                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName), 'tgoaat-winner': isAwardWinner(row.batters[pos], row.tgoaatName)}"
+                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[pos], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
                                     {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
@@ -518,7 +518,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="i in maxCols.bench" :key="`bench-${i}`"
                                 @click="openPlayerCard(row.batters[`Bench${i}`])"
                                 class="player-cell"
-                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName), 'tgoaat-winner': isAwardWinner(row.batters[`Bench${i}`], row.tgoaatName)}"
+                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[`Bench${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
                                     {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
@@ -580,7 +580,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="(pos, idx) in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
                                 @click="openPlayerCard(row.pitchers[pos])"
                                 class="player-cell"
-                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName), 'tgoaat-winner': isAwardWinner(row.pitchers[pos], row.tgoaatName)}"
+                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[pos], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
                                     {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
@@ -590,7 +590,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="i in maxCols.rp" :key="`rp-${i}`"
                                 @click="openPlayerCard(row.pitchers[`RP${i}`])"
                                 class="player-cell"
-                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName), 'tgoaat-winner': isAwardWinner(row.pitchers[`RP${i}`], row.tgoaatName)}"
+                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[`RP${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
                                     {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
@@ -652,7 +652,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="(pos, idx) in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
                                 @click="openPlayerCard(row.batters[pos])"
                                 class="player-cell"
-                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName), 'tgoaat-winner': isAwardWinner(row.batters[pos], row.tgoaatName)}"
+                                :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[pos], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
                                     {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
@@ -662,7 +662,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="i in maxCols.bench" :key="`bench-${i}`"
                                 @click="openPlayerCard(row.batters[`Bench${i}`])"
                                 class="player-cell"
-                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName), 'tgoaat-winner': isAwardWinner(row.batters[`Bench${i}`], row.tgoaatName)}"
+                                :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[`Bench${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
                                     {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
@@ -705,7 +705,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="(pos, idx) in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
                                 @click="openPlayerCard(row.pitchers[pos])"
                                 class="player-cell"
-                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName), 'tgoaat-winner': isAwardWinner(row.pitchers[pos], row.tgoaatName)}"
+                                :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[pos], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
                                     {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
@@ -715,7 +715,7 @@ const teamDisplayName = computed(() => {
                             <td v-for="i in maxCols.rp" :key="`rp-${i}`"
                                 @click="openPlayerCard(row.pitchers[`RP${i}`])"
                                 class="player-cell"
-                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName), 'tgoaat-winner': isAwardWinner(row.pitchers[`RP${i}`], row.tgoaatName)}"
+                                :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[`RP${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
                                     {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
@@ -979,7 +979,7 @@ thead th.sticky-col {
 }
 .mva-line { color: #c8960c; }
 .lvsc-line { color: #8b4513; }
-.tgoaat-line { color: #2e7d32; }
+.tgaoot-line { color: #2e7d32; }
 
 .mva-winner {
     background-color: rgba(255, 200, 0, 0.25) !important;
@@ -989,7 +989,7 @@ thead th.sticky-col {
     background-color: rgba(139, 69, 19, 0.15) !important;
     outline: 1px solid rgba(139, 69, 19, 0.35);
 }
-.tgoaat-winner {
+.tgaoot-winner {
     background-color: rgba(46, 125, 50, 0.15) !important;
     outline: 1px solid rgba(46, 125, 50, 0.35);
 }

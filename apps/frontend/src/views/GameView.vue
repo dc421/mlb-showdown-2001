@@ -1534,9 +1534,19 @@ const batterToDisplay = computed(() => {
         return null;
     }
 
+    // If I've already clicked Next Hitter (optimistic update) but the socket hasn't
+    // confirmed the new inning yet, keep showing the last batter. Without this,
+    // atBatToDisplay switches to currentAtBat (new inning) while isDisplayTopInning
+    // still reflects the old inning, causing the two cards to momentarily swap.
+    if (gameStore.amIReadyForNext &&
+        gameStore.isEffectivelyBetweenHalfInnings &&
+        !gameStore.gameState?.inningEndedOnCaughtStealing) {
+        return gameStore.gameState.lastCompletedAtBat?.batter;
+    }
+
     // Opponent has advanced but I haven't — show previous at-bat's batter
     if (!gameStore.amIReadyForNext &&
-        (gameStore.opponentReadyForNext || 
+        (gameStore.opponentReadyForNext ||
          (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext))) &&
         !(!!gameStore.gameState.lastStealResult && !gameStore.gameState.pendingStealAttempt && !gameStore.gameState.inningEndedOnCaughtStealing && !gameStore.opponentReadyForNext)) {
         return gameStore.gameState.lastCompletedAtBat?.batter;
@@ -1579,8 +1589,15 @@ const pitcherToDisplay = computed(() => {
     if (!gameStore.gameState) return null;
 
     let basePitcher = null;
-    
-    if (!gameStore.amIReadyForNext && 
+
+    // Mirror the same guard as batterToDisplay: if I've clicked Next Hitter but the
+    // socket hasn't confirmed yet, keep the last pitcher to prevent the card swap.
+    if (gameStore.amIReadyForNext &&
+        gameStore.isEffectivelyBetweenHalfInnings &&
+        !gameStore.gameState?.inningEndedOnCaughtStealing &&
+        !isStealAttemptInProgress.value) {
+        basePitcher = gameStore.gameState.lastCompletedAtBat?.pitcher;
+    } else if (!gameStore.amIReadyForNext &&
           (gameStore.opponentReadyForNext || (gameStore.isEffectivelyBetweenHalfInnings && !(!gameStore.opponentReadyForNext && !gameStore.amIReadyForNext)))
           && !(isStealAttemptInProgress.value && !gameStore.gameState.inningEndedOnCaughtStealing)) {
         basePitcher = gameStore.gameState.lastCompletedAtBat.pitcher;
