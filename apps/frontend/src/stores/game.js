@@ -196,6 +196,8 @@ async function resolveDefensiveThrow(gameId, throwTo) {
 async function submitPitch(gameId, action = null) {
   console.log('2. Game Store: submitPitch action was called.');
 
+  isSubmittingPitch.value = true;
+
   // Optimistic Update
   if (gameState.value && gameState.value.currentAtBat) {
       const optimisticAction = action || 'pitch';
@@ -210,7 +212,7 @@ async function submitPitch(gameId, action = null) {
   }
 
   const auth = useAuthStore();
-  if (!auth.token) return;
+  if (!auth.token) { isSubmittingPitch.value = false; return; }
   try {
     await apiClient(`/api/games/${gameId}/pitch`, {
       method: 'POST',
@@ -218,16 +220,19 @@ async function submitPitch(gameId, action = null) {
     });
     await fetchGame(gameId);
   } catch (error) { console.error('Error submitting pitch:', error); }
+  finally { isSubmittingPitch.value = false; }
 }
 
 async function submitAction(gameId, action) {
+  isSubmittingAction.value = true;
+
   // Optimistic Update
   if (gameState.value && gameState.value.currentAtBat) {
       gameState.value.currentAtBat.batterAction = action;
   }
 
   const auth = useAuthStore();
-  if (!auth.token) return;
+  if (!auth.token) { isSubmittingAction.value = false; return; }
   try {
     await apiClient(`/api/games/${gameId}/set-action`, {
       method: 'POST',
@@ -235,6 +240,7 @@ async function submitAction(gameId, action) {
     });
     await fetchGame(gameId);
   } catch (error) { console.error("Error setting offensive action:", error); }
+  finally { isSubmittingAction.value = false; }
 }
 
 async function submitSwing(gameId, action = null) {
@@ -404,6 +410,8 @@ async function resetRolls(gameId) {
   const isOutcomeHidden = ref(false);
   const isSwingResultVisible = ref(false);
   const isStealResultVisible = ref(false);
+  const isSubmittingPitch = ref(false);
+  const isSubmittingAction = ref(false);
   const isDraftActive = ref(false);
   const isClassicActive = ref(false);
   const isLeagueActive = ref(false);
@@ -1067,6 +1075,8 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     isOutcomeHidden,
     isSwingResultVisible,
     isStealResultVisible,
+    isSubmittingPitch,
+    isSubmittingAction,
     isDraftActive,
     isClassicActive,
     isLeagueActive,

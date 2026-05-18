@@ -997,6 +997,7 @@ return isGameOver.value && isStealFinish && !isSwingResultVisible.value;
 });
 
 const showRollForPitchButton = computed(() => {
+  if (gameStore.isSubmittingPitch) return false;
   if (isGameOver.value && isSwingResultVisible.value) return false;
   if (isGameOver.value && isGameEndingSteal.value) return false;
   const result = amIDisplayDefensivePlayer.value && !shouldHideCurrentAtBatOutcome.value && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext)) && !(gameStore.gameState.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs > 0);
@@ -1004,6 +1005,7 @@ const showRollForPitchButton = computed(() => {
 });
 
 const showSwingAwayButton = computed(() => {
+  if (gameStore.isSubmittingAction) return false;
   if (isGameOver.value && isSwingResultVisible.value) return false;
   if (isGameOver.value && isGameEndingSteal.value) return false;
   return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && !shouldHideCurrentAtBatOutcome.value && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !gameStore.gameState.pendingStealAttempt && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);

@@ -127,6 +127,14 @@ router.get('/', authenticateToken, async (req, res) => {
             }
 
             // --- NEW: Fetch Historical Identity from Series Results ---
+            // Only apply alias→historical-name overrides for completed seasons; an ongoing season
+            // (no Golden Spaceship yet) should keep canonical team names.
+            const completedCheck = await pool.query(
+                "SELECT 1 FROM series_results WHERE season_name = $1 AND round = 'Golden Spaceship' LIMIT 1",
+                [season]
+            );
+            const isSeasonCompleted = completedCheck.rows.length > 0;
+
             const identityQuery = `
                 SELECT name, id FROM (
                     SELECT winning_team_name as name, winning_team_id as id FROM series_results WHERE season_name = $1
@@ -145,21 +153,23 @@ router.get('/', authenticateToken, async (req, res) => {
                      // Update Logo
                      t.logo_url = getLogoForTeam(row.name, t.logo_url);
 
-                     // Update Name/City
-                     const identity = parseHistoricalIdentity(row.name);
-                     if (identity) {
-                         t.city = identity.city;
-                         if (identity.name) t.name = identity.name;
-                         t.hasStrongIdentity = true;
-                         t.hasHistoricalIdentity = true;
+                     // Update Name/City only for completed seasons
+                     if (isSeasonCompleted) {
+                         const identity = parseHistoricalIdentity(row.name);
+                         if (identity) {
+                             t.city = identity.city;
+                             if (identity.name) t.name = identity.name;
+                             t.hasStrongIdentity = true;
+                             t.hasHistoricalIdentity = true;
 
-                         // Recompute full display name
-                         const format = t.display_format || '{city} {name}';
-                         t.full_display_name = format.replace('{city}', t.city).replace('{name}', t.name);
-                     } else if (!t.hasStrongIdentity && row.name && row.name !== `${t.city} ${t.name}` && row.name !== t.city) {
-                         // Only apply fallback if no strong identity found yet
-                         t.full_display_name = row.name;
-                         t.hasHistoricalIdentity = true;
+                             // Recompute full display name
+                             const format = t.display_format || '{city} {name}';
+                             t.full_display_name = format.replace('{city}', t.city).replace('{name}', t.name);
+                         } else if (!t.hasStrongIdentity && row.name && row.name !== `${t.city} ${t.name}` && row.name !== t.city) {
+                             // Only apply fallback if no strong identity found yet
+                             t.full_display_name = row.name;
+                             t.hasHistoricalIdentity = true;
+                         }
                      }
                 }
             });
