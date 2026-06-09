@@ -231,11 +231,11 @@ router.get('/', authenticateToken, async (req, res) => {
                         position: row.position,
                         points: row.points,
                         assignment: row.position,
-                        // Add display properties
                         display_name: row.display_name || row.card_name || row.player_name,
                         control: row.control,
                         ip: row.ip,
                         fielding_ratings: row.fielding_ratings,
+                        image_url: row.image_url,
                         is_starter: row.position !== 'BENCH' && row.position !== 'PITCHING_STAFF'
                      };
 

@@ -81,7 +81,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                     teamId: parseInt(tid),
                     wins: t.wins,
                     losses: t.losses,
-                    winPct: total > 0 ? t.wins / total : 0
+                    winPct: total > 0 ? t.wins / total : 0.5
                 };
             });
             sTeams.sort((a, b) => b.winPct - a.winPct || b.wins - a.wins);
@@ -175,7 +175,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
 
         const standings = Object.values(franchiseStats).map(t => {
             const totalGames = t.wins + t.losses;
-            const winPct = totalGames > 0 ? (t.wins / totalGames) : 0;
+            const winPct = totalGames > 0 ? (t.wins / totalGames) : 0.5;
             const avgFinish = t.seasonsPlayed > 0 ? (t.totalRank / t.seasonsPlayed).toFixed(1) : '-';
 
             // Fix Name Display for Franchise (Use Current City Only)
@@ -367,7 +367,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
 
         const standings = teams.map(team => {
             const totalGames = team.wins + team.losses;
-            const winPct = totalGames > 0 ? (team.wins / totalGames) : 0;
+            const winPct = totalGames > 0 ? (team.wins / totalGames) : 0.5;
             return {
                 ...team,
                 winPct: winPct,
