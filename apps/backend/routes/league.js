@@ -429,6 +429,8 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                     season: r.season_name,
                     winner_name: winner.displayName,
                     loser_name: loser.displayName,
+                    winner_city: winner.city || winner.displayName,
+                    loser_city: loser.city || loser.displayName,
                     winner_logo: winner.logo_url,
                     loser_logo: loser.logo_url,
                     score: hasScore ? `${r.winning_score}-${r.losing_score}` : null,

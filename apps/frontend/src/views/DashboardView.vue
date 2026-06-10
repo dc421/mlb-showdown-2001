@@ -231,10 +231,7 @@ async function switchRosterTab(tab) {
         const original = authStore.pointSets.find(ps => ps.name === 'Original Pts');
         if (original) targetSetId = original.point_set_id;
     } else {
-        // League: Prefer "Upcoming Season"
         targetSetId = authStore.selectedPointSetId;
-        const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
-        if (upcoming) targetSetId = upcoming.point_set_id;
     }
 
     // Reload roster for the new tab, passing targetSetId so it fetches cards immediately

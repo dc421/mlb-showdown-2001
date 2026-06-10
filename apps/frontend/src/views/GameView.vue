@@ -672,8 +672,17 @@ const leftPanelData = computed(() => {
         team: teamData,
         lineup: lineupData?.battingOrder,
         pitcher: pitcher,
-        bullpen: benchAndBullpen.filter(p => p.displayPosition === 'RP' || p.card_id === lineupData?.startingPitcher?.card_id),
-        bench: benchAndBullpen.filter(p => p.control === null),
+        bullpen: benchAndBullpen
+            .filter(p => p.displayPosition === 'RP' || p.card_id === lineupData?.startingPitcher?.card_id)
+            .sort((a, b) => {
+                const aIsSP = a.displayPosition === 'SP';
+                const bIsSP = b.displayPosition === 'SP';
+                if (aIsSP !== bIsSP) return aIsSP ? -1 : 1;
+                return (b.points || 0) - (a.points || 0);
+            }),
+        bench: benchAndBullpen
+            .filter(p => p.control === null)
+            .sort((a, b) => (b.points || 0) - (a.points || 0)),
         colors: colors,
         isMyTeam: true,
         teamKey: gameStore.myTeam
@@ -692,8 +701,17 @@ const rightPanelData = computed(() => {
         team: teamData,
         lineup: lineupData?.battingOrder,
         pitcher: pitcher,
-        bullpen: benchAndBullpen.filter(p => p.displayPosition === 'RP' || p.card_id === lineupData?.startingPitcher?.card_id),
-        bench: benchAndBullpen.filter(p => p.control === null),
+        bullpen: benchAndBullpen
+            .filter(p => p.displayPosition === 'RP' || p.card_id === lineupData?.startingPitcher?.card_id)
+            .sort((a, b) => {
+                const aIsSP = a.displayPosition === 'SP';
+                const bIsSP = b.displayPosition === 'SP';
+                if (aIsSP !== bIsSP) return aIsSP ? -1 : 1;
+                return (b.points || 0) - (a.points || 0);
+            }),
+        bench: benchAndBullpen
+            .filter(p => p.control === null)
+            .sort((a, b) => (b.points || 0) - (a.points || 0)),
         colors: colors,
         isMyTeam: false,
         teamKey: gameStore.myTeam === 'home' ? 'away' : 'home'

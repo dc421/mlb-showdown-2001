@@ -17,6 +17,7 @@ const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { verifyConnection } = require('./services/emailService');
 const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
+const { mapSeasonToPointSet } = require('./utils/seasonUtils');
 
 function commitTransientPlayerIds(state) {
     for (const teamKey of ['homeTeam', 'awayTeam']) {
@@ -983,18 +984,47 @@ app.get('/api/my-roster', authenticateToken, async (req, res) => {
         if (rosterResult.rows.length === 0) {
             return res.json(null);
         }
-        
+
         const roster = rosterResult.rows[0];
         let cardsResult;
 
-        if (point_set_id) {
+        // For league rosters, apply the same "current season" override logic as /api/league:
+        // if the latest played season has no historical rosters yet (pre-rollover) or a draft is active,
+        // use "Upcoming Season" points so the dashboard matches the league page.
+        let effectivePointSetId = point_set_id;
+        if (rosterType === 'league' && point_set_id) {
+            const [draftRes, latestSeasonRes] = await Promise.all([
+                pool.query('SELECT 1 FROM draft_state WHERE is_active = true LIMIT 1'),
+                pool.query('SELECT season_name FROM series_results ORDER BY date DESC LIMIT 1')
+            ]);
+            const isDraftActive = draftRes.rows.length > 0;
+            const latestSeason = latestSeasonRes.rows[0]?.season_name;
+            if (isDraftActive) {
+                const upcomingRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
+                if (upcomingRes.rows.length > 0) effectivePointSetId = upcomingRes.rows[0].point_set_id;
+            } else if (latestSeason) {
+                const histCheck = await pool.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [latestSeason]);
+                if (histCheck.rows.length === 0) {
+                    // Pre-rollover: use Upcoming Season
+                    const upcomingRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
+                    if (upcomingRes.rows.length > 0) effectivePointSetId = upcomingRes.rows[0].point_set_id;
+                } else {
+                    // Completed season: resolve point set the same way the league page does
+                    const psName = mapSeasonToPointSet(latestSeason);
+                    const psRes = await pool.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
+                    if (psRes.rows.length > 0) effectivePointSetId = psRes.rows[0].point_set_id;
+                }
+            }
+        }
+
+        if (effectivePointSetId) {
             cardsResult = await pool.query(
                 `SELECT cp.*, rc.is_starter, rc.assignment, ppv.points
                  FROM cards_player cp
                  JOIN roster_cards rc ON cp.card_id = rc.card_id
                  LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
                  WHERE rc.roster_id = $1`,
-                [roster.roster_id, point_set_id]
+                [roster.roster_id, effectivePointSetId]
             );
         } else {
             cardsResult = await pool.query(

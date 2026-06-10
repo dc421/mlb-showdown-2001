@@ -394,9 +394,8 @@ onMounted(async () => {
                              {{ result.round.toUpperCase() }}
                          </div>
                          <div class="finale-content-row">
-                             <div class="finale-trophy-column">
-                                 <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
-                                 <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
+                             <div class="finale-logo-column">
+                                 <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="winner-logo-lg" />
                              </div>
                              <div class="finale-details-column">
                                  <div class="finale-winner-line">
@@ -408,8 +407,9 @@ onMounted(async () => {
                                      <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
                                  </div>
                              </div>
-                             <div class="finale-logo-column">
-                                 <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="winner-logo-lg" />
+                             <div class="finale-trophy-column">
+                                 <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
+                                 <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
                              </div>
                          </div>
                     </div>
@@ -519,8 +519,8 @@ onMounted(async () => {
                              {{ result.round.toUpperCase() }} - LAST PLACE
                          </div>
                          <div class="finale-content-row">
-                             <div class="finale-trophy-column">
-                                 <img :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
+                             <div class="finale-logo-column">
+                                 <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="winner-logo-lg" />
                              </div>
                              <div class="finale-details-column">
                                  <div class="finale-winner-line">
@@ -531,8 +531,8 @@ onMounted(async () => {
                                      <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
                                  </div>
                              </div>
-                             <div class="finale-logo-column">
-                                 <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="winner-logo-lg" />
+                             <div class="finale-trophy-column">
+                                 <img :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
                              </div>
                          </div>
                     </div>
@@ -641,9 +641,9 @@ onMounted(async () => {
                                     <span class="history-logo-wrap">
                                         <img v-if="series.winner_logo" :src="getLogoUrl(series.winner_logo)" class="history-team-logo" />
                                     </span>
-                                    <span class="history-winner">{{ series.winner_name }}</span>
+                                    <span class="history-winner">{{ series.winner_city || series.winner_name }}</span>
                                     <span class="history-score">{{ series.score }}</span>
-                                    <span class="history-loser">{{ series.loser_name }}</span>
+                                    <span class="history-loser">{{ series.loser_city || series.loser_name }}</span>
                                 </div>
                             </div>
                         </td>
