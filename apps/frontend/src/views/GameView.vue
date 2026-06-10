@@ -5,12 +5,18 @@ import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { useAuthStore } from '@/stores/auth';
 import { socket } from '@/services/socket';
+import { sessionExpiredFlag } from '@/services/api';
 import { getContrastingTextColor } from '@/utils/colors';
 import PlayerCard from '@/components/PlayerCard.vue';
 import BaseballDiamond from '@/components/BaseballDiamond.vue';
 import ThrowRollResult from '@/components/ThrowRollResult.vue';
 
 const showSubModal = ref(false);
+const showSessionExpiredModal = ref(false);
+const reauthEmail = ref('');
+const reauthPassword = ref('');
+const reauthError = ref('');
+const isReauthenticating = ref(false);
 const route = useRoute();
 const router = useRouter();
 const gameStore = useGameStore();
@@ -2305,11 +2311,60 @@ function handleVisibilityChange() {
     gameStore.fetchGame(gameId);
   }
 }
+
+watch(sessionExpiredFlag, (expired) => {
+  if (expired) {
+    reauthEmail.value = authStore.user?.email || '';
+    reauthPassword.value = '';
+    reauthError.value = '';
+    showSessionExpiredModal.value = true;
+  }
+});
+
+async function handleReauthenticate() {
+  reauthError.value = '';
+  isReauthenticating.value = true;
+  const result = await authStore.reauthenticate(reauthEmail.value, reauthPassword.value);
+  isReauthenticating.value = false;
+  if (result.success) {
+    showSessionExpiredModal.value = false;
+  } else {
+    reauthError.value = result.message || 'Login failed.';
+  }
+}
 </script>
 
 <template>
   <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
     <div @click.stop><PlayerCard :player="selectedCard" /></div>
+  </div>
+
+  <!-- SESSION EXPIRED MODAL -->
+  <div v-if="showSessionExpiredModal" class="modal-overlay">
+    <div class="session-expired-modal" @click.stop>
+      <h3>Session Expired</h3>
+      <p>Your session has expired. Log back in to continue the game.</p>
+      <div class="reauth-form">
+        <input
+          v-model="reauthEmail"
+          type="email"
+          placeholder="Email"
+          :disabled="isReauthenticating"
+          @keyup.enter="handleReauthenticate"
+        />
+        <input
+          v-model="reauthPassword"
+          type="password"
+          placeholder="Password"
+          :disabled="isReauthenticating"
+          @keyup.enter="handleReauthenticate"
+        />
+        <p v-if="reauthError" class="reauth-error">{{ reauthError }}</p>
+        <button @click="handleReauthenticate" :disabled="isReauthenticating">
+          {{ isReauthenticating ? 'Logging in...' : 'Log In' }}
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- CONNECTION ERROR BANNER -->
@@ -2918,6 +2973,38 @@ function handleVisibilityChange() {
 .loading-container { text-align: center; padding: 5rem; font-size: 1.5rem; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal-overlay > div { max-width: 320px; }
+
+.session-expired-modal {
+  background: #1e2530;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 24px;
+  width: 320px;
+  color: #fff;
+  text-align: center;
+}
+.session-expired-modal h3 { margin: 0 0 8px; font-size: 1.1rem; }
+.session-expired-modal p { margin: 0 0 16px; color: #aaa; font-size: 0.85rem; }
+.reauth-form { display: flex; flex-direction: column; gap: 10px; }
+.reauth-form input {
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #111;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.reauth-form button {
+  padding: 9px;
+  border-radius: 4px;
+  border: none;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.reauth-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+.reauth-error { color: #f87171; font-size: 0.8rem; margin: 0; }
 
 .lineup-header { display: flex; align-items: center; gap: 0.75rem; margin-top: 0; }
 .lineup-header span:first-of-type { flex-grow: 1; }

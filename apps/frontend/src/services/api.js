@@ -1,13 +1,17 @@
 // apps/frontend/src/services/api.js
+import { ref } from 'vue';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Helper to handle authentication errors
+// Reactive flag set when a 401 is received. Components watch this to show
+// an inline re-login prompt instead of navigating away mid-session.
+export const sessionExpiredFlag = ref(false);
+
 function handleAuthError() {
-    console.warn('Authentication failed (401). Redirecting to login.');
+    console.warn('Authentication failed (401). Session expired.');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    sessionExpiredFlag.value = true;
 }
 
 /**
@@ -40,13 +44,16 @@ export async function apiClient(endpoint, options = {}) {
     // Construct full URL if endpoint is relative
     const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
 
+    // Don't make further calls while session recovery is pending.
+    if (sessionExpiredFlag.value) {
+        return Promise.reject(new Error('Session expired'));
+    }
+
     try {
         const response = await fetch(url, config);
 
         if (response.status === 401) {
             handleAuthError();
-            // We return a rejected promise to stop further processing in the caller
-            // (though the page will redirect shortly).
             return Promise.reject(new Error('Authentication failed'));
         }
 

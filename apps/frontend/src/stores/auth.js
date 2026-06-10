@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import router from '@/router'
-import { apiClient } from '../services/api' // Import the new service
+import { apiClient, sessionExpiredFlag } from '../services/api'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null);
@@ -78,13 +78,42 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // When a 401 clears the session, kill the token so action guards fire correctly.
+  // Keep user.value intact so game UI display continues working during recovery.
+  watch(sessionExpiredFlag, (expired) => {
+    if (expired) {
+      token.value = null;
+    }
+  });
+
   function logout() {
     token.value = null;
     user.value = null;
     myRoster.value = null;
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionExpiredFlag.value = false;
     router.push('/login');
+  }
+
+  async function reauthenticate(email, password) {
+    try {
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+
+      setToken(data.token);
+      const payload = JSON.parse(atob(data.token.split('.')[1]));
+      setUser(payload);
+      sessionExpiredFlag.value = false;
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   }
 
   async function fetchDraftStatus() {
@@ -374,7 +403,7 @@ async function submitLineup(gameId, lineupData) {
   return { 
     token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
     pointSets, selectedPointSetId, isFetchingRoster, isFetchingGames, isFetchingOpenGames,
-    isAuthenticated, login, register, logout, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
+    isAuthenticated, login, register, logout, reauthenticate, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
     fetchPointSets, isDraftActive, fetchDraftStatus, hideGame, bulkHideGames

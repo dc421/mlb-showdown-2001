@@ -378,6 +378,20 @@ async function fetchAvailablePlayers() {
     availablePlayers.value = authStore.allPlayers;
 }
 
+function openRemovalCard(removal) {
+    const fullPlayer = availablePlayers.value.find(p => p.card_id === removal.card_id);
+    if (fullPlayer) {
+        selectedCard.value = fullPlayer;
+    } else if (removal.card_id) {
+        selectedCard.value = {
+            card_id: removal.card_id,
+            name: removal.player_name,
+            displayName: removal.player_name,
+            image_url: `/images/${removal.card_id}.jpg`
+        };
+    }
+}
+
 function goToRosterBuilder() {
     router.push('/roster-builder');
 }
@@ -482,7 +496,7 @@ onUnmounted(() => {
                 <div class="player-list">
                     <div v-for="player in filteredPlayers" :key="player.card_id" class="player-card-row" :class="{ 'rostered': leagueRosterIds.has(player.card_id) }">
                         <div class="player-info-compact">
-                            <span class="p-name">{{ player.displayName }}</span>
+                            <span class="p-name clickable-name" @click="selectedCard = player">{{ player.displayName }}</span>
                             <span class="p-meta">{{ player.points }} pts</span>
                             <span class="view-icon" @click.stop="selectedCard = player" title="View Card">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -576,7 +590,7 @@ onUnmounted(() => {
                             </thead>
                             <tbody>
                                 <tr v-for="p in players" :key="p.player_name + p.card_id" class="player-row">
-                                    <td class="name-cell">{{ p.player_name }}</td>
+                                    <td class="name-cell clickable-name" @click="openRemovalCard(p)">{{ p.player_name }}</td>
                                     <td>{{ p.position }}</td>
                                     <td>{{ p.points }}</td>
                                 </tr>
@@ -668,6 +682,8 @@ onUnmounted(() => {
 .player-row { transition: background-color 0.2s; }
 .player-row:hover { background-color: #e2e6ea; }
 .name-cell { font-weight: normal; }
+.clickable-name { cursor: pointer; }
+.clickable-name:hover { color: #007bff; text-decoration: underline; }
 
 .pick-cell { }
 .pick-content { display: flex; align-items: center; gap: 8px; }
