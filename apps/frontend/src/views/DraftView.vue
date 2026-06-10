@@ -116,8 +116,8 @@ const displayRows = computed(() => {
                     pick_number: h.pick_number,
                     team_name: h.team_name,
                     player_name: name,
+                    card_id: h.card_id,
                     action: h.action,
-                    // Show logo if available and action is not DROPPED
                     team_logo: (h.action === 'DROPPED') ? null : getLogoForTeam(h.team_name, h.logo_url)
                 };
             });
@@ -190,8 +190,8 @@ const displayRows = computed(() => {
                      pick_number: i,
                      team_name: h.city || h.team_name,
                      player_name: name,
+                     card_id: h.card_id,
                      action: h.action,
-                     // Only show logo if not a DROP
                      team_logo: (h.action === 'DROPPED') ? null : getLogoForTeam(h.city || h.team_name, teamLogo)
                  });
             });
@@ -561,7 +561,10 @@ onUnmounted(() => {
                                 <img v-if="item.team_logo" :src="item.team_logo" class="table-team-logo" />
                             </div>
                         </td>
-                        <td>{{ item.player_name }}</td>
+                        <td>
+                            <span v-if="item.card_id" class="clickable-name" @click="openRemovalCard({card_id: item.card_id, player_name: item.player_name})">{{ item.player_name }}</span>
+                            <span v-else>{{ item.player_name }}</span>
+                        </td>
                         <td>{{ item.team_name }}</td>
                     </tr>
                 </tbody>

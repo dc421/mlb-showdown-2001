@@ -365,6 +365,170 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
             }
         });
 
+        // Monte Carlo playoff odds for incomplete seasons
+        if (!isPostseasonSet) {
+            // Build baseline head-to-head from completed regular-season games
+            const baseH2H = {};
+            seriesResults.forEach(s => {
+                if (s.winning_score === null) return;
+                if (['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(s.round)) return;
+                const w = findTeamForRecord(s.winning_team_name, s.winning_team_id, currentTeams);
+                const l = findTeamForRecord(s.losing_team_name, s.losing_team_id, currentTeams);
+                if (w.name && (w.name.includes('Phantoms') || w.displayName.includes('Phantoms'))) return;
+                if (l.name && (l.name.includes('Phantoms') || l.displayName.includes('Phantoms'))) return;
+                const wKey = w.team_id ? `ID-${w.team_id}` : `NAME-${w.name}`;
+                const lKey = l.team_id ? `ID-${l.team_id}` : `NAME-${l.name}`;
+                if (!teamStats[wKey] || !teamStats[lKey]) return;
+                if (!baseH2H[wKey]) baseH2H[wKey] = {};
+                if (!baseH2H[lKey]) baseH2H[lKey] = {};
+                if (!baseH2H[wKey][lKey]) baseH2H[wKey][lKey] = { wins: 0, losses: 0 };
+                if (!baseH2H[lKey][wKey]) baseH2H[lKey][wKey] = { wins: 0, losses: 0 };
+                baseH2H[wKey][lKey].wins += s.winning_score;
+                baseH2H[wKey][lKey].losses += s.losing_score;
+                baseH2H[lKey][wKey].wins += s.losing_score;
+                baseH2H[lKey][wKey].losses += s.winning_score;
+            });
+
+            const unplayedGames = seriesResults
+                .filter(s =>
+                    s.winning_score === null &&
+                    !['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(s.round)
+                )
+                .map(s => {
+                    const t1 = findTeamForRecord(s.winning_team_name, s.winning_team_id, currentTeams);
+                    const t2 = findTeamForRecord(s.losing_team_name, s.losing_team_id, currentTeams);
+                    return {
+                        t1Key: t1.team_id ? `ID-${t1.team_id}` : `NAME-${t1.name}`,
+                        t2Key: t2.team_id ? `ID-${t2.team_id}` : `NAME-${t2.name}`
+                    };
+                })
+                .filter(g => teamStats[g.t1Key] && teamStats[g.t2Key]);
+
+            // Returns h2h win% for `k` within `group` using simH2H
+            const h2hPct = (k, group, simH2H) => {
+                let wins = 0, losses = 0;
+                for (const opp of group) {
+                    if (opp === k) continue;
+                    const r = simH2H[k] && simH2H[k][opp] ? simH2H[k][opp] : { wins: 0, losses: 0 };
+                    wins += r.wins;
+                    losses += r.losses;
+                }
+                const tot = wins + losses;
+                return tot > 0 ? wins / tot : 0.5;
+            };
+
+            // Recursively resolve a tied group using h2h within the group.
+            // Per league rules: in a 3-way tie, use 3-way h2h; once one team separates,
+            // use direct 2-way h2h for the remaining pair.
+            const resolveH2H = (group, simH2H) => {
+                if (group.length <= 1) return group;
+                if (group.length === 2) {
+                    const [a, b] = group;
+                    return h2hPct(a, group, simH2H) >= h2hPct(b, group, simH2H) ? [a, b] : [b, a];
+                }
+                // 3+ way: sort by h2h pct within the group
+                const sorted = group.slice().sort((a, b) => h2hPct(b, group, simH2H) - h2hPct(a, group, simH2H));
+                const result = [];
+                let remaining = sorted;
+                while (remaining.length > 0) {
+                    const topPct = h2hPct(remaining[0], remaining, simH2H);
+                    const top = remaining.filter(k => Math.abs(h2hPct(k, remaining, simH2H) - topPct) < 1e-9);
+                    const rest = remaining.filter(k => !top.includes(k));
+                    if (top.length === remaining.length) {
+                        // Fully unresolvable at this level — keep sorted order
+                        result.push(...top);
+                        break;
+                    }
+                    if (top.length === 1) {
+                        result.push(top[0]);
+                    } else {
+                        // Multiple teams share the top h2h pct; resolve this sub-group
+                        result.push(...resolveH2H(top, simH2H));
+                    }
+                    remaining = rest;
+                }
+                return result;
+            };
+
+            // Rank all teams by win%, then h2h as tiebreaker
+            const rankTeams = (keys, simWins, simLosses, simH2H) => {
+                const winPct = k => {
+                    const tot = simWins[k] + simLosses[k];
+                    return tot > 0 ? simWins[k] / tot : 0.5;
+                };
+                const sorted = keys.slice().sort((a, b) => winPct(b) - winPct(a));
+                const result = [];
+                let pool = sorted;
+                while (pool.length > 0) {
+                    const topPct = winPct(pool[0]);
+                    const tiedGroup = pool.filter(k => Math.abs(winPct(k) - topPct) < 1e-9);
+                    const rest = pool.filter(k => !tiedGroup.includes(k));
+                    result.push(...(tiedGroup.length > 1 ? resolveH2H(tiedGroup, simH2H) : tiedGroup));
+                    pool = rest;
+                }
+                return result;
+            };
+
+            const NUM_SIMS = 10000;
+            const spaceshipCount = {};
+            const spoonCount = {};
+            const teamKeys = Object.keys(teamStats);
+            teamKeys.forEach(k => { spaceshipCount[k] = 0; spoonCount[k] = 0; });
+            const n = teamKeys.length;
+
+            for (let i = 0; i < NUM_SIMS; i++) {
+                const simWins = {};
+                const simLosses = {};
+                const simH2H = {};
+                teamKeys.forEach(k => {
+                    simWins[k] = teamStats[k].wins;
+                    simLosses[k] = teamStats[k].losses;
+                    simH2H[k] = {};
+                    teamKeys.forEach(opp => {
+                        if (opp === k) return;
+                        simH2H[k][opp] = baseH2H[k] && baseH2H[k][opp]
+                            ? { wins: baseH2H[k][opp].wins, losses: baseH2H[k][opp].losses }
+                            : { wins: 0, losses: 0 };
+                    });
+                });
+
+                for (const game of unplayedGames) {
+                    // All 7 games are played; winner determined by majority
+                    let w1 = 0;
+                    for (let g = 0; g < 7; g++) {
+                        if (Math.random() < 0.5) w1++;
+                    }
+                    const w2 = 7 - w1;
+                    simWins[game.t1Key] += w1;
+                    simLosses[game.t1Key] += w2;
+                    simWins[game.t2Key] += w2;
+                    simLosses[game.t2Key] += w1;
+                    simH2H[game.t1Key][game.t2Key].wins += w1;
+                    simH2H[game.t1Key][game.t2Key].losses += w2;
+                    simH2H[game.t2Key][game.t1Key].wins += w2;
+                    simH2H[game.t2Key][game.t1Key].losses += w1;
+                }
+
+                const ranked = rankTeams(teamKeys, simWins, simLosses, simH2H);
+
+                if (n >= 2) {
+                    spaceshipCount[ranked[0]]++;
+                    spaceshipCount[ranked[1]]++;
+                }
+                if (n >= 4) {
+                    spoonCount[ranked[n - 1]]++;
+                    spoonCount[ranked[n - 2]]++;
+                } else if (n >= 2) {
+                    spoonCount[ranked[n - 1]]++;
+                }
+            }
+
+            teamKeys.forEach(k => {
+                teamStats[k].spaceshipOdds = spaceshipCount[k] / NUM_SIMS;
+                teamStats[k].spoonOdds = spoonCount[k] / NUM_SIMS;
+            });
+        }
+
         const standings = teams.map(team => {
             const totalGames = team.wins + team.losses;
             const winPct = totalGames > 0 ? (team.wins / totalGames) : 0.5;

@@ -48,7 +48,7 @@ async function fetchSeasons() {
             seasonsList.value = await response.json();
 
             if (route.query.season) {
-                 selectedSeason.value = route.query.season;
+                selectedSeason.value = route.query.season;
             } else if (seasonsList.value.length > 0 && !selectedSeason.value) {
                 selectedSeason.value = seasonsList.value[0];
             }
@@ -111,7 +111,6 @@ async function fetchMatrix() {
     }
 }
 
-// Watch for season changes
 watch(selectedSeason, () => {
     fetchLeagueData();
 });
@@ -252,6 +251,11 @@ async function submitResult() {
     }
 }
 
+const hasPlayoffOdds = computed(() => {
+    const s = seasonSummary.value?.standings;
+    return Array.isArray(s) && s.length > 0 && s[0].spaceshipOdds !== undefined;
+});
+
 // Filter out spaceship/spoon results for the main list and Sort
 const filteredRecentResults = computed(() => {
     if (!seasonSummary.value || !seasonSummary.value.recentResults) return [];
@@ -363,10 +367,15 @@ onMounted(async () => {
         <div class="season-selector">
             <label>Season:</label>
             <select v-model="selectedSeason">
-                <option v-for="s in seasonsList" :key="s" :value="s">{{ s }}</option>
                 <option value="all-time">All-Time</option>
+                <option v-for="s in seasonsList" :key="s" :value="s">{{ s }}</option>
             </select>
         </div>
+        <button
+            class="all-time-btn"
+            :class="{ active: selectedSeason === 'all-time' }"
+            @click="selectedSeason = 'all-time'"
+        >All-Time</button>
     </div>
 
     <div v-if="loading" class="loading">Loading league data...</div>
@@ -422,6 +431,9 @@ onMounted(async () => {
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /></th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">App</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/silver_submarine.png`" class="micro-icon" /></th>
+
+                            <!-- PLAYOFF ODDS COLUMN (in-progress season only) -->
+                            <th v-if="hasPlayoffOdds" class="text-center odds-header" title="Spaceship% / Spoon% (coin flip odds for all unplayed games)"><img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /> - <img :src="`${apiUrl}/images/wooden_spoon.png`" class="micro-icon" /></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -437,6 +449,13 @@ onMounted(async () => {
                             <td class="text-right">{{ team.wins }}</td>
                             <td class="text-right">{{ team.losses }}</td>
                             <td class="text-right">{{ team.winPctDisplay }}</td>
+
+                            <!-- PLAYOFF ODDS -->
+                            <td v-if="hasPlayoffOdds" class="text-center odds-cell">
+                                <span class="spaceship-odds">{{ Math.round(team.spaceshipOdds * 100) }}%</span>
+                                <span class="odds-divider"> - </span>
+                                <span class="spoon-odds">{{ Math.round(team.spoonOdds * 100) }}%</span>
+                            </td>
 
                             <!-- ALL-TIME STATS -->
                             <td v-if="selectedSeason === 'all-time'" class="text-right border-right-cell">{{ team.avgFinish }}</td>
@@ -779,7 +798,7 @@ onMounted(async () => {
 /* Controls Header */
 .controls-header {
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
     background: #f8f9fa;
@@ -801,6 +820,29 @@ onMounted(async () => {
     border: 1px solid #ced4da;
     font-size: 1rem;
 }
+
+.all-time-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    border: 1px solid #007bff;
+    background: #007bff;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.all-time-btn:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.all-time-btn.active {
+    background: #004099;
+    border-color: #004099;
+}
+
 
 h1 {
     text-align: center;
@@ -880,6 +922,30 @@ h1 {
     font-weight: bold;
     margin-right: 4px;
     color: #666;
+}
+
+.odds-header {
+    font-size: 0.75rem;
+    color: #888;
+    white-space: nowrap;
+}
+
+.odds-cell {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.spaceship-odds {
+    color: #2a7a2a;
+}
+
+.spoon-odds {
+    color: #a04020;
+}
+
+.odds-divider {
+    color: #aaa;
 }
 
 .micro-icon {
