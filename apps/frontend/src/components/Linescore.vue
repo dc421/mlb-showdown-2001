@@ -4,6 +4,18 @@ import { useGameStore } from '@/stores/game';
 
 const gameStore = useGameStore();
 
+// Runs scored on a pending ADVANCE/TAG_UP play are already applied to the
+// server's score, but the log event is held in currentPlay.payload.initialEvent
+// until the baserunning decision resolves. Once the swing result is revealed,
+// tally that message as if it were logged so the linescore doesn't lag.
+const pendingPlayEvent = computed(() => {
+  const playType = gameStore.gameState?.currentPlay?.type;
+  if (playType !== 'ADVANCE' && playType !== 'TAG_UP') return null;
+  if (!gameStore.isSwingResultVisible || gameStore.isOutcomeHidden) return null;
+  const initialEvent = gameStore.gameState.currentPlay.payload?.initialEvent;
+  return initialEvent ? { log_message: initialEvent } : null;
+});
+
 const linescore = computed(() => {
   const state = gameStore.displayGameState;
   if (!state || !gameStore.gameEventsToDisplay) {
@@ -18,7 +30,11 @@ const linescore = computed(() => {
   let isTop = true;
   let inningMarkersFound = 0;
 
-  gameStore.gameEventsToDisplay.forEach(event => {
+  const eventsToTally = pendingPlayEvent.value
+    ? [...gameStore.gameEventsToDisplay, pendingPlayEvent.value]
+    : gameStore.gameEventsToDisplay;
+
+  eventsToTally.forEach(event => {
     if (typeof event.log_message === 'string') {
       if (event.log_message.includes('scores') || event.log_message.includes('HOME RUN') || event.log_message.includes('SAFE at home') || event.log_message.includes('SENT HOME... SAFE!')) {
         const runsFromScores = (event.log_message.match(/scores/g) || []).length;
