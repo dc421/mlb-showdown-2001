@@ -37,6 +37,17 @@ const isConnected = ref(true);
 
 let revealTimeout = null;
 let dpRevealTimeout = null;
+
+// ANTI-MISCLICK: when a baserunning decision pops into the same slot the player
+// has been mashing (ROLL FOR PITCH / SWING AWAY / Next Hitter), keep the buttons
+// inert for a short "settle" window so a click already in flight lands on nothing.
+const baserunningSettleActive = ref(false);
+let baserunningSettleTimeout = null;
+const BASERUNNING_SETTLE_MS = 450;
+// Same guard applied to SWING AWAY when a pitcher is batting and a pinch-hitter is
+// available, so a reflex click doesn't burn the at-bat before considering a PH.
+const swingAwaySettleActive = ref(false);
+let swingAwaySettleTimeout = null;
 // ============================================================
 // SIMULTANEOUS MODE
 // ============================================================
@@ -503,6 +514,19 @@ const isAdvancementOrTagUpDecision = computed(() => {
     return type === 'ADVANCE' || type === 'TAG_UP';
 });
 
+// Open the settle window each time the baserunning decision first appears.
+watch(isAdvancementOrTagUpDecision, (isDeciding) => {
+    if (baserunningSettleTimeout) clearTimeout(baserunningSettleTimeout);
+    if (isDeciding) {
+        baserunningSettleActive.value = true;
+        baserunningSettleTimeout = setTimeout(() => {
+            baserunningSettleActive.value = false;
+        }, BASERUNNING_SETTLE_MS);
+    } else {
+        baserunningSettleActive.value = false;
+    }
+}, { immediate: true });
+
 const isAwaitingBaserunningDecision = computed(() => {
     if (!isSwingResultVisible.value) return false;
     if (amIDefensivePlayer.value && !isMyTurn.value && gameStore.gameState?.currentPlay) {
@@ -752,6 +776,41 @@ const opponentUsedPlayerIds = computed(() => {
     const teamUsed = gameStore.gameState[teamKey + 'Team']?.used_player_ids || [];
     return new Set(teamUsed);
 });
+
+// Current fatigue for a team's active (on-field) pitcher, mirroring the bullpen
+// indicators: one filled red dot per -1 control penalty, an open dot for buffer used.
+// Uses the same calculation as getEffectiveControl (predicting the current inning).
+const getActivePitcherFatigue = (pitcher, teamKey) => {
+    const result = { penalty: 0, bufferUsed: false };
+    if (!pitcher || typeof pitcher.control !== 'number' || pitcher.card_id < 0) return result;
+    const pitcherStats = gameStore.gameState?.pitcherStats;
+    if (!pitcherStats) return result;
+
+    const ownerUserId = teamKey === 'home'
+        ? gameStore.gameState.homeTeam?.userId
+        : gameStore.gameState.awayTeam?.userId;
+    const stats = pitcherStats[`${ownerUserId}_${pitcher.card_id}`];
+    if (!stats) return result;
+
+    const inning = gameStore.gameState.inning;
+    const inningsPitched = stats.innings_pitched || [];
+    const projectedInnings = inningsPitched.includes(inning)
+        ? inningsPitched.length
+        : inningsPitched.length + 1;
+
+    const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
+    const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
+
+    if (projectedInnings > fatigueThreshold) {
+        result.penalty = projectedInnings - fatigueThreshold;
+    } else if (stats.isBufferUsed) {
+        result.bufferUsed = true;
+    }
+    return result;
+};
+
+const leftPitcherFatigue = computed(() => getActivePitcherFatigue(leftPanelData.value?.pitcher, leftPanelData.value?.teamKey));
+const rightPitcherFatigue = computed(() => getActivePitcherFatigue(rightPanelData.value?.pitcher, rightPanelData.value?.teamKey));
 
 
 
@@ -1035,6 +1094,27 @@ const showSwingAwayButton = computed(() => {
   if (isGameOver.value && isGameEndingSteal.value) return false;
   return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && !shouldHideCurrentAtBatOutcome.value && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !gameStore.gameState.pendingStealAttempt && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
+
+// A pitcher is batting and the offensive player still has a bench hitter to pinch-hit with.
+const shouldGuardSwingAway = computed(() => {
+  if (!showSwingAwayButton.value) return false;
+  if (!amIDisplayOffensivePlayer.value || myBench.value.length === 0) return false;
+  const batter = batterToDisplay.value;
+  return !!batter && batter.control !== null && batter.control !== undefined;
+});
+
+// Open the settle window each time SWING AWAY first appears for a pinch-hit-eligible pitcher.
+watch(shouldGuardSwingAway, (guard) => {
+  if (swingAwaySettleTimeout) clearTimeout(swingAwaySettleTimeout);
+  if (guard) {
+    swingAwaySettleActive.value = true;
+    swingAwaySettleTimeout = setTimeout(() => {
+      swingAwaySettleActive.value = false;
+    }, BASERUNNING_SETTLE_MS);
+  } else {
+    swingAwaySettleActive.value = false;
+  }
+}, { immediate: true });
 
 const showBuntButton = computed(() => {
   if (!showSwingAwayButton.value) return false;
@@ -1345,7 +1425,9 @@ const showStealResult = computed(() => {
       if (!isRunnerOnOffensiveTeam.value) return false;
       // NEW: Don't show steal result to offensive player while awaiting defensive roll
       if (gameStore.gameState.pendingStealAttempt && !gameStore.gameState.lastStealResult) return false;
-      const prevIBB =  gameStore.gameState?.lastCompletedAtBat?.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState?.lastCompletedAtBat?.batter.card_id;
+      // Only suppress the steal result once I have advanced past the IBB at-bat myself;
+      // if the defense clicked Next Hitter first, I still need to see the steal + IBB together.
+      const prevIBB =  gameStore.gameState?.lastCompletedAtBat?.pitcherAction === 'intentional_walk' && gameStore.gameState?.lastStealResult?.batterPlayerId === gameStore.gameState?.lastCompletedAtBat?.batter.card_id && gameStore.amIReadyForNext;
       const isIBB = gameStore.gameState.currentAtBat.pitcherAction === 'intentional_walk';
 
       return (!gameStore.gameState.currentAtBat.batterAction && !prevIBB) || (gameStore.opponentReadyForNext && !prevIBB) || isIBB;
@@ -1419,6 +1501,11 @@ const awayTeamColors = computed(() => {
         secondary: gameStore.teams?.away?.secondary_color || '#ffffff'
     }
 });
+
+// Maps a roll's team side ('home'/'away') to that team's primary color so the
+// pitch/swing/throw numbers in the game log are tinted per team.
+const rollSideColor = (side) =>
+  (side === 'home' ? homeTeamColors.value : awayTeamColors.value).primary;
 
 const eventsForLog = computed(() => {
     return gameStore.gameEventsToDisplay;
@@ -1726,6 +1813,44 @@ const basesToDisplay = computed(() => {
 const outsToDisplay = computed(() => {
   return gameStore.displayGameState?.outs ?? 0;
 });
+
+// Cards for runners who scored on the current play, shown fanned at home plate
+// until the next play resolves. Only while the result is actually on screen.
+const scoredRunnersToDisplay = computed(() => {
+  const scored = gameStore.gameState?.runnersScored;
+  if (!scored?.length) return [];
+  if (shouldHideCurrentAtBatOutcome.value) return [];
+  const resultVisible = isSwingResultVisible.value || showAutoThrowResult.value || isGameEndingSteal.value;
+  return resultVisible ? scored : [];
+});
+
+// A runner thrown out on the current play, with the base they were out at,
+// so the diamond can show their card grayed out at that base.
+const thrownOutRunnerToDisplay = computed(() => {
+  if (shouldHideCurrentAtBatOutcome.value) return null;
+
+  const tr = gameStore.gameState?.throwRollResult;
+  if (tr?.runnerOut && (showAutoThrowResult.value || isDoubleStealResultAvailable.value)) {
+    return { runner: tr.runnerOut, base: tr.throwToBase };
+  }
+
+  const sr = gameStore.gameState?.lastStealResult;
+  if (sr?.runnerOut && showStealResult.value) {
+    return { runner: sr.runnerOut, base: sr.throwToBase };
+  }
+
+  return null;
+});
+
+// True when a card is occupying home plate, so the throw box must lift clear of it.
+const homePlateCardShown = computed(() =>
+  scoredRunnersToDisplay.value.length > 0 || thrownOutRunnerToDisplay.value?.base === 4
+);
+
+// Colors of the team that scored (the batting team) for the "RUN" splash.
+const scoredTeamColors = computed(() =>
+  isDisplayTopInning.value ? awayTeamColors.value : homeTeamColors.value
+);
 
 const finalScoreMessage = computed(() => {
   const isWaitingForOpponentOnSteal = gameStore.gameState?.pendingStealAttempt && !gameStore.gameState?.lastStealResult && amIDisplayOffensivePlayer.value;
@@ -2184,24 +2309,74 @@ const showAdvantage = computed(() => {
   return atBatToDisplay.value.pitchRollResult && simulPitchVisible.value;
 });
 
-const controlledPlayerHasAdvantage = computed(() => {
-  if (!showAdvantage.value) return null;
-  const advantageGoesTo = atBatToDisplay.value.pitchRollResult?.advantage;
-  if (amIDisplayOffensivePlayer.value) {
-    return advantageGoesTo === 'batter';
-  } else {
-    return advantageGoesTo === 'pitcher';
+// A batter "can't win the advantage" when even a pitch roll of 1 still lands the pitcher
+// the advantage — i.e. the pitcher's effective control is >= the batter's on-base. A pitcher
+// batting (they carry a control rating) can never win regardless of the roll.
+const batterCannotGetAdvantage = computed(() => {
+  const batter = batterToDisplay.value;
+  const pitcher = pitcherToDisplay.value;
+  if (!batter || !pitcher) return false;
+  if (batter.control !== null && batter.control !== undefined) return true;
+  const control = typeof pitcher.effectiveControl === 'number' ? pitcher.effectiveControl : pitcher.control;
+  if (typeof control !== 'number' || typeof batter.on_base !== 'number') return false;
+  return (1 + control) > batter.on_base;
+});
+
+// The window where actions are being chosen but the pitch hasn't been revealed yet.
+const isAwaitingPitchSwingActions = computed(() => {
+  if (!gameStore.gameState?.currentAtBat) return false;
+  if (showAdvantage.value) return false;
+  if (isSwingResultVisible.value) return false;
+  if (shouldHideCurrentAtBatOutcome.value) return false;
+  if (gameStore.gameState.currentPlay) return false;
+  if (gameStore.gameState.pendingStealAttempt) return false;
+  if (isStealAttemptInProgress.value) return false;
+  if (gameStore.isEffectivelyBetweenHalfInnings) return false;
+  return true;
+});
+
+// Foregone-conclusion at-bats (pitcher/replacement/very-low-OB batter): grayscale the batter
+// and pre-highlight the pitcher before any action is chosen, since the result is already decided.
+const showPreSwingDisadvantage = computed(() => {
+  return isAwaitingPitchSwingActions.value && batterCannotGetAdvantage.value;
+});
+
+// Whose card the advantage highlight points to: 'batter' | 'pitcher' | null. After the pitch
+// roll this is the resolved advantage; before it, only a can't-win batter forces it to 'pitcher'.
+// For those batters the pre-pitch and post-pitch holders match, so the highlight is seamless.
+const advantageHolder = computed(() => {
+  if (showAdvantage.value) {
+    return atBatToDisplay.value.pitchRollResult?.advantage ?? null;
   }
+  if (showPreSwingDisadvantage.value) {
+    return 'pitcher';
+  }
+  return null;
+});
+
+const controlledPlayerHasAdvantage = computed(() => {
+  const holder = advantageHolder.value;
+  if (!holder) return null;
+  // Controlled player is the batter on offense, the pitcher on defense.
+  return holder === (amIDisplayOffensivePlayer.value ? 'batter' : 'pitcher');
 });
 
 const opponentPlayerHasAdvantage = computed(() => {
-  if (!showAdvantage.value) return null;
-  const advantageGoesTo = atBatToDisplay.value.pitchRollResult?.advantage;
-  if (amIDisplayOffensivePlayer.value) {
-    return advantageGoesTo === 'pitcher';
-  } else {
-    return advantageGoesTo === 'batter';
-  }
+  const holder = advantageHolder.value;
+  if (!holder) return null;
+  // Opponent player is the pitcher on offense, the batter on defense.
+  return holder === (amIDisplayOffensivePlayer.value ? 'pitcher' : 'batter');
+});
+
+// Advantage label shown under the pitch roll (mirrors the swing box's outcome). The pitch
+// roll vs. on-base already decides whose chart the swing reads off of. Skipped for IBB,
+// which isn't a pitch/advantage matchup.
+const pitchAdvantageLabel = computed(() => {
+  const pitch = atBatToDisplay.value?.pitchRollResult;
+  if (!pitch || pitch.roll === 'IBB') return '';
+  if (pitch.advantage === 'pitcher') return 'PITCHER';
+  if (pitch.advantage === 'batter') return 'HITTER';
+  return '';
 });
 
 const pitchResultClasses = computed(() => {
@@ -2256,9 +2431,19 @@ onMounted(async () => {
 
   initialLoadComplete.value = true;
 
-  // Check if we are returning to a completed at-bat
+  // Check if we are returning to a completed at-bat.
+  // NOTE: onMounted only runs on a fresh page load / navigation, never during live
+  // play (live updates arrive via the socket 'game-updated' handler), so this does
+  // not affect the in-progress walk-off reveal animation.
   const atBat = atBatToDisplay.value;
-  if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
+  if (gameStore.game?.status === 'completed' && authStore.user) {
+    // Revisiting a finished game: nothing left to hide. Reveal the final result so
+    // displayGameState stops rolling back the winning play and the final-score /
+    // series banners render. Without this a walk-off game stays frozen on the
+    // pre-walk-off tie because the reveal flag is never set on a fresh load.
+    gameStore.setIsSwingResultVisible(true);
+    simulPitchVisible.value = true;
+  } else if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
     if (authStore.user) {
       // SIMUL: If returning to a completed at-bat, show everything
       if (!isSwingResultVisible.value) {
@@ -2315,6 +2500,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  if (baserunningSettleTimeout) clearTimeout(baserunningSettleTimeout);
+  if (swingAwaySettleTimeout) clearTimeout(swingAwaySettleTimeout);
   gameStore.resetGameState();
   socket.off('game-updated');
   socket.off('series-next-game-ready');
@@ -2397,21 +2584,24 @@ async function handleReauthenticate() {
 
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
-          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" />
+          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" :runnersScored="scoredRunnersToDisplay" :thrownOutRunner="thrownOutRunnerToDisplay" :scoredColors="scoredTeamColors" />
           <ThrowRollResult
             v-if="showThrowRollResult"
             :details="gameStore.gameState.doublePlayDetails"
             :teamColors="pitcherTeamColors"
+            :shiftUp="homePlateCardShown"
           />
           <ThrowRollResult
             v-if="showAutoThrowResult"
             :details="stealDisplayDetails || gameStore.gameState.throwRollResult"
             :teamColors="pitcherTeamColors"
+            :shiftUp="homePlateCardShown"
           />
           <ThrowRollResult
             v-if="showStealResult && stealDisplayDetails"
             :details="stealDisplayDetails"
             :teamColors="pitcherTeamColors"
+            :shiftUp="homePlateCardShown"
           />
           <div class="defensive-ratings">
             <div>{{ catcherArmDisplay }}</div>
@@ -2425,37 +2615,11 @@ async function handleReauthenticate() {
             !(isDoubleStealResultAvailable.value && !(gameStore.gameState.currentAtBat.pitcherAction && !gameStore.gameState.currentAtBat.batterAction)) &&
             !isStealAttemptInProgress && !(showAutoThrowResult && !atBatToDisplay.swingRollResult)" :class="pitchResultClasses" :style="{ backgroundColor: hexToRgba(pitcherTeamColors.primary), borderColor: hexToRgba(pitcherTeamColors.secondary), color: pitcherResultTextColor }">
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
+              <template v-if="pitchAdvantageLabel"><br><strong class="advantage-text">{{ pitchAdvantageLabel }}</strong></template>
           </div>
           <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
-          </div>
-          <div v-if="scoreUpdateVisible && scoreChangeMessage" class="score-update-flash">
-            <span
-              :class="{ 'score-box-highlight': scoreChangeMessage.away.scored }"
-              :style="scoreChangeMessage.away.scored
-                ? {
-                    backgroundColor: hexToRgba(awayTeamColors.primary),
-                    borderColor: hexToRgba(awayTeamColors.secondary),
-                    color: getContrastingTextColor(awayTeamColors.primary)
-                  }
-                : {}"
-            >
-              {{ scoreChangeMessage.away.text }}
-            </span>
-            <span>, </span>
-            <span
-              :class="{ 'score-box-highlight': scoreChangeMessage.home.scored }"
-              :style="scoreChangeMessage.home.scored
-                ? {
-                    backgroundColor: hexToRgba(homeTeamColors.primary),
-                    borderColor: hexToRgba(homeTeamColors.secondary),
-                    color: getContrastingTextColor(homeTeamColors.primary)
-                  }
-                : {}"
-            >
-              {{ scoreChangeMessage.home.text }}
-            </span>
           </div>
           <div v-if="finalScoreMessage" class="final-score-message" :style="{ backgroundColor: hexToRgba(finalScoreMessage.colors.primary), borderColor: hexToRgba(finalScoreMessage.colors.secondary), color: getContrastingTextColor(finalScoreMessage.colors.primary) }" v-html="finalScoreMessage.message">
           </div>
@@ -2475,15 +2639,20 @@ async function handleReauthenticate() {
 
             <!-- Main Action Buttons -->
             <div v-else-if="isAdvancementOrTagUpDecision">
-                <div class="runner-decisions-group">
+                <div class="runner-decisions-group" :class="{ 'is-settling': baserunningSettleActive }">
+                    <!-- Safe default sits in the slot the rhythm buttons occupied, so a reflex click holds rather than sends -->
+                    <button @click="handleRunnerDecisions({})"
+                            :disabled="baserunningSettleActive"
+                            class="action-button tactile-button">
+                        <strong>Hold Runners</strong>
+                    </button>
+                    <!-- Sending a runner is the deliberate choice, ranked below the safe default -->
                     <button v-for="(group, index) in baserunningOptionGroups"
                             :key="index"
                             @click="handleRunnerDecisions(group.choices)"
+                            :disabled="baserunningSettleActive"
                             class="tactile-button">
                         {{ group.text }}
-                    </button>
-                    <button @click="handleRunnerDecisions({})" class="tactile-button">
-                        Hold Runners
                     </button>
                 </div>
             </div>
@@ -2531,7 +2700,7 @@ async function handleReauthenticate() {
             <div v-else>
                 <!-- SIMUL: No ROLL FOR THROW, ROLL FOR DOUBLE PLAY, or ROLL FOR SWING buttons -->
                 <button v-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>SWING AWAY</strong></button>
+                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" :class="{ 'is-settling': swingAwaySettleActive }" :disabled="swingAwaySettleActive" @click="handleOffensiveAction('swing')"><strong>SWING AWAY</strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
@@ -2640,6 +2809,12 @@ async function handleReauthenticate() {
                       ⇄
                   </span>
                   <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
+                  <template v-if="!useDh && spot.position === 'P'">
+                      <span v-if="leftPitcherFatigue.penalty > 0" class="status-indicators">
+                          <span v-for="n in leftPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${leftPitcherFatigue.penalty}`"></span>
+                      </span>
+                      <span v-else-if="leftPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
+                  </template>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
@@ -2656,6 +2831,10 @@ async function handleReauthenticate() {
                 <strong :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { color: 'inherit' } : { color: black }">Pitching: </strong>
                 <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }}</template>
             </span>
+            <span v-if="leftPitcherFatigue.penalty > 0" class="status-indicators">
+                <span v-for="n in leftPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${leftPitcherFatigue.penalty}`"></span>
+            </span>
+            <span v-else-if="leftPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
@@ -2717,9 +2896,23 @@ async function handleReauthenticate() {
           <span class="series-status">{{ seriesStatusText }}</span>
         </div>
         <div v-for="(group, groupIndex) in groupedGameLog" :key="`group-${groupIndex}`" class="inning-group">
-          <div class="inning-header" v-html="group.header"></div>
+          <div class="inning-header">
+            <span class="inning-header-text" v-html="group.header"></span>
+            <span class="roll-table-header">
+              <span class="roll-header-cell">P</span>
+              <span class="roll-header-cell">S</span>
+              <span class="roll-header-cell">T</span>
+            </span>
+          </div>
           <ul>
-            <li v-for="event in group.plays.slice().reverse()" :key="event.event_id" v-html="event.log_message"></li>
+            <li v-for="event in group.plays.slice().reverse()" :key="event.event_id" class="log-line">
+              <span class="log-text" v-html="event.log_message"></span>
+              <span class="roll-cells">
+                <span class="roll-cell" :style="event.roll_data && event.roll_data.pitch ? { color: rollSideColor(event.roll_data.defenseSide) } : null">{{ (event.roll_data && event.roll_data.pitch) || '' }}</span>
+                <span class="roll-cell" :style="event.roll_data && event.roll_data.swing ? { color: rollSideColor(event.roll_data.offenseSide) } : null">{{ (event.roll_data && event.roll_data.swing) || '' }}</span>
+                <span class="roll-cell" :style="event.roll_data && event.roll_data.throw ? { color: rollSideColor(event.roll_data.defenseSide) } : null">{{ (event.roll_data && event.roll_data.throw) || '' }}</span>
+              </span>
+            </li>
           </ul>
         </div>
       </div>
@@ -2738,6 +2931,12 @@ async function handleReauthenticate() {
                   class="lineup-item">
                   <span class="sub-icon"></span>
                   <span @click.stop="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
+                  <template v-if="!useDh && spot.position === 'P'">
+                      <span v-if="rightPitcherFatigue.penalty > 0" class="status-indicators">
+                          <span v-for="n in rightPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${rightPitcherFatigue.penalty}`"></span>
+                      </span>
+                      <span v-else-if="rightPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
+                  </template>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info">
@@ -2748,6 +2947,10 @@ async function handleReauthenticate() {
                 <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }}</template>
                 <template v-else>TBD</template>
               </span>
+              <span v-if="rightPitcherFatigue.penalty > 0" class="status-indicators">
+                  <span v-for="n in rightPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${rightPitcherFatigue.penalty}`"></span>
+              </span>
+              <span v-else-if="rightPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
           </div>
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
@@ -2932,13 +3135,18 @@ async function handleReauthenticate() {
     left: -20px;
   }
   .score-update-flash {
-    bottom: 100px;
+    bottom: -25px;
   }
   .diamond-and-results-container > .throw-roll-result {
     bottom: 10px;
     left: auto;
     right: -20px;
     transform: translateX(0);
+  }
+  /* Pull further out when a home-plate card is shown so it isn't covered. */
+  .diamond-and-results-container > .throw-roll-result.shift-up {
+    right: -55px;
+    transform: translateY(-30px);
   }
 }
 
@@ -3139,9 +3347,36 @@ async function handleReauthenticate() {
   color: #6c757d;
 }
 .event-log ul { list-style: none; padding: 0; margin-top: 0; overflow-y: auto; }
-.event-log li { padding: 0.5rem; border-bottom: 1px solid #eee; }
+.event-log li { padding: 0; border-bottom: 1px solid #eee; }
+
+/* P/S/T roll table: column headers live in each half-inning band, gridlines run
+   down each log row. Header and data columns share the same width and hug the
+   right edge so numbers line up under their headers. The leftmost border
+   separates the message from the table; per-row + band borders form the grid.
+   Uses the game log's own font (not monospace) to stay visually consistent. */
+.roll-header-cell,
+.roll-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.6em;
+  font-size: 0.85rem;
+  border-left: 1px solid #e0e3e7;
+}
+.roll-header-cell:last-child,
+.roll-cell:last-child { border-right: 1px solid #e0e3e7; }
+
+.roll-table-header { display: flex; align-items: stretch; flex: 0 0 auto; }
+.roll-header-cell { font-weight: 700; color: #8a9099; }
+
+.log-line { display: flex; align-items: stretch; }
+.log-line .log-text { flex: 1 1 auto; min-width: 0; padding: 0.5rem; }
+.roll-cells { flex: 0 0 auto; display: flex; align-items: stretch; }
+.roll-cell { font-weight: 700; }
 .inning-group { margin-bottom: 1rem; }
-.inning-header { font-weight: bold; padding: 0.5rem; background-color: #e9ecef; border-bottom: 1px solid #dee2e6; }
+.inning-header { font-weight: bold; background-color: #e9ecef; border-bottom: 1px solid #dee2e6; display: flex; align-items: stretch; }
+.inning-header-text { flex: 1 1 auto; min-width: 0; padding: 0.5rem; }
 
 .inning-header >>> .inning-change-message {
   display: flex;
@@ -3188,6 +3423,24 @@ async function handleReauthenticate() {
     gap: 0.5rem;
 }
 
+/* Settle window: fade in and stay inert so an in-flight rhythm click lands on nothing */
+.runner-decisions-group {
+    transition: opacity 0.3s ease;
+}
+.runner-decisions-group.is-settling {
+    opacity: 0.5;
+    pointer-events: none;
+}
+/* SWING AWAY settle window: same inert fade so a reflex click lands on nothing */
+.action-button.is-settling {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+.tactile-button:disabled, .action-button:disabled {
+    cursor: default;
+}
+
 .tactile-button-hold {
     background-color: #6c757d;
     color: white;
@@ -3222,6 +3475,16 @@ async function handleReauthenticate() {
 .result-box-left { left: 8px; }
 .result-box-right { right: 12px; }
 .result-box .outcome-text { font-size: 2.5rem; line-height: 1; }
+/* Advantage label under the pitch roll — sized to fit "PITCHER" / "HITTER". */
+.result-box .advantage-text {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
 
 .defensive-ratings {
   position: absolute;
@@ -3243,7 +3506,7 @@ async function handleReauthenticate() {
 .turn-indicator, .waiting-text { font-style: italic; color: #555; text-align: center; padding-top: 0rem; }
 .score-update-flash {
   position: absolute;
-  top: -25px;
+  bottom: -25px;
   left: 0;
   right: 0;
   font-size: 1.5rem;

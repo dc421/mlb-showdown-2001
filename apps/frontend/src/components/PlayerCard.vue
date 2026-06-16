@@ -86,8 +86,8 @@ function formatRange(range) {
   <!-- This is the main container for the player card -->
   <div 
     class="player-card-container" 
-    :class="{ 
-      advantage: hasAdvantage === true, 
+    :class="{
+      advantage: hasAdvantage === true,
       disadvantage: hasAdvantage === false,
       'controlled-player': isControlledPlayer
     }"
@@ -145,10 +145,20 @@ function formatRange(range) {
   transition: filter 0.3s ease-in-out;
 }
 
-/* NEW: The border and glow now use the CSS variable */
+/* NEW: The border and glow now use the CSS variable. A one-shot "pop" fires the instant
+   the card gains the advantage (the class is applied), then it rests on the steady glow. */
 .advantage {
   border-color: var(--advantage-color);
   box-shadow: 0 0 20px var(--advantage-color);
+  animation: advantage-pop 0.35s ease-out;
+}
+@keyframes advantage-pop {
+  0% { transform: scale(1); box-shadow: 0 0 20px var(--advantage-color); }
+  55% { transform: scale(1.06); box-shadow: 0 0 32px var(--advantage-color); }
+  100% { transform: scale(1); box-shadow: 0 0 20px var(--advantage-color); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .advantage { animation: none; }
 }
 
 .disadvantage .card-image {

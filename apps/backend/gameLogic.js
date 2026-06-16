@@ -4,6 +4,20 @@ function getOrdinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// Trim a runner/batter to the fields the UI needs to render a card.
+// Used for scored runners and thrown-out runners so the frontend can show
+// their cards after a play without shipping the full player object.
+function toRunnerCard(r) {
+  if (!r) return null;
+  return {
+    card_id: r.card_id,
+    name: r.name,
+    displayName: r.displayName,
+    image_url: r.image_url,
+    speed: r.speed,
+  };
+}
+
 function getPitcherKey(state, pitcher) {
     if (!pitcher) return null;
     if (pitcher.pitcherOfRecordId) return pitcher.pitcherOfRecordId; // For runners
@@ -60,6 +74,9 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
 
+  // Cards for every runner who scores on this play, shown at home plate until Next Hitter.
+  newState.runnersScored = [];
+
   // Record that the pitcher faced a batter
   recordBatterFaced(newState, pitcher);
 
@@ -76,6 +93,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     if (!runnerOnBase) return null;
     newState[scoreKey]++;
     scorers.push(runnerOnBase.name);
+    newState.runnersScored.push(toRunnerCard(runnerOnBase));
 
     // --- Walk-off Win Check ---
     if (!newState.isTopInning && newState.inning >= 9 && newState.homeScore > newState.awayScore) {
@@ -758,6 +776,8 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     if (isSafe) {
       if (throwTo === 4) {
         newState[scoreKey]++;
+        if (!newState.runnersScored) newState.runnersScored = [];
+        newState.runnersScored.push(toRunnerCard(runnerToChallenge));
         recordRunForPitcher(newState, runnerToChallenge, newState.currentAtBat.pitcher);
         outcomeMessage = `${runnerToChallenge.name} is SAFE at home!`;
         // --- Walk-off Win Check ---
@@ -776,6 +796,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
       newState.bases[baseMap[fromBaseOfThrow]] = null;
     } else {
         recordOutsForPitcher(newState, pitcherOfRecord, 1);
+        newState.throwRollResult.runnerOut = toRunnerCard(runnerToChallenge);
         newState.bases[baseMap[fromBaseOfThrow]] = null;
         if (throwTo === 4) {
           outcomeMessage = `${runnerToChallenge.name} is THROWN OUT at home!`;
@@ -858,4 +879,5 @@ function recordRunForPitcher(state, runner, currentPitcher) {
 }
 
 module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
-  recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher };
+  recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
+  toRunnerCard };

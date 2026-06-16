@@ -391,11 +391,11 @@ onUnmounted(() => {
 
             <div v-if="activeGames.length > 0" class="delete-controls">
                 <button v-if="!isDeleteMode" @click="toggleDeleteMode" class="text-btn delete-mode-btn">
-                    Select Games to Remove
+                    Select Games to Hide
                 </button>
                 <div v-else class="delete-actions">
                     <button @click="handleBulkDelete" :disabled="selectedGamesToDelete.length === 0" class="confirm-delete-btn">
-                        Delete Selected ({{ selectedGamesToDelete.length }})
+                        Hide Selected ({{ selectedGamesToDelete.length }})
                     </button>
                     <button @click="toggleDeleteMode" class="cancel-btn">Cancel</button>
                 </div>

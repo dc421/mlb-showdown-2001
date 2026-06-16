@@ -13,6 +13,19 @@ const route = useRoute();
 const isGamePage = computed(() => route.name === 'game');
 const isDashboardPage = computed(() => route.name === 'dashboard');
 
+// Which top-level nav item the current page belongs to (for tab-style highlighting)
+const currentNav = computed(() => {
+  switch (route.name) {
+    case 'dashboard': return 'dashboard';
+    case 'league': return 'league';
+    case 'classic': return 'classic';
+    case 'draft': return 'draft';
+    case 'team-page':
+    case 'team-season-page': return 'teams';
+    default: return null;
+  }
+});
+
 const isMenuOpen = ref(false);
 const isTeamsMenuOpen = ref(false); // For desktop dropdown
 const isMobileTeamsExpanded = ref(false); // For mobile toggle
@@ -89,12 +102,12 @@ onMounted(async () => {
       <RouterLink to="/dashboard" @click="closeMenu">
         <img v-if="authStore.user?.team" :src="authStore.user.team.logo_url" alt="Team Logo" class="nav-team-logo" />
       </RouterLink>
-      <RouterLink to="/dashboard" class="dashboard-link-text">Dashboard</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text" :class="{ 'active-league': gameStore.isLeagueActive }">League</RouterLink>
+      <RouterLink to="/dashboard" class="dashboard-link-text" :class="{ 'nav-current': currentNav === 'dashboard' }">Dashboard</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/league" class="dashboard-link-text" :class="{ 'active-league': gameStore.isLeagueActive, 'nav-current': currentNav === 'league' }">League</RouterLink>
 
       <!-- Teams Dropdown (Desktop) -->
       <div v-if="!isGamePage" class="teams-dropdown-container" @mouseenter="isTeamsMenuOpen = true" @mouseleave="closeTeamsMenu">
-          <span class="dashboard-link-text teams-link" @click="toggleTeamsMenu">
+          <span class="dashboard-link-text teams-link" :class="{ 'nav-current': currentNav === 'teams' }" @click="toggleTeamsMenu">
               Teams
           </span>
           <div v-if="isTeamsMenuOpen" class="teams-dropdown-menu">
@@ -110,8 +123,8 @@ onMounted(async () => {
           </div>
       </div>
 
-      <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text" :class="{ 'active-classic': gameStore.isClassicActive }">Classic</RouterLink>
-      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text" :class="{ 'active-classic': gameStore.isClassicActive, 'nav-current': currentNav === 'classic' }">Classic</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive, 'nav-current': currentNav === 'draft' }">Draft</RouterLink>
     </div>
     
     <div class="nav-center">
@@ -132,8 +145,8 @@ onMounted(async () => {
     </div>
 
     <div v-if="isMenuOpen" class="mobile-menu">
-      <RouterLink to="/dashboard" @click="closeMenu" class="mobile-link">Dashboard</RouterLink>
-      <RouterLink to="/league" @click="closeMenu" class="mobile-link" :class="{ 'active-league': gameStore.isLeagueActive }">League</RouterLink>
+      <RouterLink to="/dashboard" @click="closeMenu" class="mobile-link" :class="{ 'nav-current': currentNav === 'dashboard' }">Dashboard</RouterLink>
+      <RouterLink to="/league" @click="closeMenu" class="mobile-link" :class="{ 'active-league': gameStore.isLeagueActive, 'nav-current': currentNav === 'league' }">League</RouterLink>
 
       <!-- Mobile Teams List (Toggleable) -->
       <div class="mobile-teams-section">
@@ -154,8 +167,8 @@ onMounted(async () => {
           </div>
       </div>
 
-      <RouterLink to="/classic" @click="closeMenu" class="mobile-link" :class="{ 'active-classic': gameStore.isClassicActive }">Classic</RouterLink>
-      <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive }">Draft</RouterLink>
+      <RouterLink to="/classic" @click="closeMenu" class="mobile-link" :class="{ 'active-classic': gameStore.isClassicActive, 'nav-current': currentNav === 'classic' }">Classic</RouterLink>
+      <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive, 'nav-current': currentNav === 'draft' }">Draft</RouterLink>
       <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
     </div>
   </nav>
@@ -176,6 +189,16 @@ onMounted(async () => {
 @media (min-width: 769px) {
   .global-nav {
     max-height: 80px;
+    min-height: 48px;
+    padding-top: 0;
+    padding-bottom: 0;
+    align-items: stretch;
+  }
+  /* The game page has no full-height tab to keep flush, and its linescore sets
+     the bar height — restore the vertical padding so it isn't cramped. */
+  .global-nav.game-page-active {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
   }
 }
 .global-nav a, .teams-link {
@@ -188,10 +211,26 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   flex-basis: 200px;
-  gap: 1.25rem; 
+  gap: 0.5rem;
 }
 .global-nav a:hover, .teams-link:hover {
   opacity: 0.8;
+}
+
+/* Tab-style nav items: full-height shading marks the current page */
+.dashboard-link-text, .teams-link {
+  padding: 0 14px;
+  transition: background-color 0.15s ease;
+}
+.dashboard-link-text:hover, .teams-link:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+.dashboard-link-text.nav-current, .teams-link.nav-current {
+  background-color: #5a626b;
+}
+.dashboard-link-text.nav-current:hover, .teams-link.nav-current:hover {
+  background-color: #5a626b;
+  opacity: 1;
 }
 .global-nav button {
   background-color: #6c757d;
@@ -369,25 +408,45 @@ onMounted(async () => {
     background-color: #495057;
   }
 
+  .mobile-link.nav-current {
+    background-color: #5a626b;
+  }
+
   .mobile-logout {
     width: 100%;
     margin-top: 0.5rem;
   }
 }
 
+/* Live status: color change only (no surrounding box/border) */
 .active-draft, .active-league {
   color: #ffc107 !important;
   font-weight: bold;
-  border: 2px solid #ffc107;
-  padding: 4px 8px !important;
-  border-radius: 4px;
 }
 
 .active-classic {
   color: #20c997 !important;
   font-weight: bold;
-  border: 2px solid #20c997;
-  padding: 4px 8px !important;
-  border-radius: 4px;
+}
+
+/* Desktop: stretch the left-side nav items to the full bar height so the
+   active tab's shading runs flush to the top and bottom edges. Declared after
+   the base rules so it wins (media queries don't add specificity). */
+@media (min-width: 769px) {
+  .nav-left {
+    align-items: stretch;
+  }
+  .nav-left > a {
+    display: flex;
+    align-items: center;
+  }
+  .teams-dropdown-container {
+    height: auto;
+    align-items: stretch;
+  }
+  .teams-link {
+    display: flex;
+    align-items: center;
+  }
 }
 </style>

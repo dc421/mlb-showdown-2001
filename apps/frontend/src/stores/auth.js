@@ -358,6 +358,19 @@ async function submitLineup(gameId, lineupData) {
   }
 }
 
+  async function fetchOpponentRoster(gameId, pointSetId) {
+    if (!token.value || !pointSetId) return [];
+    try {
+      const response = await apiClient(`/api/games/${gameId}/opponent-roster?point_set_id=${pointSetId}`);
+      if (!response.ok) throw new Error('Failed to fetch opponent roster');
+      const data = await response.json();
+      return data.cards || [];
+    } catch (error) {
+      console.error('Failed to fetch opponent roster:', error);
+      return [];
+    }
+  }
+
   async function fetchMyParticipantInfo(gameId) {
     if (!token.value) return null;
     try {
@@ -405,7 +418,7 @@ async function submitLineup(gameId, lineupData) {
     pointSets, selectedPointSetId, isFetchingRoster, isFetchingGames, isFetchingOpenGames,
     isAuthenticated, login, register, logout, reauthenticate, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
     fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
-    submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo,availableTeams,
+    submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo, fetchOpponentRoster, availableTeams,
     fetchPointSets, isDraftActive, fetchDraftStatus, hideGame, bulkHideGames
   }
 })

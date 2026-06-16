@@ -104,6 +104,12 @@ const linescore = computed(() => {
 const awayTeamAbbr = computed(() => gameStore.teams?.away?.abbreviation || 'AWAY');
 const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME');
 
+// Show "GM N" for series games (playoffs); blank for exhibition games.
+const gameLabel = computed(() => {
+  const num = gameStore.game?.game_in_series;
+  return gameStore.series && num ? `G${num}` : '';
+});
+
 const awayTotalRuns = computed(() => {
   // Sum the per-inning scores from the linescore to ensure consistency,
   // especially when the game state is being rolled back.
@@ -120,7 +126,7 @@ const homeTotalRuns = computed(() => {
   <table class="linescore-table">
       <thead>
         <tr>
-          <th></th>
+          <th class="game-label">{{ gameLabel }}</th>
           <th v-for="inning in linescore.innings"
               :key="inning"
               :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && gameStore.isSwingResultVisible) && !gameStore.opponentReadyForNext) }">
@@ -170,6 +176,10 @@ const homeTotalRuns = computed(() => {
 .linescore-table th {
   font-weight: normal;
   color: rgba(255, 255, 255, 0.7);
+}
+.linescore-table th.game-label {
+  text-align: left;
+  color: rgba(255, 255, 255, 0.45);
 }
 .linescore-table td:first-child {
   text-align: left;

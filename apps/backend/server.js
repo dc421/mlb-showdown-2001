@@ -11,7 +11,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
 const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
-  recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher } = require('./gameLogic');
+  recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
+  toRunnerCard } = require('./gameLogic');
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { verifyConnection } = require('./services/emailService');
@@ -361,6 +362,39 @@ function getOrdinal(n) {
     const s = ["th", "st", "nd", "rd"];
     const v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// Builds the structured roll data attached to a game_event so the game log can
+// display the pitch (P), swing (S) and throw (T) rolls in team colors.
+// `isTopInning` is the inning context of the play: top => away bats (offense),
+// home pitches/fields (defense). Returns null when there are no numeric rolls.
+function buildRollData({ pitch = null, swing = null, throwRoll = null, isTopInning }) {
+    const num = (v) => (typeof v === 'number' && !Number.isNaN(v) && v > 0 ? v : null);
+    const p = num(pitch);
+    const s = num(swing);
+    const t = num(throwRoll);
+    if (p === null && s === null && t === null) return null;
+    const data = {
+        offenseSide: isTopInning ? 'away' : 'home',
+        defenseSide: isTopInning ? 'home' : 'away',
+    };
+    if (p !== null) data.pitch = p;
+    if (s !== null) data.swing = s;
+    if (t !== null) data.throw = t;
+    return data;
+}
+
+// For events whose at-bat was deferred to a baserunning decision (a hit that
+// triggered an advance/tag-up/throw): the pitch & swing rolls live on
+// currentAtBat from the original swing, and the throw roll (if any) on
+// throwRollResult. Pulls all three so the consolidated log line shows P/S/T.
+function buildAtBatRollData(state, isTopInning) {
+    return buildRollData({
+        pitch: state.currentAtBat?.pitchRollResult?.roll,
+        swing: state.currentAtBat?.swingRollResult?.roll,
+        throwRoll: state.throwRollResult?.roll,
+        isTopInning,
+    });
 }
 
 
@@ -2877,6 +2911,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
       finalState.lastStealResult = null;
       finalState.pendingStealAttempt = null;
       finalState.throwRollResult = null;
+      finalState.runnersScored = [];
 
       const { batter, pitcher, defensiveTeam } = await getActivePlayers(gameId, finalState);
       processPlayers([batter, pitcher]);
@@ -2959,10 +2994,11 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
         if (combinedLogMessage) {
             const finalLogMessage = appendScoreToLog(combinedLogMessage, finalState, currentState.awayScore, currentState.homeScore);
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', finalLogMessage]);
+            const rollData = buildRollData({ pitch: finalState.currentAtBat.pitchRollResult?.roll, swing: swingRoll, throwRoll: finalState.doublePlayDetails?.roll, isTopInning: currentState.isTopInning });
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'game_event', finalLogMessage, rollData]);
         }
       }
-      
+
       await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
 
       // --- NEW: Check for Game Over ---
@@ -3127,6 +3163,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
             finalState.lastStealResult = null;
             finalState.pendingStealAttempt = null;
             finalState.throwRollResult = null;
+            finalState.runnersScored = [];
 
             // --- THIS IS THE FIX ---
             // Batter was waiting, so resolve the whole at-bat now.
@@ -3212,7 +3249,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
               if (combinedLogMessage) {
                   const finalLogMessage = appendScoreToLog(combinedLogMessage, finalState, currentState.awayScore, currentState.homeScore);
-                  await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'game_event', finalLogMessage]);
+                  const rollData = buildRollData({ pitch: pitchRoll, swing: swingRoll, throwRoll: finalState.doublePlayDetails?.roll, isTopInning: currentState.isTopInning });
+                  await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'game_event', finalLogMessage, rollData]);
               }
             }
 
@@ -3451,6 +3489,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         newState.defensivePlayerWentSecond = false;
         
         newState.lastStealResult = null;
+        newState.runnersScored = [];
         newState.inningEndedOnCaughtStealing = false;
 
         // Deferred inning transition
@@ -3553,6 +3592,8 @@ app.post('/api/games/:gameId/resolve-infield-in-defense-choice', authenticateTok
 
             if (isSafe) {
                 newState[scoreKey]++;
+                if (!newState.runnersScored) newState.runnersScored = [];
+                newState.runnersScored.push(toRunnerCard(runnerOnThird));
                 recordRunForPitcher(newState, runnerOnThird, newState.currentAtBat.pitcher);
                 events.push(`${runnerOnThird.name} is SENT HOME... SAFE! ${batter.displayName} reaches on a fielder's choice.`);
             } else {
@@ -3575,6 +3616,8 @@ app.post('/api/games/:gameId/resolve-infield-in-defense-choice', authenticateTok
 
             // Runner from third scores
             newState[scoreKey]++;
+            if (!newState.runnersScored) newState.runnersScored = [];
+            newState.runnersScored.push(toRunnerCard(runnerOnThird));
             recordRunForPitcher(newState, runnerOnThird, newState.currentAtBat.pitcher);
             events.push(`${runnerOnThird.name} scores on the play.`);
             newState.bases.third = null;
@@ -3597,7 +3640,8 @@ app.post('/api/games/:gameId/resolve-infield-in-defense-choice', authenticateTok
         const combinedLogMessage = events.join(' ');
         if (events.length > 0) {
             const finalLogMessage = appendScoreToLog(combinedLogMessage, newState, currentState.awayScore, currentState.homeScore);
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage]);
+            const rollData = buildAtBatRollData(newState, currentState.isTopInning);
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage, rollData]);
         }
 
         // --- Check for Game Over ---
@@ -3747,7 +3791,8 @@ if (newState.pendingStealAttempt && requestedBases.length === 1) {
                 const logMessage = outcome === 'SAFE'
                     ? `${runnerName} takes off for ${getOrdinal(toBase)}... SAFE!`
                     : `${runnerName} takes off for ${getOrdinal(toBase)}... CAUGHT STEALING! <strong>Outs: ${newState.outs}</strong>`;
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
+                const stealRollData = buildRollData({ throwRoll: stealResult.roll, isTopInning: newState.isTopInning });
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'steal', logMessage, stealRollData]);
 
                 if (isSafe) {
                     newState.bases[baseMap[toBase]] = runner;
@@ -3883,6 +3928,9 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
         // Explicitly cast team_id to Number to ensure consistent frontend comparisons
         newState.lastStealResult = { runner: runnerName, outcome, runnerTeamId: Number(offensiveTeam.team_id), ...resultDetails };
+        if (outcome === 'OUT' && runner) {
+            newState.lastStealResult.runnerOut = toRunnerCard(runner);
+        }
         newState.pendingStealAttempt = null;
 
         // FIX: Define queuedDecisions before using it.
@@ -3906,7 +3954,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     const logMessage = newOutcome === 'SAFE'
                         ? `${newRunnerName} takes off for ${getOrdinal(toBase)}... SAFE!`
                         : `${newRunnerName} takes off for ${getOrdinal(toBase)}... CAUGHT STEALING! <strong>Outs: ${newState.outs}</strong>`;
-                    await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
+                    const stealRollData = buildRollData({ throwRoll: resultDetails.roll, isTopInning: newState.isTopInning });
+                    await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'steal', logMessage, stealRollData]);
 
                     if (isSafe) { newState.bases[baseMap[toBase]] = runner; }
                     newState.bases[baseMap[fromBase]] = null;
@@ -3958,7 +4007,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     contestedRunnerDetails = {
                         outcome: outcomes[fromBase].isSafe ? 'SAFE' : 'OUT',
                         runnerName: runner.name, roll: d20Roll, defense: catcherArm, target: getSpeedValue(runner),
-                        penalty, throwToBase
+                        penalty, throwToBase,
+                        runnerOut: outcomes[fromBase].isSafe ? null : toRunnerCard(runner)
                     };
                 } else {
                     outcomes[fromBase] = { runner, isSafe: true, isContested: false };
@@ -3985,7 +4035,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
             logMessage += ` <strong>Outs: ${newState.outs}</strong>`;
         }
         newState.throwRollResult = { ...contestedRunnerDetails, consolidatedOutcome: logMessage, runnerTeamId: offensiveTeam.team_id };
-        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'steal', logMessage]);
+        const stealRollData = buildRollData({ throwRoll: contestedRunnerDetails?.roll, isTopInning: newState.isTopInning });
+        await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'steal', logMessage, stealRollData]);
         newState.currentPlay = null;
 
         // --- NEW: Check for Game Over on caught stealing ---
@@ -4137,7 +4188,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 }
                 if (consolidatedLogMessage) {
                     const finalLogMessageWithScore = appendScoreToLog(consolidatedLogMessage, newState, currentState.currentAtBat.awayScoreBeforePlay, currentState.currentAtBat.homeScoreBeforePlay);
-                    await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessageWithScore]);
+                    const rollData = buildAtBatRollData(newState, currentState.isTopInning);
+                    await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessageWithScore, rollData]);
                 }
             }
 
@@ -4198,7 +4250,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     initialEvent += ` <strong>Outs: ${newState.outs}</strong>`;
                 }
                 const finalLogMessage = appendScoreToLog(initialEvent, newState, currentState.currentAtBat.awayScoreBeforePlay, currentState.currentAtBat.homeScoreBeforePlay);
-                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage]);
+                const rollData = buildAtBatRollData(newState, currentState.isTopInning);
+                await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, offensiveTeam.user_id, currentTurn + 1, 'baserunning', finalLogMessage, rollData]);
             }
             newState.currentPlay = null;
             await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [offensiveTeam.user_id, gameId]);
@@ -4276,6 +4329,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     // This is the UNCONTESTED runner.
                     if (targetBase === 4) {
                         newState[scoreKey]++;
+                        if (!newState.runnersScored) newState.runnersScored = [];
+                        newState.runnersScored.push(toRunnerCard(runner));
                         recordRunForPitcher(newState, runner, newState.currentAtBat.pitcher);
                         allEvents.push(`${runner.name} scores.`);
                     } else {
@@ -4345,6 +4400,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
             if (isSafe) {
                 if (throwTo === 4) {
                     newState[scoreKey]++;
+                    if (!newState.runnersScored) newState.runnersScored = [];
+                    newState.runnersScored.push(toRunnerCard(contestedRunner));
                     recordRunForPitcher(newState, contestedRunner, newState.currentAtBat.pitcher);
                     allEvents.push(`${contestedRunner.name} is SAFE at home!`);
                 } else {
@@ -4361,6 +4418,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     pitcherOfRecord = newState.currentAtBat.pitcher;
                 }
                 recordOutsForPitcher(newState, pitcherOfRecord, 1);
+                newState.throwRollResult.runnerOut = toRunnerCard(contestedRunner);
                 if (throwTo === 4) {
                     allEvents.push(`${contestedRunner.name} is THROWN OUT at home!`);
                 } else {
@@ -4409,7 +4467,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
         if (allEvents.length > 0) {
             const finalLogMessage = appendScoreToLog(combinedLogMessage, newState, currentState.awayScore, currentState.homeScore);
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage]);
+            const rollData = buildAtBatRollData(newState, currentState.isTopInning);
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'baserunning', finalLogMessage, rollData]);
         }
 
         if (newState.gameOver) {
@@ -4558,7 +4617,8 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 logMessage += ` <strong>Outs: ${newState.outs}</strong>`;
             }
             const finalLogMessage = appendScoreToLog(logMessage, newState, currentState.awayScore, currentState.homeScore);
-            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message) VALUES ($1, $2, $3, $4, $5)`, [gameId, userId, currentTurn + 1, 'infield-in-gb', finalLogMessage]);
+            const rollData = buildAtBatRollData(newState, currentState.isTopInning);
+            await client.query(`INSERT INTO game_events (game_id, user_id, turn_number, event_type, log_message, roll_data) VALUES ($1, $2, $3, $4, $5, $6)`, [gameId, userId, currentTurn + 1, 'infield-in-gb', finalLogMessage, rollData]);
         }
 
         await client.query('UPDATE games SET current_turn_user_id = $1 WHERE game_id = $2', [0, gameId]); // Both players need to see the result
@@ -4745,6 +4805,41 @@ app.get('/api/teams/:teamId/accolades', authenticateToken, async (req, res) => {
     }
 });
 
+// Enrich a stored lineup blob (card ids only) with full card details so the
+// frontend can display player names / open card modals.
+async function enrichLineup(lineup) {
+    if (!lineup || !Array.isArray(lineup.battingOrder)) return null;
+
+    const cardIds = lineup.battingOrder.map(spot => spot.card_id);
+    if (lineup.startingPitcher) cardIds.push(lineup.startingPitcher);
+    const validCardIds = cardIds.filter(id => id > 0);
+
+    const cardsMap = {};
+    if (validCardIds.length > 0) {
+        const cardsResult = await pool.query(
+            `SELECT card_id, name, display_name, team, year, set_name, fielding_ratings, speed, ip, control FROM cards_player WHERE card_id = ANY($1::int[])`,
+            [validCardIds]
+        );
+        cardsResult.rows.forEach(c => {
+            c.displayName = c.display_name; // Ensure display property exists
+            cardsMap[c.card_id] = c;
+        });
+    }
+
+    const resolveCard = (cardId) => {
+        const card = cardsMap[cardId];
+        if (card) return card;
+        if (cardId === -1) return REPLACEMENT_HITTER_CARD;
+        if (cardId === -2) return REPLACEMENT_PITCHER_CARD;
+        return { name: 'Unknown', display_name: 'Unknown', displayName: 'Unknown' };
+    };
+
+    return {
+        battingOrder: lineup.battingOrder.map(spot => ({ ...spot, player: resolveCard(spot.card_id) })),
+        startingPitcher: resolveCard(lineup.startingPitcher)
+    };
+}
+
 // GET A USER'S LINEUP STATUS FOR A SPECIFIC GAME
 app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
@@ -4767,53 +4862,15 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
         hasLineup: !!myParticipant.lineup
     };
 
+    // Return the user's own submitted lineup so they can review it on the waiting screen.
+    if (myParticipant.lineup) {
+        result.myLineup = await enrichLineup(myParticipant.lineup);
+    }
+
     // FIX: Only the away team can see the home team's lineup (opponent's lineup) while waiting.
     // The home team cannot see the away team's lineup.
-
-    if (opponentParticipant.home_or_away === 'home' && opponentParticipant && opponentParticipant.lineup) {
-        // Fetch card details for opponent's lineup
-        const lineup = opponentParticipant.lineup;
-        const cardIds = lineup.battingOrder.map(spot => spot.card_id);
-        if (lineup.startingPitcher) cardIds.push(lineup.startingPitcher);
-
-        // Filter out placeholders if any (though usually placeholders are replaced by cards, except for specific IDs like -1, -2)
-        const validCardIds = cardIds.filter(id => id > 0);
-
-        if (validCardIds.length > 0) {
-            const cardsResult = await pool.query(
-                `SELECT card_id, name, display_name, team, year, set_name, fielding_ratings, speed, ip, control FROM cards_player WHERE card_id = ANY($1::int[])`,
-                [validCardIds]
-            );
-            const cardsMap = {};
-            cardsResult.rows.forEach(c => cardsMap[c.card_id] = c);
-
-            // Reconstruct lineup with card details
-            const enrichedBattingOrder = lineup.battingOrder.map(spot => {
-                 let card = cardsMap[spot.card_id];
-                 if (!card) {
-                      if (spot.card_id === -1) card = REPLACEMENT_HITTER_CARD;
-                      else if (spot.card_id === -2) card = REPLACEMENT_PITCHER_CARD;
-                      else card = { name: 'Unknown', display_name: 'Unknown' };
-                 } else {
-                     // Ensure display properties exist
-                     card.displayName = card.display_name;
-                 }
-                 return { ...spot, player: card };
-            });
-
-            let spCard = cardsMap[lineup.startingPitcher];
-            if (!spCard) {
-                if (lineup.startingPitcher === -1) spCard = REPLACEMENT_HITTER_CARD;
-                else if (lineup.startingPitcher === -2) spCard = REPLACEMENT_PITCHER_CARD;
-            } else {
-                spCard.displayName = spCard.display_name;
-            }
-
-            result.opponentLineup = {
-                battingOrder: enrichedBattingOrder,
-                startingPitcher: spCard
-            };
-        }
+    if (opponentParticipant && opponentParticipant.home_or_away === 'home' && opponentParticipant.lineup) {
+        result.opponentLineup = await enrichLineup(opponentParticipant.lineup);
     }
 
     res.json(result);
@@ -4821,6 +4878,48 @@ app.get('/api/games/:gameId/my-lineup', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error(`Error fetching user lineup info for game ${gameId}:`, error);
     res.status(500).json({ message: 'Server error fetching lineup data.' });
+  }
+});
+
+// GET THE OPPONENT'S FULL ROSTER FOR A SPECIFIC GAME (for scouting on the lineup screens)
+app.get('/api/games/:gameId/opponent-roster', authenticateToken, async (req, res) => {
+  const { gameId } = req.params;
+  const { point_set_id } = req.query;
+  const userId = req.user.userId;
+
+  if (!point_set_id) {
+    return res.status(400).json({ message: 'A point_set_id is required.' });
+  }
+
+  try {
+    const participantsResult = await pool.query(
+      `SELECT user_id, roster_id FROM game_participants WHERE game_id = $1`,
+      [gameId]
+    );
+
+    const me = participantsResult.rows.find(p => Number(p.user_id) === userId);
+    if (!me) {
+      return res.status(404).json({ message: 'You are not a participant in this game.' });
+    }
+
+    const opponent = participantsResult.rows.find(p => Number(p.user_id) !== userId);
+    if (!opponent || !opponent.roster_id) {
+      return res.json({ cards: [] });
+    }
+
+    const rosterCardsResult = await pool.query(`
+        SELECT cp.*, rc.is_starter, rc.assignment, ppv.points
+        FROM cards_player cp
+        JOIN roster_cards rc ON cp.card_id = rc.card_id
+        LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
+        WHERE rc.roster_id = $1
+    `, [opponent.roster_id, point_set_id]);
+
+    res.json({ cards: processPlayers(rosterCardsResult.rows) });
+
+  } catch (error) {
+    console.error(`Error fetching opponent roster for game ${gameId}:`, error);
+    res.status(500).json({ message: 'Server error fetching opponent roster.' });
   }
 });
 

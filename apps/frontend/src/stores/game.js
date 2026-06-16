@@ -904,9 +904,17 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
     // shouldHideCurrentAtBatOutcome (component) and isOutcomeHidden (store ref).
     // We bypass this guard if we are currently transitioning to the next hitter to prevent
     // reverting the outs for a split second.
-    const atBatFullyResolved = gameState.value.currentAtBat?.batterAction && 
+    const atBatFullyResolved = gameState.value.currentAtBat?.batterAction &&
                                 gameState.value.currentAtBat?.pitcherAction;
-    if (isOutcomeHidden.value || (atBatFullyResolved && !isSwingResultVisible.value && !isTransitioningToNextHitter.value)) {
+    // An IBB resolves the new at-bat without any offensive input. If the opponent
+    // advanced past my last at-bat and then issued the IBB while my previous swing
+    // result is still on screen (isSwingResultVisible stays true), neither clause
+    // below fires — but the bases must still be held back until I click Next Hitter.
+    const opponentIBBWhileILag = gameState.value.currentAtBat?.pitcherAction === 'intentional_walk' &&
+                                opponentReadyForNext.value && !amIReadyForNext.value;
+    if (isOutcomeHidden.value ||
+        (atBatFullyResolved && !isSwingResultVisible.value && !isTransitioningToNextHitter.value) ||
+        (opponentIBBWhileILag && !isTransitioningToNextHitter.value)) {
     // Special handling for inning-ended-on-CS
     if (gameState.value.inningEndedOnCaughtStealing &&
         isEffectivelyBetweenHalfInnings.value &&

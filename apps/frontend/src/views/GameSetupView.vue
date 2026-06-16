@@ -122,7 +122,13 @@ watch(useDh, (newValue) => {
       </div>
       <hr />
 
-      <div class="setup-section" v-if="!homeTeamUserId && !bothPlayersHaveRolled">
+      <div class="setup-section" v-if="participants.length < 2">
+          <h2>Waiting for an Opponent</h2>
+          <p>Setup will begin once a second player joins this game.</p>
+          <span class="waiting-text">Waiting for opponent to join...</span>
+      </div>
+
+      <div class="setup-section" v-if="participants.length >= 2 && !homeTeamUserId && !bothPlayersHaveRolled">
           <h2>1. Determine Home Team</h2>
           <p>Have one player declare or have both players roll.</p>
           <div class="declare-buttons">

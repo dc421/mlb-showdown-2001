@@ -296,7 +296,7 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
                                 </td>
                                 <td :class="{'win': game.result === 'W', 'loss': game.result === 'L'}">{{ game.result }}</td>
                                 <td>{{ game.score }}</td>
-                                <td>{{ game.round }}</td>
+                                <td :class="{'spaceship-text': game.round === 'Golden Spaceship', 'spoon-text': game.round === 'Wooden Spoon'}">{{ game.round }}</td>
                             </tr>
                             <tr v-if="sortedResults.length === 0">
                                 <td colspan="5" class="empty-msg">No results found for this season.</td>
@@ -447,8 +447,8 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
     font-size: 0.85rem;
     font-weight: 500;
 }
-.mva-item { color: #c8960c; }
-.lvsc-item { color: #8b4513; }
+.mva-item { color: #218838; } /* Green, matching League spaceship box */
+.lvsc-item { color: red; } /* Red, matching League spoon box */
 
 .mva-winner {
     background-color: rgba(255, 200, 0, 0.2) !important;
@@ -467,8 +467,11 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
     background-color: rgba(255, 215, 0, 0.15) !important;
 }
 .brown-bg {
-    background-color: rgba(139, 69, 19, 0.1) !important;
+    background-color: rgba(140, 62, 8, 0.3) !important;
 }
+/* Round labels, matching League spaceship/spoon boxes */
+.spaceship-text { color: #218838; font-weight: bold; }
+.spoon-text { color: red; font-weight: bold; }
 
 /* Modal */
 .modal-overlay {

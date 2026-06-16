@@ -6,6 +6,7 @@ import { useGameStore } from '@/stores/game';
 import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import OpponentRoster from '@/components/OpponentRoster.vue';
 
 const authStore = useAuthStore();
 const gameStore = useGameStore();
@@ -17,6 +18,8 @@ const startingPitcher = ref(null);
 const battingOrder = ref([]);
 const hasSubmitted = ref(false); // New state for the waiting screen
 const opponentLineup = ref(null);
+const opponentRoster = ref([]);
+const myLineup = ref(null); // The user's own submitted lineup (for the waiting screen)
 const mandatoryPitcherId = ref(null);
 const unavailablePitcherIds = ref([]);
 const selectedCard = ref(null); // For displaying player card
@@ -183,6 +186,8 @@ async function handleSubmission() {
         startingPitcher: startingPitcher.value.card_id
     };
     await authStore.submitLineup(gameId, lineupData);
+    // Refresh so the waiting screen can show the lineup we just submitted (and any opponent info).
+    await checkLineupStatus();
     hasSubmitted.value = true;
 }
 
@@ -193,6 +198,9 @@ async function checkLineupStatus() {
             const data = await response.json();
             if (data.hasLineup) {
                 hasSubmitted.value = true;
+            }
+            if (data.myLineup) {
+                myLineup.value = data.myLineup;
             }
             if (data.opponentLineup) {
                 opponentLineup.value = data.opponentLineup;
@@ -263,6 +271,11 @@ onMounted(async () => {
     } else {
         console.error('CRITICAL ERROR: Missing participant info, roster_id, or selectedPointSetId.');
     }
+
+    // Fetch the opponent's full roster for scouting (shown on both the set-lineup and waiting screens).
+    if (authStore.selectedPointSetId) {
+        opponentRoster.value = await authStore.fetchOpponentRoster(gameId, authStore.selectedPointSetId);
+    }
 });
 
 onUnmounted(() => {
@@ -309,6 +322,9 @@ onUnmounted(() => {
                     </div>
                 </div>
             </div>
+            </div>
+            <div class="panel">
+                <OpponentRoster :roster="opponentRoster" @view="selectedCard = $event" />
             </div>
             <div v-if="opponentLineup" class="panel opponent-panel">
                 <h2>Opponent Lineup</h2>
@@ -387,6 +403,32 @@ onUnmounted(() => {
         <h1>Lineup Submitted!</h1>
         <p>Waiting for your opponent to set their lineup...</p>
         <p>(You will be taken to the game automatically when they are ready)</p>
+
+        <div class="waiting-columns">
+            <div v-if="myLineup" class="waiting-col">
+                <h2>Your Submitted Lineup</h2>
+                <div class="lineup-display">
+                    <div v-for="(spot, index) in myLineup.battingOrder" :key="index" class="lineup-row">
+                        <span class="pos">{{ index + 1 }}. {{ spot.position }}</span>
+                        <span class="name">{{ spot.player.displayName }}</span>
+                        <span class="view-icon ml-auto" @click.stop="selectedCard = spot.player">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
+                    </div>
+                    <div v-if="useDh" class="lineup-row sp-row">
+                        <span class="pos"><strong>SP</strong></span>
+                        <span class="name">{{ myLineup.startingPitcher.displayName }}</span>
+                        <span class="view-icon ml-auto" @click.stop="selectedCard = myLineup.startingPitcher">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-eye"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="waiting-col">
+                <OpponentRoster :roster="opponentRoster" @view="selectedCard = $event" />
+            </div>
+        </div>
+
         <div v-if="opponentLineup" class="opponent-display-waiting">
             <h2>Opponent Lineup</h2>
             <div class="lineup-display">
@@ -452,6 +494,20 @@ onUnmounted(() => {
     border-top: 1px solid #ddd;
     padding-top: 1rem;
   }
+  .waiting-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: center;
+    text-align: left;
+    margin-top: 1.5rem;
+  }
+  .waiting-col {
+    flex: 1;
+    min-width: 260px;
+    max-width: 360px;
+  }
+  .waiting-col h2 { margin-top: 0; }
   .lineup-display {
       display: flex;
       flex-direction: column;

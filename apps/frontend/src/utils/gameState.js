@@ -1,6 +1,11 @@
 export function calculateDisplayGameState(gameState, currentUserId, isSwingResultVisible) {
   if (!gameState) return null;
 
+  // A finished game has no outcome left to hide. Returning the raw state prevents
+  // rolling back the winning play — which for a walk-off (game ends mid-inning on
+  // a run-scoring play) would otherwise show the pre-walk-off tie.
+  if (gameState.gameOver) return gameState;
+
   const isHome = Number(currentUserId) === Number(gameState.homeTeam.userId);
   const isAway = Number(currentUserId) === Number(gameState.awayTeam.userId);
 

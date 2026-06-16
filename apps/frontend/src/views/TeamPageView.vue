@@ -207,7 +207,8 @@ const calculateCoreSquads = (history, keys) => {
     // 1. Gather stats per slot
     // slotCandidates: { SlotName -> { PlayerName -> Count } }
     const slotStats = {};
-    keys.forEach(k => slotStats[k] = {});
+    const slotPlayers = {}; // SlotName -> { PlayerName -> representative player object (for card display) }
+    keys.forEach(k => { slotStats[k] = {}; slotPlayers[k] = {}; });
 
     history.forEach(row => {
         // Merge batters and pitchers rows for generic access (or we call this function twice)
@@ -218,6 +219,7 @@ const calculateCoreSquads = (history, keys) => {
              if (p) {
                  const name = p.displayName || p.name;
                  slotStats[k][name] = (slotStats[k][name] || 0) + 1;
+                 slotPlayers[k][name] = p; // keep a full player object so the core-squad cell can open the card
              }
         });
     });
@@ -235,7 +237,8 @@ const calculateCoreSquads = (history, keys) => {
             candidates.push({
                 name,
                 count: playerTotalCounts.value[name] || count, // Use Total Appearances per user request
-                slotCount: count // Keep track of slot-specific apps for tie-breaking if needed (though regret logic handles it)
+                slotCount: count, // Keep track of slot-specific apps for tie-breaking if needed (though regret logic handles it)
+                player: slotPlayers[slot][name]
             });
         }
 
@@ -314,7 +317,7 @@ const calculateCoreSquads = (history, keys) => {
         const candidates = validSlotCandidates[slot];
         if (idx < candidates.length) {
             const c = candidates[idx];
-            result[slot] = { name: formatNameShort(c.name, true), count: c.count };
+            result[slot] = { name: formatNameShort(c.name, true), count: c.count, player: c.player };
         }
     });
 
@@ -341,6 +344,26 @@ const mostCommonPlayers = computed(() => {
 
     return { batters, pitchers };
 });
+
+// The single most-frequent core-squad player across hitters AND pitchers — one logo per team.
+// Returns the group ('batter' | 'pitcher') and slot key so only that one cell is marked.
+const mostFrequentCore = computed(() => {
+    let best = { group: null, slot: null, count: -1 };
+    const consider = (group, slotMap) => {
+        for (const slot in slotMap) {
+            const entry = slotMap[slot];
+            if (entry && entry.count > best.count) {
+                best = { group, slot, count: entry.count };
+            }
+        }
+    };
+    consider('batter', mostCommonPlayers.value.batters);
+    consider('pitcher', mostCommonPlayers.value.pitchers);
+    return best;
+});
+
+const isMostFrequent = (group, slot) =>
+    mostFrequentCore.value.group === group && mostFrequentCore.value.slot === slot;
 
 const hoveredBatterCol = ref(null);
 const hoveredPitcherCol = ref(null);
@@ -529,16 +552,26 @@ const teamDisplayName = computed(() => {
                     <tfoot v-if="mostCommonPlayers.batters && Object.keys(mostCommonPlayers.batters).length > 0">
                         <tr class="summary-row">
                             <td class="sticky-col total-label core-squads">CORE SQUADS</td>
-                            <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos" class="summary-cell">
+                            <td v-for="pos in ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']" :key="pos"
+                                class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.batters[pos]}"
+                                @click="mostCommonPlayers.batters[pos] && openPlayerCard(mostCommonPlayers.batters[pos].player)">
                                 <template v-if="mostCommonPlayers.batters[pos]">
-                                    <div class="common-name">{{ mostCommonPlayers.batters[pos].name }}</div>
+                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('batter', pos)}">
+                                        <img v-if="isMostFrequent('batter', pos)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                        {{ mostCommonPlayers.batters[pos].name }}
+                                    </div>
                                     <div class="common-count">({{ mostCommonPlayers.batters[pos].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
-                            <td v-for="i in maxCols.bench" :key="`bench-sum-${i}`" class="summary-cell">
+                            <td v-for="i in maxCols.bench" :key="`bench-sum-${i}`"
+                                class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.batters[`Bench${i}`]}"
+                                @click="mostCommonPlayers.batters[`Bench${i}`] && openPlayerCard(mostCommonPlayers.batters[`Bench${i}`].player)">
                                 <template v-if="mostCommonPlayers.batters[`Bench${i}`]">
-                                    <div class="common-name">{{ mostCommonPlayers.batters[`Bench${i}`].name }}</div>
+                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('batter', `Bench${i}`)}">
+                                        <img v-if="isMostFrequent('batter', `Bench${i}`)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                        {{ mostCommonPlayers.batters[`Bench${i}`].name }}
+                                    </div>
                                     <div class="common-count">({{ mostCommonPlayers.batters[`Bench${i}`].count }})</div>
                                 </template>
                                 <span v-else>-</span>
@@ -601,16 +634,26 @@ const teamDisplayName = computed(() => {
                     <tfoot v-if="mostCommonPlayers.pitchers && Object.keys(mostCommonPlayers.pitchers).length > 0">
                         <tr class="summary-row">
                             <td class="sticky-col total-label core-squads">CORE SQUADS</td>
-                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos" class="summary-cell">
+                            <td v-for="pos in ['SP1', 'SP2', 'SP3', 'SP4']" :key="pos"
+                                class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.pitchers[pos]}"
+                                @click="mostCommonPlayers.pitchers[pos] && openPlayerCard(mostCommonPlayers.pitchers[pos].player)">
                                 <template v-if="mostCommonPlayers.pitchers[pos]">
-                                    <div class="common-name">{{ mostCommonPlayers.pitchers[pos].name }}</div>
+                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('pitcher', pos)}">
+                                        <img v-if="isMostFrequent('pitcher', pos)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                        {{ mostCommonPlayers.pitchers[pos].name }}
+                                    </div>
                                     <div class="common-count">({{ mostCommonPlayers.pitchers[pos].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
-                            <td v-for="i in maxCols.rp" :key="`rp-sum-${i}`" class="summary-cell">
+                            <td v-for="i in maxCols.rp" :key="`rp-sum-${i}`"
+                                class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.pitchers[`RP${i}`]}"
+                                @click="mostCommonPlayers.pitchers[`RP${i}`] && openPlayerCard(mostCommonPlayers.pitchers[`RP${i}`].player)">
                                 <template v-if="mostCommonPlayers.pitchers[`RP${i}`]">
-                                    <div class="common-name">{{ mostCommonPlayers.pitchers[`RP${i}`].name }}</div>
+                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('pitcher', `RP${i}`)}">
+                                        <img v-if="isMostFrequent('pitcher', `RP${i}`)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                        {{ mostCommonPlayers.pitchers[`RP${i}`].name }}
+                                    </div>
                                     <div class="common-count">({{ mostCommonPlayers.pitchers[`RP${i}`].count }})</div>
                                 </template>
                                 <span v-else>-</span>
@@ -844,8 +887,8 @@ thead th.sticky-col {
 .season-link:hover { text-decoration: underline; }
 
 .result-cell { font-weight: 500; }
-.champion-text { color: #d4af37; font-weight: bold; } /* Changed class name to avoid conflict with bg */
-.spoon-text { color: #8b4513; }
+.champion-text { color: #218838; font-weight: bold; } /* Green writing, matching League spaceship box */
+.spoon-text { color: red; } /* Red writing, matching League spoon box */
 
 /* HIGHLIGHTS */
 .gold-bg {
@@ -855,7 +898,7 @@ thead th.sticky-col {
     background-color: rgba(192, 192, 192, 0.2) !important;
 }
 .brown-bg {
-    background-color: rgba(139, 69, 19, 0.1) !important;
+    background-color: rgba(140, 62, 8, 0.3) !important;
 }
 
 .col-hover {
@@ -962,6 +1005,26 @@ thead th.sticky-col {
     color: #666;
     font-size: 0.65rem;
 }
+.summary-clickable {
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.summary-clickable:hover {
+    background-color: #e2e6ea;
+}
+.summary-clickable:hover .common-name {
+    color: #0056b3;
+}
+.core-logo {
+    height: 14px;
+    width: auto;
+    vertical-align: -2px;
+    margin-right: 3px;
+    object-fit: contain;
+}
+.most-frequent-name {
+    text-transform: uppercase;
+}
 
 .classic-row td {
     color: #555;
@@ -977,8 +1040,8 @@ thead th.sticky-col {
     text-overflow: ellipsis;
     max-width: 260px;
 }
-.mva-line { color: #c8960c; }
-.lvsc-line { color: #8b4513; }
+.mva-line { color: #218838; } /* Green, matching League spaceship box */
+.lvsc-line { color: red; } /* Red, matching League spoon box */
 .tgaoot-line { color: #757575; }
 
 .mva-winner {
