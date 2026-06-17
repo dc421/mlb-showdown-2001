@@ -14,6 +14,9 @@ const props = defineProps({
   thrownOutRunner: { type: Object, default: null },
   // Colors of the scoring (batting) team, for the "RUN" splash.
   scoredColors: { type: Object, default: () => ({ primary: '#343a40', secondary: '#ffffff' }) },
+  // During the home-run celebration, lift the runner cards above the full-screen dim
+  // so they (and the run splash) stay lit while the field darkens.
+  celebrating: { type: Boolean, default: false },
 });
 const emit = defineEmits(['attempt-steal']);
 
@@ -62,7 +65,7 @@ const fanStyle = (i) => {
 </script>
 
 <template>
-  <div v-if="bases" class="diamond-container" :style="{ backgroundImage: `url('${diamondUrl}')` }">
+  <div v-if="bases" class="diamond-container" :class="{ celebrating }" :style="{ backgroundImage: `url('${diamondUrl}')` }">
     <!-- Runner slots are now absolutely positioned divs -->
     <div class="runner-slot" style="top: 48%; left: 78%;">
       <RunnerCard v-if="baseRunner('first')" :runner="baseRunner('first')" />
@@ -120,6 +123,12 @@ const fanStyle = (i) => {
   width: 90px; /* Adjust size of runner cards */
   height: 126px;
   transform: translate(-50%, -50%); /* Center the card on the coordinates */
+}
+
+/* Home-run celebration: keep the runners (and their run splash) lit above the
+   full-screen dim (z-index 50) while the field behind them darkens. */
+.diamond-container.celebrating .runner-slot {
+  z-index: 55;
 }
 
 /* Home plate holds a fan of scored cards, so let them overflow the slot box. */

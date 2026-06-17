@@ -88,6 +88,8 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   const originalAwayScore = state.awayScore;
   const originalHomeScore = state.homeScore;
   let hitMessage = '';
+  // Set when a groundball is converted to a single specifically because the infield was in.
+  let infieldInSingle = false;
 
   const scoreRun = (runnerOnBase, generateLog = true) => {
     if (!runnerOnBase) return null;
@@ -224,6 +226,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       if (swingRoll === highestGB) {
           outcome = '1B'; // Convert the outcome to a single
           hitMessage = `${batter.displayName} finds a hole through the drawn-in infield for a SINGLE!`;
+          infieldInSingle = true;
       }
   }
 
@@ -701,11 +704,49 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
   }
 
+  // "Advantage backfired": the pitcher won the advantage but the swing landed a better-for-
+  // the-hitter result on the pitcher's own chart than the hitter's chart would have.
+  const advantageBackfired = chartHolder
+    ? computeAdvantageBackfired(chartHolder === pitcher ? 'pitcher' : 'batter', swingRoll, pitcher, batter)
+    : false;
+  if (advantageBackfired) {
+    events.push(`The advantage backfired on ${pitcher.displayName}! ${batter.displayName} found a better result on the pitcher's chart than his own.`);
+  }
+
   // --- Handle Inning Change & Game Over Check ---
   // Replaced inline logic with reusable function call
   checkGameOverOrInningChange(newState, events, teamInfo);
 
-  return { newState, events, scorers, outcome };
+  return { newState, events, scorers, outcome, infieldInSingle, advantageBackfired };
+}
+
+// Rank of a chart result by how good it is for the offense (low = good for the pitcher,
+// high = good for the hitter). Used to compare the two cards' charts at a given roll.
+const CHART_OUTCOME_RANK = {
+  PU: 0, SO: 1, GB: 2, 'GB?': 2, FB: 3, BB: 4, IBB: 4,
+  '1B': 5, '1B+': 6, '2B': 7, '3B': 8, HR: 9,
+};
+
+function lookupChartOutcome(card, roll) {
+  if (!card || !card.chart_data || !roll) return null;
+  for (const range in card.chart_data) {
+    const [min, max] = range.split('-').map(Number);
+    if (roll >= min && roll <= max) return card.chart_data[range];
+  }
+  return null;
+}
+
+// "Advantage backfired": the pitcher won the advantage, but at the swing roll the pitcher's
+// own chart yielded a better-for-the-hitter result than the hitter's chart would have — i.e.
+// the pitcher would have been better off conceding the advantage. (Usually a home run.)
+function computeAdvantageBackfired(advantage, swingRoll, pitcher, batter) {
+  if (advantage !== 'pitcher' || !swingRoll) return false;
+  const pitcherOutcome = lookupChartOutcome(pitcher, swingRoll);
+  const batterOutcome = lookupChartOutcome(batter, swingRoll);
+  const pr = CHART_OUTCOME_RANK[pitcherOutcome];
+  const br = CHART_OUTCOME_RANK[batterOutcome];
+  if (pr == null || br == null) return false;
+  return pr > br;
 }
 
 function recordOutsForPitcher(state, pitcher, count) {

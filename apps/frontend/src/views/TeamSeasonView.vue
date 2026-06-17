@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import { formatNameShort } from '@/utils/playerUtils';
 import { getLogoForTeam } from '@/utils/franchiseUtils';
 
@@ -308,12 +309,7 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
         </main>
 
         <!-- Player Card Modal -->
-        <div v-if="selectedPlayer" class="modal-overlay" @click.self="closePlayerCard">
-            <div class="modal-content">
-                <button class="close-btn" @click="closePlayerCard">×</button>
-                <PlayerCard :player="selectedPlayer" />
-            </div>
-        </div>
+        <PlayerCardModal :player="selectedPlayer" @close="closePlayerCard" />
     </div>
     <div v-else-if="loading" class="loading">Loading season data...</div>
     <div v-else class="error">Season not found.</div>

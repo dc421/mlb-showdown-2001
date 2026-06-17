@@ -20,6 +20,7 @@ const currentNav = computed(() => {
     case 'league': return 'league';
     case 'classic': return 'classic';
     case 'draft': return 'draft';
+    case 'players': return 'players';
     case 'team-page':
     case 'team-season-page': return 'teams';
     default: return null;
@@ -125,8 +126,9 @@ onMounted(async () => {
 
       <RouterLink v-if="!isGamePage" to="/classic" class="dashboard-link-text" :class="{ 'active-classic': gameStore.isClassicActive, 'nav-current': currentNav === 'classic' }">Classic</RouterLink>
       <RouterLink v-if="!isGamePage" to="/draft" class="dashboard-link-text" :class="{ 'active-draft': gameStore.isDraftActive, 'nav-current': currentNav === 'draft' }">Draft</RouterLink>
+      <RouterLink v-if="!isGamePage" to="/players" class="dashboard-link-text" :class="{ 'nav-current': currentNav === 'players' }">Players</RouterLink>
     </div>
-    
+
     <div class="nav-center">
       <Linescore v-if="isGamePage && gameStore.gameState && gameStore.gameEvents.length > 0" />
       <OutsDisplay
@@ -169,6 +171,7 @@ onMounted(async () => {
 
       <RouterLink to="/classic" @click="closeMenu" class="mobile-link" :class="{ 'active-classic': gameStore.isClassicActive, 'nav-current': currentNav === 'classic' }">Classic</RouterLink>
       <RouterLink to="/draft" @click="closeMenu" class="mobile-link" :class="{ 'active-draft': gameStore.isDraftActive, 'nav-current': currentNav === 'draft' }">Draft</RouterLink>
+      <RouterLink to="/players" @click="closeMenu" class="mobile-link" :class="{ 'nav-current': currentNav === 'players' }">Players</RouterLink>
       <button class="logout-button mobile-logout" @click="authStore.logout(); closeMenu()">Logout</button>
     </div>
   </nav>

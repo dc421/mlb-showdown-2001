@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import RosterPlayerRow from '@/components/RosterPlayerRow.vue';
 import { getLastName } from '@/utils/playerUtils';
 
@@ -436,9 +437,7 @@ onMounted(async () => {
 
 <template>
   <!-- Modal for viewing player cards -->
-  <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
-    <div @click.stop><PlayerCard :player="selectedCard" /></div>
-  </div>
+  <PlayerCardModal :player="selectedCard" @close="selectedCard = null" />
   <div class="builder-container">
     <div class="available-players-section panel">
       <div class="panel-header">

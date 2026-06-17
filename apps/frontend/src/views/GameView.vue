@@ -8,8 +8,10 @@ import { socket } from '@/services/socket';
 import { sessionExpiredFlag } from '@/services/api';
 import { getContrastingTextColor } from '@/utils/colors';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import BaseballDiamond from '@/components/BaseballDiamond.vue';
 import ThrowRollResult from '@/components/ThrowRollResult.vue';
+import HomeRunCelebration from '@/components/HomeRunCelebration.vue';
 
 const showSubModal = ref(false);
 const showSessionExpiredModal = ref(false);
@@ -1604,6 +1606,77 @@ watch(isSwingResultVisible, (visible) => {
     }
 });
 
+// Celebration: when a home run — or any walk-off hit — is first revealed, play a brief
+// moment: a full-screen dim (with the runner cards and result box lifted to stay lit),
+// the ball over the wall (home runs only), and a screenful of fireworks (home-team hitter
+// only). Edge-triggered so it fires once, not on page refresh into an already-revealed result.
+const swingOutcome = computed(() => atBatToDisplay.value?.swingRollResult?.outcome);
+const isHomeRunHit = computed(() => swingOutcome.value === 'HR');
+// Walk-off: home team takes the lead to end the game in the bottom of the 9th+. The backend
+// stores the adjusted hit type ('1B'/'2B'/'3B') as the displayed swing outcome.
+const isWalkOffHit = computed(() =>
+  isGameOver.value &&
+  ['1B', '1B+', '2B', '3B'].includes(swingOutcome.value) &&
+  !!gameStore.gameState &&
+  !gameStore.gameState.isTopInning &&
+  gameStore.gameState.inning >= 9 &&
+  gameStore.gameState.homeScore > gameStore.gameState.awayScore
+);
+// Fireworks only when the hitter is on the home team (a walk-off is always the home team).
+const battingTeamIsHome = computed(() => !isDisplayTopInning.value);
+const battingTeam = computed(() => isDisplayTopInning.value ? gameStore.teams?.away : gameStore.teams?.home);
+const isDetroitBatting = computed(() => {
+  const t = battingTeam.value;
+  if (!t) return false;
+  return t.abbreviation === 'DET' || (t.city || '').toLowerCase() === 'detroit';
+});
+
+const celebrationRevealed = computed(() =>
+  isSwingResultVisible.value &&
+  !shouldHideCurrentAtBatOutcome.value &&
+  (isHomeRunHit.value || isWalkOffHit.value)
+);
+
+const hrCelebration = ref(false);
+// Snapshotted at trigger time so they don't shift as the game state settles during the window.
+const celebrationShowBall = ref(false);
+const celebrationShowFireworks = ref(false);
+const celebrationBannerText = ref('');
+let hrCelebrationTimeout = null;
+
+function fireCelebration({ showBall = false, showFireworks = false, bannerText = '' } = {}) {
+  if (hrCelebrationTimeout) clearTimeout(hrCelebrationTimeout);
+  celebrationShowBall.value = showBall;
+  celebrationShowFireworks.value = showFireworks;
+  celebrationBannerText.value = bannerText;
+  hrCelebration.value = true;
+  // Matches the dim's fade-in/hold/fade-out keyframe duration in HomeRunCelebration.
+  hrCelebrationTimeout = setTimeout(() => { hrCelebration.value = false; }, 2900);
+}
+
+watch(celebrationRevealed, (on) => {
+  if (on) {
+    fireCelebration({
+      showBall: isHomeRunHit.value,
+      showFireworks: battingTeamIsHome.value,
+      bannerText: (isHomeRunHit.value && isDetroitBatting.value) ? 'DING DANG DONGER!' : '',
+    });
+  } else {
+    if (hrCelebrationTimeout) clearTimeout(hrCelebrationTimeout);
+    hrCelebration.value = false;
+  }
+});
+
+// Result-box callouts.
+const showBackfireNote = computed(() =>
+  isSwingResultVisible.value && !shouldHideCurrentAtBatOutcome.value &&
+  !!atBatToDisplay.value?.swingRollResult?.advantageBackfired
+);
+const showInfieldInNote = computed(() =>
+  isSwingResultVisible.value && !shouldHideCurrentAtBatOutcome.value &&
+  !!atBatToDisplay.value?.swingRollResult?.infieldInSingle
+);
+
 // SIMUL: Auto-resolve single steals (no ROLL FOR THROW click needed)
 watch(() => gameStore.gameState?.pendingStealAttempt, (newVal, oldVal) => {
   // Reset hasRolledForSteal on new/different steal attempts
@@ -2502,6 +2575,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (baserunningSettleTimeout) clearTimeout(baserunningSettleTimeout);
   if (swingAwaySettleTimeout) clearTimeout(swingAwaySettleTimeout);
+  if (hrCelebrationTimeout) clearTimeout(hrCelebrationTimeout);
   gameStore.resetGameState();
   socket.off('game-updated');
   socket.off('series-next-game-ready');
@@ -2540,9 +2614,7 @@ async function handleReauthenticate() {
 </script>
 
 <template>
-  <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
-    <div @click.stop><PlayerCard :player="selectedCard" /></div>
-  </div>
+  <PlayerCardModal :player="selectedCard" @close="selectedCard = null" />
 
   <!-- SESSION EXPIRED MODAL -->
   <div v-if="showSessionExpiredModal" class="modal-overlay">
@@ -2578,13 +2650,18 @@ async function handleReauthenticate() {
   </div>
 
   <div class="game-view-container" v-if="gameStore.gameState && (isGameOver || (gameStore.lineups?.home && gameStore.lineups?.away))">
-    
+
     <!-- TOP SECTION: AT-BAT DISPLAY -->
     <div class="at-bat-container">
 
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
-          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" :runnersScored="scoredRunnersToDisplay" :thrownOutRunner="thrownOutRunnerToDisplay" :scoredColors="scoredTeamColors" />
+          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" :runnersScored="scoredRunnersToDisplay" :thrownOutRunner="thrownOutRunnerToDisplay" :scoredColors="scoredTeamColors" :celebrating="hrCelebration" />
+          <HomeRunCelebration :active="hrCelebration" :teamColors="batterTeamColors" :showBall="celebrationShowBall" :showFireworks="celebrationShowFireworks" :bannerText="celebrationBannerText" />
+          <div v-if="showInfieldInNote || showBackfireNote" class="result-callouts">
+            <div v-if="showInfieldInNote" class="result-callout infield-in">⚾ THROUGH THE DRAWN-IN INFIELD!</div>
+            <div v-if="showBackfireNote" class="result-callout backfire">💥 ADVANTAGE BACKFIRED</div>
+          </div>
           <ThrowRollResult
             v-if="showThrowRollResult"
             :details="gameStore.gameState.doublePlayDetails"
@@ -2617,13 +2694,13 @@ async function handleReauthenticate() {
               Pitch: <strong>{{ atBatToDisplay.pitchRollResult.roll === 'IBB' ? 'IBB' : atBatToDisplay.pitchRollResult.roll }}</strong>
               <template v-if="pitchAdvantageLabel"><br><strong class="advantage-text">{{ pitchAdvantageLabel }}</strong></template>
           </div>
-          <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="swingResultClasses" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
+          <div v-if="atBatToDisplay.swingRollResult && isSwingResultVisible" :class="[swingResultClasses, { 'hr-lit': hrCelebration }]" :style="{ backgroundColor: hexToRgba(batterTeamColors.primary), borderColor: hexToRgba(batterTeamColors.secondary), color: batterResultTextColor }">
               Swing: <strong>{{ atBatToDisplay.swingRollResult.roll }}</strong><br>
               <strong class="outcome-text">{{ atBatToDisplay.swingRollResult.outcome }}</strong>
           </div>
-          <div v-if="finalScoreMessage" class="final-score-message" :style="{ backgroundColor: hexToRgba(finalScoreMessage.colors.primary), borderColor: hexToRgba(finalScoreMessage.colors.secondary), color: getContrastingTextColor(finalScoreMessage.colors.primary) }" v-html="finalScoreMessage.message">
+          <div v-if="finalScoreMessage" class="final-score-message" :class="{ 'hr-lit': hrCelebration }" :style="{ backgroundColor: hexToRgba(finalScoreMessage.colors.primary), borderColor: hexToRgba(finalScoreMessage.colors.secondary), color: getContrastingTextColor(finalScoreMessage.colors.primary) }" v-html="finalScoreMessage.message">
           </div>
-           <div v-if="seriesScoreMessage" class="series-score-message" :style="{ backgroundColor: hexToRgba(seriesScoreMessage.colors.primary), borderColor: hexToRgba(seriesScoreMessage.colors.secondary), color: getContrastingTextColor(seriesScoreMessage.colors.primary) }" v-html="seriesScoreMessage.message">
+           <div v-if="seriesScoreMessage" class="series-score-message" :class="{ 'hr-lit': hrCelebration }" :style="{ backgroundColor: hexToRgba(seriesScoreMessage.colors.primary), borderColor: hexToRgba(seriesScoreMessage.colors.secondary), color: getContrastingTextColor(seriesScoreMessage.colors.primary) }" v-html="seriesScoreMessage.message">
           </div>
       </div>
 
@@ -3031,6 +3108,56 @@ async function handleReauthenticate() {
   align-items: center;
   width: clamp(250px, 30vw, 350px);
 }
+/* Home-run moment: lift the HR result box above the full-screen dim (z-index 50)
+   so it stays lit while everything else darkens. */
+.result-box.hr-lit {
+  z-index: 56;
+}
+
+/* Result callouts (infield-in single / advantage backfired): stacked badges centered near
+   the top of the diamond, lifted above the HR dim so they stay readable during a celebration. */
+.result-callouts {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 57;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  width: max-content;
+  max-width: 96%;
+}
+.result-callout {
+  padding: 0.3rem 0.7rem;
+  border-radius: 3px;
+  border: 2px solid;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  animation: callout-pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.result-callout.infield-in {
+  background: #1f8a4c;
+  border-color: #d6ffe6;
+  color: #fff;
+}
+.result-callout.backfire {
+  background: #c0341d;
+  border-color: #ffd9c2;
+  color: #fff;
+}
+@keyframes callout-pop {
+  0% { opacity: 0; transform: scale(0.7) translateY(-6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .player-container:last-child {
   grid-column: 3 / 4;
   grid-row: 1 / 2;
@@ -3545,6 +3672,11 @@ async function handleReauthenticate() {
 .series-score-message {
   font-size: 3rem;
   bottom: 120px;
+}
+
+/* Walk-off celebration: keep the final/series score boxes lit above the dim (z-index 50). */
+.final-score-message.hr-lit, .series-score-message.hr-lit {
+  z-index: 56;
 }
 
 </style>

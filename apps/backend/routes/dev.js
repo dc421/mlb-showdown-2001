@@ -3,6 +3,7 @@ const router = express.Router();
 const { pool, io } = require('../server'); // Import io
 const authenticateToken = require('../middleware/authenticateToken');
 const { verifyConnection } = require('../services/emailService');
+const { applyPhantomLosses, sendPhantomWarnings } = require('../jobs/phantomMonitor');
 
 // Middleware to check if the user is a superuser (optional, for dev routes)
 const isSuperuser = (req, res, next) => {
@@ -25,6 +26,35 @@ router.post('/test-email', async (req, res) => {
     } catch (error) {
         console.error("Error triggering email test:", error);
         res.status(500).json({ message: "Error triggering email test." });
+    }
+});
+
+// POST to manually exercise the phantom-loss logic.
+// Body: { asOf?: ISO date string, dryRun?: bool (default true), mode?: 'apply'|'warn'|'both' (default 'both') }
+// dryRun=true computes assignments/at-risk teams WITHOUT inserting rows or sending email.
+router.post('/phantom-check', async (req, res) => {
+    try {
+        const { asOf, mode = 'both', force } = req.body || {};
+        const dryRun = req.body && req.body.dryRun === false ? false : true; // default true (safe)
+        const when = asOf ? new Date(asOf) : new Date();
+        if (isNaN(when.getTime())) {
+            return res.status(400).json({ message: 'Invalid asOf date.' });
+        }
+
+        const result = {};
+        if (mode === 'apply' || mode === 'both') {
+            result.apply = await applyPhantomLosses(pool, when, { dryRun });
+        }
+        if (mode === 'warn' || mode === 'both') {
+            // In dry-run previews, force computation so at-risk teams show even when
+            // today isn't exactly the warning day.
+            result.warn = await sendPhantomWarnings(pool, when, { dryRun, force: force ?? dryRun });
+        }
+
+        res.json({ asOf: when.toISOString(), dryRun, ...result });
+    } catch (error) {
+        console.error('Error in /phantom-check:', error);
+        res.status(500).json({ message: 'Error running phantom check.', error: error.message });
     }
 });
 

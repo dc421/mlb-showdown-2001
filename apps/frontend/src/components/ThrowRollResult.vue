@@ -238,7 +238,8 @@ const targetInfo = computed(() => {
 .throw-roll-result {
   opacity: 0.95;
   position: absolute;
-  bottom: 40px;
+  /* Sits low enough that its top clears the bottom of the first-base runner card above it. */
+  bottom: 28px;
   left: 70%;
   transform: translateX(-50%);
   padding: 0.45rem 0.8rem;

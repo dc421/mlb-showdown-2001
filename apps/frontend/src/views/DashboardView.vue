@@ -6,6 +6,7 @@ import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
 import GameScorecard from '@/components/GameScorecard.vue';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import { sortRoster } from '@/utils/playerUtils';
 
 const authStore = useAuthStore();
@@ -451,12 +452,7 @@ onUnmounted(() => {
     </footer>
 
     <!-- Player Card Modal -->
-    <div v-if="selectedPlayer" class="modal-overlay" @click.self="closePlayerCard">
-        <div class="modal-content">
-            <button class="close-btn" @click="closePlayerCard">×</button>
-            <PlayerCard :player="selectedPlayer" />
-        </div>
-    </div>
+    <PlayerCardModal :player="selectedPlayer" @close="closePlayerCard" />
 
   </div>
 </template>

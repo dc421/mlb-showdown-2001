@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import { sortRoster } from '@/utils/playerUtils';
 
 const route = useRoute();
@@ -425,6 +426,7 @@ onMounted(async () => {
                             <th class="text-right">Pct</th>
 
                             <!-- ALL-TIME COLUMNS -->
+                            <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell" title="Phantom losses (included in the L column)"><img :src="`${apiUrl}/images/phantoms.png`" class="micro-icon" /></th>
                             <th v-if="selectedSeason === 'all-time'" class="text-right border-right-cell">Avg Fin</th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center"><img :src="`${apiUrl}/images/golden_spaceship.png`" class="micro-icon" /></th>
                             <th v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">App</th>
@@ -458,6 +460,12 @@ onMounted(async () => {
                             </td>
 
                             <!-- ALL-TIME STATS -->
+                            <td v-if="selectedSeason === 'all-time'" class="text-center border-right-cell">
+                                <span v-if="team.phantomLosses > 0" class="phantom-loss-count" :title="`${team.phantomLosses} phantom ${team.phantomLosses === 1 ? 'loss' : 'losses'}`">
+                                    <img :src="`${apiUrl}/images/phantoms.png`" class="micro-icon" /> {{ team.phantomLosses }}
+                                </span>
+                                <span v-else class="phantom-loss-none">—</span>
+                            </td>
                             <td v-if="selectedSeason === 'all-time'" class="text-right border-right-cell">{{ team.avgFinish }}</td>
                             <td v-if="selectedSeason === 'all-time'" class="text-center">
                                 <span v-if="team.spaceships > 0" class="trophy-count">
@@ -748,12 +756,7 @@ onMounted(async () => {
     </div>
 
     <!-- Player Card Modal -->
-    <div v-if="selectedPlayer" class="modal-overlay" @click.self="closePlayerCard">
-        <div class="modal-content player-card-modal-content">
-            <button class="close-btn" @click="closePlayerCard">×</button>
-            <PlayerCard :player="selectedPlayer" />
-        </div>
-    </div>
+    <PlayerCardModal :player="selectedPlayer" @close="closePlayerCard" />
 
     <!-- Result Input Modal -->
     <div v-if="showResultModal" class="modal-overlay" @click.self="closeResultModal">
@@ -952,6 +955,23 @@ h1 {
     width: 16px;
     height: auto;
     vertical-align: middle;
+}
+
+.phantom-loss-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: #888;
+    font-size: 0.9em;
+    white-space: nowrap;
+}
+
+.phantom-loss-count .micro-icon {
+    opacity: 0.75;
+}
+
+.phantom-loss-none {
+    color: #ccc;
 }
 
 /* Results List Styles */

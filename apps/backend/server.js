@@ -15,6 +15,7 @@ const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
   toRunnerCard } = require('./gameLogic');
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
+const { startPhantomMonitor } = require('./jobs/phantomMonitor');
 const { verifyConnection } = require('./services/emailService');
 const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
@@ -67,7 +68,7 @@ const corsOptions = {
     const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
     return callback(new Error(msg), false);
   },
-  methods: ["GET", "POST"]
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 };
 app.use(cors(corsOptions));
 const io = module.exports.io = new Server(server, {
@@ -1577,13 +1578,20 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         playerOutCard = playerOutResult.rows[0];
     }
 
-    let originalStartingPitcher = teamKey === 'homeTeam' ? initialState.currentHomePitcher : initialState.currentAwayPitcher;
-    // Fallback for corrupted game states where the original starter wasn't saved (likely a replacement pitcher bug)
-    if (!originalStartingPitcher) {
-        originalStartingPitcher = REPLACEMENT_PITCHER_CARD;
+    // Determine the team's ORIGINAL starting pitcher from the persistent participant
+    // record. We must NOT derive this from the earliest available game_state: dev-tool
+    // snapshot restores prune early turns, so the earliest surviving state can be
+    // mid-game, making a reliever look like the "starter" and wrongly triggering the
+    // 12-out rule. participant.lineup.startingPitcher is never overwritten by
+    // substitutions, so it is the authoritative source.
+    let startingPitcherId = participant.lineup?.startingPitcher;
+    if (startingPitcherId === undefined || startingPitcherId === null) {
+        // Legacy/corrupted-game fallback: earliest game state, then replacement pitcher.
+        const fallbackStarter = teamKey === 'homeTeam' ? initialState.currentHomePitcher : initialState.currentAwayPitcher;
+        startingPitcherId = fallbackStarter ? fallbackStarter.card_id : REPLACEMENT_PITCHER_CARD.card_id;
     }
 
-    const pitcherValidationResult = validatePitcherSubstitution(newState, playerOutCard, playerOutId, originalStartingPitcher.card_id, isOffensiveSub);
+    const pitcherValidationResult = validatePitcherSubstitution(newState, playerOutCard, playerOutId, startingPitcherId, isOffensiveSub);
     if (!pitcherValidationResult.isValid) {
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
@@ -2280,7 +2288,8 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
                 ppv.points,
                 t.team_id as owned_by_team_id,
                 t.logo_url as owned_by_team_logo,
-                t.name as owned_by_team_name
+                t.name as owned_by_team_name,
+                t.city as owned_by_team_city
             FROM cards_player cp
             LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $1
             LEFT JOIN roster_cards rc ON cp.card_id = rc.card_id
@@ -2296,6 +2305,216 @@ app.get('/api/cards/player', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching player cards with points:', error);
         res.status(500).json({ message: 'Server error fetching player cards.' });
+    }
+});
+
+// GET A PLAYER'S LEAGUE HISTORY (season-by-season usage + honors)
+app.get('/api/players/:cardId/league-history', authenticateToken, async (req, res) => {
+    const cardId = parseInt(req.params.cardId, 10);
+    if (!Number.isInteger(cardId)) {
+        return res.status(400).json({ message: 'Invalid card id.' });
+    }
+
+    // Normalize a name for fuzzy award matching: lowercase, drop any "(TEAM)"
+    // suffixes, collapse whitespace.
+    const normName = (n) => (n || '')
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    try {
+        const cardRes = await pool.query(
+            'SELECT card_id, name, display_name FROM cards_player WHERE card_id = $1',
+            [cardId]
+        );
+        if (cardRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Card not found.' });
+        }
+        const cardKey = normName(cardRes.rows[0].name);
+
+        const [historyRes, seriesRes, teamsRes] = await Promise.all([
+            pool.query('SELECT season, team_name, position FROM historical_rosters WHERE card_id = $1', [cardId]),
+            pool.query(`SELECT season_name, round, winning_team_id, losing_team_id,
+                               winning_team_name, losing_team_name, winning_score, losing_score,
+                               mva, lvsc, tgaoot, date
+                        FROM series_results`),
+            pool.query('SELECT * FROM teams')
+        ]);
+        const currentTeams = teamsRes.rows;
+        const series = seriesRes.rows;
+        const { findTeamForRecord } = require('./utils/standingsUtils');
+
+        const DIAMONDS = ['Golden Spaceship', 'Silver Submarine', 'Wooden Spoon'];
+        const isPhantom = (n) => (n || '').includes('Phantoms');
+
+        // Resolve any historical team name to its current franchise identity (handles
+        // renames/aliases like San Diego→Boston, Fargo/NY South→Los Angeles), cached.
+        const fCache = {};
+        const fInfo = (name, id) => {
+            const ck = `${name || ''}|${id || ''}`;
+            if (fCache[ck]) return fCache[ck];
+            const t = findTeamForRecord(name, id, currentTeams);
+            return (fCache[ck] = { key: t.team_id ? `ID-${t.team_id}` : `NAME-${(t.name || '').trim()}`, name: t.name });
+        };
+
+        // Per-season, per-franchise: regular-season W-L plus the name actually used that
+        // season; and which franchise took each diamond.
+        const seasonFranchise = {};
+        const seasonDiamond = {};
+        const seasonDate = {};
+        const sfEnsure = (season, key) => {
+            if (!seasonFranchise[season]) seasonFranchise[season] = {};
+            if (!seasonFranchise[season][key]) seasonFranchise[season][key] = { wins: 0, losses: 0, eraName: null };
+            return seasonFranchise[season][key];
+        };
+        series.forEach(r => {
+            if (r.date && (!seasonDate[r.season_name] || new Date(r.date) < new Date(seasonDate[r.season_name]))) {
+                seasonDate[r.season_name] = r.date;
+            }
+            const w = fInfo(r.winning_team_name, r.winning_team_id);
+            const l = fInfo(r.losing_team_name, r.losing_team_id);
+            // Era name — prefer the plain Regular Season name for the franchise.
+            if (!isPhantom(w.name)) {
+                const sf = sfEnsure(r.season_name, w.key);
+                if (r.round === 'Regular Season' || !sf.eraName) sf.eraName = r.winning_team_name;
+            }
+            if (!isPhantom(l.name)) {
+                const sf = sfEnsure(r.season_name, l.key);
+                if (r.round === 'Regular Season' || !sf.eraName) sf.eraName = r.losing_team_name;
+            }
+            // Regular-season W-L (completed games only), matching the League standings.
+            if (!DIAMONDS.includes(r.round) && r.winning_score != null) {
+                if (!isPhantom(w.name)) { const sf = sfEnsure(r.season_name, w.key); sf.wins += r.winning_score || 0; sf.losses += r.losing_score || 0; }
+                if (!isPhantom(l.name)) { const sf = sfEnsure(r.season_name, l.key); sf.losses += r.winning_score || 0; sf.wins += r.losing_score || 0; }
+            }
+            // Diamonds — winner takes spaceship/submarine; loser earns the spoon.
+            if (DIAMONDS.includes(r.round)) {
+                const sd = seasonDiamond[r.season_name] || (seasonDiamond[r.season_name] = {});
+                if (r.round === 'Golden Spaceship') sd.spaceship = w.key;
+                else if (r.round === 'Silver Submarine') sd.submarine = w.key;
+                else if (r.round === 'Wooden Spoon') sd.spoon = l.key;
+            }
+        });
+
+        // One entry per season the player appears in (via roster or a personal award).
+        const seasons = {};
+        const ensure = (name) => {
+            if (!seasons[name]) {
+                seasons[name] = {
+                    season: name, franchises: [], positions: new Set(),
+                    spaceship: false, submarine: false, spoon: false,
+                    mva: false, lvsc: false, tgaoot: false
+                };
+            }
+            return seasons[name];
+        };
+
+        historyRes.rows.forEach(r => {
+            const s = ensure(r.season);
+            const fk = fInfo(r.team_name, null).key;
+            if (!s.franchises.some(f => f.key === fk)) s.franchises.push({ key: fk, histName: r.team_name });
+            if (r.position) s.positions.add(r.position);
+        });
+
+        // Team honors: credited when the player's franchise took the diamond that season.
+        Object.values(seasons).forEach(s => {
+            const sd = seasonDiamond[s.season] || {};
+            s.franchises.forEach(f => {
+                if (sd.spaceship === f.key) s.spaceship = true;
+                if (sd.submarine === f.key) s.submarine = true;
+                if (sd.spoon === f.key) s.spoon = true;
+            });
+        });
+
+        // Personal honors: matched by name.
+        series.forEach(r => {
+            if (r.mva && normName(r.mva) === cardKey) ensure(r.season_name).mva = true;
+            if (r.lvsc && normName(r.lvsc) === cardKey) ensure(r.season_name).lvsc = true;
+            if (r.tgaoot && normName(r.tgaoot) === cardKey) ensure(r.season_name).tgaoot = true;
+        });
+
+        // Per-season point value: the card's price in the point set that season used
+        // (matches how the League tab prices historical rosters).
+        const { mapSeasonToPointSet } = require('./utils/seasonUtils');
+        const seasonPsName = {};
+        Object.keys(seasons).forEach(s => { seasonPsName[s] = mapSeasonToPointSet(s); });
+        const psNames = [...new Set(Object.values(seasonPsName))];
+        let seasonPoints = () => null;
+        if (psNames.length) {
+            const psRows = (await pool.query(
+                'SELECT point_set_id, name FROM point_sets WHERE name = ANY($1)', [psNames]
+            )).rows;
+            const psNameToId = {};
+            psRows.forEach(r => { psNameToId[r.name] = r.point_set_id; });
+            const psIds = psRows.map(r => r.point_set_id);
+            const ppvByPs = {};
+            if (psIds.length) {
+                const ppvRows = (await pool.query(
+                    'SELECT point_set_id, points FROM player_point_values WHERE card_id = $1 AND point_set_id = ANY($2)',
+                    [cardId, psIds]
+                )).rows;
+                ppvRows.forEach(r => { ppvByPs[r.point_set_id] = r.points; });
+            }
+            seasonPoints = (season) => {
+                const id = psNameToId[seasonPsName[season]];
+                return id != null && ppvByPs[id] != null ? ppvByPs[id] : null;
+            };
+        }
+
+        // Era-correct short code for a team name (single word -> first 3 letters,
+        // multi-word -> initials, keeping all-caps tokens like "NY").
+        const abbrevTeam = (name) => {
+            if (!name) return '';
+            const words = name.trim().split(/\s+/);
+            if (words.length === 1) {
+                const w0 = words[0];
+                return (/^[A-Z]{2,}$/.test(w0) ? w0 : w0.slice(0, 3)).toUpperCase().slice(0, 4);
+            }
+            return words.map(w => /^[A-Z]{2,}$/.test(w) ? w : (w[0] || '')).join('').toUpperCase().slice(0, 4);
+        };
+
+        const seasonList = Object.values(seasons)
+            .map(s => {
+                const eraNames = s.franchises.map(f =>
+                    seasonFranchise[s.season]?.[f.key]?.eraName || f.histName
+                );
+                const primary = s.franchises[0];
+                const sf = primary ? seasonFranchise[s.season]?.[primary.key] : null;
+                return {
+                    season: s.season,
+                    team: eraNames.join(' / '),
+                    team_abbr: eraNames.map(abbrevTeam).join('/'),
+                    position: [...s.positions].join(', '),
+                    points: seasonPoints(s.season),
+                    wins: sf ? sf.wins : null,
+                    losses: sf ? sf.losses : null,
+                    spaceship: s.spaceship, submarine: s.submarine, spoon: s.spoon,
+                    mva: s.mva, lvsc: s.lvsc, tgaoot: s.tgaoot
+                };
+            })
+            // Most-recent season first; unknown-date seasons sink to the bottom.
+            .sort((a, b) => {
+                const da = seasonDate[a.season] ? new Date(seasonDate[a.season]).getTime() : -Infinity;
+                const db = seasonDate[b.season] ? new Date(seasonDate[b.season]).getTime() : -Infinity;
+                return db - da;
+            });
+
+        const totals = seasonList.reduce((t, s) => ({
+            spaceships: t.spaceships + (s.spaceship ? 1 : 0),
+            submarines: t.submarines + (s.submarine ? 1 : 0),
+            spoons: t.spoons + (s.spoon ? 1 : 0),
+            mvas: t.mvas + (s.mva ? 1 : 0),
+            lvscs: t.lvscs + (s.lvsc ? 1 : 0),
+            tgaoots: t.tgaoots + (s.tgaoot ? 1 : 0),
+            wins: t.wins + (s.wins || 0),
+            losses: t.losses + (s.losses || 0)
+        }), { spaceships: 0, submarines: 0, spoons: 0, mvas: 0, lvscs: 0, tgaoots: 0, wins: 0, losses: 0 });
+
+        res.json({ card_id: cardId, seasons: seasonList, totals });
+    } catch (error) {
+        console.error('Error fetching player league history:', error);
+        res.status(500).json({ message: 'Server error fetching league history.' });
     }
 });
 
@@ -2950,10 +3169,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
       };
 
-      const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
+      const { newState, events, scorers, outcome: finalOutcome, infieldInSingle, advantageBackfired } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
-      finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length };
+      finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length, infieldInSingle, advantageBackfired };
       
       
       if ((events && events.length > 0) || finalState.doublePlayDetails) {
@@ -3200,10 +3419,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
               };
 
-            const { newState, events, scorers, outcome: finalOutcome } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
+            const { newState, events, scorers, outcome: finalOutcome, infieldInSingle, advantageBackfired } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
-            finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length };
+            finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length, infieldInSingle, advantageBackfired };
 
             // --- ADD THESE DEBUG LOGS ---
         console.log('--- PITCH OUTS DEBUG ---');
@@ -4961,6 +5180,7 @@ async function startServer() {
 
     // Start Cron Jobs
     startDraftMonitor();
+    startPhantomMonitor();
 
     // Verify Email Connection
     verifyConnection();

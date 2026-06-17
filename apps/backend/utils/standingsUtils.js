@@ -1,5 +1,15 @@
 const { matchesFranchise, getMappedIds, getLogoForTeam } = require('./franchiseUtils');
 
+// "Phantoms" is not a real franchise — it's the placeholder opponent recorded for a
+// phantom loss (a team that didn't play its required series in time). A phantom-loss row
+// looks like { winning_team_name: 'Phantoms', winning_score: N, losing_team_name: <team>,
+// losing_score: 0 }. We count the loss against the real team but never list Phantoms as
+// its own standings entry, and never count the Phantoms "win".
+const isPhantom = (team) => {
+    if (!team) return false;
+    return (team.name || '').includes('Phantoms') || (team.displayName || '').includes('Phantoms');
+};
+
 // Helper to find the matching current team for a historical record
 const findTeamForRecord = (name, id, currentTeams) => {
     // 1. Clean the name (Handle "Boston Boston" -> "Boston")
@@ -48,28 +58,31 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
             const sStats = {};
             sResults.forEach(series => {
                 if (series.round === 'Golden Spaceship' || series.round === 'Wooden Spoon' || series.round === 'Silver Submarine') return;
+                if (series.winning_score === null) return;
 
                 const winnerTeam = findTeamForRecord(series.winning_team_name, series.winning_team_id, currentTeams);
                 const loserTeam = findTeamForRecord(series.losing_team_name, series.losing_team_id, currentTeams);
 
-                // Filter Phantoms
-                if (winnerTeam.name && (winnerTeam.name.includes('Phantoms') || winnerTeam.displayName.includes('Phantoms'))) return;
-                if (loserTeam.name && (loserTeam.name.includes('Phantoms') || loserTeam.displayName.includes('Phantoms'))) return;
+                const winnerIsPhantom = isPhantom(winnerTeam);
+                const loserIsPhantom = isPhantom(loserTeam);
 
-                if (!winnerTeam.team_id || !loserTeam.team_id) return;
+                // Count a side only if it's a real, matched franchise whose opponent is
+                // either another matched franchise or the Phantoms (so phantom losses
+                // affect seeding, but games vs unmatched/legacy teams still don't).
+                const winnerCounts = !winnerIsPhantom && winnerTeam.team_id && (loserIsPhantom || loserTeam.team_id);
+                const loserCounts = !loserIsPhantom && loserTeam.team_id && (winnerIsPhantom || winnerTeam.team_id);
 
-                const wFid = winnerTeam.team_id;
-                const lFid = loserTeam.team_id;
-
-                if (!sStats[wFid]) sStats[wFid] = { wins: 0, losses: 0 };
-                if (!sStats[lFid]) sStats[lFid] = { wins: 0, losses: 0 };
-
-                if (series.winning_score !== null) {
-                     sStats[wFid].wins += series.winning_score;
-                     sStats[wFid].losses += series.losing_score;
-
-                     sStats[lFid].losses += series.winning_score;
-                     sStats[lFid].wins += series.losing_score;
+                if (winnerCounts) {
+                    const wFid = winnerTeam.team_id;
+                    if (!sStats[wFid]) sStats[wFid] = { wins: 0, losses: 0 };
+                    sStats[wFid].wins += series.winning_score;
+                    sStats[wFid].losses += series.losing_score;
+                }
+                if (loserCounts) {
+                    const lFid = loserTeam.team_id;
+                    if (!sStats[lFid]) sStats[lFid] = { wins: 0, losses: 0 };
+                    sStats[lFid].losses += series.winning_score;
+                    sStats[lFid].wins += series.losing_score;
                 }
             });
 
@@ -102,6 +115,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                     logo_url: repTeam.logo_url,
                     wins: 0,
                     losses: 0,
+                    phantomLosses: 0,
                     seasonsPlayed: 0,
                     totalRank: 0,
                     spaceships: 0,
@@ -116,24 +130,31 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
 
         // 1. W-L Record
         seriesResults.forEach(series => {
+            if (series.winning_score === null) return;
+
             const winnerTeam = findTeamForRecord(series.winning_team_name, series.winning_team_id, currentTeams);
             const loserTeam = findTeamForRecord(series.losing_team_name, series.losing_team_id, currentTeams);
 
-            // Filter Phantoms
-            if (winnerTeam.name && (winnerTeam.name.includes('Phantoms') || winnerTeam.displayName.includes('Phantoms'))) return;
-            if (loserTeam.name && (loserTeam.name.includes('Phantoms') || loserTeam.displayName.includes('Phantoms'))) return;
+            const winnerIsPhantom = isPhantom(winnerTeam);
+            const loserIsPhantom = isPhantom(loserTeam);
 
-            if (!winnerTeam.team_id || !loserTeam.team_id) return;
+            const winnerCounts = !winnerIsPhantom && winnerTeam.team_id && (loserIsPhantom || loserTeam.team_id);
+            const loserCounts = !loserIsPhantom && loserTeam.team_id && (winnerIsPhantom || winnerTeam.team_id);
 
-            const wStats = getFranchiseStats(winnerTeam.team_id);
-            const lStats = getFranchiseStats(loserTeam.team_id);
-
-            if (series.winning_score !== null) {
+            if (winnerCounts) {
+                const wStats = getFranchiseStats(winnerTeam.team_id);
                 wStats.wins += series.winning_score;
                 wStats.losses += series.losing_score;
-
+            }
+            if (loserCounts) {
+                const lStats = getFranchiseStats(loserTeam.team_id);
                 lStats.losses += series.winning_score;
                 lStats.wins += series.losing_score;
+                // Phantom losses still count toward the all-time record/win%, but we track
+                // how many of the losses were phantom so the table can break them out.
+                if (winnerIsPhantom) {
+                    lStats.phantomLosses += series.winning_score;
+                }
             }
         });
 
@@ -238,9 +259,10 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
             const winner = findTeamForRecord(winning_team_name, series.winning_team_id, currentTeams);
             const loser = findTeamForRecord(losing_team_name, series.losing_team_id, currentTeams);
 
-            // Filter Phantoms
-            if (winner.name && (winner.name.includes('Phantoms') || winner.displayName.includes('Phantoms'))) return;
-            if (loser.name && (loser.name.includes('Phantoms') || loser.displayName.includes('Phantoms'))) return;
+            const winnerIsPhantom = isPhantom(winner);
+            const loserIsPhantom = isPhantom(loser);
+            // A Phantoms-vs-Phantoms row should never exist, but guard anyway.
+            if (winnerIsPhantom && loserIsPhantom) return;
 
             // Helper to init stats
             const initStats = (t) => {
@@ -265,20 +287,26 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                 return key;
             };
 
-            const wKey = initStats(winner);
-            const lKey = initStats(loser);
+            // Only create standings entries for real teams. Phantoms is never listed,
+            // but a phantom loss still counts against its (real) opponent.
+            const wKey = winnerIsPhantom ? null : initStats(winner);
+            const lKey = loserIsPhantom ? null : initStats(loser);
 
             const isCompleted = winning_score !== null && losing_score !== null;
 
             if (isCompleted) {
-                teamStats[wKey].wins += (winning_score || 0);
-                teamStats[lKey].losses += (winning_score || 0);
-
-                teamStats[wKey].losses += (losing_score || 0);
-                teamStats[lKey].wins += (losing_score || 0);
+                if (wKey) {
+                    teamStats[wKey].wins += (winning_score || 0);
+                    teamStats[wKey].losses += (losing_score || 0);
+                }
+                if (lKey) {
+                    teamStats[lKey].losses += (winning_score || 0);
+                    teamStats[lKey].wins += (losing_score || 0);
+                }
             } else {
-                teamStats[wKey].remaining += 7;
-                teamStats[lKey].remaining += 7;
+                // Unplayed scheduled series only exist between two real teams.
+                if (wKey) teamStats[wKey].remaining += 7;
+                if (lKey) teamStats[lKey].remaining += 7;
             }
         });
 

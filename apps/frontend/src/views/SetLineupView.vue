@@ -6,6 +6,7 @@ import { useGameStore } from '@/stores/game';
 import { socket } from '@/services/socket';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import OpponentRoster from '@/components/OpponentRoster.vue';
 
 const authStore = useAuthStore();
@@ -286,9 +287,7 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
-    <div v-if="selectedCard" class="modal-overlay" @click="selectedCard = null">
-      <div @click.stop><PlayerCard :player="selectedCard" /></div>
-    </div>
+    <PlayerCardModal :player="selectedCard" @close="selectedCard = null" />
 
     <div v-if="!hasSubmitted">
       <h1>Set Your Starting Lineup</h1>

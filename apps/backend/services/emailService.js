@@ -460,11 +460,87 @@ async function sendRosterUpdateEmail(teamName, added, dropped, client) {
     await sendEmail(recipients, subject, html);
 }
 
+// Helper: format a Date for phantom emails (e.g. "July 9, 2026")
+function formatPhantomDate(date) {
+    try {
+        return new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } catch (e) {
+        return String(date);
+    }
+}
+
+// Helper: render a team row with optional logo for phantom emails
+function phantomTeamRow(team) {
+    const logoImg = team.logo_url
+        ? `<img src="${team.logo_url}" style="height: 22px; width: auto; object-fit: contain; vertical-align: middle; margin-right: 8px;" />`
+        : '';
+    const lossWord = team.count === 1 ? 'loss' : 'losses';
+    return `<li style="margin-bottom: 6px;">${logoImg}<strong>${team.city}</strong> — ${team.count} phantom ${lossWord}</li>`;
+}
+
+// Template: Phantom Loss Warning (one week out)
+// teamsAtRisk: [{ city, logo_url, count }]  count = phantom losses they'll receive if they don't play
+async function sendPhantomWarningEmail(teamsAtRisk, markDate, client) {
+    if (!teamsAtRisk || teamsAtRisk.length === 0) return;
+    const recipients = await getLeagueEmails(client);
+
+    const dateStr = formatPhantomDate(markDate);
+    const teamsHtml = teamsAtRisk.map(phantomTeamRow).join('');
+
+    const subject = `⏳ One Week Warning: Phantom Losses Loom (${dateStr})`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="margin-top: 0;">👻 Phantom Loss Warning</h2>
+            <p>One week from now, on <strong>${dateStr}</strong>, the Phantoms come calling. The following teams will be charged a phantom loss unless they get a series in before then:</p>
+            <ul style="list-style: none; padding-left: 0;">
+                ${teamsHtml}
+            </ul>
+            <p>Play your series and avoid the haunting.</p>
+            <p>Your Friend, Roger</p>
+            <p>
+                <a href="${process.env.FRONTEND_URL}/league" style="background-color: #6c757d; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Standings</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
+// Template: Phantom Losses Assigned (on the mark date)
+// assignments: [{ city, logo_url, count }]  count = phantom losses just assigned
+async function sendPhantomLossesEmail(assignments, markDate, client) {
+    if (!assignments || assignments.length === 0) return;
+    const recipients = await getLeagueEmails(client);
+
+    const dateStr = formatPhantomDate(markDate);
+    const teamsHtml = assignments.map(phantomTeamRow).join('');
+
+    const subject = `👻 Phantom Losses Assigned (${dateStr})`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="margin-top: 0;">👻 The Phantoms Have Struck</h2>
+            <p>As of <strong>${dateStr}</strong>, the following teams had not played their required series in time and have been charged phantom losses:</p>
+            <ul style="list-style: none; padding-left: 0;">
+                ${teamsHtml}
+            </ul>
+            <p>These losses count in the standings. Get your series played to avoid more.</p>
+            <p>Your Friend, Roger</p>
+            <p>
+                <a href="${process.env.FRONTEND_URL}/league" style="background-color: #dc3545; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Standings</a>
+            </p>
+        </div>
+    `;
+
+    await sendEmail(recipients, subject, html);
+}
+
 module.exports = {
     sendPickConfirmation,
     sendStalledDraftNotification,
     sendClassicRosterSubmissionEmail,
     sendRandomRemovalsEmail,
     sendRosterUpdateEmail,
+    sendPhantomWarningEmail,
+    sendPhantomLossesEmail,
     verifyConnection
 };

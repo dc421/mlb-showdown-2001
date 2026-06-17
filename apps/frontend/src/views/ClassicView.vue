@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import { sortRoster } from '@/utils/playerUtils';
 
 const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -646,12 +647,7 @@ onMounted(async () => {
         </div>
 
         <!-- Player Card Modal -->
-        <div v-if="selectedPlayer" class="modal-overlay" @click="selectedPlayer = null">
-            <div class="modal-content player-card-content" @click.stop>
-                <button class="close-btn" @click="selectedPlayer = null">×</button>
-                <PlayerCard :player="selectedPlayer" />
-            </div>
-        </div>
+        <PlayerCardModal :player="selectedPlayer" @close="selectedPlayer = null" />
     </div>
 </template>
 
