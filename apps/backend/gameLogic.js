@@ -710,7 +710,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     ? computeAdvantageBackfired(chartHolder === pitcher ? 'pitcher' : 'batter', swingRoll, pitcher, batter)
     : false;
   if (advantageBackfired) {
-    events.push(`The advantage backfired on ${pitcher.displayName}! ${batter.displayName} found a better result on the pitcher's chart than his own.`);
+    events.push(`The advantage backfired on ${pitcher.displayName}!`);
   }
 
   // --- Handle Inning Change & Game Over Check ---
