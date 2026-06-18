@@ -10,6 +10,29 @@ const authStore = useAuthStore();
 const players = ref([]);
 const loading = ref(true);
 const selectedCard = ref(null);
+const viewMode = ref('card'); // 'card' | 'league'
+
+// --- LEAGUE-STATS VIEW DATA ---
+const apiBase = import.meta.env.VITE_API_URL || 'https://mlb-showdown-2001.onrender.com';
+const TROPHY = {
+    spaceships: `${apiBase}/images/golden_spaceship.png`,
+    mvas: `${apiBase}/images/mva.png`,
+    submarines: `${apiBase}/images/silver_submarine.png`,
+    tgaoots: `${apiBase}/images/tgaoot.png`,
+    spoons: `${apiBase}/images/wooden_spoon.png`,
+    lvscs: `${apiBase}/images/lvsc.png`
+};
+// Trophy columns in grouped order (each diamond next to its award).
+const TROPHY_COLS = ['spaceships', 'mvas', 'submarines', 'tgaoots', 'spoons', 'lvscs'];
+const TROPHY_TITLES = { spaceships: 'Golden Spaceships', mvas: 'MVAs', submarines: 'Silver Submarines', tgaoots: 'TGAOOTs', spoons: 'Wooden Spoons', lvscs: 'LVSCs' };
+const leagueStats = ref({});
+const franchises = ref([]);
+const ZERO_STATS = { wins: 0, losses: 0, spaceships: 0, submarines: 0, spoons: 0, mvas: 0, lvscs: 0, tgaoots: 0, seasonsByTeam: {}, totalSeasons: 0 };
+
+function statsFor(p) { return leagueStats.value[p.card_id] || ZERO_STATS; }
+function wpct(s) { const t = s.wins + s.losses; return t ? s.wins / t : 0; }
+function recordDisplay(s) { return (s.wins + s.losses) ? `${s.wins}-${s.losses}` : ''; }
+function wpctDisplay(s) { const t = s.wins + s.losses; return t ? (s.wins / t).toFixed(3).replace(/^0\./, '.') : ''; }
 
 // --- FILTER / SORT STATE ---
 const searchQuery = ref('');
@@ -26,6 +49,7 @@ const obMin = ref(''),   obMax = ref('');
 const spdMin = ref(''),  spdMax = ref('');
 const ctrlMin = ref(''), ctrlMax = ref('');
 const ipMin = ref(''),   ipMax = ref('');
+const szMin = ref(''),   szMax = ref(''); // total seasons (League Stats view)
 
 const sortKey = ref('points');
 const sortDir = ref('desc');       // 'asc' | 'desc'
@@ -75,8 +99,12 @@ function chartByOutcome(p) {
 }
 
 function fieldingDisplay(p) {
-    if (!p.fielding_ratings) return '';
-    return Object.entries(p.fielding_ratings)
+    // DH (and pitchers) have no real fielding — show a dash, like the printed card.
+    const entries = p.fielding_ratings
+        ? Object.entries(p.fielding_ratings).filter(([pos]) => pos !== 'DH')
+        : [];
+    if (!entries.length) return '—';
+    return entries
         .map(([pos, val]) => `${pos.replace(/LFRF/g, 'LF/RF')} ${val >= 0 ? '+' : ''}${val}`)
         .join(', ');
 }
@@ -172,15 +200,19 @@ const filteredPlayers = computed(() => {
         if (filterOwned.value === 'OWNED' && !p.owned_by_team_id) return false;
         if (filterOwned.value === 'FREE' && p.owned_by_team_id) return false;
 
-        // Numeric stat ranges (each gated to the type whose column is shown).
-        if (!passesRange(num(p.points), ptsMin.value, ptsMax.value)) return false;
-        if (showHitterCols.value) {
-            if (!passesRange(hitterOB(p), obMin.value, obMax.value)) return false;
-            if (!passesRange(speedNum(p), spdMin.value, spdMax.value)) return false;
-        }
-        if (showPitcherCols.value) {
-            if (!passesRange(isPitcher(p) ? p.control : null, ctrlMin.value, ctrlMax.value)) return false;
-            if (!passesRange(isPitcher(p) ? p.ip : null, ipMin.value, ipMax.value)) return false;
+        // Numeric stat ranges (card view only; each gated to the type whose column is shown).
+        if (viewMode.value === 'card') {
+            if (!passesRange(num(p.points), ptsMin.value, ptsMax.value)) return false;
+            if (showHitterCols.value) {
+                if (!passesRange(hitterOB(p), obMin.value, obMax.value)) return false;
+                if (!passesRange(speedNum(p), spdMin.value, spdMax.value)) return false;
+            }
+            if (showPitcherCols.value) {
+                if (!passesRange(isPitcher(p) ? p.control : null, ctrlMin.value, ctrlMax.value)) return false;
+                if (!passesRange(isPitcher(p) ? p.ip : null, ipMin.value, ipMax.value)) return false;
+            }
+        } else if (viewMode.value === 'league') {
+            if (!passesRange(statsFor(p).totalSeasons, szMin.value, szMax.value)) return false;
         }
 
         return true;
@@ -197,6 +229,16 @@ const filteredPlayers = computed(() => {
 });
 
 function compareBy(a, b, key) {
+    // League-stats columns (lg_*) read from the aggregate stats.
+    if (key.startsWith('lg_')) {
+        const sa = statsFor(a), sb = statsFor(b);
+        if (key === 'lg_wins') return sa.wins - sb.wins;
+        if (key === 'lg_wpct') return wpct(sa) - wpct(sb);
+        if (key === 'lg_seasons') return sa.totalSeasons - sb.totalSeasons;
+        if (key.startsWith('lg_team_')) { const tid = key.slice(8); return (sa.seasonsByTeam[tid] || 0) - (sb.seasonsByTeam[tid] || 0); }
+        return (sa[key.slice(3)] || 0) - (sb[key.slice(3)] || 0); // trophy counts
+    }
+
     // Chart outcome columns sort by how many die-roll results land on that outcome
     // (e.g. GB "5-14" = 10 results), so the "highest" GB card has the widest GB
     // range and cards with no GB (0) sort to the bottom.
@@ -283,6 +325,25 @@ async function fetchPlayers() {
 watch(playerType, () => { filterPosition.value = 'ALL'; });
 watch(selectedPointSetId, fetchPlayers);
 
+// Switch to a sensible default sort for each view.
+watch(viewMode, (mode) => {
+    if (mode === 'league') { sortKey.value = 'lg_spaceships'; sortDir.value = 'desc'; }
+    else { sortKey.value = 'points'; sortDir.value = 'desc'; }
+});
+
+async function fetchLeagueStats() {
+    try {
+        const res = await apiClient('/api/players/league-stats');
+        if (res.ok) {
+            const data = await res.json();
+            leagueStats.value = data.stats || {};
+            franchises.value = data.franchises || [];
+        }
+    } catch (e) {
+        console.error('Error fetching league stats:', e);
+    }
+}
+
 onMounted(async () => {
     await authStore.fetchPointSets();
     // Default to the current-season point set regardless of draft state; fall back
@@ -293,6 +354,7 @@ onMounted(async () => {
         ?? authStore.pointSets[0]?.point_set_id
         ?? null;
     await fetchPlayers();
+    fetchLeagueStats();
 });
 </script>
 
@@ -308,6 +370,12 @@ onMounted(async () => {
                     {{ ps.name }}
                 </option>
             </select>
+        </div>
+
+        <!-- VIEW TOGGLE -->
+        <div class="view-toggle">
+            <button :class="{ active: viewMode === 'card' }" @click="viewMode = 'card'">Card Stats</button>
+            <button :class="{ active: viewMode === 'league' }" @click="viewMode = 'league'">League Stats</button>
         </div>
 
         <!-- FILTER BAR -->
@@ -343,8 +411,8 @@ onMounted(async () => {
             </select>
         </div>
 
-        <!-- Numeric stat range filters -->
-        <div class="stat-filters">
+        <!-- Numeric stat range filters (card view only) -->
+        <div v-if="viewMode === 'card'" class="stat-filters">
             <span class="stat-filter">
                 <label>Pts</label>
                 <input type="number" v-model="ptsMin" placeholder="min" class="stat-input" />
@@ -377,13 +445,23 @@ onMounted(async () => {
             </span>
         </div>
 
+        <!-- League-stats range filters -->
+        <div v-if="viewMode === 'league'" class="stat-filters">
+            <span class="stat-filter">
+                <label>Szns</label>
+                <input type="number" v-model="szMin" placeholder="min" class="stat-input" />
+                <span class="dash">–</span>
+                <input type="number" v-model="szMax" placeholder="max" class="stat-input" />
+            </span>
+        </div>
+
         <div v-if="loading" class="loading">Loading players...</div>
 
         <template v-else>
             <div class="results-count">{{ filteredPlayers.length }} players</div>
 
             <div class="table-scroll">
-                <table class="players-table">
+                <table v-if="viewMode === 'card'" class="players-table">
                     <thead>
                         <tr>
                             <th class="col-owner">Team</th>
@@ -432,6 +510,38 @@ onMounted(async () => {
                         </tr>
                     </tbody>
                 </table>
+
+                <!-- LEAGUE STATS TABLE -->
+                <table v-else class="players-table league-table">
+                    <thead>
+                        <tr>
+                            <th class="col-name sortable" @click="setSort('name')">Name{{ sortArrow('name') }}</th>
+                            <th class="num sortable" @click="setSort('points')">Pts{{ sortArrow('points') }}</th>
+                            <th class="num sortable" @click="setSort('lg_wins')">W-L{{ sortArrow('lg_wins') }}</th>
+                            <th class="num sortable" @click="setSort('lg_wpct')">W%{{ sortArrow('lg_wpct') }}</th>
+                            <th v-for="t in TROPHY_COLS" :key="t" class="num sortable trophy-th" :title="TROPHY_TITLES[t]" @click="setSort('lg_' + t)">
+                                <img :src="TROPHY[t]" :alt="TROPHY_TITLES[t]" />{{ sortArrow('lg_' + t) }}
+                            </th>
+                            <th v-for="f in franchises" :key="f.team_id" class="num sortable" :title="`${f.city} — seasons`" @click="setSort('lg_team_' + f.team_id)">
+                                {{ f.abbr }}{{ sortArrow('lg_team_' + f.team_id) }}
+                            </th>
+                            <th class="num sortable" title="Total seasons" @click="setSort('lg_seasons')">Szns{{ sortArrow('lg_seasons') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="p in filteredPlayers" :key="p.card_id">
+                            <td class="col-name">
+                                <span class="clickable-name" @click="selectedCard = p">{{ p.displayName || p.name }}</span>
+                            </td>
+                            <td class="num">{{ p.points }}</td>
+                            <td class="num">{{ recordDisplay(statsFor(p)) }}</td>
+                            <td class="num">{{ wpctDisplay(statsFor(p)) }}</td>
+                            <td v-for="t in TROPHY_COLS" :key="t" class="num">{{ statsFor(p)[t] || '' }}</td>
+                            <td v-for="f in franchises" :key="f.team_id" class="num">{{ statsFor(p).seasonsByTeam[f.team_id] || '' }}</td>
+                            <td class="num">{{ statsFor(p).totalSeasons || '' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <p v-if="!filteredPlayers.length" class="no-results">No players match these filters.</p>
@@ -455,6 +565,13 @@ onMounted(async () => {
 .stat-input { width: 52px; padding: 0.35rem; box-sizing: border-box; }
 .stat-filter .dash { color: #adb5bd; }
 
+.view-toggle { display: inline-flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-bottom: 1rem; }
+.view-toggle button { background: #fff; border: none; padding: 0.45rem 1.1rem; cursor: pointer; font-weight: 700; color: #495057; border-right: 1px solid #e0e0e0; }
+.view-toggle button:last-child { border-right: none; }
+.view-toggle button.active { background: #343a40; color: #fff; }
+
+.league-table .trophy-th img { height: 16px; width: auto; vertical-align: middle; }
+
 .type-toggle { display: inline-flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
 .type-toggle button { background: #fff; border: none; padding: 0.45rem 0.9rem; cursor: pointer; font-weight: 600; color: #495057; border-right: 1px solid #e0e0e0; }
 .type-toggle button:last-child { border-right: none; }
@@ -476,7 +593,8 @@ onMounted(async () => {
 .col-name { min-width: 150px; }
 .col-field { color: #555; white-space: nowrap; }
 .col-owner { text-align: center; }
-.owner-logo { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
+/* Keep the logo within the text line box so owned-player rows aren't taller than free-agent rows. */
+.owner-logo { display: block; margin: 0 auto; width: auto; height: 15px; object-fit: contain; }
 
 .clickable-name { cursor: pointer; font-weight: 600; }
 .clickable-name:hover { color: #007bff; text-decoration: underline; }

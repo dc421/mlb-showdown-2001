@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
@@ -2293,14 +2293,23 @@ function handleInfieldInDefenseChoice(throwHome) {
 
 
 
+// Guards against echoing a server-driven sync back to the server as a new request.
+let syncingInfieldInFromServer = false;
+
+// Persist the defensive setting only when the defensive player actually toggles it.
 watch(infieldIn, (newValue, oldValue) => {
-    if (newValue !== oldValue && amIDefensivePlayer.value) {
+    if (newValue !== oldValue && amIDefensivePlayer.value && !syncingInfieldInFromServer) {
         gameStore.setDefense(gameId, newValue);
     }
 });
 
-watch(() => atBatToDisplay.value?.infieldIn, (newValue) => {
+// Sync from the live at-bat (currentAtBat), NOT atBatToDisplay — the latter flips to
+// lastCompletedAtBat during the inter-batter transition, which made infieldIn oscillate
+// (false/true/false...) and spam set-defense, flickering "IF IN" on the opponent's screen.
+watch(() => gameStore.gameState?.currentAtBat?.infieldIn, (newValue) => {
+    syncingInfieldInFromServer = true;
     infieldIn.value = !!newValue;
+    nextTick(() => { syncingInfieldInFromServer = false; });
 }, { immediate: true });
 
 const bothPlayersCaughtUp = computed(() => {
@@ -2656,7 +2665,7 @@ async function handleReauthenticate() {
 
       <!-- BASEBALL DIAMOND AND RESULTS -->
       <div class="diamond-and-results-container">
-          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" :runnersScored="scoredRunnersToDisplay" :thrownOutRunner="thrownOutRunnerToDisplay" :scoredColors="scoredTeamColors" :celebrating="hrCelebration" />
+          <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" :runnersScored="scoredRunnersToDisplay" :thrownOutRunner="thrownOutRunnerToDisplay" :scoredColors="scoredTeamColors" :celebrating="hrCelebration" :seriesType="gameStore.series?.series_type" />
           <HomeRunCelebration :active="hrCelebration" :teamColors="batterTeamColors" :showBall="celebrationShowBall" :showFireworks="celebrationShowFireworks" :bannerText="celebrationBannerText" />
           <div v-if="showInfieldInNote || showBackfireNote" class="result-callouts">
             <div v-if="showInfieldInNote" class="result-callout infield-in">⚾ THROUGH THE DRAWN-IN INFIELD!</div>

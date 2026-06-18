@@ -7,15 +7,25 @@ const props = defineProps({
     playerName: String
 });
 
-// Trophy images live on the backend (same source the rest of the app uses).
+// All trophy images live on the backend (same source the rest of the app uses).
 const apiBase = import.meta.env.VITE_API_URL || 'https://mlb-showdown-2001.onrender.com';
 const TROPHY = {
     spaceship: `${apiBase}/images/golden_spaceship.png`,
     submarine: `${apiBase}/images/silver_submarine.png`,
-    spoon: `${apiBase}/images/wooden_spoon.png`
+    spoon: `${apiBase}/images/wooden_spoon.png`,
+    mva: `${apiBase}/images/mva.png`,
+    lvsc: `${apiBase}/images/lvsc.png`,
+    tgaoot: `${apiBase}/images/tgaoot.png`
 };
-// The name-based awards use emoji "trophies".
-const EMOJI = { mva: '🧑‍🚀', lvsc: '🧑‍🍳', tgaoot: '⚓' };
+// Ordered so each diamond sits next to its related award.
+const HONOR_DEFS = [
+    { key: 'spaceship', title: 'Golden Spaceship' },
+    { key: 'mva', title: 'MVA' },
+    { key: 'submarine', title: 'Silver Submarine' },
+    { key: 'tgaoot', title: 'TGAOOT' },
+    { key: 'spoon', title: 'Wooden Spoon' },
+    { key: 'lvsc', title: 'LVSC' }
+];
 
 const loading = ref(true);
 const data = ref(null);
@@ -38,12 +48,16 @@ watch(() => props.cardId, fetchHistory);
 onMounted(fetchHistory);
 
 const seasons = computed(() => data.value?.seasons || []);
+const classic = computed(() => data.value?.classic || []);
 const totals = computed(() => data.value?.totals || {});
-const hasHistory = computed(() => seasons.value.length > 0);
+const hasAny = computed(() => seasons.value.length > 0 || classic.value.length > 0);
 
 const careerRecord = computed(() => {
     const t = totals.value;
-    return (t.wins || 0) + (t.losses || 0) > 0 ? `${t.wins}-${t.losses}` : null;
+    const w = t.wins || 0, l = t.losses || 0;
+    if (w + l === 0) return null;
+    const pct = (w / (w + l)).toFixed(3).replace(/^0\./, '.');
+    return `${w}-${l} (${pct})`;
 });
 
 // Compact season label: "Early July 2020" -> "E Jul '20", "Fall 2025" -> "Fall '25".
@@ -63,30 +77,17 @@ function abbrevSeason(name) {
     return `${body} '${year.slice(-2)}`;
 }
 
-// Summary chips across the top — only honors the player actually has.
+// Honor icons for a season row (league or classic).
+function honorsFor(obj) {
+    return HONOR_DEFS.filter(h => obj[h.key]).map(h => ({ img: TROPHY[h.key], title: h.title }));
+}
+
+// Summary chips across the top — every honor the player has earned, with counts.
 const summaryHonors = computed(() => {
     const t = totals.value;
-    const out = [];
-    if (t.spaceships) out.push({ img: TROPHY.spaceship, n: t.spaceships, title: 'Golden Spaceship' });
-    if (t.submarines) out.push({ img: TROPHY.submarine, n: t.submarines, title: 'Silver Submarine' });
-    if (t.spoons) out.push({ img: TROPHY.spoon, n: t.spoons, title: 'Wooden Spoon' });
-    if (t.mvas) out.push({ emoji: EMOJI.mva, n: t.mvas, title: 'MVA' });
-    if (t.lvscs) out.push({ emoji: EMOJI.lvsc, n: t.lvscs, title: 'LVSC' });
-    if (t.tgaoots) out.push({ emoji: EMOJI.tgaoot, n: t.tgaoots, title: 'TGAOOT' });
-    return out;
+    const map = { spaceship: t.spaceships, submarine: t.submarines, spoon: t.spoons, mva: t.mvas, lvsc: t.lvscs, tgaoot: t.tgaoots };
+    return HONOR_DEFS.filter(h => map[h.key]).map(h => ({ img: TROPHY[h.key], n: map[h.key], title: h.title }));
 });
-
-// Per-season honor icons.
-function honors(s) {
-    const out = [];
-    if (s.spaceship) out.push({ img: TROPHY.spaceship, title: 'Golden Spaceship' });
-    if (s.submarine) out.push({ img: TROPHY.submarine, title: 'Silver Submarine' });
-    if (s.spoon) out.push({ img: TROPHY.spoon, title: 'Wooden Spoon' });
-    if (s.mva) out.push({ emoji: EMOJI.mva, title: 'MVA' });
-    if (s.lvsc) out.push({ emoji: EMOJI.lvsc, title: 'LVSC' });
-    if (s.tgaoot) out.push({ emoji: EMOJI.tgaoot, title: 'TGAOOT' });
-    return out;
-}
 </script>
 
 <template>
@@ -99,25 +100,19 @@ function honors(s) {
 
         <div v-if="loading" class="cb-state">Loading…</div>
 
-        <template v-else-if="hasHistory">
+        <template v-else-if="hasAny">
             <div v-if="summaryHonors.length" class="cb-summary">
                 <span v-for="(h, i) in summaryHonors" :key="i" class="sum-honor" :title="h.title">
-                    <img v-if="h.img" :src="h.img" :alt="h.title" />
-                    <span v-else class="sum-emoji">{{ h.emoji }}</span>
-                    <span class="sum-n">×{{ h.n }}</span>
+                    <img :src="h.img" :alt="h.title" /><span class="sum-n">×{{ h.n }}</span>
                 </span>
             </div>
 
             <div class="cb-body">
-                <table class="cb-table">
+                <table v-if="seasons.length" class="cb-table">
                     <thead>
                         <tr>
-                            <th>Season</th>
-                            <th>Tm</th>
-                            <th>Pos</th>
-                            <th class="num">Pts</th>
-                            <th class="num">Rec</th>
-                            <th>Honors</th>
+                            <th>Season</th><th>Tm</th><th>Pos</th>
+                            <th class="num">Pts</th><th class="num">Rec</th><th>Honors</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -128,14 +123,30 @@ function honors(s) {
                             <td class="num">{{ s.points != null ? s.points : '' }}</td>
                             <td class="num">{{ s.wins != null ? `${s.wins}-${s.losses}` : '' }}</td>
                             <td class="honors">
-                                <template v-for="(h, i) in honors(s)" :key="i">
-                                    <img v-if="h.img" :src="h.img" class="t-icon" :title="h.title" />
-                                    <span v-else class="e-icon" :title="h.title">{{ h.emoji }}</span>
-                                </template>
+                                <img v-for="(h, i) in honorsFor(s)" :key="i" :src="h.img" class="t-icon" :title="h.title" />
                             </td>
                         </tr>
                     </tbody>
                 </table>
+
+                <div v-if="classic.length" class="cb-classic">
+                    <div class="cb-classic-head">Classic</div>
+                    <table class="cb-table">
+                        <thead>
+                            <tr><th>Season</th><th>Tm</th><th class="num">Rec</th><th>Honors</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="c in classic" :key="c.season">
+                                <td>{{ abbrevSeason(c.season) }}</td>
+                                <td :title="c.team">{{ c.team_abbr || '—' }}</td>
+                                <td class="num">{{ c.wins != null ? `${c.wins}-${c.losses}` : '' }}</td>
+                                <td class="honors">
+                                    <img v-for="(h, i) in honorsFor(c)" :key="i" :src="h.img" class="t-icon" :title="h.title" />
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </template>
 
@@ -170,7 +181,6 @@ function honors(s) {
 .cb-summary { display: flex; flex-wrap: wrap; gap: 3px 5px; align-items: center; padding: 4px 0; }
 .sum-honor { display: inline-flex; align-items: center; gap: 1px; }
 .sum-honor img { height: 15px; width: auto; }
-.sum-emoji { font-size: 0.8rem; line-height: 1; }
 .sum-n { font-size: 0.52rem; font-weight: 700; }
 
 .cb-body { flex: 1; overflow-y: auto; margin-top: 2px; }
@@ -180,7 +190,9 @@ function honors(s) {
 .cb-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, 0.03); }
 .cb-table .num { text-align: right; }
 
+.cb-classic { margin-top: 6px; }
+.cb-classic-head { font-size: 0.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #8a7a52; border-top: 1px solid #d8cca8; padding-top: 3px; margin-bottom: 1px; }
+
 .honors { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
 .t-icon { height: 12px; width: auto; }
-.e-icon { font-size: 0.72rem; line-height: 1; }
 </style>

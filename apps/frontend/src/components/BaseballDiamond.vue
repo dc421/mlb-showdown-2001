@@ -17,12 +17,23 @@ const props = defineProps({
   // During the home-run celebration, lift the runner cards above the full-screen dim
   // so they (and the run splash) stay lit while the field darkens.
   celebrating: { type: Boolean, default: false },
+  // The series_type of the game, so finale series get their own themed field.
+  seriesType: { type: String, default: '' },
 });
 const emit = defineEmits(['attempt-steal']);
 
 // Get the API URL from the environment variable
 const apiUrl = import.meta.env.VITE_API_URL || '';
-const diamondUrl = computed(() => `${apiUrl}/images/diamond.png`);
+
+// Finale series swap the plain field for a themed diamond. Everything else uses diamond.png.
+const SPECIAL_DIAMONDS = {
+  golden_spaceship: 'golden_spaceship_diamond.png',
+  wooden_spoon: 'wooden_spoon_diamond.png',
+  classic: 'silver_submarine_diamond.png',
+};
+const diamondUrl = computed(
+  () => `${apiUrl}/images/${SPECIAL_DIAMONDS[props.seriesType] || 'diamond.png'}`
+);
 
 // Runner thrown out at a specific base (2 = 2nd, 3 = 3rd, 4 = home), if any.
 const outAtBase = (base) =>

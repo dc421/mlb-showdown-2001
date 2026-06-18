@@ -100,6 +100,8 @@ const statusText = computed(() => {
 function getSeriesTypeDisplay(type) {
     switch (type) {
         case 'regular_season': return 'Regular Season';
+        case 'golden_spaceship': return 'Golden Spaceship';
+        case 'wooden_spoon': return 'Wooden Spoon';
         case 'playoff': return 'Playoff';
         case 'classic': return 'Classic';
         default: return 'Exhibition';

@@ -1,5 +1,10 @@
 const { matchesFranchise, getMappedIds, getLogoForTeam } = require('./franchiseUtils');
 
+// Default number of Monte Carlo iterations for spaceship/spoon odds. These odds are
+// normally precomputed off the request path (see services/playoffOddsService.js), so
+// we can afford a high count for stable percentages.
+const DEFAULT_NUM_SIMS = 50000;
+
 // "Phantoms" is not a real franchise — it's the placeholder opponent recorded for a
 // phantom loss (a team that didn't play its required series in time). A phantom-loss row
 // looks like { winning_team_name: 'Phantoms', winning_score: N, losing_team_name: <team>,
@@ -46,7 +51,13 @@ const findTeamForRecord = (name, id, currentTeams) => {
     };
 };
 
-function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
+// options:
+//   precomputedOdds — map of teamStats key ("ID-<id>" / "NAME-<name>") to
+//                     { spaceshipOdds, spoonOdds }. When provided, these are attached
+//                     directly and the Monte Carlo simulation is skipped.
+//   numSims         — iterations to run when odds are not precomputed.
+function calculateStandings(seriesResults, currentTeams, isAllTime = false, options = {}) {
+    const { precomputedOdds = null, numSims = DEFAULT_NUM_SIMS } = options;
     if (isAllTime) {
         // --- ALL-TIME LOGIC ---
         // Calculate Stats Per Season First for Avg Finish
@@ -395,6 +406,18 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
 
         // Monte Carlo playoff odds for incomplete seasons
         if (!isPostseasonSet) {
+            const teamKeys = Object.keys(teamStats);
+
+            // Fast path: odds were precomputed off the request path (cache hit).
+            // Attach them and skip the simulation entirely.
+            if (precomputedOdds) {
+                teamKeys.forEach(k => {
+                    const o = precomputedOdds[k];
+                    teamStats[k].spaceshipOdds = o ? o.spaceshipOdds : 0;
+                    teamStats[k].spoonOdds = o ? o.spoonOdds : 0;
+                });
+            } else {
+
             // Build baseline head-to-head from completed regular-season games
             const baseH2H = {};
             seriesResults.forEach(s => {
@@ -497,10 +520,9 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                 return result;
             };
 
-            const NUM_SIMS = 10000;
+            const NUM_SIMS = numSims;
             const spaceshipCount = {};
             const spoonCount = {};
-            const teamKeys = Object.keys(teamStats);
             teamKeys.forEach(k => { spaceshipCount[k] = 0; spoonCount[k] = 0; });
             const n = teamKeys.length;
 
@@ -555,6 +577,7 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false) {
                 teamStats[k].spaceshipOdds = spaceshipCount[k] / NUM_SIMS;
                 teamStats[k].spoonOdds = spoonCount[k] / NUM_SIMS;
             });
+            } // end else (run simulation)
         }
 
         const standings = teams.map(team => {

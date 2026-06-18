@@ -845,7 +845,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
 
     // 4. Check if the series is over
     let isSeriesOver = false;
-    if ((series_type === 'playoff' || series_type === 'classic') && (home_wins >= 4 || away_wins >= 4)) {
+    if (['playoff', 'golden_spaceship', 'wooden_spoon', 'classic'].includes(series_type) && (home_wins >= 4 || away_wins >= 4)) {
         isSeriesOver = true;
     }
     if (series_type === 'regular_season' && game_in_series >= 7) {
@@ -2247,9 +2247,28 @@ app.get('/api/games', authenticateToken, async (req, res) => {
 // GET ALL POINT SETS
 app.get('/api/point-sets', authenticateToken, async (req, res) => {
   try {
-    // Order by created_at descending to have the newest sets first
-    const pointSetsResult = await pool.query('SELECT * FROM point_sets ORDER BY created_at DESC');
-    res.json(pointSetsResult.rows);
+    // created_at is a bulk-insert timestamp for most sets, so sort by the season the
+    // set actually represents (newest first). "M/D Season" names need the year, which
+    // we recover from seasonUtils' seasonMap.
+    const { seasonMap } = require('./utils/seasonUtils');
+    const SEASON_MONTH = { Winter: 0, Spring: 1, Summer: 4, Fall: 7 };
+    const pointSetDate = (name) => {
+      if (name === 'Original Pts') return new Date(2000, 0, 1).getTime();
+      if (name === 'Upcoming Season') return new Date(2999, 0, 1).getTime();
+      let m = name.match(/^(Winter|Spring|Summer|Fall)\s+(\d{4})$/);
+      if (m) return new Date(+m[2], SEASON_MONTH[m[1]], 1).getTime();
+      m = name.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}) Season$/);
+      if (m) return new Date(2000 + +m[3], +m[1] - 1, +m[2]).getTime();
+      m = name.match(/^(\d{1,2})\/(\d{1,2}) Season$/);
+      if (m) {
+        const key = Object.keys(seasonMap).find(k => { const [mm, dd] = k.split('/').map(Number); return mm === +m[1] && dd === +m[2]; });
+        if (key) { const [mm, dd, yy] = key.split('/').map(Number); return new Date(2000 + yy, mm - 1, dd).getTime(); }
+      }
+      return 0;
+    };
+    const pointSetsResult = await pool.query('SELECT * FROM point_sets');
+    const rows = pointSetsResult.rows.sort((a, b) => pointSetDate(b.name) - pointSetDate(a.name));
+    res.json(rows);
   } catch (error) {
     console.error('Error fetching point sets:', error);
     res.status(500).json({ message: 'Server error while fetching point sets.' });
@@ -2335,7 +2354,7 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
 
         const [historyRes, seriesRes, teamsRes] = await Promise.all([
             pool.query('SELECT season, team_name, position FROM historical_rosters WHERE card_id = $1', [cardId]),
-            pool.query(`SELECT season_name, round, winning_team_id, losing_team_id,
+            pool.query(`SELECT season_name, round, style, winning_team_id, losing_team_id,
                                winning_team_name, losing_team_name, winning_score, losing_score,
                                mva, lvsc, tgaoot, date
                         FROM series_results`),
@@ -2345,7 +2364,7 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         const series = seriesRes.rows;
         const { findTeamForRecord } = require('./utils/standingsUtils');
 
-        const DIAMONDS = ['Golden Spaceship', 'Silver Submarine', 'Wooden Spoon'];
+        const LEAGUE_DIAMONDS = ['Golden Spaceship', 'Wooden Spoon'];
         const isPhantom = (n) => (n || '').includes('Phantoms');
 
         // Resolve any historical team name to its current franchise identity (handles
@@ -2358,56 +2377,64 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
             return (fCache[ck] = { key: t.team_id ? `ID-${t.team_id}` : `NAME-${(t.name || '').trim()}`, name: t.name });
         };
 
-        // Per-season, per-franchise: regular-season W-L plus the name actually used that
-        // season; and which franchise took each diamond.
-        const seasonFranchise = {};
-        const seasonDiamond = {};
+        // Per-season, per-franchise W-L + era name, kept separately for league play and
+        // the Classic (a parallel competition); plus which franchise took each diamond.
+        const leagueFr = {};
+        const classicFr = {};
+        const seasonDiamond = {};   // league: { spaceship, spoon }
+        const classicDiamond = {};  // { submarine }
         const seasonDate = {};
-        const sfEnsure = (season, key) => {
-            if (!seasonFranchise[season]) seasonFranchise[season] = {};
-            if (!seasonFranchise[season][key]) seasonFranchise[season][key] = { wins: 0, losses: 0, eraName: null };
-            return seasonFranchise[season][key];
+        const frEnsure = (store, season, key) => {
+            if (!store[season]) store[season] = {};
+            if (!store[season][key]) store[season][key] = { wins: 0, losses: 0, eraName: null };
+            return store[season][key];
         };
         series.forEach(r => {
             if (r.date && (!seasonDate[r.season_name] || new Date(r.date) < new Date(seasonDate[r.season_name]))) {
                 seasonDate[r.season_name] = r.date;
             }
+            const isClassic = r.style === 'Classic';
+            const store = isClassic ? classicFr : leagueFr;
             const w = fInfo(r.winning_team_name, r.winning_team_id);
             const l = fInfo(r.losing_team_name, r.losing_team_id);
-            // Era name — prefer the plain Regular Season name for the franchise.
+            // Era name — prefer the plain Regular Season name for league play.
             if (!isPhantom(w.name)) {
-                const sf = sfEnsure(r.season_name, w.key);
-                if (r.round === 'Regular Season' || !sf.eraName) sf.eraName = r.winning_team_name;
+                const fr = frEnsure(store, r.season_name, w.key);
+                if (r.round === 'Regular Season' || !fr.eraName) fr.eraName = r.winning_team_name;
             }
             if (!isPhantom(l.name)) {
-                const sf = sfEnsure(r.season_name, l.key);
-                if (r.round === 'Regular Season' || !sf.eraName) sf.eraName = r.losing_team_name;
+                const fr = frEnsure(store, r.season_name, l.key);
+                if (r.round === 'Regular Season' || !fr.eraName) fr.eraName = r.losing_team_name;
             }
-            // Regular-season W-L (completed games only), matching the League standings.
-            if (!DIAMONDS.includes(r.round) && r.winning_score != null) {
-                if (!isPhantom(w.name)) { const sf = sfEnsure(r.season_name, w.key); sf.wins += r.winning_score || 0; sf.losses += r.losing_score || 0; }
-                if (!isPhantom(l.name)) { const sf = sfEnsure(r.season_name, l.key); sf.losses += r.winning_score || 0; sf.wins += r.losing_score || 0; }
+            // W-L over every completed series, including Golden Spaceship / Wooden Spoon
+            // (league) and the Silver Submarine (Classic).
+            if (r.winning_score != null) {
+                if (!isPhantom(w.name)) { const fr = frEnsure(store, r.season_name, w.key); fr.wins += r.winning_score || 0; fr.losses += r.losing_score || 0; }
+                if (!isPhantom(l.name)) { const fr = frEnsure(store, r.season_name, l.key); fr.losses += r.winning_score || 0; fr.wins += r.losing_score || 0; }
             }
-            // Diamonds — winner takes spaceship/submarine; loser earns the spoon.
-            if (DIAMONDS.includes(r.round)) {
-                const sd = seasonDiamond[r.season_name] || (seasonDiamond[r.season_name] = {});
-                if (r.round === 'Golden Spaceship') sd.spaceship = w.key;
-                else if (r.round === 'Silver Submarine') sd.submarine = w.key;
-                else if (r.round === 'Wooden Spoon') sd.spoon = l.key;
-            }
+            // Diamonds — Golden Spaceship/Wooden Spoon are league; Silver Submarine is the Classic.
+            if (r.round === 'Golden Spaceship') (seasonDiamond[r.season_name] = seasonDiamond[r.season_name] || {}).spaceship = w.key;
+            else if (r.round === 'Wooden Spoon') (seasonDiamond[r.season_name] = seasonDiamond[r.season_name] || {}).spoon = l.key; // loser earns it
+            else if (r.round === 'Silver Submarine') (classicDiamond[r.season_name] = classicDiamond[r.season_name] || {}).submarine = w.key;
         });
 
-        // One entry per season the player appears in (via roster or a personal award).
+        // Player's league seasons (roster history) and Classic seasons.
         const seasons = {};
+        const classicSeasons = {};
         const ensure = (name) => {
             if (!seasons[name]) {
                 seasons[name] = {
                     season: name, franchises: [], positions: new Set(),
-                    spaceship: false, submarine: false, spoon: false,
-                    mva: false, lvsc: false, tgaoot: false
+                    spaceship: false, spoon: false, mva: false, lvsc: false, tgaoot: false
                 };
             }
             return seasons[name];
+        };
+        const ensureC = (name) => {
+            if (!classicSeasons[name]) {
+                classicSeasons[name] = { season: name, franchises: [], submarine: false, mva: false, lvsc: false, tgaoot: false };
+            }
+            return classicSeasons[name];
         };
 
         historyRes.rows.forEach(r => {
@@ -2417,21 +2444,58 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
             if (r.position) s.positions.add(r.position);
         });
 
-        // Team honors: credited when the player's franchise took the diamond that season.
+        // League diamonds for the player's franchise(s).
         Object.values(seasons).forEach(s => {
             const sd = seasonDiamond[s.season] || {};
             s.franchises.forEach(f => {
                 if (sd.spaceship === f.key) s.spaceship = true;
-                if (sd.submarine === f.key) s.submarine = true;
                 if (sd.spoon === f.key) s.spoon = true;
             });
         });
 
-        // Personal honors: matched by name.
+        // Classic participation comes from the Classic's own drafted rosters (a player
+        // is often drafted onto a different team than his league club), not the league
+        // roster. Map each classic the player was drafted into to its owning franchise.
+        let classicRosterRows = [];
+        const classicIdToSeason = {};
+        try {
+            classicRosterRows = (await pool.query(
+                `SELECT r.classic_id, r.user_id
+                 FROM rosters r JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                 WHERE r.roster_type = 'classic' AND rc.card_id = $1`,
+                [cardId]
+            )).rows;
+            const mapRows = (await pool.query(
+                `SELECT DISTINCT s.classic_id, sr.season_name
+                 FROM series_results sr
+                 JOIN teams wt ON wt.team_id = sr.winning_team_id
+                 JOIN teams lt ON lt.team_id = sr.losing_team_id
+                 JOIN series s ON s.series_type = 'classic'
+                     AND ((s.series_home_user_id = wt.user_id AND s.series_away_user_id = lt.user_id)
+                       OR (s.series_home_user_id = lt.user_id AND s.series_away_user_id = wt.user_id))
+                 WHERE sr.style = 'Classic' AND s.classic_id IS NOT NULL`
+            )).rows;
+            mapRows.forEach(m => { classicIdToSeason[m.classic_id] = m.season_name; });
+        } catch (_) { /* series/classics tables may be absent in some environments */ }
+
+        const userToTeam = {};
+        currentTeams.forEach(t => { if (t.user_id != null) userToTeam[t.user_id] = t; });
+        classicRosterRows.forEach(cr => {
+            const season = classicIdToSeason[cr.classic_id];
+            const ownerTeam = userToTeam[cr.user_id];
+            if (!season || !ownerTeam) return;
+            const fk = `ID-${ownerTeam.team_id}`;
+            const c = ensureC(season);
+            if (!c.franchises.some(x => x.key === fk)) c.franchises.push({ key: fk, histName: `${ownerTeam.city} ${ownerTeam.name}`, abbr: ownerTeam.abbreviation });
+            if ((classicDiamond[season] || {}).submarine === fk) c.submarine = true;
+        });
+
+        // Personal honors — attributed to the league or the Classic by where they were won.
         series.forEach(r => {
-            if (r.mva && normName(r.mva) === cardKey) ensure(r.season_name).mva = true;
-            if (r.lvsc && normName(r.lvsc) === cardKey) ensure(r.season_name).lvsc = true;
-            if (r.tgaoot && normName(r.tgaoot) === cardKey) ensure(r.season_name).tgaoot = true;
+            const tgt = r.style === 'Classic' ? ensureC : ensure;
+            if (r.mva && normName(r.mva) === cardKey) tgt(r.season_name).mva = true;
+            if (r.lvsc && normName(r.lvsc) === cardKey) tgt(r.season_name).lvsc = true;
+            if (r.tgaoot && normName(r.tgaoot) === cardKey) tgt(r.season_name).tgaoot = true;
         });
 
         // Per-season point value: the card's price in the point set that season used
@@ -2474,47 +2538,196 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
             return words.map(w => /^[A-Z]{2,}$/.test(w) ? w : (w[0] || '')).join('').toUpperCase().slice(0, 4);
         };
 
+        const byDateDesc = (a, b) => {
+            const da = seasonDate[a.season] ? new Date(seasonDate[a.season]).getTime() : -Infinity;
+            const db = seasonDate[b.season] ? new Date(seasonDate[b.season]).getTime() : -Infinity;
+            return db - da;
+        };
+
+        // Sum a season's W-L across every franchise the player was on (a player can be
+        // on more than one league/classic team in a season).
+        const sumRec = (store, season, franchises) => {
+            let wins = 0, losses = 0, has = false;
+            franchises.forEach(f => { const fr = store[season]?.[f.key]; if (fr) { wins += fr.wins; losses += fr.losses; has = true; } });
+            return has ? { wins, losses } : null;
+        };
+
         const seasonList = Object.values(seasons)
             .map(s => {
-                const eraNames = s.franchises.map(f =>
-                    seasonFranchise[s.season]?.[f.key]?.eraName || f.histName
-                );
-                const primary = s.franchises[0];
-                const sf = primary ? seasonFranchise[s.season]?.[primary.key] : null;
+                const eraNames = s.franchises.map(f => leagueFr[s.season]?.[f.key]?.eraName || f.histName);
+                const rec = sumRec(leagueFr, s.season, s.franchises);
                 return {
                     season: s.season,
                     team: eraNames.join(' / '),
                     team_abbr: eraNames.map(abbrevTeam).join('/'),
                     position: [...s.positions].join(', '),
                     points: seasonPoints(s.season),
-                    wins: sf ? sf.wins : null,
-                    losses: sf ? sf.losses : null,
-                    spaceship: s.spaceship, submarine: s.submarine, spoon: s.spoon,
+                    wins: rec ? rec.wins : null,
+                    losses: rec ? rec.losses : null,
+                    spaceship: s.spaceship, spoon: s.spoon,
                     mva: s.mva, lvsc: s.lvsc, tgaoot: s.tgaoot
                 };
             })
-            // Most-recent season first; unknown-date seasons sink to the bottom.
-            .sort((a, b) => {
-                const da = seasonDate[a.season] ? new Date(seasonDate[a.season]).getTime() : -Infinity;
-                const db = seasonDate[b.season] ? new Date(seasonDate[b.season]).getTime() : -Infinity;
-                return db - da;
-            });
+            .sort(byDateDesc);
 
-        const totals = seasonList.reduce((t, s) => ({
-            spaceships: t.spaceships + (s.spaceship ? 1 : 0),
-            submarines: t.submarines + (s.submarine ? 1 : 0),
-            spoons: t.spoons + (s.spoon ? 1 : 0),
-            mvas: t.mvas + (s.mva ? 1 : 0),
-            lvscs: t.lvscs + (s.lvsc ? 1 : 0),
-            tgaoots: t.tgaoots + (s.tgaoot ? 1 : 0),
-            wins: t.wins + (s.wins || 0),
-            losses: t.losses + (s.losses || 0)
-        }), { spaceships: 0, submarines: 0, spoons: 0, mvas: 0, lvscs: 0, tgaoots: 0, wins: 0, losses: 0 });
+        const classicList = Object.values(classicSeasons)
+            .map(c => {
+                const eraNames = c.franchises.map(f => classicFr[c.season]?.[f.key]?.eraName || f.histName);
+                const rec = sumRec(classicFr, c.season, c.franchises);
+                return {
+                    season: c.season,
+                    team: eraNames.join(' / '),
+                    // A Classic team is a current franchise — use its real abbreviation (BOS, LA…).
+                    team_abbr: c.franchises.map(f => f.abbr || abbrevTeam(classicFr[c.season]?.[f.key]?.eraName || f.histName)).join('/'),
+                    wins: rec ? rec.wins : null,
+                    losses: rec ? rec.losses : null,
+                    submarine: c.submarine, mva: c.mva, lvsc: c.lvsc, tgaoot: c.tgaoot
+                };
+            })
+            .sort(byDateDesc);
 
-        res.json({ card_id: cardId, seasons: seasonList, totals });
+        const count = (arr, key) => arr.reduce((n, x) => n + (x[key] ? 1 : 0), 0);
+        const totals = {
+            spaceships: count(seasonList, 'spaceship'),
+            spoons: count(seasonList, 'spoon'),
+            submarines: count(classicList, 'submarine'),
+            mvas: count(seasonList, 'mva') + count(classicList, 'mva'),
+            lvscs: count(seasonList, 'lvsc') + count(classicList, 'lvsc'),
+            tgaoots: count(seasonList, 'tgaoot') + count(classicList, 'tgaoot'),
+            wins: seasonList.reduce((n, s) => n + (s.wins || 0), 0),
+            losses: seasonList.reduce((n, s) => n + (s.losses || 0), 0)
+        };
+
+        res.json({ card_id: cardId, seasons: seasonList, classic: classicList, totals });
     } catch (error) {
         console.error('Error fetching player league history:', error);
         res.status(500).json({ message: 'Server error fetching league history.' });
+    }
+});
+
+// GET AGGREGATE LEAGUE STATS FOR EVERY PLAYER (career trophies, W-L, seasons per franchise)
+app.get('/api/players/league-stats', authenticateToken, async (req, res) => {
+    const normName = (n) => (n || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    try {
+        const [seriesRes, teamsRes, histRes, cardsRes] = await Promise.all([
+            pool.query(`SELECT season_name, round, style, winning_team_id, losing_team_id,
+                               winning_team_name, losing_team_name, winning_score, losing_score, mva, lvsc, tgaoot
+                        FROM series_results`),
+            pool.query('SELECT * FROM teams'),
+            pool.query('SELECT card_id, season, team_name FROM historical_rosters'),
+            pool.query('SELECT card_id, name FROM cards_player')
+        ]);
+        const currentTeams = teamsRes.rows;
+        const series = seriesRes.rows;
+        const { findTeamForRecord } = require('./utils/standingsUtils');
+        const isPhantom = (n) => (n || '').includes('Phantoms');
+        const LEAGUE_DIAMONDS = ['Golden Spaceship', 'Wooden Spoon'];
+
+        const fCache = {};
+        const fInfo = (name, id) => {
+            const ck = `${name || ''}|${id || ''}`;
+            if (fCache[ck]) return fCache[ck];
+            const t = findTeamForRecord(name, id, currentTeams);
+            return (fCache[ck] = { key: t.team_id ? `ID-${t.team_id}` : `NAME-${(t.name || '').trim()}`, name: t.name });
+        };
+
+        // Per-season franchise regular-season W-L (league only) and diamond winners.
+        const leagueFr = {};
+        const seasonDiamond = {};
+        const classicDiamond = {};
+        series.forEach(r => {
+            const isClassic = r.style === 'Classic';
+            const w = fInfo(r.winning_team_name, r.winning_team_id);
+            const l = fInfo(r.losing_team_name, r.losing_team_id);
+            if (!isClassic && r.winning_score != null) {
+                if (!isPhantom(w.name)) { (leagueFr[r.season_name] = leagueFr[r.season_name] || {}); const fr = (leagueFr[r.season_name][w.key] = leagueFr[r.season_name][w.key] || { wins: 0, losses: 0 }); fr.wins += r.winning_score || 0; fr.losses += r.losing_score || 0; }
+                if (!isPhantom(l.name)) { (leagueFr[r.season_name] = leagueFr[r.season_name] || {}); const fr = (leagueFr[r.season_name][l.key] = leagueFr[r.season_name][l.key] || { wins: 0, losses: 0 }); fr.losses += r.winning_score || 0; fr.wins += r.losing_score || 0; }
+            }
+            if (r.round === 'Golden Spaceship') (seasonDiamond[r.season_name] = seasonDiamond[r.season_name] || {}).spaceship = w.key;
+            else if (r.round === 'Wooden Spoon') (seasonDiamond[r.season_name] = seasonDiamond[r.season_name] || {}).spoon = l.key;
+            else if (r.round === 'Silver Submarine') (classicDiamond[r.season_name] = classicDiamond[r.season_name] || {}).submarine = w.key;
+        });
+
+        const nameToCards = {};
+        cardsRes.rows.forEach(c => { const k = normName(c.name); (nameToCards[k] = nameToCards[k] || []).push(c.card_id); });
+
+        const stats = {};
+        const ensureStat = (cid) => {
+            if (!stats[cid]) stats[cid] = { wins: 0, losses: 0, spaceships: 0, submarines: 0, spoons: 0, mvas: 0, lvscs: 0, tgaoots: 0, seasonsByTeam: {}, totalSeasons: 0 };
+            return stats[cid];
+        };
+
+        // Group a card's roster history by season; use the primary (first) franchise per season.
+        const histByCard = {};
+        histRes.rows.forEach(r => { (histByCard[r.card_id] = histByCard[r.card_id] || []).push(r); });
+        for (const cid in histByCard) {
+            const seasonKeys = {};
+            histByCard[cid].forEach(r => {
+                const fk = fInfo(r.team_name, null).key;
+                (seasonKeys[r.season] = seasonKeys[r.season] || new Set()).add(fk);
+            });
+            const st = ensureStat(cid);
+            for (const season in seasonKeys) {
+                st.totalSeasons++;
+                const keys = seasonKeys[season];
+                keys.forEach(k => {
+                    if (k.startsWith('ID-')) { const tid = k.slice(3); st.seasonsByTeam[tid] = (st.seasonsByTeam[tid] || 0) + 1; }
+                    const fr = leagueFr[season] && leagueFr[season][k];
+                    if (fr) { st.wins += fr.wins; st.losses += fr.losses; }
+                });
+                const sd = seasonDiamond[season] || {};
+                if (sd.spaceship && keys.has(sd.spaceship)) st.spaceships++;
+                if (sd.spoon && keys.has(sd.spoon)) st.spoons++;
+            }
+        }
+
+        // Silver Submarine is a Classic honor — credited via the Classic's drafted
+        // rosters (the team that drafted the player), not the league roster.
+        try {
+            const mapRows = (await pool.query(
+                `SELECT DISTINCT s.classic_id, sr.season_name
+                 FROM series_results sr
+                 JOIN teams wt ON wt.team_id = sr.winning_team_id
+                 JOIN teams lt ON lt.team_id = sr.losing_team_id
+                 JOIN series s ON s.series_type = 'classic'
+                     AND ((s.series_home_user_id = wt.user_id AND s.series_away_user_id = lt.user_id)
+                       OR (s.series_home_user_id = lt.user_id AND s.series_away_user_id = wt.user_id))
+                 WHERE sr.style = 'Classic' AND s.classic_id IS NOT NULL`
+            )).rows;
+            const classicIdToSeason = {};
+            mapRows.forEach(m => { classicIdToSeason[m.classic_id] = m.season_name; });
+            const userToTeam = {};
+            currentTeams.forEach(t => { if (t.user_id != null) userToTeam[t.user_id] = t; });
+            const classicRosterRows = (await pool.query(
+                `SELECT r.classic_id, r.user_id, rc.card_id
+                 FROM rosters r JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                 WHERE r.roster_type = 'classic'`
+            )).rows;
+            classicRosterRows.forEach(cr => {
+                const season = classicIdToSeason[cr.classic_id];
+                const ownerTeam = userToTeam[cr.user_id];
+                if (!season || !ownerTeam) return;
+                if ((classicDiamond[season] || {}).submarine === `ID-${ownerTeam.team_id}`) ensureStat(cr.card_id).submarines++;
+            });
+        } catch (_) { /* series/classics tables may be absent in some environments */ }
+
+        // Name-based awards.
+        series.forEach(r => {
+            [['mvas', r.mva], ['lvscs', r.lvsc], ['tgaoots', r.tgaoot]].forEach(([key, val]) => {
+                if (!val) return;
+                (nameToCards[normName(val)] || []).forEach(cid => { ensureStat(cid)[key]++; });
+            });
+        });
+
+        const franchises = currentTeams
+            .filter(t => t.abbreviation)
+            .map(t => ({ team_id: t.team_id, abbr: t.abbreviation, city: t.city }))
+            .sort((a, b) => a.city.localeCompare(b.city));
+
+        res.json({ franchises, stats });
+    } catch (error) {
+        console.error('Error fetching league stats:', error);
+        res.status(500).json({ message: 'Server error fetching league stats.' });
     }
 });
 
@@ -4787,8 +5000,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     // but handling defensively.
                     newState.bases.third = runnerOnSecond;
                     newState.bases.second = runnerOnFirst;
+                    newState.bases.first = null;
                 } else if (runnerOnFirst) { // 1st and 3rd
                     newState.bases.second = runnerOnFirst;
+                    newState.bases.first = null; // runner advanced off first; don't leave a duplicate behind
                 }
                 // Runner on 2nd holds if they were there (2nd & 3rd)
             }

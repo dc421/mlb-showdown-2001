@@ -7,6 +7,7 @@ const { matchesFranchise, getMappedIds, parseHistoricalIdentity, getLogoForTeam 
 const { mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { calculateStandings, findTeamForRecord } = require('../utils/standingsUtils');
 const { checkAllTeamsPlayed, snapshotRosters, rolloverPointSets } = require('../services/seasonRolloverService');
+const { recomputeOdds, getCachedOddsMap } = require('../services/playoffOddsService');
 
 function processPlayers(playersToProcess) {
     if (!playersToProcess) return [];
@@ -396,8 +397,14 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
         const resultsResult = await pool.query(resultsQuery, params);
         const seriesResults = resultsResult.rows;
 
-        // 3. Calculate Standings
-        const standings = calculateStandings(seriesResults, currentTeams, season === 'all-time');
+        // 3. Calculate Standings. For a single (in-progress) season we serve the
+        // spaceship/spoon odds from the precomputed cache instead of re-running the
+        // Monte Carlo simulation on every page load (the cache self-heals if stale).
+        let precomputedOdds = null;
+        if (season !== 'all-time') {
+            precomputedOdds = await getCachedOddsMap(pool, currentSeason, seriesResults, currentTeams);
+        }
+        const standings = calculateStandings(seriesResults, currentTeams, season === 'all-time', { precomputedOdds });
 
         if (season === 'all-time') {
             // Fetch ALL Silver Submarines across all styles (Classic results are filtered out of
@@ -645,6 +652,12 @@ router.post('/result', authenticateToken, async (req, res) => {
         // ------------------------------------
 
         await client.query('COMMIT');
+
+        // Warm the spaceship/spoon odds cache so the league page loads instantly after
+        // this change. Fire-and-forget: it never throws, and the read path self-heals
+        // if it hasn't finished by the time someone loads the page.
+        recomputeOdds(pool, seasonName);
+
         res.json({ message: 'Result updated successfully.' });
 
     } catch (error) {

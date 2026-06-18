@@ -158,6 +158,11 @@ const isAwardWinner = (player, awardName) => {
     return name.includes(awardName.toLowerCase());
 };
 
+// Season-result accolade classification (drives the small Result badge).
+const isChampionResult = (result) => !!result && result.includes('Champion');
+const isSpoonResult = (result) => !!result && result.includes('Wooden Spoon') && !result.includes('Participant');
+const isSubmarineResult = (result) => !!result && result.includes('Silver Submarine') && !result.includes('Participant');
+
 const processedClassicHistory = computed(() => {
     if (!teamData.value?.classicRosters) return [];
 
@@ -479,9 +484,9 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- ADDED HIGHLIGHT CLASSES -->
+                        <!-- White rows; accolade color is contained to a small Result badge -->
                         <tr v-for="season in combinedHistory" :key="season.season + (season.isClassic ? '-classic' : '')"
-                            :class="{'gold-bg': season.result && season.result.includes('Champion'), 'silver-bg': season.result && season.result.includes('Silver Submarine') && !season.result.includes('Participant'), 'brown-bg': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant'), 'classic-row': season.isClassic}">
+                            :class="{'classic-row': season.isClassic}">
                             <td class="season-name">
                                 <RouterLink :to="season.isClassic ? { path: `/teams/${teamId}/seasons/${encodeURIComponent(season.classicName || season.originalSeason || season.season)}`, query: { type: 'Classic' } } : `/teams/${teamId}/seasons/${season.season}`" class="season-link">
                                     {{ season.isClassic ? (season.classicName || season.season) : season.season }}<span v-if="season.isClassic" class="classic-badge">C</span>
@@ -489,8 +494,17 @@ const teamDisplayName = computed(() => {
                             </td>
                             <td>{{ season.wins }}-{{ season.losses }}</td>
                             <td>{{ season.winPct }}</td>
-                            <td class="result-cell" :class="{'champion-text': season.result && season.result.includes('Champion'), 'spoon-text': season.result && season.result.includes('Wooden Spoon') && !season.result.includes('Participant')}">
-                                {{ season.result }}
+                            <td class="result-cell">
+                                <span v-if="isChampionResult(season.result)" class="result-badge badge-champion">
+                                    <img :src="`${apiUrl}/images/golden_spaceship.png`" class="badge-trophy" alt="" /> {{ season.result }}
+                                </span>
+                                <span v-else-if="isSpoonResult(season.result)" class="result-badge badge-spoon">
+                                    <img :src="`${apiUrl}/images/wooden_spoon.png`" class="badge-trophy" alt="" /> {{ season.result }}
+                                </span>
+                                <span v-else-if="isSubmarineResult(season.result)" class="result-badge badge-submarine">
+                                    <img :src="`${apiUrl}/images/silver_submarine.png`" class="badge-trophy" alt="" /> {{ season.result }}
+                                </span>
+                                <span v-else>{{ season.result }}</span>
                                 <div v-if="season.mva" class="award-line mva-line">MVA: {{ season.mva }}</div>
                                 <div v-if="season.lvsc" class="award-line lvsc-line">LVSC: {{ season.lvsc }}</div>
                                 <div v-if="season.tgaoot" class="award-line tgaoot-line">TGOAAT: {{ season.tgaoot }}</div>
@@ -883,18 +897,53 @@ thead th.sticky-col {
 .season-link:hover { text-decoration: underline; }
 
 .result-cell { font-weight: 500; }
-.champion-text { color: #218838; font-weight: bold; } /* Green writing, matching League spaceship box */
-.spoon-text { color: red; } /* Red writing, matching League spoon box */
 
-/* HIGHLIGHTS */
+/* RESULT BADGE — contains the accolade color to a small pill (a mini League banner)
+   instead of washing the whole row, so the table reads calmly. Uses the exact
+   finale-card gradients/hues. */
+.result-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px 2px 6px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    white-space: nowrap;
+}
+.result-badge .badge-trophy {
+    height: 15px;
+    width: auto;
+    flex: 0 0 auto;
+}
+.badge-champion {
+    background-image: linear-gradient(135deg, #F0E68C 0%, #FFD700 100%);
+    color: #4d3b00;
+    border: 1px solid #DAA520;
+}
+.badge-spoon {
+    background-image: linear-gradient(135deg, #6D4C41 0%, #4E342E 100%);
+    color: #efebe9;
+    border: 1px solid #3E2723;
+}
+.badge-submarine {
+    background-image: linear-gradient(135deg, #E0E0E0 0%, #B8B8B8 100%);
+    color: #37474f;
+    border: 1px solid #9E9E9E;
+}
+
+/* MATRIX (roster) TABLE row highlights — quiet echoes of the League finale-card
+   palette: same hues + diagonal gradient as the banners, dialed way down for a
+   dense grid. (Old brown was an orange-rust #8C3E08 wash that turned muddy over white.) */
 .gold-bg {
-    background-color: rgba(255, 215, 0, 0.15) !important;
+    background-image: linear-gradient(135deg, rgba(240, 230, 140, 0.40) 0%, rgba(255, 215, 0, 0.28) 100%) !important;
 }
 .silver-bg {
-    background-color: rgba(192, 192, 192, 0.2) !important;
+    background-image: linear-gradient(135deg, rgba(224, 224, 224, 0.50) 0%, rgba(176, 176, 176, 0.38) 100%) !important;
 }
 .brown-bg {
-    background-color: rgba(140, 62, 8, 0.3) !important;
+    background-image: linear-gradient(135deg, rgba(109, 76, 65, 0.16) 0%, rgba(78, 52, 46, 0.24) 100%) !important;
 }
 
 .col-hover {
@@ -1036,9 +1085,10 @@ thead th.sticky-col {
     text-overflow: ellipsis;
     max-width: 260px;
 }
-.mva-line { color: #218838; } /* Green, matching League spaceship box */
-.lvsc-line { color: red; } /* Red, matching League spoon box */
-.tgaoot-line { color: #757575; }
+/* Award sub-lines kept neutral gray so the only color in a row is the Result badge */
+.mva-line,
+.lvsc-line,
+.tgaoot-line { color: #6c757d; }
 
 .mva-winner {
     background-color: rgba(255, 200, 0, 0.25) !important;

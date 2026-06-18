@@ -142,6 +142,10 @@ function getGameTypeName(seriesType) {
   switch (seriesType) {
     case 'regular_season':
       return 'Regular Season Series';
+    case 'golden_spaceship':
+      return 'Golden Spaceship Series';
+    case 'wooden_spoon':
+      return 'Wooden Spoon Series';
     case 'playoff':
       return 'Playoff Series';
     case 'classic':
@@ -412,7 +416,8 @@ onUnmounted(() => {
                 <template v-if="activeRosterTab === 'league'">
                     <label><input type="radio" v-model="seriesType" value="exhibition" :disabled="authStore.isDraftActive"> Exhibition</label>
                     <label><input type="radio" v-model="seriesType" value="regular_season" :disabled="authStore.isDraftActive"> Regular Season (7 Games)</label>
-                    <label><input type="radio" v-model="seriesType" value="playoff" :disabled="authStore.isDraftActive"> Playoff (Best of 7)</label>
+                    <label><input type="radio" v-model="seriesType" value="golden_spaceship" :disabled="authStore.isDraftActive"> Golden Spaceship (Best of 7)</label>
+                    <label><input type="radio" v-model="seriesType" value="wooden_spoon" :disabled="authStore.isDraftActive"> Wooden Spoon (Best of 7)</label>
                 </template>
                 <template v-else-if="activeRosterTab === 'classic'">
                      <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
