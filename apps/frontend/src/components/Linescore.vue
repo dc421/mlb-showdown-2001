@@ -104,10 +104,46 @@ const linescore = computed(() => {
 const awayTeamAbbr = computed(() => gameStore.teams?.away?.abbreviation || 'AWAY');
 const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME');
 
-// Show "GM N" for series games (playoffs); blank for exhibition games.
+// Series games (playoffs) get a "GAME N" label and a per-team series-win column;
+// exhibition games have neither.
+const hasSeries = computed(() => !!(gameStore.series && gameStore.game?.game_in_series));
+
 const gameLabel = computed(() => {
   const num = gameStore.game?.game_in_series;
-  return gameStore.series && num ? `G${num}` : '';
+  return hasSeries.value ? `GAME ${num}` : '';
+});
+
+const isGameOver = computed(() => gameStore.game?.status === 'completed');
+
+// Mid-game the series-win column shows the PRE-game standing (live home_wins/away_wins);
+// once the game is final AND its outcome is revealed it shows the POST-game snapshot
+// (historical_*), matching the SERIES line in the game log. The reveal gate mirrors the
+// store's own "game completed" check (game.js displayGameState) so the series score
+// flips in lockstep with the final runs in the linescore — no spoiler, no lag.
+const showPostGameSeries = computed(() => isGameOver.value && !gameStore.isOutcomeHidden);
+
+// Per-team series wins, mapped from series-home/away onto the current game's home/away,
+// mirroring the logic in GameView's seriesScoreMessage.
+const seriesWins = computed(() => {
+  const series = gameStore.series;
+  const homeTeam = gameStore.teams?.home;
+  if (!series || !homeTeam) return { away: null, home: null };
+
+  const isHomeTeamSeriesHome = homeTeam.user_id === series.series_home_user_id;
+
+  let sHomeWins = series.home_wins;
+  let sAwayWins = series.away_wins;
+  if (showPostGameSeries.value &&
+      series.historical_home_wins !== undefined &&
+      series.historical_away_wins !== undefined) {
+    sHomeWins = series.historical_home_wins;
+    sAwayWins = series.historical_away_wins;
+  }
+
+  return {
+    home: isHomeTeamSeriesHome ? sHomeWins : sAwayWins,
+    away: isHomeTeamSeriesHome ? sAwayWins : sHomeWins,
+  };
 });
 
 const awayTotalRuns = computed(() => {
@@ -126,7 +162,7 @@ const homeTotalRuns = computed(() => {
   <table class="linescore-table">
       <thead>
         <tr>
-          <th class="game-label">{{ gameLabel }}</th>
+          <th class="game-label" :colspan="hasSeries ? 2 : 1">{{ gameLabel }}</th>
           <th v-for="inning in linescore.innings"
               :key="inning"
               :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && gameStore.isSwingResultVisible) && !gameStore.opponentReadyForNext) }">
@@ -137,9 +173,10 @@ const homeTotalRuns = computed(() => {
       </thead>
       <tbody>
         <tr>
-          <td>{{ awayTeamAbbr }}</td>
-          <td 
-            v-for="(run, index) in linescore.scores.away" 
+          <td v-if="hasSeries" class="series-wins">{{ seriesWins.away }}</td>
+          <td class="team-abbr">{{ awayTeamAbbr }}</td>
+          <td
+            v-for="(run, index) in linescore.scores.away"
             :key="`away-${index}`"
             :class="{ 'current-inning': gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
@@ -147,9 +184,10 @@ const homeTotalRuns = computed(() => {
           <td>{{ awayTotalRuns }}</td>
         </tr>
         <tr>
-          <td>{{ homeTeamAbbr }}</td>
-          <td 
-            v-for="(run, index) in linescore.scores.home" 
+          <td v-if="hasSeries" class="series-wins">{{ seriesWins.home }}</td>
+          <td class="team-abbr">{{ homeTeamAbbr }}</td>
+          <td
+            v-for="(run, index) in linescore.scores.home"
             :key="`home-${index}`"
             :class="{ 'current-inning': !gameStore.displayGameState?.isTopInning && (index + 1) === gameStore.displayGameState?.inning && !(gameStore.displayGameState.outs===3) }"
           >{{ run }}</td>
@@ -181,10 +219,17 @@ const homeTotalRuns = computed(() => {
   text-align: left;
   color: rgba(255, 255, 255, 0.45);
 }
-.linescore-table td:first-child {
+.linescore-table td.team-abbr {
   text-align: left;
   font-weight: bold;
   min-width: 40px;
+}
+.linescore-table td.series-wins {
+  text-align: center;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.55);
+  min-width: 16px;
+  padding-right: 0.4rem;
 }
 .linescore-table tr td:last-child {
   font-weight: bold;
@@ -205,9 +250,13 @@ const homeTotalRuns = computed(() => {
     min-width: 18px;
     padding: 0.1rem;
   }
-  .linescore-table td:first-child {
+  .linescore-table td.team-abbr {
     min-width: unset;
     padding-right: 0.3rem;
+  }
+  .linescore-table td.series-wins {
+    min-width: 14px;
+    padding-right: 0.2rem;
   }
 }
 </style>

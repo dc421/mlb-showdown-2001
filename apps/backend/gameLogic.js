@@ -704,9 +704,16 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
       }
   }
 
+  // A pitcher at the plate going deep gets its own "Pitcher HR" callout instead. It also
+  // suppresses "advantage backfired": a batting pitcher almost always cedes the advantage,
+  // so a HR off the mound pitcher's chart would otherwise trip the backfire taunt — which we
+  // never want pointed at (or triggered by) a batting pitcher.
+  const batterIsPitcher = !!batter && batter.control !== null && batter.control !== undefined;
+  const pitcherHomeRun = batterIsPitcher && outcome === 'HR';
+
   // "Advantage backfired": the pitcher won the advantage but the swing landed a better-for-
   // the-hitter result on the pitcher's own chart than the hitter's chart would have.
-  const advantageBackfired = chartHolder
+  const advantageBackfired = !batterIsPitcher && chartHolder
     ? computeAdvantageBackfired(chartHolder === pitcher ? 'pitcher' : 'batter', swingRoll, pitcher, batter)
     : false;
   if (advantageBackfired) {
@@ -717,7 +724,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   // Replaced inline logic with reusable function call
   checkGameOverOrInningChange(newState, events, teamInfo);
 
-  return { newState, events, scorers, outcome, infieldInSingle, advantageBackfired };
+  return { newState, events, scorers, outcome, infieldInSingle, advantageBackfired, pitcherHomeRun };
 }
 
 // Rank of a chart result by how good it is for the offense (low = good for the pitcher,
@@ -763,7 +770,7 @@ function recordOutsForPitcher(state, pitcher, count) {
 }
 
 
-function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', teamInfo = {}, pitcherOfRecord = null) {
+function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent = '', teamInfo = {}) {
   let newState = JSON.parse(JSON.stringify(state));
   const { type } = newState.currentPlay;
   const events = [];
@@ -836,7 +843,9 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
       }
       newState.bases[baseMap[fromBaseOfThrow]] = null;
     } else {
-        recordOutsForPitcher(newState, pitcherOfRecord, 1);
+        // Outs on the bases are charged to the current pitcher (runs, by contrast, go to the
+        // runner's original pitcher — handled inside recordRunForPitcher via pitcherOfRecordId).
+        recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
         newState.throwRollResult.runnerOut = toRunnerCard(runnerToChallenge);
         newState.bases[baseMap[fromBaseOfThrow]] = null;
         if (throwTo === 4) {

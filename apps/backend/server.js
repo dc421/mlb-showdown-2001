@@ -222,6 +222,74 @@ async function getInfieldDefense(defensiveParticipant) {
     return totalDefense;
 }
 
+// If a team's roster is unchanged since their previous game, suggest the most
+// recent lineup they used under the current DH rule (pitcher slot left empty).
+// This is what pre-populates the first game of a new series, where there is no
+// earlier game in the same series to copy from.
+async function getCrossSeriesSuggestedLineup(gameId, userId, useDh, dbClient) {
+    // The DH rule must be known to match a prior lineup of the same rule set.
+    if (useDh === null || useDh === undefined) return null;
+
+    // Current roster card set.
+    const rosterResult = await dbClient.query(
+        `SELECT rc.card_id
+         FROM game_participants gp
+         JOIN roster_cards rc ON rc.roster_id = gp.roster_id
+         WHERE gp.game_id = $1 AND gp.user_id = $2`,
+        [gameId, userId]
+    );
+    if (rosterResult.rows.length === 0) return null;
+    const currentCardIds = new Set(rosterResult.rows.map(r => Number(r.card_id)));
+
+    // The team's previous game (the most recent one they actually played), along
+    // with the roster snapshot captured when that game started.
+    const prevGameResult = await dbClient.query(
+        `SELECT gr.roster_data
+         FROM game_participants gp
+         JOIN games g ON g.game_id = gp.game_id
+         JOIN game_rosters gr ON gr.game_id = gp.game_id AND gr.user_id = gp.user_id
+         WHERE gp.user_id = $1 AND g.game_id <> $2
+         ORDER BY g.completed_at DESC NULLS LAST, g.game_id DESC
+         LIMIT 1`,
+        [userId, gameId]
+    );
+    if (prevGameResult.rows.length === 0) return null;
+
+    // Only proceed if the roster is unchanged since that previous game.
+    const previousCardIds = new Set((prevGameResult.rows[0].roster_data || []).map(c => Number(c.card_id)));
+    if (previousCardIds.size !== currentCardIds.size) return null;
+    for (const id of currentCardIds) {
+        if (!previousCardIds.has(id)) return null;
+    }
+
+    // Most recent prior lineup that used the current DH rule.
+    const lineupResult = await dbClient.query(
+        `SELECT COALESCE(gp.starting_lineup, gp.lineup) AS lineup
+         FROM game_participants gp
+         JOIN games g ON g.game_id = gp.game_id
+         WHERE gp.user_id = $1 AND g.game_id <> $2 AND g.use_dh = $3
+           AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
+         ORDER BY g.completed_at DESC NULLS LAST, g.game_id DESC
+         LIMIT 1`,
+        [userId, gameId, useDh]
+    );
+    if (lineupResult.rows.length === 0) return null;
+
+    const battingOrder = lineupResult.rows[0].lineup?.battingOrder;
+    if (!Array.isArray(battingOrder) || battingOrder.length !== 9) return null;
+
+    // Safety: every non-pitcher slot must still be on the current roster.
+    for (const spot of battingOrder) {
+        if (spot.position === 'P') continue;
+        if (!currentCardIds.has(Number(spot.card_id))) return null;
+    }
+
+    // Blank out the pitcher's slot so the user picks their own starter.
+    return battingOrder.map(spot =>
+        spot.position === 'P' ? { ...spot, card_id: 'PITCHER_PLACEHOLDER' } : spot
+    );
+}
+
 async function getSuggestedLineup(gameId, userId, dbClient) {
     try {
         // 1. Get current game details
@@ -229,87 +297,94 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
         if (gameResult.rows.length === 0) return null;
         const { series_id, game_in_series, use_dh } = gameResult.rows[0];
 
-        // 2. If not a series or first game, return null
-        if (!series_id || game_in_series <= 1) return null;
+        // 2. WITHIN THE CURRENT SERIES: for games 2+ of a series, reuse a lineup
+        //    from earlier in the same series. Game 1 (and anything without an
+        //    in-series match) falls through to the cross-series suggestion below.
+        if (series_id && game_in_series > 1) {
+            // 3. Find previous game in series with SAME DH rule
+            const sameRuleQuery = `
+                SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup
+                FROM game_participants gp
+                JOIN games g ON gp.game_id = g.game_id
+                WHERE g.series_id = $1
+                  AND gp.user_id = $2
+                  AND g.game_in_series < $3
+                  AND g.use_dh = $4
+                  AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
+                ORDER BY g.game_in_series DESC
+                LIMIT 1
+            `;
+            const sameRuleResult = await dbClient.query(sameRuleQuery, [series_id, userId, game_in_series, use_dh]);
 
-        // 3. Find previous game in series with SAME DH rule
-        const sameRuleQuery = `
-            SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup
-            FROM game_participants gp
-            JOIN games g ON gp.game_id = g.game_id
-            WHERE g.series_id = $1
-              AND gp.user_id = $2
-              AND g.game_in_series < $3
-              AND g.use_dh = $4
-              AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
-            ORDER BY g.game_in_series DESC
-            LIMIT 1
-        `;
-        const sameRuleResult = await dbClient.query(sameRuleQuery, [series_id, userId, game_in_series, use_dh]);
-
-        if (sameRuleResult.rows.length > 0) {
-            const battingOrder = sameRuleResult.rows[0].lineup.battingOrder;
-            // Ensure the pitcher spot is a placeholder, so we don't default to the previous game's pitcher
-            return battingOrder.map(spot => {
-                if (spot.position === 'P') {
-                    return { ...spot, card_id: 'PITCHER_PLACEHOLDER' };
-                }
-                return spot;
-            });
-        }
-
-        // 4. If no same-rule game, find the most recent game regardless of rule
-        const anyGameQuery = `
-            SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup, g.use_dh as prev_use_dh
-            FROM game_participants gp
-            JOIN games g ON gp.game_id = g.game_id
-            WHERE g.series_id = $1
-              AND gp.user_id = $2
-              AND g.game_in_series < $3
-              AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
-            ORDER BY g.game_in_series DESC
-            LIMIT 1
-        `;
-        const anyGameResult = await dbClient.query(anyGameQuery, [series_id, userId, game_in_series]);
-
-        if (anyGameResult.rows.length > 0) {
-            const { lineup, prev_use_dh } = anyGameResult.rows[0];
-            let battingOrder = lineup.battingOrder;
-
-            // 5. Adapt the lineup
-            if (prev_use_dh && !use_dh) {
-                // Previous: DH (YES) -> Current: DH (NO)
-                // Need to remove 'DH' from current position and add 'P' at the bottom (9th spot)
-                const newOrder = battingOrder.filter(spot => spot.position !== 'DH');
-                newOrder.push({ position: 'P', card_id: 'PITCHER_PLACEHOLDER' });
-                return newOrder;
-            } else if (!prev_use_dh && use_dh) {
-                // Previous: DH (NO) -> Current: DH (YES)
-                // Need to replace 'P' with 'DH' (placeholder for DH)
-
-                // Check if the team has a designated DH on their roster
-                let dhCardId = 'DH_PLACEHOLDER';
-                const dhQuery = `
-                    SELECT rc.card_id
-                    FROM roster_cards rc
-                    JOIN game_participants gp ON gp.roster_id = rc.roster_id
-                    WHERE gp.game_id = $1 AND gp.user_id = $2 AND rc.assignment = 'DH'
-                    LIMIT 1
-                `;
-                const dhResult = await dbClient.query(dhQuery, [gameId, userId]);
-                if (dhResult.rows.length > 0) {
-                    dhCardId = dhResult.rows[0].card_id;
-                }
-
+            if (sameRuleResult.rows.length > 0) {
+                const battingOrder = sameRuleResult.rows[0].lineup.battingOrder;
+                // Ensure the pitcher spot is a placeholder, so we don't default to the previous game's pitcher
                 return battingOrder.map(spot => {
                     if (spot.position === 'P') {
-                         return { ...spot, position: 'DH', card_id: dhCardId };
+                        return { ...spot, card_id: 'PITCHER_PLACEHOLDER' };
                     }
                     return spot;
                 });
             }
-            return battingOrder;
+
+            // 4. If no same-rule game, find the most recent game regardless of rule
+            const anyGameQuery = `
+                SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup, g.use_dh as prev_use_dh
+                FROM game_participants gp
+                JOIN games g ON gp.game_id = g.game_id
+                WHERE g.series_id = $1
+                  AND gp.user_id = $2
+                  AND g.game_in_series < $3
+                  AND COALESCE(gp.starting_lineup, gp.lineup) IS NOT NULL
+                ORDER BY g.game_in_series DESC
+                LIMIT 1
+            `;
+            const anyGameResult = await dbClient.query(anyGameQuery, [series_id, userId, game_in_series]);
+
+            if (anyGameResult.rows.length > 0) {
+                const { lineup, prev_use_dh } = anyGameResult.rows[0];
+                let battingOrder = lineup.battingOrder;
+
+                // 5. Adapt the lineup
+                if (prev_use_dh && !use_dh) {
+                    // Previous: DH (YES) -> Current: DH (NO)
+                    // Need to remove 'DH' from current position and add 'P' at the bottom (9th spot)
+                    const newOrder = battingOrder.filter(spot => spot.position !== 'DH');
+                    newOrder.push({ position: 'P', card_id: 'PITCHER_PLACEHOLDER' });
+                    return newOrder;
+                } else if (!prev_use_dh && use_dh) {
+                    // Previous: DH (NO) -> Current: DH (YES)
+                    // Need to replace 'P' with 'DH' (placeholder for DH)
+
+                    // Check if the team has a designated DH on their roster
+                    let dhCardId = 'DH_PLACEHOLDER';
+                    const dhQuery = `
+                        SELECT rc.card_id
+                        FROM roster_cards rc
+                        JOIN game_participants gp ON gp.roster_id = rc.roster_id
+                        WHERE gp.game_id = $1 AND gp.user_id = $2 AND rc.assignment = 'DH'
+                        LIMIT 1
+                    `;
+                    const dhResult = await dbClient.query(dhQuery, [gameId, userId]);
+                    if (dhResult.rows.length > 0) {
+                        dhCardId = dhResult.rows[0].card_id;
+                    }
+
+                    return battingOrder.map(spot => {
+                        if (spot.position === 'P') {
+                             return { ...spot, position: 'DH', card_id: dhCardId };
+                        }
+                        return spot;
+                    });
+                }
+                return battingOrder;
+            }
         }
+
+        // 6. CROSS-SERIES FALLBACK (e.g. the first game of a new series): if the
+        //    team's roster is unchanged since their previous game, pre-populate
+        //    with their most recently-used lineup of the current DH rule.
+        return await getCrossSeriesSuggestedLineup(gameId, userId, use_dh, dbClient);
     } catch (error) {
         console.error('Error fetching suggested lineup:', error);
     }
@@ -478,6 +553,45 @@ function processPlayers(playersToProcess) {
     });
     return playersToProcess;
 };
+
+// Resolve the point set that should actually be used to value a roster.
+// League points roll over by season: during an active draft (or before the latest
+// season's historical rosters exist) we value at "Upcoming Season"; once a season is
+// complete we value at that season's point set. Classic rosters (and calls without a
+// point set) use the requested set unchanged. This mirrors the logic /api/my-roster
+// uses so the dashboard, lineup page, and opponent-scouting views all agree.
+async function resolveEffectivePointSetId(pointSetId, rosterType) {
+    if (rosterType !== 'league' || !pointSetId) return pointSetId;
+
+    const [draftRes, latestSeasonRes] = await Promise.all([
+        pool.query('SELECT 1 FROM draft_state WHERE is_active = true LIMIT 1'),
+        pool.query('SELECT season_name FROM series_results ORDER BY date DESC LIMIT 1')
+    ]);
+    const isDraftActive = draftRes.rows.length > 0;
+    const latestSeason = latestSeasonRes.rows[0]?.season_name;
+
+    const upcomingPointSetId = async () => {
+        const upcomingRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
+        return upcomingRes.rows.length > 0 ? upcomingRes.rows[0].point_set_id : pointSetId;
+    };
+
+    if (isDraftActive) {
+        // Live draft: roster is being built against next season's points.
+        return await upcomingPointSetId();
+    }
+    if (latestSeason) {
+        const histCheck = await pool.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [latestSeason]);
+        if (histCheck.rows.length === 0) {
+            // Pre-rollover: the latest season has no historical rosters yet.
+            return await upcomingPointSetId();
+        }
+        // Completed season: resolve the point set the same way the league page does.
+        const psName = mapSeasonToPointSet(latestSeason);
+        const psRes = await pool.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
+        if (psRes.rows.length > 0) return psRes.rows[0].point_set_id;
+    }
+    return pointSetId;
+}
 
 async function validateLineup(participant, newState, gameId, client) {
     const lineup = participant.lineup.battingOrder;
@@ -1023,34 +1137,9 @@ app.get('/api/my-roster', authenticateToken, async (req, res) => {
         const roster = rosterResult.rows[0];
         let cardsResult;
 
-        // For league rosters, apply the same "current season" override logic as /api/league:
-        // if the latest played season has no historical rosters yet (pre-rollover) or a draft is active,
-        // use "Upcoming Season" points so the dashboard matches the league page.
-        let effectivePointSetId = point_set_id;
-        if (rosterType === 'league' && point_set_id) {
-            const [draftRes, latestSeasonRes] = await Promise.all([
-                pool.query('SELECT 1 FROM draft_state WHERE is_active = true LIMIT 1'),
-                pool.query('SELECT season_name FROM series_results ORDER BY date DESC LIMIT 1')
-            ]);
-            const isDraftActive = draftRes.rows.length > 0;
-            const latestSeason = latestSeasonRes.rows[0]?.season_name;
-            if (isDraftActive) {
-                const upcomingRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
-                if (upcomingRes.rows.length > 0) effectivePointSetId = upcomingRes.rows[0].point_set_id;
-            } else if (latestSeason) {
-                const histCheck = await pool.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [latestSeason]);
-                if (histCheck.rows.length === 0) {
-                    // Pre-rollover: use Upcoming Season
-                    const upcomingRes = await pool.query("SELECT point_set_id FROM point_sets WHERE name = 'Upcoming Season'");
-                    if (upcomingRes.rows.length > 0) effectivePointSetId = upcomingRes.rows[0].point_set_id;
-                } else {
-                    // Completed season: resolve point set the same way the league page does
-                    const psName = mapSeasonToPointSet(latestSeason);
-                    const psRes = await pool.query('SELECT point_set_id FROM point_sets WHERE name = $1', [psName]);
-                    if (psRes.rows.length > 0) effectivePointSetId = psRes.rows[0].point_set_id;
-                }
-            }
-        }
+        // For league rosters, value against the current season's point set (see
+        // resolveEffectivePointSetId) so the dashboard matches the league page.
+        const effectivePointSetId = await resolveEffectivePointSetId(point_set_id, rosterType);
 
         if (effectivePointSetId) {
             cardsResult = await pool.query(
@@ -1601,6 +1690,18 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
     }
 
+    // Idempotency guard: if the outgoing player has already been removed (committed or
+    // transiently), this is a duplicate/stale substitution request — e.g. a double-click
+    // during a slow response. Don't apply the substitution a second time.
+    const outgoingPlayerId = parseInt(playerOutId, 10);
+    const teamTransientUsed = newState[teamKey].transient_used_player_ids || [];
+    if (outgoingPlayerId > 0 && (teamUsedPlayerIds.includes(outgoingPlayerId) || teamTransientUsed.includes(outgoingPlayerId))) {
+        await client.query('ROLLBACK');
+        console.log(`Idempotency guard: /substitute duplicate blocked for game ${gameId} (player ${outgoingPlayerId} already removed)`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
+
     // If the player is being subbed back in and they are in the transient list, we remove them from the transient list
     if (newState[teamKey].transient_used_player_ids && newState[teamKey].transient_used_player_ids.includes(playerInIdInt)) {
         // Enforce that transiently removed players can only be subbed back into their original slot
@@ -2095,6 +2196,11 @@ app.get('/api/rosters/:rosterId', authenticateToken, async (req, res) => {
     }
 
     try {
+        // Value league rosters against the current season's point set (matching the
+        // dashboard) rather than the raw requested set, which could be a stale season.
+        const rosterMetaResult = await pool.query('SELECT roster_type FROM rosters WHERE roster_id = $1', [rosterId]);
+        const effectivePointSetId = await resolveEffectivePointSetId(point_set_id, rosterMetaResult.rows[0]?.roster_type);
+
         const rosterCardsQuery = `
             SELECT
                 cp.*,
@@ -2106,7 +2212,7 @@ app.get('/api/rosters/:rosterId', authenticateToken, async (req, res) => {
             LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
             WHERE rc.roster_id = $1
         `;
-        const rosterCardsResult = await pool.query(rosterCardsQuery, [rosterId, point_set_id]);
+        const rosterCardsResult = await pool.query(rosterCardsQuery, [rosterId, effectivePointSetId]);
 
         // This is the fix: Process the players before sending them back.
         const processedCards = processPlayers(rosterCardsResult.rows);
@@ -3382,10 +3488,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
         away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
       };
 
-      const { newState, events, scorers, outcome: finalOutcome, infieldInSingle, advantageBackfired } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
+      const { newState, events, scorers, outcome: finalOutcome, infieldInSingle, advantageBackfired, pitcherHomeRun } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
       finalState = { ...newState };
       finalState.defensivePlayerWentSecond = false;
-      finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length, infieldInSingle, advantageBackfired };
+      finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length, infieldInSingle, advantageBackfired, pitcherHomeRun };
       
       
       if ((events && events.length > 0) || finalState.doublePlayDetails) {
@@ -3632,10 +3738,10 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                 away_team_abbr: teams.rows.find(t => t.home_or_away === 'away').abbreviation
               };
 
-            const { newState, events, scorers, outcome: finalOutcome, infieldInSingle, advantageBackfired } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
+            const { newState, events, scorers, outcome: finalOutcome, infieldInSingle, advantageBackfired, pitcherHomeRun } = applyOutcome(finalState, outcome, batter, pitcher, infieldDefense, outfieldDefense, getSpeedValue, swingRoll, chartHolder, teamInfo);
             finalState = { ...newState };
             finalState.defensivePlayerWentSecond = true;
-            finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length, infieldInSingle, advantageBackfired };
+            finalState.currentAtBat.swingRollResult = { roll: swingRoll, outcome: finalState.walkoffAdjustedOutcome || finalOutcome, batter, eventCount: events.length, infieldInSingle, advantageBackfired, pitcherHomeRun };
 
             // --- ADD THESE DEBUG LOGS ---
         console.log('--- PITCH OUTS DEBUG ---');
@@ -4538,6 +4644,16 @@ app.post('/api/games/:gameId/submit-decisions', authenticateToken, async (req, r
 await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [gameId]);
         const stateResult = await client.query('SELECT * FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
         const currentState = stateResult.rows[0].state_data;
+
+        // Idempotency guard: if there is no active play awaiting a decision, this is a
+        // duplicate/stale request (the decision was already resolved). Don't re-apply.
+        if (!currentState.currentPlay) {
+            await client.query('ROLLBACK');
+            console.log(`Idempotency guard: /submit-decisions duplicate blocked for game ${gameId}`);
+            const gameData = await getAndProcessGameData(gameId, client);
+            return res.status(200).json(gameData);
+        }
+
         let newState = JSON.parse(JSON.stringify(currentState));
         const currentTurn = stateResult.rows[0].turn_number;
         commitTransientPlayerIds(newState);
@@ -4597,7 +4713,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
             const originalOuts = newState.outs;
 
-            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent, teamInfo, decision.runner.pitcherOfRecordId ? { card_id: decision.runner.pitcherOfRecordId } : null);
+            const { newState: resolvedState, events } = resolveThrow(newState, throwTo, outfieldDefense, getSpeedValue, finalizeEvent, initialEvent, teamInfo);
             newState = resolvedState;
 
             const batterOnFirst = newState.bases.first;
@@ -4841,15 +4957,9 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     allEvents.push(`${contestedRunner.name} is SAFE at ${getOrdinal(throwTo)}!`);
                 }
             } else {
-                // Resolve who to charge the out to.
-                let pitcherOfRecord = null;
-                if (contestedRunner.pitcherOfRecordId) {
-                    pitcherOfRecord = { card_id: contestedRunner.pitcherOfRecordId };
-                } else {
-                    // Fallback to current pitcher if no record exists
-                    pitcherOfRecord = newState.currentAtBat.pitcher;
-                }
-                recordOutsForPitcher(newState, pitcherOfRecord, 1);
+                // Outs on the bases are charged to the current pitcher (runs go to the runner's
+                // original pitcher, handled inside recordRunForPitcher via pitcherOfRecordId).
+                recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                 newState.throwRollResult.runnerOut = toRunnerCard(contestedRunner);
                 if (throwTo === 4) {
                     allEvents.push(`${contestedRunner.name} is THROWN OUT at home!`);
@@ -5327,7 +5437,10 @@ app.get('/api/games/:gameId/opponent-roster', authenticateToken, async (req, res
 
   try {
     const participantsResult = await pool.query(
-      `SELECT user_id, roster_id FROM game_participants WHERE game_id = $1`,
+      `SELECT gp.user_id, gp.roster_id, r.roster_type
+       FROM game_participants gp
+       LEFT JOIN rosters r ON r.roster_id = gp.roster_id
+       WHERE gp.game_id = $1`,
       [gameId]
     );
 
@@ -5341,13 +5454,18 @@ app.get('/api/games/:gameId/opponent-roster', authenticateToken, async (req, res
       return res.json({ cards: [] });
     }
 
+    // Value the opponent's roster against the current season's point set, matching the
+    // dashboard. Using the raw requested set valued league rosters at a stale season,
+    // which inflated the displayed total above the 5000-point cap.
+    const effectivePointSetId = await resolveEffectivePointSetId(point_set_id, opponent.roster_type);
+
     const rosterCardsResult = await pool.query(`
         SELECT cp.*, rc.is_starter, rc.assignment, ppv.points
         FROM cards_player cp
         JOIN roster_cards rc ON cp.card_id = rc.card_id
         LEFT JOIN player_point_values ppv ON cp.card_id = ppv.card_id AND ppv.point_set_id = $2
         WHERE rc.roster_id = $1
-    `, [opponent.roster_id, point_set_id]);
+    `, [opponent.roster_id, effectivePointSetId]);
 
     res.json({ cards: processPlayers(rosterCardsResult.rows) });
 

@@ -316,8 +316,8 @@ const targetInfo = computed(() => {
    paints over it) and is enlarged so its rounded ends peek past the hex's left/right points,
    signalling the roll matched the target exactly. Its number lives in the hexagon on top. */
 .throw-gauge-boundary.coincident {
-  min-width: 33px;
-  height: 20px;
+  min-width: 27px;
+  height: 15px;
   padding: 0;
   background: #ffffff;
   color: transparent;

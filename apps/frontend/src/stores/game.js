@@ -10,6 +10,8 @@ export const useGameStore = defineStore('game', () => {
   const game = ref(null);
   const series = ref(null);
   const gameState = ref(null);
+  // Highest game_state_id applied from a socket snapshot, used to drop stale/duplicate emits.
+  const lastAppliedStateId = ref(0);
   const nextGameId = ref(null);
   const gameEvents = ref([]);
   const batter = ref(null);
@@ -619,6 +621,15 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
 
   function updateGameData(data) {
     console.log('📥 STORE: Received game data from socket.');
+    // De-dupe stale/duplicate socket snapshots: game_state_id is monotonic per game, so a
+    // snapshot that isn't strictly newer is either a replay or arrived out of order. Dropping
+    // it prevents overwriting newer state and re-triggering reveal/HR-celebration watchers.
+    const incomingStateId = data.gameState?.game_state_id;
+    if (incomingStateId != null && incomingStateId <= lastAppliedStateId.value) {
+      console.log(`📥 STORE: Dropped stale/duplicate snapshot (id ${incomingStateId} <= ${lastAppliedStateId.value}).`);
+      return;
+    }
+    if (incomingStateId != null) lastAppliedStateId.value = incomingStateId;
     if (data.game) game.value = data.game;
     if (data.nextGameId) nextGameId.value = data.nextGameId;
     if (data.series) series.value = data.series;
@@ -635,6 +646,7 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
     game.value = null;
     series.value = null;
     gameState.value = null;
+    lastAppliedStateId.value = 0;
     nextGameId.value = null;
     gameEvents.value = [];
     batter.value = null;

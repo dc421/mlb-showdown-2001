@@ -46,10 +46,6 @@ let dpRevealTimeout = null;
 const baserunningSettleActive = ref(false);
 let baserunningSettleTimeout = null;
 const BASERUNNING_SETTLE_MS = 450;
-// Same guard applied to SWING AWAY when a pitcher is batting and a pinch-hitter is
-// available, so a reflex click doesn't burn the at-bat before considering a PH.
-const swingAwaySettleActive = ref(false);
-let swingAwaySettleTimeout = null;
 // ============================================================
 // SIMULTANEOUS MODE
 // ============================================================
@@ -686,6 +682,24 @@ const awayBenchAndBullpen = computed(() => {
     return benchAndBullpen;
 });
 
+const playerPointsMap = computed(() => {
+    const map = new Map();
+    for (const p of authStore.allPlayers) {
+        map.set(p.card_id, p.points || 0);
+    }
+    console.log('[points] allPlayers count:', authStore.allPlayers.length, 'map size:', map.size);
+    return map;
+});
+
+const getPoints = (p) => {
+    const fromPlayer = p.points;
+    const fromMap = playerPointsMap.value.get(p.card_id);
+    if (fromPlayer == null && fromMap == null) {
+        console.log('[points] miss for card_id:', p.card_id, typeof p.card_id, p.displayName);
+    }
+    return fromPlayer ?? fromMap ?? 0;
+};
+
 const leftPanelData = computed(() => {
     const isHome = gameStore.myTeam === 'home';
     const teamData = isHome ? gameStore.teams.home : gameStore.teams.away;
@@ -704,11 +718,11 @@ const leftPanelData = computed(() => {
                 const aIsSP = a.displayPosition === 'SP';
                 const bIsSP = b.displayPosition === 'SP';
                 if (aIsSP !== bIsSP) return aIsSP ? -1 : 1;
-                return (b.points || 0) - (a.points || 0);
+                return getPoints(b) - getPoints(a);
             }),
         bench: benchAndBullpen
             .filter(p => p.control === null)
-            .sort((a, b) => (b.points || 0) - (a.points || 0)),
+            .sort((a, b) => getPoints(b) - getPoints(a)),
         colors: colors,
         isMyTeam: true,
         teamKey: gameStore.myTeam
@@ -733,11 +747,11 @@ const rightPanelData = computed(() => {
                 const aIsSP = a.displayPosition === 'SP';
                 const bIsSP = b.displayPosition === 'SP';
                 if (aIsSP !== bIsSP) return aIsSP ? -1 : 1;
-                return (b.points || 0) - (a.points || 0);
+                return getPoints(b) - getPoints(a);
             }),
         bench: benchAndBullpen
             .filter(p => p.control === null)
-            .sort((a, b) => (b.points || 0) - (a.points || 0)),
+            .sort((a, b) => getPoints(b) - getPoints(a)),
         colors: colors,
         isMyTeam: false,
         teamKey: gameStore.myTeam === 'home' ? 'away' : 'home'
@@ -1097,26 +1111,25 @@ const showSwingAwayButton = computed(() => {
   return amIDisplayOffensivePlayer.value && !gameStore.gameState.currentAtBat.batterAction && !shouldHideCurrentAtBatOutcome.value && (gameStore.amIReadyForNext || bothPlayersCaughtUp.value) && !gameStore.gameState.pendingStealAttempt && !(isOffensiveStealInProgress.value && !gameStore.gameState.pendingStealAttempt) && !isWaitingForQueuedStealResolution.value && !(gameStore.gameState?.inningEndedOnCaughtStealing && gameStore.displayGameState?.outs === 3);
 });
 
-// A pitcher is batting and the offensive player still has a bench hitter to pinch-hit with.
-const shouldGuardSwingAway = computed(() => {
-  if (!showSwingAwayButton.value) return false;
-  if (!amIDisplayOffensivePlayer.value || myBench.value.length === 0) return false;
-  const batter = batterToDisplay.value;
-  return !!batter && batter.control !== null && batter.control !== undefined;
+// Bench hitters that haven't entered the game yet — genuinely available to pinch-hit.
+const availablePinchHitters = computed(() => {
+  const usedIds = gameStore.gameState?.[`${gameStore.myTeam}Team`]?.used_player_ids || [];
+  const usedSet = new Set(usedIds);
+  return myBench.value.filter(p => !usedSet.has(p.card_id));
 });
 
-// Open the settle window each time SWING AWAY first appears for a pinch-hit-eligible pitcher.
-watch(shouldGuardSwingAway, (guard) => {
-  if (swingAwaySettleTimeout) clearTimeout(swingAwaySettleTimeout);
-  if (guard) {
-    swingAwaySettleActive.value = true;
-    swingAwaySettleTimeout = setTimeout(() => {
-      swingAwaySettleActive.value = false;
-    }, BASERUNNING_SETTLE_MS);
-  } else {
-    swingAwaySettleActive.value = false;
-  }
-}, { immediate: true });
+// True when a pitcher is batting AND the offensive player has a pinch hitter they could
+// legally use instead. That means: an available bench hitter exists, and the batting pitcher
+// is actually eligible to be subbed out (the starting pitcher must have recorded 12 outs, or
+// be/headed-to tired). When true, the muscle-memory action slot shows a "Bench player
+// available" notice and SWING AWAY drops below it, so a reflex click can't burn the at-bat.
+const shouldGuardSwingAway = computed(() => {
+  if (!showSwingAwayButton.value) return false;
+  if (!amIDisplayOffensivePlayer.value || availablePinchHitters.value.length === 0) return false;
+  const batter = batterToDisplay.value;
+  if (!batter || batter.control === null || batter.control === undefined) return false;
+  return isPlayerSubEligible(batter);
+});
 
 const showBuntButton = computed(() => {
   if (!showSwingAwayButton.value) return false;
@@ -1654,8 +1667,19 @@ function fireCelebration({ showBall = false, showFireworks = false, bannerText =
   hrCelebrationTimeout = setTimeout(() => { hrCelebration.value = false; }, 2900);
 }
 
+// Fire the celebration at most once per swing result. Without this, the atBatToDisplay flip
+// between currentAtBat and lastCompletedAtBat during the inter-batter transition can re-enter
+// celebrationRevealed and replay the home-run animation.
+const lastCelebratedSwingKey = ref(null);
+
 watch(celebrationRevealed, (on) => {
   if (on) {
+    const swing = atBatToDisplay.value?.swingRollResult;
+    const key = swing
+      ? `${swing.batter?.card_id ?? '?'}:${swing.roll ?? '?'}:${swing.outcome ?? '?'}:${swing.eventCount ?? '?'}`
+      : null;
+    if (key && key === lastCelebratedSwingKey.value) return; // already celebrated this swing
+    lastCelebratedSwingKey.value = key;
     fireCelebration({
       showBall: isHomeRunHit.value,
       showFireworks: battingTeamIsHome.value,
@@ -1675,6 +1699,10 @@ const showBackfireNote = computed(() =>
 const showInfieldInNote = computed(() =>
   isSwingResultVisible.value && !shouldHideCurrentAtBatOutcome.value &&
   !!atBatToDisplay.value?.swingRollResult?.infieldInSingle
+);
+const showPitcherHrNote = computed(() =>
+  isSwingResultVisible.value && !shouldHideCurrentAtBatOutcome.value &&
+  !!atBatToDisplay.value?.swingRollResult?.pitcherHomeRun
 );
 
 // SIMUL: Auto-resolve single steals (no ROLL FOR THROW click needed)
@@ -2391,47 +2419,11 @@ const showAdvantage = computed(() => {
   return atBatToDisplay.value.pitchRollResult && simulPitchVisible.value;
 });
 
-// A batter "can't win the advantage" when even a pitch roll of 1 still lands the pitcher
-// the advantage — i.e. the pitcher's effective control is >= the batter's on-base. A pitcher
-// batting (they carry a control rating) can never win regardless of the roll.
-const batterCannotGetAdvantage = computed(() => {
-  const batter = batterToDisplay.value;
-  const pitcher = pitcherToDisplay.value;
-  if (!batter || !pitcher) return false;
-  if (batter.control !== null && batter.control !== undefined) return true;
-  const control = typeof pitcher.effectiveControl === 'number' ? pitcher.effectiveControl : pitcher.control;
-  if (typeof control !== 'number' || typeof batter.on_base !== 'number') return false;
-  return (1 + control) > batter.on_base;
-});
-
-// The window where actions are being chosen but the pitch hasn't been revealed yet.
-const isAwaitingPitchSwingActions = computed(() => {
-  if (!gameStore.gameState?.currentAtBat) return false;
-  if (showAdvantage.value) return false;
-  if (isSwingResultVisible.value) return false;
-  if (shouldHideCurrentAtBatOutcome.value) return false;
-  if (gameStore.gameState.currentPlay) return false;
-  if (gameStore.gameState.pendingStealAttempt) return false;
-  if (isStealAttemptInProgress.value) return false;
-  if (gameStore.isEffectivelyBetweenHalfInnings) return false;
-  return true;
-});
-
-// Foregone-conclusion at-bats (pitcher/replacement/very-low-OB batter): grayscale the batter
-// and pre-highlight the pitcher before any action is chosen, since the result is already decided.
-const showPreSwingDisadvantage = computed(() => {
-  return isAwaitingPitchSwingActions.value && batterCannotGetAdvantage.value;
-});
-
-// Whose card the advantage highlight points to: 'batter' | 'pitcher' | null. After the pitch
-// roll this is the resolved advantage; before it, only a can't-win batter forces it to 'pitcher'.
-// For those batters the pre-pitch and post-pitch holders match, so the highlight is seamless.
+// Whose card the advantage highlight points to: 'batter' | 'pitcher' | null. Only set once the
+// pitch roll resolves — we no longer pre-highlight foregone-conclusion at-bats before the roll.
 const advantageHolder = computed(() => {
   if (showAdvantage.value) {
     return atBatToDisplay.value.pitchRollResult?.advantage ?? null;
-  }
-  if (showPreSwingDisadvantage.value) {
-    return 'pitcher';
   }
   return null;
 });
@@ -2503,6 +2495,11 @@ const delayInningChange = computed(() => {
 
 onMounted(async () => {
   await gameStore.fetchGame(gameId);
+
+  if (authStore.allPlayers.length === 0) {
+    if (!authStore.selectedPointSetId) await authStore.fetchPointSets();
+    if (authStore.selectedPointSetId) authStore.fetchAllPlayers(authStore.selectedPointSetId);
+  }
 
   hasSeenResult.value = JSON.parse(localStorage.getItem(seenResultStorageKey.value)) || false;
   if (hasSeenResult.value) {
@@ -2583,7 +2580,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (baserunningSettleTimeout) clearTimeout(baserunningSettleTimeout);
-  if (swingAwaySettleTimeout) clearTimeout(swingAwaySettleTimeout);
   if (hrCelebrationTimeout) clearTimeout(hrCelebrationTimeout);
   gameStore.resetGameState();
   socket.off('game-updated');
@@ -2667,9 +2663,10 @@ async function handleReauthenticate() {
       <div class="diamond-and-results-container">
           <BaseballDiamond :bases="basesToDisplay" :canSteal="false" :isStealAttemptInProgress="isStealAttemptInProgress" :catcherArm="catcherArm" :runnersScored="scoredRunnersToDisplay" :thrownOutRunner="thrownOutRunnerToDisplay" :scoredColors="scoredTeamColors" :celebrating="hrCelebration" :seriesType="gameStore.series?.series_type" />
           <HomeRunCelebration :active="hrCelebration" :teamColors="batterTeamColors" :showBall="celebrationShowBall" :showFireworks="celebrationShowFireworks" :bannerText="celebrationBannerText" />
-          <div v-if="showInfieldInNote || showBackfireNote" class="result-callouts">
+          <div v-if="showInfieldInNote || showBackfireNote || showPitcherHrNote" class="result-callouts">
             <div v-if="showInfieldInNote" class="result-callout infield-in">⚾ THROUGH THE DRAWN-IN INFIELD!</div>
             <div v-if="showBackfireNote" class="result-callout backfire">💥 ADVANTAGE BACKFIRED</div>
+            <div v-if="showPitcherHrNote" class="result-callout pitcher-hr">💥 PITCHER HR</div>
           </div>
           <ThrowRollResult
             v-if="showThrowRollResult"
@@ -2786,7 +2783,13 @@ async function handleReauthenticate() {
             <div v-else>
                 <!-- SIMUL: No ROLL FOR THROW, ROLL FOR DOUBLE PLAY, or ROLL FOR SWING buttons -->
                 <button v-if="showRollForPitchButton" class="action-button tactile-button" @click="handlePitch()"><strong>ROLL FOR PITCH</strong></button>
-                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" :class="{ 'is-settling': swingAwaySettleActive }" :disabled="swingAwaySettleActive" @click="handleOffensiveAction('swing')"><strong>SWING AWAY</strong></button>
+                <!-- Pitcher batting with a usable pinch hitter: hold the muscle-memory slot with a
+                     non-clickable notice and drop SWING AWAY below it, so a reflex click can't burn the at-bat. -->
+                <template v-else-if="showSwingAwayButton && shouldGuardSwingAway">
+                    <div class="action-notice">Pinch hitter available</div>
+                    <button class="tactile-button demoted-swing-button" @click="handleOffensiveAction('swing')"><strong>SWING AWAY</strong></button>
+                </template>
+                <button v-else-if="showSwingAwayButton" class="action-button tactile-button" @click="handleOffensiveAction('swing')"><strong>SWING AWAY</strong></button>
                 <button v-if="showNextHitterButton" class="action-button tactile-button" @click="handleNextHitter()"><strong>Next Hitter</strong></button>
 
                 <!-- Secondary Action Buttons -->
@@ -3076,6 +3079,15 @@ async function handleReauthenticate() {
   padding: 1rem;
   font-family: sans-serif;
   background-color: #fff;
+  /* Prevent accidental text highlighting from rapid/double clicking during a game */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Keep the play-by-play log selectable so it can still be read/copied */
+.log-text {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .at-bat-container {
@@ -3123,8 +3135,8 @@ async function handleReauthenticate() {
   z-index: 56;
 }
 
-/* Result callouts (infield-in single / advantage backfired): stacked badges centered near
-   the top of the diamond, lifted above the HR dim so they stay readable during a celebration. */
+/* Result callouts (infield-in single / advantage backfired / pitcher HR): stacked badges
+   centered near the top of the diamond, lifted above the HR dim so they stay readable. */
 .result-callouts {
   position: absolute;
   top: 2px;
@@ -3157,7 +3169,8 @@ async function handleReauthenticate() {
   border-color: #d6ffe6;
   color: #fff;
 }
-.result-callout.backfire {
+.result-callout.backfire,
+.result-callout.pitcher-hr {
   background: #c0341d;
   border-color: #ffd9c2;
   color: #fff;
@@ -3567,14 +3580,27 @@ async function handleReauthenticate() {
     opacity: 0.5;
     pointer-events: none;
 }
-/* SWING AWAY settle window: same inert fade so a reflex click lands on nothing */
-.action-button.is-settling {
-    opacity: 0.5;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
 .tactile-button:disabled, .action-button:disabled {
     cursor: default;
+}
+
+/* Non-clickable notice that holds the primary action slot when a pinch hitter is usable, so a
+   reflex click can't accidentally swing the pitcher. SWING AWAY sits (demoted) below it. */
+.action-notice {
+    width: 100%;
+    box-sizing: border-box;
+    padding: .5rem 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 5px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    color: #5c4a00;
+    background-color: #FFF3CD;
+    border: 1px solid #E6D08A;
+}
+.demoted-swing-button {
+    opacity: 0.85;
 }
 
 .tactile-button-hold {
