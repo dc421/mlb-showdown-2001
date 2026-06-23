@@ -104,13 +104,13 @@ const linescore = computed(() => {
 const awayTeamAbbr = computed(() => gameStore.teams?.away?.abbreviation || 'AWAY');
 const homeTeamAbbr = computed(() => gameStore.teams?.home?.abbreviation || 'HOME');
 
-// Series games (playoffs) get a "GAME N" label and a per-team series-win column;
+// Series games (playoffs) get a "G N" label and a per-team series-win column;
 // exhibition games have neither.
 const hasSeries = computed(() => !!(gameStore.series && gameStore.game?.game_in_series));
 
 const gameLabel = computed(() => {
   const num = gameStore.game?.game_in_series;
-  return hasSeries.value ? `GAME ${num}` : '';
+  return hasSeries.value ? `G${num}` : '';
 });
 
 const isGameOver = computed(() => gameStore.game?.status === 'completed');
@@ -162,7 +162,8 @@ const homeTotalRuns = computed(() => {
   <table class="linescore-table">
       <thead>
         <tr>
-          <th class="game-label" :colspan="hasSeries ? 2 : 1">{{ gameLabel }}</th>
+          <th v-if="hasSeries" class="game-label">{{ gameLabel }}</th>
+          <th></th>
           <th v-for="inning in linescore.innings"
               :key="inning"
               :class="{ 'current-inning': inning === gameStore.displayGameState?.inning && !(((gameStore.isEffectivelyBetweenHalfInnings || gameStore.isBetweenHalfInnings) && gameStore.isSwingResultVisible) && !gameStore.opponentReadyForNext) }">
@@ -216,20 +217,24 @@ const homeTotalRuns = computed(() => {
   color: rgba(255, 255, 255, 0.7);
 }
 .linescore-table th.game-label {
-  text-align: left;
+  text-align: center;
   color: rgba(255, 255, 255, 0.45);
+  position: relative;
+  left: -0.5rem;
 }
 .linescore-table td.team-abbr {
   text-align: left;
   font-weight: bold;
-  min-width: 40px;
+  min-width: 32px;
+  padding-left: 0.5rem;
 }
 .linescore-table td.series-wins {
   text-align: center;
   font-weight: normal;
   color: rgba(255, 255, 255, 0.55);
   min-width: 16px;
-  padding-right: 0.4rem;
+  position: relative;
+  left: -0.5rem;
 }
 .linescore-table tr td:last-child {
   font-weight: bold;
@@ -253,10 +258,10 @@ const homeTotalRuns = computed(() => {
   .linescore-table td.team-abbr {
     min-width: unset;
     padding-right: 0.3rem;
+    padding-left: 0.35rem;
   }
   .linescore-table td.series-wins {
     min-width: 14px;
-    padding-right: 0.2rem;
   }
 }
 </style>

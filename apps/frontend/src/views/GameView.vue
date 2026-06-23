@@ -795,7 +795,10 @@ const opponentUsedPlayerIds = computed(() => {
 
 // Current fatigue for a team's active (on-field) pitcher, mirroring the bullpen
 // indicators: one filled red dot per -1 control penalty, an open dot for buffer used.
-// Uses the same calculation as getEffectiveControl (predicting the current inning).
+// Counts only innings actually thrown ("banked"): an inning banks the instant the
+// pitcher throws his first pitch of it, so the on-mound pitcher still shows his debuff,
+// while a resting pitcher never shows fatigue for an inning he hasn't committed to.
+// This keeps the dots in sync with the card and with the next-game fatigue carryover.
 const getActivePitcherFatigue = (pitcher, teamKey) => {
     const result = { penalty: 0, bufferUsed: false };
     if (!pitcher || typeof pitcher.control !== 'number' || pitcher.card_id < 0) return result;
@@ -808,17 +811,13 @@ const getActivePitcherFatigue = (pitcher, teamKey) => {
     const stats = pitcherStats[`${ownerUserId}_${pitcher.card_id}`];
     if (!stats) return result;
 
-    const inning = gameStore.gameState.inning;
-    const inningsPitched = stats.innings_pitched || [];
-    const projectedInnings = inningsPitched.includes(inning)
-        ? inningsPitched.length
-        : inningsPitched.length + 1;
+    const inningsPitchedCount = (stats.innings_pitched || []).length;
 
     const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
     const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
 
-    if (projectedInnings > fatigueThreshold) {
-        result.penalty = projectedInnings - fatigueThreshold;
+    if (inningsPitchedCount > fatigueThreshold) {
+        result.penalty = inningsPitchedCount - fatigueThreshold;
     } else if (stats.isBufferUsed) {
         result.bufferUsed = true;
     }
@@ -2826,7 +2825,7 @@ async function handleReauthenticate() {
         <!-- Player Cards Wrapper -->
         <div class="player-cards-wrapper">
           <!-- USER-CONTROLLED PLAYER -->
-          <div class="player-container">
+          <div class="player-container" @dblclick="controlledPlayer && (selectedCard = controlledPlayer)">
             <PlayerCard
               v-if="controlledPlayer"
               :player="controlledPlayer"
@@ -2847,7 +2846,7 @@ async function handleReauthenticate() {
           </div>
 
           <!-- OPPONENT PLAYER -->
-          <div class="player-container">
+          <div class="player-container" @dblclick="opponentPlayer && (selectedCard = opponentPlayer)">
             <PlayerCard
               v-if="opponentPlayer"
               :player="opponentPlayer"
@@ -3463,10 +3462,9 @@ async function handleReauthenticate() {
 .is-used {
   color: #6c757d;
   text-decoration: line-through;
-  pointer-events: none;
-}
-.is-used > span:first-child {
-  cursor: default;
+  /* Keep removed/used players clickable so their card modal can still be opened.
+     Substitution eligibility is gated separately (isPlayerValidSubTarget + ⇄ icon). */
+  cursor: pointer;
 }
 
 .invalid-position {

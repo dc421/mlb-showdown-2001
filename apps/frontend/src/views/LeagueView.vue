@@ -354,6 +354,22 @@ function getWinPct(wins, losses) {
     return pct.toFixed(3).replace(/^0+/, '');
 }
 
+// Shade matrix cells on a diverging scale: red below .500, neutral at .500, green above.
+// Full color is reached at a .600 / .400 record; Phantoms cells are left unshaded.
+function cellShade(rowTeam, colTeam) {
+    if (rowTeam.id === colTeam.id) return null;
+    if (rowTeam.name === 'Phantoms' || colTeam.name === 'Phantoms') return null;
+    const record = rowTeam.opponents[colTeam.id];
+    if (!record) return null;
+    const total = record.wins + record.losses;
+    if (total === 0) return null;
+    const pct = record.wins / total;
+    // 0 at an even .500 record, 1 once the record reaches .600 / .400 or beyond
+    const intensity = Math.min(Math.abs(pct - 0.5) / 0.1, 1);
+    const rgb = pct >= 0.5 ? '40, 167, 69' : '220, 53, 69';
+    return { backgroundColor: `rgba(${rgb}, ${intensity.toFixed(3)})` };
+}
+
 onMounted(async () => {
     await fetchSeasons();
     fetchLeagueData();
@@ -674,7 +690,7 @@ onMounted(async () => {
                     <tbody>
                         <tr v-for="rowTeam in sortedMatrixData" :key="rowTeam.id">
                             <td class="matrix-row-header" :class="{'phantoms-header': rowTeam.name === 'Phantoms'}">{{ rowTeam.name }}</td>
-                            <td v-for="colTeam in sortedMatrixData" :key="colTeam.id" class="matrix-cell" :class="{'phantoms-cell': rowTeam.name === 'Phantoms' || colTeam.name === 'Phantoms'}">
+                            <td v-for="colTeam in sortedMatrixData" :key="colTeam.id" class="matrix-cell" :class="{'phantoms-cell': rowTeam.name === 'Phantoms' || colTeam.name === 'Phantoms'}" :style="cellShade(rowTeam, colTeam)">
                                 <template v-if="rowTeam.id === colTeam.id">
                                     <span class="matrix-self">-</span>
                                 </template>
@@ -1369,7 +1385,7 @@ h1 {
 }
 
 .matrix-wins {
-    color: #28a745;
+    color: #333;
 }
 
 .border-right-cell {
@@ -1377,12 +1393,12 @@ h1 {
 }
 
 .matrix-losses {
-    color: #dc3545;
+    color: #333;
 }
 
 .matrix-pct {
     font-size: 0.75rem;
-    color: #666;
+    color: #555;
     margin-top: 2px;
 }
 

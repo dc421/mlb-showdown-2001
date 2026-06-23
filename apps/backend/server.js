@@ -486,7 +486,7 @@ const getSpeedValue = (runner) => {
   return speed; // Assume it's already a number if not A/B/C
 };
 
-function getEffectiveControl(pitcher, pitcherStats, inning, ownerUserId = null) {
+function getEffectiveControl(pitcher, pitcherStats, inning, ownerUserId = null, projectCurrentInning = true) {
     if (!pitcher || typeof pitcher.control !== 'number') return null;
     if (pitcher.card_id < 0) return pitcher.control; // Replacement pitchers are exempt from fatigue
     if (!pitcherStats) return pitcher.control;
@@ -495,10 +495,13 @@ function getEffectiveControl(pitcher, pitcherStats, inning, ownerUserId = null) 
     const stats = pitcherStats[pitcherId] || { runs: 0, innings_pitched: [], fatigue_modifier: 0 };
     const inningsPitched = stats.innings_pitched || [];
 
-    // For UI display purposes, we want to predict the fatigue for the current inning
-    // before the first pitch has been thrown.
+    // For the pitcher currently on the mound we project the current inning so his
+    // debuff shows the instant he takes it (an inning banks on his first pitch anyway).
+    // Resting pitchers pass projectCurrentInning=false so they only reflect innings
+    // actually thrown — keeping their indicator in sync with the card and with the
+    // next-game fatigue carryover (which counts banked innings, never projected ones).
     let potentialInningsPitched = [...inningsPitched];
-    if (!potentialInningsPitched.includes(inning)) {
+    if (projectCurrentInning && !potentialInningsPitched.includes(inning)) {
         potentialInningsPitched.push(inning);
     }
     const inningsPitchedCount = potentialInningsPitched.length;
@@ -1028,6 +1031,33 @@ app.use('/api/draft', require('./routes/draft'));
 app.use('/api/league', require('./routes/league'));
 app.use('/api/classic', require('./routes/classic'));
 app.use('/api/teams', require('./routes/teams'));
+
+// Global captaincy data for client-side card badges: per-team-season captains,
+// current captains, Faces, and Core Squad members, plus team colors/logos.
+app.get('/api/captaincies', authenticateToken, async (req, res) => {
+    try {
+        const { getCaptaincies } = require('./services/captaincyService');
+        const data = await getCaptaincies();
+        const teamsMeta = {};
+        (await pool.query('SELECT team_id, primary_color, secondary_color, logo_url, city, name FROM teams')).rows
+            .forEach(t => { teamsMeta[t.team_id] = { primary: t.primary_color, secondary: t.secondary_color, logo: t.logo_url, city: t.city, name: t.name }; });
+        const captains = {};
+        Object.entries(data.captains).forEach(([tid, byS]) => {
+            captains[tid] = {};
+            Object.entries(byS).forEach(([s, c]) => { captains[tid][s] = c.card_id; });
+        });
+        const currentCaptains = {};
+        Object.entries(data.currentCaptains).forEach(([tid, c]) => { currentCaptains[tid] = c.card_id; });
+        const faces = {};
+        Object.entries(data.faces).forEach(([tid, c]) => { faces[tid] = c.card_id; });
+        const coreSquads = {};
+        Object.entries(data.coreSquads).forEach(([tid, cs]) => { coreSquads[tid] = cs.members; });
+        res.json({ teamsMeta, captains, currentCaptains, faces, coreSquads });
+    } catch (e) {
+        console.error('Error fetching captaincies:', e);
+        res.status(500).json({ message: 'Server error fetching captaincies.' });
+    }
+});
 
 // USER REGISTRATION (Updated for Teams)
 app.post('/api/register', async (req, res) => {
@@ -2513,10 +2543,12 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
                 if (r.round === 'Regular Season' || !fr.eraName) fr.eraName = r.losing_team_name;
             }
             // W-L over every completed series, including Golden Spaceship / Wooden Spoon
-            // (league) and the Silver Submarine (Classic).
-            if (r.winning_score != null) {
-                if (!isPhantom(w.name)) { const fr = frEnsure(store, r.season_name, w.key); fr.wins += r.winning_score || 0; fr.losses += r.losing_score || 0; }
-                if (!isPhantom(l.name)) { const fr = frEnsure(store, r.season_name, l.key); fr.losses += r.winning_score || 0; fr.wins += r.losing_score || 0; }
+            // (league) and the Silver Submarine (Classic). Phantom-loss games (a forfeit
+            // recorded vs "Phantoms") are excluded entirely — they don't count toward a
+            // player's record on the card back.
+            if (r.winning_score != null && !isPhantom(w.name) && !isPhantom(l.name)) {
+                const wf = frEnsure(store, r.season_name, w.key); wf.wins += r.winning_score || 0; wf.losses += r.losing_score || 0;
+                const lf = frEnsure(store, r.season_name, l.key); lf.losses += r.winning_score || 0; lf.wins += r.losing_score || 0;
             }
             // Diamonds — Golden Spaceship/Wooden Spoon are league; Silver Submarine is the Classic.
             if (r.round === 'Golden Spaceship') (seasonDiamond[r.season_name] = seasonDiamond[r.season_name] || {}).spaceship = w.key;
@@ -2538,7 +2570,7 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         };
         const ensureC = (name) => {
             if (!classicSeasons[name]) {
-                classicSeasons[name] = { season: name, franchises: [], submarine: false, mva: false, lvsc: false, tgaoot: false };
+                classicSeasons[name] = { season: name, franchises: [], positions: new Set(), submarine: false, mva: false, lvsc: false, tgaoot: false };
             }
             return classicSeasons[name];
         };
@@ -2566,8 +2598,10 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         const classicIdToSeason = {};
         try {
             classicRosterRows = (await pool.query(
-                `SELECT r.classic_id, r.user_id
-                 FROM rosters r JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                `SELECT r.classic_id, r.user_id, rc.assignment, cp.control, cp.ip
+                 FROM rosters r
+                 JOIN roster_cards rc ON r.roster_id = rc.roster_id
+                 JOIN cards_player cp ON rc.card_id = cp.card_id
                  WHERE r.roster_type = 'classic' AND rc.card_id = $1`,
                 [cardId]
             )).rows;
@@ -2593,6 +2627,10 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
             const fk = `ID-${ownerTeam.team_id}`;
             const c = ensureC(season);
             if (!c.franchises.some(x => x.key === fk)) c.franchises.push({ key: fk, histName: `${ownerTeam.city} ${ownerTeam.name}`, abbr: ownerTeam.abbreviation });
+            // Position: derive SP/RP from the card for pitchers, else the drafted assignment.
+            let pos = cr.assignment;
+            if (cr.control !== null && cr.control !== undefined) pos = Number(cr.ip) > 3 ? 'SP' : 'RP';
+            if (pos && pos !== 'PITCHING_STAFF') c.positions.add(pos);
             if ((classicDiamond[season] || {}).submarine === fk) c.submarine = true;
         });
 
@@ -2636,6 +2674,9 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         // multi-word -> initials, keeping all-caps tokens like "NY").
         const abbrevTeam = (name) => {
             if (!name) return '';
+            // Known era-name abbreviations that don't follow the initials rule.
+            const SPECIAL = { 'Redwood City': 'RDC' };
+            for (const key in SPECIAL) if (name.includes(key)) return SPECIAL[key];
             const words = name.trim().split(/\s+/);
             if (words.length === 1) {
                 const w0 = words[0];
@@ -2650,45 +2691,65 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
             return db - da;
         };
 
-        // Sum a season's W-L across every franchise the player was on (a player can be
-        // on more than one league/classic team in a season).
-        const sumRec = (store, season, franchises) => {
-            let wins = 0, losses = 0, has = false;
-            franchises.forEach(f => { const fr = store[season]?.[f.key]; if (fr) { wins += fr.wins; losses += fr.losses; has = true; } });
-            return has ? { wins, losses } : null;
+        // Logo for a franchise in a given era — handles deprecated era logos
+        // (Lugnuts, Catastrophe, Phantoms) and falls back to the current club logo.
+        const { getLogoForTeam } = require('./utils/franchiseUtils');
+        const teamById = {};
+        currentTeams.forEach(t => { teamById[t.team_id] = t; });
+        const logoForFranchise = (fk, eraName) => {
+            let def = null;
+            if (fk && fk.startsWith('ID-')) { const t = teamById[parseInt(fk.slice(3), 10)]; if (t) def = t.logo_url; }
+            return getLogoForTeam(eraName, def);
         };
 
+        // One row per (season, franchise): a player on multiple clubs in a season gets
+        // multiple rows rather than a slash-joined one.
         const seasonList = Object.values(seasons)
-            .map(s => {
-                const eraNames = s.franchises.map(f => leagueFr[s.season]?.[f.key]?.eraName || f.histName);
-                const rec = sumRec(leagueFr, s.season, s.franchises);
-                return {
-                    season: s.season,
-                    team: eraNames.join(' / '),
-                    team_abbr: eraNames.map(abbrevTeam).join('/'),
-                    position: [...s.positions].join(', '),
-                    points: seasonPoints(s.season),
-                    wins: rec ? rec.wins : null,
-                    losses: rec ? rec.losses : null,
-                    spaceship: s.spaceship, spoon: s.spoon,
-                    mva: s.mva, lvsc: s.lvsc, tgaoot: s.tgaoot
-                };
+            .flatMap(s => {
+                const sd = seasonDiamond[s.season] || {};
+                const single = s.franchises.length === 1;
+                return s.franchises.map(f => {
+                    const eraName = leagueFr[s.season]?.[f.key]?.eraName || f.histName;
+                    const fr = leagueFr[s.season]?.[f.key];
+                    const spaceship = sd.spaceship === f.key;
+                    const spoon = sd.spoon === f.key;
+                    return {
+                        season: s.season,
+                        team: eraName,
+                        team_abbr: abbrevTeam(eraName),
+                        logo: logoForFranchise(f.key, eraName),
+                        position: [...s.positions].join(', '),
+                        points: seasonPoints(s.season),
+                        wins: fr ? fr.wins : null,
+                        losses: fr ? fr.losses : null,
+                        spaceship, spoon,
+                        mva: s.mva && (single || spaceship),
+                        lvsc: s.lvsc && (single || spoon),
+                        tgaoot: s.tgaoot && (single || spaceship)
+                    };
+                });
             })
             .sort(byDateDesc);
 
         const classicList = Object.values(classicSeasons)
-            .map(c => {
-                const eraNames = c.franchises.map(f => classicFr[c.season]?.[f.key]?.eraName || f.histName);
-                const rec = sumRec(classicFr, c.season, c.franchises);
-                return {
-                    season: c.season,
-                    team: eraNames.join(' / '),
-                    // A Classic team is a current franchise — use its real abbreviation (BOS, LA…).
-                    team_abbr: c.franchises.map(f => f.abbr || abbrevTeam(classicFr[c.season]?.[f.key]?.eraName || f.histName)).join('/'),
-                    wins: rec ? rec.wins : null,
-                    losses: rec ? rec.losses : null,
-                    submarine: c.submarine, mva: c.mva, lvsc: c.lvsc, tgaoot: c.tgaoot
-                };
+            .flatMap(c => {
+                const cd = classicDiamond[c.season] || {};
+                return c.franchises.map(f => {
+                    const eraName = classicFr[c.season]?.[f.key]?.eraName || f.histName;
+                    const fr = classicFr[c.season]?.[f.key];
+                    return {
+                        season: c.season,
+                        team: eraName,
+                        // A Classic team is a current franchise — use its real abbreviation (BOS, LA…).
+                        team_abbr: f.abbr || abbrevTeam(eraName),
+                        logo: logoForFranchise(f.key, eraName),
+                        position: [...c.positions].join(', '),
+                        wins: fr ? fr.wins : null,
+                        losses: fr ? fr.losses : null,
+                        submarine: cd.submarine === f.key,
+                        mva: c.mva, lvsc: c.lvsc, tgaoot: c.tgaoot
+                    };
+                });
             })
             .sort(byDateDesc);
 
@@ -3359,8 +3420,11 @@ async function getAndProcessGameData(gameId, dbClient) {
                     if (stats.pitchedYesterday) player.pitchedYesterday = true;
                     if (stats.isBufferUsed) player.isBufferUsed = true;
 
-                    // Calculate total penalty (incorporating pre-game and in-game)
-                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning, teamUserId);
+                    // Calculate total penalty (incorporating pre-game and in-game).
+                    // Bullpen pitchers are resting, so bank only innings actually thrown
+                    // (no current-inning projection) — they shouldn't show fatigue for an
+                    // inning they haven't committed to.
+                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning, teamUserId, false);
                     const totalPenalty = Math.max(0, player.control - effectiveControl);
 
                     // The stored fatigue_modifier is the pre-game state.

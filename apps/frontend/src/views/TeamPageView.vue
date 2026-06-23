@@ -14,6 +14,35 @@ const loading = ref(true);
 const selectedPlayer = ref(null);
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
+// --- Captaincy / Core Squad / Face of the Franchise ---
+const captaincy = computed(() => teamData.value?.captaincy || { captains: {}, currentCaptain: null, face: null, playerScores: { byCard: {}, byName: {} } });
+const teamColors = computed(() => ({
+    primary: teamData.value?.team?.primary_color || '#ffc107',
+    secondary: teamData.value?.team?.secondary_color || '#000000'
+}));
+// Matches the card captain "C": secondary fill, primary felt-edge stroke.
+const capBadgeStyle = computed(() => ({ color: teamColors.value.secondary, '--cap-stroke': teamColors.value.primary }));
+
+const normalizePlayer = (s) => (s || '').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+const samePlayer = (player, ref) => {
+    if (!player || !ref) return false;
+    if (player.card_id != null && ref.card_id != null) return player.card_id === ref.card_id;
+    return normalizePlayer(player.displayName || player.name) === normalizePlayer(ref.name);
+};
+
+// "C" beside a player's name in the matrices marks that season's captain.
+const isSeasonCaptain = (player, captain) => samePlayer(player, captain);
+
+// The Face's full player object (with card art), taken from roster history.
+const facePlayer = computed(() => {
+    const f = captaincy.value.face;
+    if (!f) return null;
+    for (const r of (teamData.value?.rosters || [])) {
+        for (const p of r.players) if (samePlayer(p, f)) return p;
+    }
+    return null;
+});
+
 // --- DYNAMIC COLUMNS LOGIC ---
 
 // Calculate max number of RPs and Bench players across all seasons (Regular AND Classic)
@@ -135,6 +164,7 @@ const processedHistory = computed(() => {
             batters: batterRow,
             pitchers: pitchersRow,
             result,
+            captain: teamData.value.captaincy?.captains?.[r.season] || null,
             mvaName: extractAwardPlayerName(historyItem?.mva),
             lvscName: extractAwardPlayerName(historyItem?.lvsc),
             tgaootName: extractAwardPlayerName(historyItem?.tgaoot)
@@ -187,189 +217,37 @@ const processedClassicHistory = computed(() => {
     });
 });
 
-const playerTotalCounts = computed(() => {
-    const counts = {};
-    if (!teamData.value?.rosters) return counts;
-
-    // Count distinct seasons per player
-    teamData.value.rosters.forEach(r => {
-        const seasonPlayers = new Set();
-        r.players.forEach(p => {
-             const key = p.displayName || p.name;
-             seasonPlayers.add(key);
-        });
-
-        seasonPlayers.forEach(name => {
-            counts[name] = (counts[name] || 0) + 1;
-        });
-    });
-    return counts;
+// Core Squad comes from the backend (single source shared with the card "CS" badges).
+// Look up each slot's full player object (with card art) from roster history so the
+// footer cell can still open the card modal.
+const cardLookup = computed(() => {
+    const m = {};
+    (teamData.value?.rosters || []).forEach(r => r.players.forEach(p => { if (p.card_id != null) m[p.card_id] = p; }));
+    return m;
 });
-
-const calculateCoreSquads = (history, keys) => {
-    const totalSeasons = history.length;
-    if (totalSeasons === 0) return {};
-
-    // 1. Gather stats per slot
-    // slotCandidates: { SlotName -> { PlayerName -> Count } }
-    const slotStats = {};
-    const slotPlayers = {}; // SlotName -> { PlayerName -> representative player object (for card display) }
-    keys.forEach(k => { slotStats[k] = {}; slotPlayers[k] = {}; });
-
-    history.forEach(row => {
-        // Merge batters and pitchers rows for generic access (or we call this function twice)
-        // This helper assumes 'row' has the relevant columns directly or we pass in extracted objects.
-        // Actually, this function is generic. We'll pass rows of just the relevant type (batter or pitcher).
-        keys.forEach(k => {
-             const p = row[k];
-             if (p) {
-                 const name = p.displayName || p.name;
-                 slotStats[k][name] = (slotStats[k][name] || 0) + 1;
-                 slotPlayers[k][name] = p; // keep a full player object so the core-squad cell can open the card
-             }
-        });
-    });
-
-    // 2. Identify Valid Slots (>50% filled) and Candidates
-    const validSlotCandidates = {}; // Slot -> [{name, count, total}]
-    const totalFilled = {};
-
-    keys.forEach(slot => {
-        let filledCount = 0;
-        const candidates = [];
-        for (const name in slotStats[slot]) {
-            const count = slotStats[slot][name];
-            filledCount += count;
-            candidates.push({
-                name,
-                count: playerTotalCounts.value[name] || count, // Use Total Appearances per user request
-                slotCount: count, // Keep track of slot-specific apps for tie-breaking if needed (though regret logic handles it)
-                player: slotPlayers[slot][name]
-            });
-        }
-
-        // Check 50% threshold
-        if (filledCount / totalSeasons >= 0.5) {
-            // Sort candidates by Total Count DESC, then Slot Count DESC
-            candidates.sort((a,b) => {
-                if (b.count !== a.count) return b.count - a.count;
-                return b.slotCount - a.slotCount;
-            });
-            validSlotCandidates[slot] = candidates;
-        }
-    });
-
-    // 3. Regret Minimization Assignment
-    const validKeys = Object.keys(validSlotCandidates);
-    let tentativePointers = {}; // Slot -> Index
-    validKeys.forEach(k => tentativePointers[k] = 0);
-
-    let conflict = true;
-    const MAX_ITER = 100; // Safety break
-    let iter = 0;
-
-    while (conflict && iter < MAX_ITER) {
-        iter++;
-        conflict = false;
-        const playerAssignments = {}; // PlayerName -> [SlotName]
-
-        // Assign top picks based on current pointers
-        validKeys.forEach(slot => {
-            const idx = tentativePointers[slot];
-            const candidates = validSlotCandidates[slot];
-            if (idx < candidates.length) {
-                const player = candidates[idx].name;
-                if (!playerAssignments[player]) playerAssignments[player] = [];
-                playerAssignments[player].push(slot);
-            }
-        });
-
-        // Detect and Resolve Conflicts
-        for (const player in playerAssignments) {
-            const slots = playerAssignments[player];
-            if (slots.length > 1) {
-                conflict = true;
-
-                // Calculate Regret for each slot
-                // Regret = Score(Current) - Score(NextBest)
-                const regrets = slots.map(slot => {
-                    const idx = tentativePointers[slot];
-                    const candidates = validSlotCandidates[slot];
-                    const currentScore = candidates[idx].count;
-                    const nextScore = (idx + 1 < candidates.length) ? candidates[idx+1].count : 0;
-                    return { slot, regret: currentScore - nextScore };
-                });
-
-                // Sort slots by Regret DESC (Higher regret = we want to keep it more)
-                // If tie, arbitrary (stable sort)
-                regrets.sort((a,b) => b.regret - a.regret);
-
-                // The first slot keeps the player. All others must move to next candidate.
-                const slotToKeep = regrets[0].slot;
-
-                slots.forEach(slot => {
-                    if (slot !== slotToKeep) {
-                        tentativePointers[slot]++;
-                    }
-                });
-            }
-        }
-    }
-
-    // 4. Construct Result
-    const result = {};
-    validKeys.forEach(slot => {
-        const idx = tentativePointers[slot];
-        const candidates = validSlotCandidates[slot];
-        if (idx < candidates.length) {
-            const c = candidates[idx];
-            result[slot] = { name: formatNameShort(c.name, true), count: c.count, player: c.player };
-        }
-    });
-
-    return result;
-};
+const coreSquadData = computed(() => teamData.value?.captaincy?.coreSquad || { batters: {}, pitchers: {}, members: [] });
 
 const mostCommonPlayers = computed(() => {
-    if (!processedHistory.value.length) return { batters: {}, pitchers: {} };
-
-    // Batters
-    const batterKeys = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
-    for (let i = 1; i <= maxCols.value.bench; i++) batterKeys.push(`Bench${i}`);
-
-    // Extract just the batter rows for calculation
-    const batterRows = processedHistory.value.map(h => h.batters);
-    const batters = calculateCoreSquads(batterRows, batterKeys);
-
-    // Pitchers
-    const pitcherKeys = ['SP1', 'SP2', 'SP3', 'SP4'];
-    for (let i = 1; i <= maxCols.value.rp; i++) pitcherKeys.push(`RP${i}`);
-
-    const pitcherRows = processedHistory.value.map(h => h.pitchers);
-    const pitchers = calculateCoreSquads(pitcherRows, pitcherKeys);
-
-    return { batters, pitchers };
-});
-
-// The single most-frequent core-squad player across hitters AND pitchers — one logo per team.
-// Returns the group ('batter' | 'pitcher') and slot key so only that one cell is marked.
-const mostFrequentCore = computed(() => {
-    let best = { group: null, slot: null, count: -1 };
-    const consider = (group, slotMap) => {
-        for (const slot in slotMap) {
-            const entry = slotMap[slot];
-            if (entry && entry.count > best.count) {
-                best = { group, slot, count: entry.count };
-            }
+    const mapSlots = (slots) => {
+        const out = {};
+        for (const key in slots) {
+            const e = slots[key];
+            out[key] = {
+                name: formatNameShort(e.name, true),
+                player: cardLookup.value[e.card_id] || { card_id: e.card_id, name: e.name, displayName: e.name }
+            };
         }
+        return out;
     };
-    consider('batter', mostCommonPlayers.value.batters);
-    consider('pitcher', mostCommonPlayers.value.pitchers);
-    return best;
+    return { batters: mapSlots(coreSquadData.value.batters), pitchers: mapSlots(coreSquadData.value.pitchers) };
 });
 
-const isMostFrequent = (group, slot) =>
-    mostFrequentCore.value.group === group && mostFrequentCore.value.slot === slot;
+// The Core Squad slot held by the Face of the Franchise gets the logo + emphasis.
+const isFaceCore = (group, slot) => {
+    const map = group === 'batter' ? mostCommonPlayers.value.batters : mostCommonPlayers.value.pitchers;
+    const entry = map[slot];
+    return entry?.player ? samePlayer(entry.player, captaincy.value.face) : false;
+};
 
 const hoveredBatterCol = ref(null);
 const hoveredPitcherCol = ref(null);
@@ -436,6 +314,11 @@ const teamDisplayName = computed(() => {
              </ul>
         </div>
       </div>
+      <div v-if="facePlayer" class="header-face" @click="openPlayerCard(facePlayer)" :title="`Face of the Franchise: ${facePlayer.displayName || facePlayer.name}`">
+          <PlayerCard :player="facePlayer" />
+          <span class="header-face-label">Face of the Franchise</span>
+      </div>
+
       <div class="accolades">
           <div v-if="teamData.accolades.spaceships.length > 0" class="accolade-row">
             <div v-for="(accolade, index) in teamData.accolades.spaceships" :key="accolade.season_name + index" class="accolade-item desktop-only">
@@ -484,9 +367,15 @@ const teamDisplayName = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- White rows; accolade color is contained to a small Result badge -->
+                        <!-- Row tinted with the dialed-down League finale palette for accolade
+                             seasons; the small Result badge stays on top. -->
                         <tr v-for="season in combinedHistory" :key="season.season + (season.isClassic ? '-classic' : '')"
-                            :class="{'classic-row': season.isClassic}">
+                            :class="{
+                                'classic-row': season.isClassic,
+                                'gold-bg': isChampionResult(season.result),
+                                'silver-bg': isSubmarineResult(season.result),
+                                'brown-bg': isSpoonResult(season.result)
+                            }">
                             <td class="season-name">
                                 <RouterLink :to="season.isClassic ? { path: `/teams/${teamId}/seasons/${encodeURIComponent(season.classicName || season.originalSeason || season.season)}`, query: { type: 'Classic' } } : `/teams/${teamId}/seasons/${season.season}`" class="season-link">
                                     {{ season.isClassic ? (season.classicName || season.season) : season.season }}<span v-if="season.isClassic" class="classic-badge">C</span>
@@ -549,7 +438,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[pos], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
-                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
+                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.batters[pos], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                             <!-- Dynamic Bench Cells -->
@@ -559,7 +448,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[`Bench${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
-                                    {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
+                                    {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.batters[`Bench${i}`], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                         </tr>
@@ -571,11 +460,10 @@ const teamDisplayName = computed(() => {
                                 class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.batters[pos]}"
                                 @click="mostCommonPlayers.batters[pos] && openPlayerCard(mostCommonPlayers.batters[pos].player)">
                                 <template v-if="mostCommonPlayers.batters[pos]">
-                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('batter', pos)}">
-                                        <img v-if="isMostFrequent('batter', pos)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                    <div class="common-name" :class="{'most-frequent-name': isFaceCore('batter', pos)}">
+                                        <img v-if="isFaceCore('batter', pos)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" title="Face of the Franchise" />
                                         {{ mostCommonPlayers.batters[pos].name }}
                                     </div>
-                                    <div class="common-count">({{ mostCommonPlayers.batters[pos].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
@@ -583,11 +471,10 @@ const teamDisplayName = computed(() => {
                                 class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.batters[`Bench${i}`]}"
                                 @click="mostCommonPlayers.batters[`Bench${i}`] && openPlayerCard(mostCommonPlayers.batters[`Bench${i}`].player)">
                                 <template v-if="mostCommonPlayers.batters[`Bench${i}`]">
-                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('batter', `Bench${i}`)}">
-                                        <img v-if="isMostFrequent('batter', `Bench${i}`)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                    <div class="common-name" :class="{'most-frequent-name': isFaceCore('batter', `Bench${i}`)}">
+                                        <img v-if="isFaceCore('batter', `Bench${i}`)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" title="Face of the Franchise" />
                                         {{ mostCommonPlayers.batters[`Bench${i}`].name }}
                                     </div>
-                                    <div class="common-count">({{ mostCommonPlayers.batters[`Bench${i}`].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
@@ -631,7 +518,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[pos], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
-                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
+                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.pitchers[pos], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                              <!-- Dynamic RP Cells -->
@@ -641,7 +528,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[`RP${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
-                                    {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
+                                    {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.pitchers[`RP${i}`], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                         </tr>
@@ -653,11 +540,10 @@ const teamDisplayName = computed(() => {
                                 class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.pitchers[pos]}"
                                 @click="mostCommonPlayers.pitchers[pos] && openPlayerCard(mostCommonPlayers.pitchers[pos].player)">
                                 <template v-if="mostCommonPlayers.pitchers[pos]">
-                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('pitcher', pos)}">
-                                        <img v-if="isMostFrequent('pitcher', pos)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                    <div class="common-name" :class="{'most-frequent-name': isFaceCore('pitcher', pos)}">
+                                        <img v-if="isFaceCore('pitcher', pos)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" title="Face of the Franchise" />
                                         {{ mostCommonPlayers.pitchers[pos].name }}
                                     </div>
-                                    <div class="common-count">({{ mostCommonPlayers.pitchers[pos].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
@@ -665,11 +551,10 @@ const teamDisplayName = computed(() => {
                                 class="summary-cell" :class="{'summary-clickable': mostCommonPlayers.pitchers[`RP${i}`]}"
                                 @click="mostCommonPlayers.pitchers[`RP${i}`] && openPlayerCard(mostCommonPlayers.pitchers[`RP${i}`].player)">
                                 <template v-if="mostCommonPlayers.pitchers[`RP${i}`]">
-                                    <div class="common-name" :class="{'most-frequent-name': isMostFrequent('pitcher', `RP${i}`)}">
-                                        <img v-if="isMostFrequent('pitcher', `RP${i}`)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" :title="`Most frequent: ${teamData.team.name}`" />
+                                    <div class="common-name" :class="{'most-frequent-name': isFaceCore('pitcher', `RP${i}`)}">
+                                        <img v-if="isFaceCore('pitcher', `RP${i}`)" :src="teamData.team.logo_url" :alt="teamData.team.name" class="core-logo" title="Face of the Franchise" />
                                         {{ mostCommonPlayers.pitchers[`RP${i}`].name }}
                                     </div>
-                                    <div class="common-count">({{ mostCommonPlayers.pitchers[`RP${i}`].count }})</div>
                                 </template>
                                 <span v-else>-</span>
                             </td>
@@ -713,7 +598,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.batters[pos], 'col-hover': hoveredBatterCol === idx, 'mva-winner': isAwardWinner(row.batters[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[pos], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = idx" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[pos] ? `${row.batters[pos].displayName} (${row.batters[pos].points} pts)` : ''">
-                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}
+                                    {{ row.batters[pos] ? formatNameShort(row.batters[pos].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.batters[pos], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                             <!-- Dynamic Bench Cells -->
@@ -723,7 +608,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.batters[`Bench${i}`], 'col-hover': hoveredBatterCol === 8 + i, 'mva-winner': isAwardWinner(row.batters[`Bench${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.batters[`Bench${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.batters[`Bench${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredBatterCol = 8 + i" @mouseleave="hoveredBatterCol = null">
                                 <span :title="row.batters[`Bench${i}`] ? `${row.batters[`Bench${i}`].displayName} (${row.batters[`Bench${i}`].points} pts)` : ''">
-                                    {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}
+                                    {{ row.batters[`Bench${i}`] ? formatNameShort(row.batters[`Bench${i}`].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.batters[`Bench${i}`], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                         </tr>
@@ -766,7 +651,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.pitchers[pos], 'col-hover': hoveredPitcherCol === idx, 'mva-winner': isAwardWinner(row.pitchers[pos], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[pos], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[pos], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = idx" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[pos] ? `${row.pitchers[pos].displayName} (${row.pitchers[pos].points} pts)` : ''">
-                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}
+                                    {{ row.pitchers[pos] ? formatNameShort(row.pitchers[pos].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.pitchers[pos], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                              <!-- Dynamic RP Cells -->
@@ -776,7 +661,7 @@ const teamDisplayName = computed(() => {
                                 :class="{'filled': row.pitchers[`RP${i}`], 'col-hover': hoveredPitcherCol === 3 + i, 'mva-winner': isAwardWinner(row.pitchers[`RP${i}`], row.mvaName), 'lvsc-winner': isAwardWinner(row.pitchers[`RP${i}`], row.lvscName), 'tgaoot-winner': isAwardWinner(row.pitchers[`RP${i}`], row.tgaootName)}"
                                 @mouseenter="hoveredPitcherCol = 3 + i" @mouseleave="hoveredPitcherCol = null">
                                 <span :title="row.pitchers[`RP${i}`] ? `${row.pitchers[`RP${i}`].displayName} (${row.pitchers[`RP${i}`].points} pts)` : ''">
-                                    {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}
+                                    {{ row.pitchers[`RP${i}`] ? formatNameShort(row.pitchers[`RP${i}`].displayName, true) : '-' }}<span v-if="isSeasonCaptain(row.pitchers[`RP${i}`], row.captain)" class="cap-badge" :style="capBadgeStyle" title="Captain">C</span>
                                 </span>
                             </td>
                         </tr>
@@ -1029,7 +914,10 @@ thead th.sticky-col {
     background-color: #f8f9fa;
     border-top: 2px solid #dee2e6;
     font-size: 0.7rem;
-    vertical-align: top;
+    vertical-align: middle;
+    height: 3.2rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
 }
 .summary-row .total-label {
     font-weight: bold;
@@ -1045,10 +933,6 @@ thead th.sticky-col {
 .common-name {
     font-weight: 600;
     margin-bottom: 2px;
-}
-.common-count {
-    color: #666;
-    font-size: 0.65rem;
 }
 .summary-clickable {
     cursor: pointer;
@@ -1089,6 +973,40 @@ thead th.sticky-col {
 .mva-line,
 .lvsc-line,
 .tgaoot-line { color: #6c757d; }
+
+/* Captain "C" beside a player's name in the season-by-season matrices —
+   the same collegiate letterman style as the card captain "C". */
+.cap-badge {
+    display: inline-block;
+    margin-left: 3px;
+    font-family: 'Graduate', Georgia, 'Times New Roman', serif;
+    font-weight: 400;
+    font-size: 1em;
+    line-height: 1;
+    -webkit-text-stroke: 1.3px var(--cap-stroke);
+    paint-order: stroke fill;
+    vertical-align: baseline;
+}
+
+/* Face of the Franchise: small card in the header, to the left of the trophies. */
+.header-face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    width: 96px;
+}
+.header-face:hover { transform: translateY(-2px); }
+.header-face-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.9;
+    text-align: center;
+    line-height: 1.1;
+}
 
 .mva-winner {
     background-color: rgba(255, 200, 0, 0.25) !important;

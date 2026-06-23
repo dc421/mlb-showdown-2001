@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue';
 import { apiClient } from '@/services/api';
+import { ensureCaptaincies, seasonCaptaincy } from '@/services/captaincy';
 
 const props = defineProps({
     cardId: [Number, String],
@@ -45,7 +46,15 @@ async function fetchHistory() {
 }
 
 watch(() => props.cardId, fetchHistory);
-onMounted(fetchHistory);
+onMounted(() => { fetchHistory(); ensureCaptaincies(); });
+
+// Per-season captaincy ("C") for this card on the league card back.
+const seasonCaptain = (season) => seasonCaptaincy(props.cardId, season);
+const seasonCaptainStyle = (season) => {
+    const c = seasonCaptain(season);
+    // Match the card-front captain "C": secondary fill, primary felt-edge stroke.
+    return { color: c.secondary, '--cap-stroke': c.primary };
+};
 
 const seasons = computed(() => data.value?.seasons || []);
 const classic = computed(() => data.value?.classic || []);
@@ -75,6 +84,12 @@ function abbrevSeason(name) {
         return MONTHS[lw] || WORDS[lw] || w;
     }).join(' ');
     return `${body} '${year.slice(-2)}`;
+}
+
+// Resolve a team logo URL (relative /images/... paths live on the backend).
+function logoSrc(logo) {
+    if (!logo) return '';
+    return logo.startsWith('http') ? logo : `${apiBase}${logo}`;
 }
 
 // Honor icons for a season row (league or classic).
@@ -116,13 +131,14 @@ const summaryHonors = computed(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="s in seasons" :key="s.season">
+                        <tr v-for="(s, i) in seasons" :key="i">
                             <td>{{ abbrevSeason(s.season) }}</td>
-                            <td :title="s.team">{{ s.team_abbr || '—' }}</td>
+                            <td :title="s.team"><img v-if="s.logo" :src="logoSrc(s.logo)" class="tm-logo" alt="" />{{ s.team_abbr || '—' }}</td>
                             <td>{{ s.position || '—' }}</td>
                             <td class="num">{{ s.points != null ? s.points : '' }}</td>
                             <td class="num">{{ s.wins != null ? `${s.wins}-${s.losses}` : '' }}</td>
                             <td class="honors">
+                                <span v-if="seasonCaptain(s.season).captain" class="cb-cap" :style="seasonCaptainStyle(s.season)" title="Captain">C</span>
                                 <img v-for="(h, i) in honorsFor(s)" :key="i" :src="h.img" class="t-icon" :title="h.title" />
                             </td>
                         </tr>
@@ -133,12 +149,13 @@ const summaryHonors = computed(() => {
                     <div class="cb-classic-head">Classic</div>
                     <table class="cb-table">
                         <thead>
-                            <tr><th>Season</th><th>Tm</th><th class="num">Rec</th><th>Honors</th></tr>
+                            <tr><th>Season</th><th>Tm</th><th>Pos</th><th class="num">Rec</th><th>Honors</th></tr>
                         </thead>
                         <tbody>
-                            <tr v-for="c in classic" :key="c.season">
+                            <tr v-for="(c, i) in classic" :key="i">
                                 <td>{{ abbrevSeason(c.season) }}</td>
-                                <td :title="c.team">{{ c.team_abbr || '—' }}</td>
+                                <td :title="c.team"><img v-if="c.logo" :src="logoSrc(c.logo)" class="tm-logo" alt="" />{{ c.team_abbr || '—' }}</td>
+                                <td>{{ c.position || '—' }}</td>
                                 <td class="num">{{ c.wins != null ? `${c.wins}-${c.losses}` : '' }}</td>
                                 <td class="honors">
                                     <img v-for="(h, i) in honorsFor(c)" :key="i" :src="h.img" class="t-icon" :title="h.title" />
@@ -189,10 +206,12 @@ const summaryHonors = computed(() => {
 .cb-table thead th { position: sticky; top: 0; background: #ece1c4; color: #6f6038; font-size: 0.48rem; text-transform: uppercase; letter-spacing: 0.02em; }
 .cb-table tbody tr:nth-child(even) { background: rgba(0, 0, 0, 0.03); }
 .cb-table .num { text-align: right; }
+.tm-logo { width: 16px; height: 12px; object-fit: contain; object-position: center; vertical-align: -2px; margin-right: 3px; flex: 0 0 auto; }
 
 .cb-classic { margin-top: 6px; }
 .cb-classic-head { font-size: 0.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #8a7a52; border-top: 1px solid #d8cca8; padding-top: 3px; margin-bottom: 1px; }
 
 .honors { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
 .t-icon { height: 12px; width: auto; }
+.cb-cap { display: inline-flex; align-items: center; justify-content: center; font-family: 'Graduate', Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 0.85rem; line-height: 1; -webkit-text-stroke: 1.6px var(--cap-stroke); paint-order: stroke fill; flex: 0 0 auto; margin-right: 1px; }
 </style>

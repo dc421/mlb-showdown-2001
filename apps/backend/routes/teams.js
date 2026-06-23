@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { sortSeasons, mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { matchesFranchise, getMappedIds, getFranchiseAliases, getLogoForTeam, parseHistoricalIdentity } = require('../utils/franchiseUtils');
+const { getCaptaincyForTeam } = require('../services/captaincyService');
 
 // GET TEAM HISTORY (Seasons, Records, Rosters)
 router.get('/:teamId/history', authenticateToken, async (req, res) => {
@@ -538,6 +539,15 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             formattedClassicRosters.sort((a,b) => b.season.localeCompare(a.season));
         }
 
+        // Captaincy: per-season captains, current captain, Face of the Franchise, and
+        // per-player base scores (used to rank the score-based Core Squad on the client).
+        let captaincy = { captains: {}, currentCaptain: null, face: null, playerScores: { byCard: {}, byName: {} } };
+        try {
+            captaincy = await getCaptaincyForTeam(teamId);
+        } catch (capErr) {
+            console.error('Captaincy computation failed (non-fatal):', capErr);
+        }
+
         res.json({
             team,
             history: allHistoryEntries,       // Combined sorted list with isClassic flag
@@ -545,6 +555,7 @@ router.get('/:teamId/history', authenticateToken, async (req, res) => {
             identityHistory: identityHistory.reverse(), // Send Newest -> Oldest for display
             rosters: formattedRosters,
             classicRosters: formattedClassicRosters,
+            captaincy,
             accolades: {
                 spaceships: filterAccolades(spaceshipsRes.rows, true),
                 spoons: filterAccolades(spoonsRes.rows, false), // Spoon is for loser usually (unless logic changed, but query used losing_team)
