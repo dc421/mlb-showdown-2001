@@ -9,7 +9,7 @@
 
 const crypto = require('crypto');
 const { pool } = require('../db');
-const { calculateStandings } = require('../utils/standingsUtils');
+const { calculateStandings, computePlayoffScenarios } = require('../utils/standingsUtils');
 
 // The same row set the league page builds standings/odds from (Classic excluded).
 async function fetchSeasonData(db, seasonName) {
@@ -23,8 +23,13 @@ async function fetchSeasonData(db, seasonName) {
     return { currentTeams: teamsRes.rows, seriesResults: resultsRes.rows };
 }
 
-// Order-independent hash of every field that can change the odds. Any edited/added/
-// removed result row changes this, which invalidates the cache.
+// Bump when the odds/scenario MATH changes (not just the data) so cached rows computed by older
+// logic are treated as stale and recomputed. The signature only tracks result rows, so without this
+// a logic change would keep serving stale cached values for unchanged seasons.
+const CACHE_ALGO_VERSION = 2;
+
+// Order-independent hash of every field that can change the odds, plus the algorithm version. Any
+// edited/added/removed result row — or a logic-version bump — changes this and invalidates the cache.
 function computeSignature(seriesResults) {
     const parts = seriesResults
         .map(r => [
@@ -34,7 +39,7 @@ function computeSignature(seriesResults) {
             r.winning_score, r.losing_score
         ].join(':'))
         .sort();
-    return crypto.createHash('sha1').update(parts.join('|')).digest('hex');
+    return crypto.createHash('sha1').update(`v${CACHE_ALGO_VERSION}|` + parts.join('|')).digest('hex');
 }
 
 // Pull the odds off a computed standings array into a map keyed the same way
@@ -49,13 +54,13 @@ function extractOddsMap(standings) {
     return map;
 }
 
-async function storeOdds(db, seasonName, signature, oddsMap, numSims) {
+async function storeOdds(db, seasonName, signature, oddsMap, scenarios, numSims) {
     await db.query(
-        `INSERT INTO playoff_odds_cache (season_name, signature, odds, num_sims, updated_at)
-         VALUES ($1, $2, $3, $4, now())
+        `INSERT INTO playoff_odds_cache (season_name, signature, odds, scenarios, num_sims, updated_at)
+         VALUES ($1, $2, $3, $4, $5, now())
          ON CONFLICT (season_name)
-         DO UPDATE SET signature = $2, odds = $3, num_sims = $4, updated_at = now()`,
-        [seasonName, signature, JSON.stringify(oddsMap), numSims]
+         DO UPDATE SET signature = $2, odds = $3, scenarios = $4, num_sims = $5, updated_at = now()`,
+        [seasonName, signature, JSON.stringify(oddsMap), JSON.stringify(scenarios), numSims]
     );
 }
 
@@ -66,41 +71,52 @@ function simulate(seriesResults, currentTeams) {
     return extractOddsMap(standings);
 }
 
+// Odds (Monte Carlo) and scenarios (deterministic clinch/elimination magic numbers) are derived
+// from the same rows, so we always compute and cache them together.
+function compute(seriesResults, currentTeams) {
+    return {
+        odds: simulate(seriesResults, currentTeams),
+        scenarios: computePlayoffScenarios(seriesResults, currentTeams)
+    };
+}
+
 // Recompute from scratch and persist. Called after a result is entered/edited.
 // Never throws into the caller — odds are a non-critical, self-healing cache.
 async function recomputeOdds(db = pool, seasonName) {
     if (!seasonName) return null;
     try {
         const { seriesResults, currentTeams } = await fetchSeasonData(db, seasonName);
-        const oddsMap = simulate(seriesResults, currentTeams);
-        await storeOdds(db, seasonName, computeSignature(seriesResults), oddsMap, NUM_SIMS);
-        return oddsMap;
+        const { odds, scenarios } = compute(seriesResults, currentTeams);
+        await storeOdds(db, seasonName, computeSignature(seriesResults), odds, scenarios, NUM_SIMS);
+        return { odds, scenarios };
     } catch (err) {
         console.error(`[playoffOdds] recompute failed for "${seasonName}":`, err.message);
         return null;
     }
 }
 
-// Read path: return the cached odds map if it matches the live rows, otherwise
-// recompute synchronously, store, and return. `seriesResults`/`currentTeams` are the
-// rows the caller already fetched, so a cache hit costs just one small SELECT.
+// Read path: return the cached { odds, scenarios } if it matches the live rows, otherwise
+// recompute synchronously, store, and return. `seriesResults`/`currentTeams` are the rows the
+// caller already fetched, so a cache hit costs just one small SELECT. A signature hit whose
+// `scenarios` is null (a row cached before scenarios existed) is treated as a miss so it self-heals.
 async function getCachedOddsMap(db, seasonName, seriesResults, currentTeams) {
     const signature = computeSignature(seriesResults);
     try {
         const cached = await db.query(
-            'SELECT signature, odds FROM playoff_odds_cache WHERE season_name = $1',
+            'SELECT signature, odds, scenarios FROM playoff_odds_cache WHERE season_name = $1',
             [seasonName]
         );
-        if (cached.rows[0] && cached.rows[0].signature === signature) {
-            return cached.rows[0].odds;
+        const row = cached.rows[0];
+        if (row && row.signature === signature && row.scenarios !== null) {
+            return { odds: row.odds, scenarios: row.scenarios };
         }
-        const oddsMap = simulate(seriesResults, currentTeams);
-        await storeOdds(db, seasonName, signature, oddsMap, NUM_SIMS);
-        return oddsMap;
+        const { odds, scenarios } = compute(seriesResults, currentTeams);
+        await storeOdds(db, seasonName, signature, odds, scenarios, NUM_SIMS);
+        return { odds, scenarios };
     } catch (err) {
         // On any failure, fall back to computing without caching so the page still works.
         console.error(`[playoffOdds] cache read failed for "${seasonName}":`, err.message);
-        return simulate(seriesResults, currentTeams);
+        return compute(seriesResults, currentTeams);
     }
 }
 

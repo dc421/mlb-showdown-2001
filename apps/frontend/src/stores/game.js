@@ -2,9 +2,8 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { useAuthStore } from './auth';
 import { calculateDisplayGameState } from '../utils/gameState';
+import { buildBoxScore } from '../utils/boxScore';
 import { apiClient } from '../services/api'; // Import apiClient
-
-const teams = ref({ home: null, away: null });
 
 export const useGameStore = defineStore('game', () => {
   const game = ref(null);
@@ -1078,11 +1077,26 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
   });
 
 
+  // Box score (batting + pitching with advantage splits), folded from the engine's per-PA
+  // atBatLog in state_data. Spoiler-safe: while this viewer is still hiding the latest outcome,
+  // the most recent plate appearance is dropped so the box score matches the (also reveal-gated)
+  // linescore and game log.
+  const boxScore = computed(() => {
+    const state = gameState.value;
+    if (!state || !Array.isArray(state.atBatLog) || state.atBatLog.length === 0) return null;
+    let log = state.atBatLog;
+    if (isOutcomeHidden.value && log.length > 0) {
+      log = log.slice(0, -1);
+    }
+    return buildBoxScore({ ...state, atBatLog: log }, lineups.value, rosters.value, teams.value);
+  });
+
   return {
     game,
     series,
     gameState,
     gameEvents,
+    boxScore,
     batter,
     pitcher,
     lineups,

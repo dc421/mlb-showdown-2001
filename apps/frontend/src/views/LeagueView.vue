@@ -346,6 +346,52 @@ function flipScore(score) {
     return `${b}-${a}`;
 }
 
+// Playoff-outlook gauge helpers. For each upcoming series we show, per team, one box per possible
+// number of wins (0..7): gold (spaceship%) fills from the top, brown (spoon%) from the bottom, and
+// the white gap between them is the "neither" likelihood. A box gets a heavy black outline when a
+// single outcome is certain at that result, plus the trophy logo when that outcome is a clinch.
+const OUTLOOK_EPS = 1e-9;
+
+function barH(prob) {
+    const p = Math.max(0, Math.min(1, prob || 0));
+    return `${(p * 100).toFixed(1)}%`;
+}
+
+function isLocked(p, wins) {
+    const ship = p.spaceship[wins] || 0;
+    const spoon = p.spoon[wins] || 0;
+    return ship >= 1 - OUTLOOK_EPS || spoon >= 1 - OUTLOOK_EPS || (ship <= OUTLOOK_EPS && spoon <= OUTLOOK_EPS);
+}
+
+function lockIcon(p, wins) {
+    if ((p.spaceship[wins] || 0) >= 1 - OUTLOOK_EPS) return `${apiUrl}/images/golden_spaceship.png`;
+    if ((p.spoon[wins] || 0) >= 1 - OUTLOOK_EPS) return `${apiUrl}/images/wooden_spoon.png`;
+    return null;
+}
+
+function outlookTip(p, wins, refName) {
+    const ship = Math.round((p.spaceship[wins] || 0) * 100);
+    const spoon = Math.round((p.spoon[wins] || 0) * 100);
+    return `${refName} win ${wins} of 7 → ${p.teamName}: spaceship ${ship}%, spoon ${spoon}%`;
+}
+
+// Per-row axis labels. Columns are the series result (the winning-side team's wins, 0..7). For a team
+// IN the series we show its own win count; for a team NOT in the series we show who'd win the series
+// at that result (their win count) plus the winner's logo.
+function axisCells(result, p) {
+    const cells = [];
+    for (let k = 0; k < 8; k++) {
+        const t1Wins = k, t2Wins = 7 - k; // t1 = winning_team_id side, t2 = losing_team_id side
+        if (p.team_id === result.winning_team_id) cells.push({ text: String(t1Wins), logo: null });
+        else if (p.team_id === result.losing_team_id) cells.push({ text: String(t2Wins), logo: null });
+        else {
+            const t1Won = t1Wins > t2Wins;
+            cells.push({ text: String(t1Won ? t1Wins : t2Wins), logo: t1Won ? result.winner_logo : result.loser_logo });
+        }
+    }
+    return cells;
+}
+
 // Helper to get win pct
 function getWinPct(wins, losses) {
     const total = wins + losses;
@@ -412,17 +458,35 @@ onMounted(async () => {
                          </div>
                          <div class="finale-content-row">
                              <div class="finale-logo-column">
-                                 <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="winner-logo-lg" />
+                                 <template v-if="result.score">
+                                     <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="winner-logo-lg" />
+                                 </template>
+                                 <div v-else class="matchup-logos">
+                                     <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="matchup-logo" />
+                                     <span class="matchup-vs">vs</span>
+                                     <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="matchup-logo" />
+                                 </div>
                              </div>
                              <div class="finale-details-column">
-                                 <div class="finale-winner-line">
-                                     <span class="winner-name-lg">{{ result.winner_name || result.winner }}</span>
-                                 </div>
-                                 <div class="finale-score-line">
-                                     <span>W {{ result.score }} vs {{ result.loser_name || result.loser }}</span>
-                                     <span v-if="result.mva" class="accolade-text right-justify">MVA: {{ result.mva }}</span>
-                                     <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
-                                 </div>
+                                 <template v-if="result.score">
+                                     <div class="finale-winner-line">
+                                         <span class="winner-name-lg">{{ result.winner_name || result.winner }}</span>
+                                     </div>
+                                     <div class="finale-score-line">
+                                         <span>W {{ result.score }} vs {{ result.loser_name || result.loser }}</span>
+                                         <span v-if="result.mva" class="accolade-text right-justify">MVA: {{ result.mva }}</span>
+                                         <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
+                                     </div>
+                                 </template>
+                                 <template v-else>
+                                     <div class="finale-winner-line">
+                                         <span class="matchup-name-lg">{{ result.loser_name || result.loser }} @ {{ result.winner_name || result.winner }}</span>
+                                     </div>
+                                     <div class="finale-score-line finale-scheduled-line">
+                                         <span>Matchup set</span>
+                                         <button class="add-result-btn" @click="openResultModal(result)">+</button>
+                                     </div>
+                                 </template>
                              </div>
                              <div class="finale-trophy-column">
                                  <img v-if="result.round === 'Golden Spaceship'" :src="`${apiUrl}/images/golden_spaceship.png`" class="finale-trophy-lg" />
@@ -544,16 +608,34 @@ onMounted(async () => {
                          </div>
                          <div class="finale-content-row">
                              <div class="finale-logo-column">
-                                 <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="winner-logo-lg" />
+                                 <template v-if="result.score">
+                                     <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="winner-logo-lg" />
+                                 </template>
+                                 <div v-else class="matchup-logos">
+                                     <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="matchup-logo" />
+                                     <span class="matchup-vs">vs</span>
+                                     <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="matchup-logo" />
+                                 </div>
                              </div>
                              <div class="finale-details-column">
-                                 <div class="finale-winner-line">
-                                     <span class="winner-name-lg">{{ result.loser_name || result.loser }}</span>
-                                 </div>
-                                 <div class="finale-score-line">
-                                     <span>L {{ flipScore(result.score) }} vs {{ result.winner_name || result.winner }}</span>
-                                     <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
-                                 </div>
+                                 <template v-if="result.score">
+                                     <div class="finale-winner-line">
+                                         <span class="winner-name-lg">{{ result.loser_name || result.loser }}</span>
+                                     </div>
+                                     <div class="finale-score-line">
+                                         <span>L {{ flipScore(result.score) }} vs {{ result.winner_name || result.winner }}</span>
+                                         <span v-if="result.lvsc" class="accolade-text right-justify">LVSC: {{ result.lvsc }}</span>
+                                     </div>
+                                 </template>
+                                 <template v-else>
+                                     <div class="finale-winner-line">
+                                         <span class="matchup-name-lg">{{ result.loser_name || result.loser }} @ {{ result.winner_name || result.winner }}</span>
+                                     </div>
+                                     <div class="finale-score-line finale-scheduled-line">
+                                         <span>Matchup set</span>
+                                         <button class="add-result-btn" @click="openResultModal(result)">+</button>
+                                     </div>
+                                 </template>
                              </div>
                              <div class="finale-trophy-column">
                                  <img :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
@@ -589,6 +671,37 @@ onMounted(async () => {
                             </div>
                             <!-- Add Result Button -->
                             <button class="add-result-btn" @click="openResultModal(result)">+</button>
+                            <!-- Per-result spaceship/spoon outlook gauge: every team this series can
+                                 still decide, plotted against this series' result (the first team's wins). -->
+                            <div v-if="result.scenarios && result.scenarios.teams" class="outlook">
+                                <div v-for="p in result.scenarios.teams" :key="p.team_id" class="outlook-team">
+                                    <div class="outlook-row">
+                                        <span class="outlook-name">{{ p.teamName }}</span>
+                                        <div class="outlook-chart">
+                                            <div
+                                                v-for="w in 8"
+                                                :key="w"
+                                                class="outlook-col"
+                                                :class="{ 'outlook-locked': isLocked(p, w - 1) }"
+                                                :title="outlookTip(p, w - 1, result.winner_name || result.winner)"
+                                            >
+                                                <div class="outlook-ship" :style="{ height: barH(p.spaceship[w - 1]) }"></div>
+                                                <div class="outlook-spoon" :style="{ height: barH(p.spoon[w - 1]) }"></div>
+                                                <img v-if="lockIcon(p, w - 1)" :src="lockIcon(p, w - 1)" class="outlook-icon" alt="" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Per-row axis: a participant's own wins, else the series winner (logo + wins). -->
+                                    <div class="outlook-row outlook-axis">
+                                        <span class="outlook-name"></span>
+                                        <div class="outlook-chart">
+                                            <span v-for="(cell, i) in axisCells(result, p)" :key="i" class="outlook-tick">
+                                                <img v-if="cell.logo" :src="getLogoUrl(cell.logo)" class="outlook-tick-logo" alt="" />{{ cell.text }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </template>
                     </div>
                     <div v-if="filteredRecentResults.length === 0" class="no-results">
@@ -1079,6 +1192,118 @@ h1 {
     color: #888;
     font-style: italic;
     padding: 1rem 0;
+}
+
+/* Per-win-count playoff outlook gauge (under an upcoming matchup). Subtle, low-contrast. */
+.outlook {
+    width: 100%;
+    margin-top: 5px;
+    padding-left: 26px; /* sit under the matchup, past the team logo */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Each team: its chart row plus its own axis row directly beneath. */
+.outlook-team {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.outlook-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.outlook-name {
+    width: 78px;
+    flex: 0 0 78px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #777;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.outlook-chart {
+    flex: 1;
+    max-width: 240px;
+    display: flex;
+    gap: 1px;
+}
+
+/* One box per possible result: gold spaceship% fills from the top, brown spoon% from the bottom,
+   the gap between is the "neither" likelihood. Fills run edge-to-edge (no inset border framing). */
+.outlook-col {
+    flex: 1;
+    position: relative;
+    height: 30px;
+    background: #eee;
+    border-radius: 1px;
+    overflow: hidden;
+}
+
+.outlook-ship,
+.outlook-spoon {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1;
+    transition: height 0.15s ease;
+}
+
+.outlook-ship { top: 0; background: #DAA520; }
+.outlook-spoon { bottom: 0; background: #5D4037; }
+
+/* Heavy black frame when a single outcome is certain at that result. */
+.outlook-locked::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid #000;
+    border-radius: 1px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* Trophy logo overlaid when the certain outcome is a spaceship/spoon clinch (not "neither"). */
+.outlook-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    z-index: 3;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    padding: 1px;
+}
+
+.outlook-tick {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    font-size: 0.62rem;
+    color: #999;
+    white-space: nowrap;
+}
+
+/* Winning-team logo shown beside the win count on a non-participant's axis. */
+.outlook-tick-logo {
+    width: 11px;
+    height: 11px;
+    object-fit: contain;
+    vertical-align: middle;
 }
 
 
@@ -1599,6 +1824,42 @@ h1 {
     display: flex;
     justify-content: space-between;
     width: 100%;
+}
+
+/* Scheduled (not-yet-played) playoff series: show the matchup + an enter-result button. */
+.matchup-name-lg {
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: inherit;
+    line-height: 1.15;
+}
+.spaceship-card .matchup-name-lg { color: #000; }
+.finale-scheduled-line {
+    align-items: center;
+    gap: 8px;
+}
+
+/* Both seeds' logos with a "vs" between them, for a scheduled (not-yet-played) playoff series. */
+.matchup-logos {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.matchup-logo {
+    height: 42px;
+    width: 42px;
+    object-fit: contain;
+    background: white;
+    border-radius: 20%;
+    padding: 3px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+.matchup-vs {
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    opacity: 0.65;
 }
 .right-justify {
     margin-left: auto;

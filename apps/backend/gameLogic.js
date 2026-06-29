@@ -21,6 +21,13 @@ function toRunnerCard(r) {
 function getPitcherKey(state, pitcher) {
     if (!pitcher) return null;
     if (pitcher.pitcherOfRecordId) return pitcher.pitcherOfRecordId; // For runners
+    // Idempotency guard: if card_id is already a composite "ownerId_cardId" key, return it as-is
+    // instead of prefixing again. Re-prefixing was the source of malformed "4_4_614" stat keys
+    // (which split a pitcher's outs_recorded across two entries). Because every pitcherOfRecordId
+    // is itself a getPitcherKey result, this also stops malformed keys from propagating onto runners.
+    if (typeof pitcher.card_id === 'string' && pitcher.card_id.includes('_')) {
+        return pitcher.card_id;
+    }
     const ownerId = state.isTopInning ? state.homeTeam.userId : state.awayTeam.userId;
     return `${ownerId}_${pitcher.card_id}`;
 }
@@ -91,7 +98,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   // Set when a groundball is converted to a single specifically because the infield was in.
   let infieldInSingle = false;
 
-  const scoreRun = (runnerOnBase, generateLog = true) => {
+  const scoreRun = (runnerOnBase, generateLog = true, rbiEligible = true) => {
     if (!runnerOnBase) return null;
     newState[scoreKey]++;
     scorers.push(runnerOnBase.name);
@@ -105,20 +112,34 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
         }
     }
 
-    const pitcherId = runnerOnBase.pitcherOfRecordId;
-    if (pitcherId) {
-        if (newState.pitcherStats[pitcherId]) {
-          newState.pitcherStats[pitcherId].runs++;
-        } else {
-          newState.pitcherStats[pitcherId] = { ip: 0, runs: 1, outs_recorded: 0, batters_faced: 0 };
-        }
-    }
+    // Charge the run to the pitcher of record and credit R/RBI for the box score.
+    // (Double plays score a run without an RBI, hence the rbiEligible flag.)
+    recordRunForPitcher(newState, runnerOnBase, pitcher, { rbiEligible });
 
     if (generateLog) {
         return `${runnerOnBase.name} scores!`;
     }
     return null;
   };
+
+  // --- Box score: one atBatLog entry per plate appearance. Pushed up front (before any run
+  // can score) so scoreRun and deferred baserunning resolutions can attribute R/RBI to it via
+  // currentAtBat.atBatIndex. The batting result is finalized from the outcome below. ---
+  if (!Array.isArray(newState.atBatLog)) newState.atBatLog = [];
+  const atBatEntry = {
+    inning: newState.inning,
+    isTopInning: newState.isTopInning,
+    batterId: batter ? batter.card_id : null,
+    batterTeam: newState.isTopInning ? 'away' : 'home',
+    pitcherKey: getPitcherKey(newState, pitcher),
+    outcome: null,
+    ab: 0, h: 0, double: 0, triple: 0, hr: 0, bb: 0, so: 0,
+    rbi: 0,
+    scoredRunnerIds: [],
+    advantage: (state.currentAtBat && state.currentAtBat.pitchRollResult && state.currentAtBat.pitchRollResult.advantage) || null,
+  };
+  newState.currentAtBat.atBatIndex = newState.atBatLog.length;
+  newState.atBatLog.push(atBatEntry);
 
   const isWalkOffSituation = !newState.isTopInning && newState.inning >= 9 && newState.homeScore <= newState.awayScore;
 
@@ -325,7 +346,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
           playResultDescription = `It's a DOUBLE PLAY!`;
           recordOuts(2);
           if (newState.outs < 3 && !state.infieldIn) {
-            if (newState.bases.third) { scoreRun(newState.bases.third); newState.bases.third = null; } // Score doesn't need to be logged here, server handles it
+            if (newState.bases.third) { scoreRun(newState.bases.third, true, false); newState.bases.third = null; } // Score doesn't need to be logged here, server handles it (GIDP run is not an RBI)
             if (newState.bases.second) { newState.bases.third = newState.bases.second; newState.bases.second = null;}
           }
           newState.bases.first = null; // Runner from first is out
@@ -724,6 +745,12 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
   // Replaced inline logic with reusable function call
   checkGameOverOrInningChange(newState, events, teamInfo);
 
+  // Finalize the box-score batting result from the (possibly reassigned) outcome. A walk-off
+  // hit was resolved as WALKOFF_HANDLED above, so fall back to the recorded hit type.
+  const boxOutcome = outcome === 'WALKOFF_HANDLED' ? (newState.walkoffAdjustedOutcome || '1B') : outcome;
+  atBatEntry.outcome = boxOutcome;
+  fillBattingResult(atBatEntry, boxOutcome);
+
   return { newState, events, scorers, outcome, infieldInSingle, advantageBackfired, pitcherHomeRun };
 }
 
@@ -916,18 +943,53 @@ function appendScoreToLog(logMessage, finalState, originalAwayScore, originalHom
     return logMessage;
 }
 
-function recordRunForPitcher(state, runner, currentPitcher) {
+function recordRunForPitcher(state, runner, currentPitcher, opts = {}) {
   const pitcherId = (runner && runner.pitcherOfRecordId)
     ? runner.pitcherOfRecordId
     : getPitcherKey(state, currentPitcher);
-  if (!pitcherId) return;
-  if (!state.pitcherStats) state.pitcherStats = {};
-  if (!state.pitcherStats[pitcherId]) {
-    state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
+  if (pitcherId) {
+    if (!state.pitcherStats) state.pitcherStats = {};
+    if (!state.pitcherStats[pitcherId]) {
+      state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
+    }
+    state.pitcherStats[pitcherId].runs++;
   }
-  state.pitcherStats[pitcherId].runs++;
+
+  // --- Box score attribution ---
+  // recordRunForPitcher is the single chokepoint every scored run flows through (immediate
+  // outcomes via scoreRun, and deferred baserunning via resolveThrow / the server's advance &
+  // tag-up handlers). Credit the run (R) to the runner who scored and an RBI to the at-bat
+  // currently being resolved, so the box-score fold stays correct across deferred plays.
+  const entry = currentAtBatEntry(state);
+  if (entry) {
+    if (runner && runner.card_id != null) entry.scoredRunnerIds.push(runner.card_id);
+    if (opts.rbiEligible !== false) entry.rbi += 1;
+  }
+}
+
+// The atBatLog entry for the plate appearance currently being resolved, or null. Entries are
+// pushed in applyOutcome and tagged onto currentAtBat.atBatIndex so deferred resolutions can
+// keep attributing runs/RBIs to the right at-bat.
+function currentAtBatEntry(state) {
+  const idx = state.currentAtBat && state.currentAtBat.atBatIndex;
+  if (idx == null || !Array.isArray(state.atBatLog)) return null;
+  return state.atBatLog[idx] || null;
+}
+
+// Fill the batting result on a freshly-pushed atBatLog entry from the (possibly reassigned)
+// final outcome. PA is implicit (one entry == one plate appearance); walks and sacrifice bunts
+// are not at-bats. Runs/RBIs are added separately via recordRunForPitcher.
+function fillBattingResult(entry, outcome) {
+  if (outcome === '1B' || outcome === '1B+' || outcome === 'SINGLE') { entry.ab = 1; entry.h = 1; }
+  else if (outcome === '2B') { entry.ab = 1; entry.h = 1; entry.double = 1; }
+  else if (outcome === '3B') { entry.ab = 1; entry.h = 1; entry.triple = 1; }
+  else if (outcome === 'HR') { entry.ab = 1; entry.h = 1; entry.hr = 1; }
+  else if (outcome === 'BB' || outcome === 'IBB') { entry.bb = 1; }
+  else if (outcome === 'SO') { entry.ab = 1; entry.so = 1; }
+  else if (outcome === 'BUNT') { /* sacrifice bunt: PA only, not an at-bat */ }
+  else { entry.ab = 1; } // PU, FB, GB outs, double play, fielder's choice, generic OUT
 }
 
 module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
   recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
-  toRunnerCard };
+  toRunnerCard, getPitcherKey };

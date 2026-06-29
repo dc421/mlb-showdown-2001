@@ -12,6 +12,7 @@ import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import BaseballDiamond from '@/components/BaseballDiamond.vue';
 import ThrowRollResult from '@/components/ThrowRollResult.vue';
 import HomeRunCelebration from '@/components/HomeRunCelebration.vue';
+import BoxScore from '@/components/BoxScore.vue';
 
 const showSubModal = ref(false);
 const showSessionExpiredModal = ref(false);
@@ -3064,6 +3065,9 @@ async function handleReauthenticate() {
           </div>
       </div>
     </div>
+
+    <!-- Live box score (batting / pitching lines + advantage splits) -->
+    <BoxScore />
   </div>
   <div v-else class="loading-container"><p>Loading game...</p></div>
 </template>

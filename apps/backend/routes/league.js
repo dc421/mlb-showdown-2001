@@ -8,6 +8,7 @@ const { mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { calculateStandings, findTeamForRecord } = require('../utils/standingsUtils');
 const { checkAllTeamsPlayed, snapshotRosters, rolloverPointSets } = require('../services/seasonRolloverService');
 const { recomputeOdds, getCachedOddsMap } = require('../services/playoffOddsService');
+const { schedulePlayoffsIfClinched } = require('../services/playoffSchedulingService');
 
 function processPlayers(playersToProcess) {
     if (!playersToProcess) return [];
@@ -93,7 +94,7 @@ router.get('/', authenticateToken, async (req, res) => {
         if (season && !isDraftSeason) {
             const histCheck = await pool.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [season]);
             if (histCheck.rows.length === 0) {
-                const latestSeasonRes = await pool.query('SELECT season_name FROM series_results ORDER BY date DESC LIMIT 1');
+                const latestSeasonRes = await pool.query("SELECT season_name FROM series_results WHERE style IS DISTINCT FROM 'Classic' ORDER BY date DESC LIMIT 1");
                 if (latestSeasonRes.rows.length > 0 && latestSeasonRes.rows[0].season_name === season) {
                     isDraftSeason = true; // Treat as live
                 }
@@ -324,10 +325,12 @@ router.get('/', authenticateToken, async (req, res) => {
 // GET SEASON LIST
 router.get('/seasons', authenticateToken, async (req, res) => {
     try {
+        // Only list seasons that actually have league (non-Classic) data, so a Classic-only season
+        // name never shows up — or becomes the default — on the league page.
         const dateQuery = `
             SELECT season_name, MAX(date) as last_date
             FROM series_results
-            WHERE season_name IS NOT NULL
+            WHERE season_name IS NOT NULL AND style IS DISTINCT FROM 'Classic'
             GROUP BY season_name
             ORDER BY last_date DESC
         `;
@@ -365,7 +368,7 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
             const seasonQuery = `
                 SELECT season_name
                 FROM series_results
-                WHERE season_name IS NOT NULL
+                WHERE season_name IS NOT NULL AND style IS DISTINCT FROM 'Classic'
                 ORDER BY date DESC
                 LIMIT 1
             `;
@@ -401,10 +404,20 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
         // spaceship/spoon odds from the precomputed cache instead of re-running the
         // Monte Carlo simulation on every page load (the cache self-heals if stale).
         let precomputedOdds = null;
+        let scenarios = {};
         if (season !== 'all-time') {
-            precomputedOdds = await getCachedOddsMap(pool, currentSeason, seriesResults, currentTeams);
+            const cache = await getCachedOddsMap(pool, currentSeason, seriesResults, currentTeams);
+            precomputedOdds = cache.odds;
+            scenarios = cache.scenarios || {};
         }
         const standings = calculateStandings(seriesResults, currentTeams, season === 'all-time', { precomputedOdds });
+
+        // Backfill: if this season's playoff field has clinched but the series were never created
+        // (e.g. it clinched before this feature existed), schedule them. Fire-and-forget and
+        // idempotent — they'll appear on the next load. New clinches are created on result entry.
+        if (season !== 'all-time') {
+            schedulePlayoffsIfClinched(pool, currentSeason, { standings, seriesResults }).catch(() => {});
+        }
 
         if (season === 'all-time') {
             // Fetch ALL Silver Submarines across all styles (Classic results are filtered out of
@@ -485,7 +498,10 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                         winning_score: r.winning_score, // Passed for sorting
                         losing_score: r.losing_score, // Passed for sorting
                         mva: r.mva,
-                        lvsc: r.lvsc
+                        lvsc: r.lvsc,
+                        // Per-win-count spaceship/spoon outlook for this upcoming series (null when the
+                        // result changes nothing / season decided). See computePlayoffScenarios.
+                        scenarios: scenarios[r.id] || null
                     };
                 })
             });
@@ -507,7 +523,7 @@ router.get('/matrix', authenticateToken, async (req, res) => {
         let currentSeason = season;
         if (!currentSeason || currentSeason === 'all-time') {
              if (!season) {
-                const seasonQuery = `SELECT season_name FROM series_results WHERE season_name IS NOT NULL ORDER BY date DESC LIMIT 1`;
+                const seasonQuery = `SELECT season_name FROM series_results WHERE season_name IS NOT NULL AND style IS DISTINCT FROM 'Classic' ORDER BY date DESC LIMIT 1`;
                 const seasonResult = await pool.query(seasonQuery);
                 if (seasonResult.rows.length > 0) currentSeason = seasonResult.rows[0].season_name;
              }
@@ -653,10 +669,15 @@ router.post('/result', authenticateToken, async (req, res) => {
 
         await client.query('COMMIT');
 
-        // Warm the spaceship/spoon odds cache so the league page loads instantly after
-        // this change. Fire-and-forget: it never throws, and the read path self-heals
-        // if it hasn't finished by the time someone loads the page.
-        recomputeOdds(pool, seasonName);
+        // Warm the spaceship/spoon odds cache, then auto-create the Golden Spaceship / Wooden Spoon
+        // series if this result has clinched the whole playoff field. Both are best-effort and never
+        // throw into the response; the read path self-heals the cache if the warm hasn't finished.
+        try {
+            const odds = await recomputeOdds(pool, seasonName);
+            await schedulePlayoffsIfClinched(pool, seasonName, { precomputedOdds: odds ? odds.odds : null });
+        } catch (e) {
+            console.error('Post-result odds/playoff scheduling error:', e.message);
+        }
 
         res.json({ message: 'Result updated successfully.' });
 

@@ -46,6 +46,35 @@ describe('Standings Logic', () => {
         expect(ny).toBeDefined();
     });
 
+    test('clinch letters follow the odds when the regular season is decided (h2h tiebreaks)', () => {
+        // Complete 5-team round robin (no postseason series yet) forming a clean ladder via h2h:
+        // A beats B,C,D,E; B beats C,D,E; etc. Records tie up at 16/15/14/13/12 but ranks are fixed,
+        // so the field is mathematically decided: A,B -> spaceship, C -> middle, D,E -> spoon.
+        const order = [1, 2, 3, 4, 5];
+        const nameOf = (tid) => mockTeams.find(t => t.team_id === tid).name;
+        const series = [];
+        let id = 1;
+        for (let i = 0; i < order.length; i++) {
+            for (let j = i + 1; j < order.length; j++) {
+                // higher-ranked team (earlier in `order`) wins each series 4-3
+                series.push({
+                    id: id++, round: 'R',
+                    winning_team_id: order[i], losing_team_id: order[j],
+                    winning_team_name: nameOf(order[i]),
+                    losing_team_name: nameOf(order[j]),
+                    winning_score: 4, losing_score: 3
+                });
+            }
+        }
+        const standings = calculateStandings(series, mockTeams, false, { numSims: 200 });
+        const clinchOf = (tid) => standings.find(s => s.team_id === tid).clinch;
+        expect(clinchOf(1)).toBe('x-'); // A — spaceship
+        expect(clinchOf(2)).toBe('x-'); // B — spaceship
+        expect(clinchOf(3)).toBe('y-'); // C — locked into the middle
+        expect(clinchOf(4)).toBe('z-'); // D — spoon
+        expect(clinchOf(5)).toBe('z-'); // E — spoon
+    });
+
     test('should assign x- and z- prefixes correctly for completed season with postseason series', () => {
         // Mock a "Completed" season where everyone played
         // Crucially, we have Spaceship and Spoon series
@@ -139,6 +168,130 @@ describe('Playoff Odds', () => {
             expect(t.spaceshipOdds).toBe(0);
             expect(t.spoonOdds).toBe(0);
         });
+    });
+});
+
+describe('Playoff scenarios', () => {
+    const { computePlayoffScenarios } = require('../utils/standingsUtils');
+
+    // Build a completed regular-season series row (7 games, scores sum to 7).
+    const done = (id, w, l, ws, ls) => ({
+        id, round: 'R',
+        winning_team_id: w, losing_team_id: l,
+        winning_team_name: String.fromCharCode(64 + w), losing_team_name: String.fromCharCode(64 + l),
+        winning_score: ws, losing_score: ls
+    });
+    // Build an unplayed series row.
+    const unplayed = (id, t1, t2) => ({
+        id, round: 'R',
+        winning_team_id: t1, losing_team_id: t2,
+        winning_team_name: String.fromCharCode(64 + t1), losing_team_name: String.fromCharCode(64 + t2),
+        winning_score: null, losing_score: null
+    });
+    const teamsN = (n) => Array.from({ length: n }, (_, i) => ({
+        team_id: i + 1, name: String.fromCharCode(65 + i), city: String.fromCharCode(65 + i), logo_url: ''
+    }));
+
+    const rowFor = (out, sid, tid) => out[sid].teams.find(p => p.team_id === tid);
+    const idsIn = (out, sid) => out[sid].teams.map(p => p.team_id);
+
+    // Every team is plotted against the SERIES RESULT (team1's wins). 3-team round robin: A and B each
+    // beat C 4-3; A vs B is the only unplayed series. A reaches the top 2 once it wins >= 2; B is its
+    // mirror (B's wins = 7 - A's); and C — which isn't even playing — flips between a spaceship seat
+    // and the spoon depending on how A vs B goes, so it's shown too.
+    test('all-team outlook indexed by series result, including a non-playing team', () => {
+        const teams = teamsN(3);
+        const series = [done(10, 1, 3, 4, 3), done(11, 2, 3, 4, 3), unplayed(12, 1, 2)];
+        const out = computePlayoffScenarios(series, teams);
+
+        expect(Object.keys(out)).toEqual(['12']);
+        expect(idsIn(out, 12).slice().sort()).toEqual([1, 2, 3]); // A, B and the non-playing C
+        expect(rowFor(out, 12, 1).spaceship).toEqual([0, 0, 1, 1, 1, 1, 1, 1]); // A, by A's wins
+        expect(rowFor(out, 12, 2).spaceship).toEqual([1, 1, 1, 1, 1, 1, 0, 0]); // B, mirror of A
+        expect(rowFor(out, 12, 3).spoon).toEqual([0, 0, 1, 1, 1, 1, 0, 0]);     // C: spoon only in the middle
+    });
+
+    // 5-team season: A and B win out (locked into the spaceship regardless), so they're flat and
+    // dropped. The D-vs-E result still swings C's spoon fate (a non-participant) and D's and E's, so
+    // those three are shown. A team's t1 row is indexed by its own wins (D is team1 here).
+    test('drops flat/decided teams and keeps every team the result still swings', () => {
+        const teams = teamsN(5);
+        const series = [
+            done(1, 1, 2, 4, 3), done(2, 1, 3, 7, 0), done(3, 1, 4, 7, 0), done(4, 1, 5, 7, 0),
+            done(5, 2, 3, 7, 0), done(6, 2, 4, 7, 0), done(7, 2, 5, 7, 0),
+            done(8, 3, 4, 4, 3), done(9, 3, 5, 4, 3),
+            unplayed(99, 4, 5)
+        ];
+        const out = computePlayoffScenarios(series, teams);
+        const ids = idsIn(out, 99);
+        expect(ids).not.toContain(1); // A — flat spaceship, dropped
+        expect(ids).not.toContain(2); // B — flat spaceship, dropped
+        expect(ids.slice().sort()).toEqual([3, 4, 5]); // C (non-playing), D, E
+        expect(rowFor(out, 99, 3).spoon).toEqual([1, 1, 0, 0, 0, 0, 1, 1]); // C swings in/out of spoon
+        expect(rowFor(out, 99, 4).spoon).toEqual([1, 1, 1, 1, 1, 1, 0, 0]); // D (team1) by its own wins
+        expect(rowFor(out, 99, 4).spaceship.every(v => v === 0)).toBe(true);
+    });
+
+    // A team's t1 row can lock spoon-safety (spoon → 0) with fewer wins than it needs to clinch the
+    // spaceship (spaceship → 1), with a "neither" band between.
+    test('t1 row shows spoon-safety locking before the spaceship clinch', () => {
+        const teams = teamsN(5);
+        const series = [
+            done(1, 1, 2, 4, 3), done(2, 1, 3, 4, 3), done(3, 1, 4, 5, 2), done(4, 1, 5, 5, 2),
+            done(5, 2, 3, 4, 3), done(6, 2, 4, 4, 3), done(7, 2, 5, 4, 3),
+            done(8, 3, 5, 5, 2),
+            done(9, 5, 4, 4, 3),
+            unplayed(99, 3, 4)
+        ];
+        const c = rowFor(computePlayoffScenarios(series, teams), 99, 3); // C is team1
+        expect(c.spaceship).toEqual([0, 0, 0, 0, 0, 1, 1, 1]); // clinch at 5 wins
+        expect(c.spoon).toEqual([1, 1, 1, 0, 0, 0, 0, 0]);     // spoon-safe at 3 wins
+    });
+
+    // With multiple series unplayed the curves are fractional, but every row must stay well-formed:
+    // probabilities in [0,1] and spaceship + spoon never exceeding 1 (a team can't be both at once).
+    test('probabilities are bounded and mutually exclusive', () => {
+        const teams = teamsN(5);
+        const series = [
+            done(1, 1, 2, 4, 3), done(2, 1, 3, 4, 3), done(3, 2, 4, 4, 3), done(4, 3, 5, 4, 3),
+            unplayed(50, 1, 4), unplayed(51, 2, 5), unplayed(52, 3, 4)
+        ];
+        const out = computePlayoffScenarios(series, teams);
+        expect(Object.keys(out).length).toBeGreaterThan(0);
+        for (const sid of Object.keys(out)) {
+            for (const p of out[sid].teams) {
+                for (let k = 0; k < 8; k++) {
+                    expect(p.spaceship[k]).toBeGreaterThanOrEqual(0);
+                    expect(p.spoon[k]).toBeGreaterThanOrEqual(0);
+                    expect(p.spaceship[k] + p.spoon[k]).toBeLessThanOrEqual(1 + 1e-9);
+                }
+            }
+        }
+    });
+
+    test('returns empty when no series remain', () => {
+        const teams = teamsN(3);
+        const series = [done(10, 1, 3, 4, 3), done(11, 2, 3, 4, 3), done(12, 1, 2, 4, 3)];
+        expect(computePlayoffScenarios(series, teams)).toEqual({});
+    });
+
+    // A series is only surfaced once some result locks an outcome. Early on, with everything still up
+    // for grabs, no single series can guarantee anything, so nothing is shown.
+    test('omits series where no result locks an outcome', () => {
+        const teams = teamsN(6);
+        // 6 teams, 6 unplayed series (each team in two), no completed games — nothing is decidable.
+        const series = [
+            unplayed(1, 1, 2), unplayed(2, 3, 4), unplayed(3, 5, 6),
+            unplayed(4, 1, 3), unplayed(5, 2, 5), unplayed(6, 4, 6)
+        ];
+        expect(computePlayoffScenarios(series, teams)).toEqual({});
+    });
+
+    test('performance guard: returns empty when too many series remain (R > 6)', () => {
+        const teams = teamsN(4);
+        // 7 unplayed series — above the 8^6 enumeration cap.
+        const series = Array.from({ length: 7 }, (_, i) => unplayed(100 + i, (i % 2) + 1, (i % 2) + 3));
+        expect(computePlayoffScenarios(series, teams)).toEqual({});
     });
 });
 

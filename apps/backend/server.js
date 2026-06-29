@@ -1512,6 +1512,7 @@ app.post('/api/games/:gameId/lineup', authenticateToken, async (req, res) => {
         inning: 1, isTopInning: true, awayScore: 0, homeScore: 0, outs: 0,
         bases: { first: null, second: null, third: null },
         pitcherStats: await initializePitcherFatigue(gameId, client),
+        atBatLog: [],
         isBetweenHalfInningsAway: false,
         isBetweenHalfInningsHome: false,
         awayTeam: { userId: awayParticipant.user_id, team_id: awayParticipant.team_id, rosterId: awayParticipant.roster_id, battingOrderPosition: 0, used_player_ids: [], roster: awayRosterData },
