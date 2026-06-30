@@ -14,8 +14,12 @@
 //   node backfill-box-scores.js 129             # dry-run, single game
 //   node backfill-box-scores.js 129 --prod      # dry-run against PROD_DATABASE_URL (read-only)
 //   node backfill-box-scores.js 129 --commit    # write atBatLog into the latest game_state
+//   node backfill-box-scores.js --in-progress    # dry-run, completed + in-progress games
 //
-// Nothing is written unless --commit is passed. --commit only updates already-completed games.
+// Nothing is written unless --commit is passed. By default only completed games are selected in
+// bulk; pass --in-progress to also backfill active games (a single game id always works regardless
+// of status). The write is additive (adds atBatLog to the latest game_state); the engine continues
+// appending to it on the next plate appearance.
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -24,6 +28,14 @@ const { Pool } = require('pg');
 const args = process.argv.slice(2);
 const COMMIT = args.includes('--commit');
 const USE_PROD = args.includes('--prod');
+// By default never clobber an existing non-empty atBatLog: a live game accumulates a
+// higher-fidelity log (with pitcherKey/advantage) than this best-effort reconstruction. --force
+// overrides, e.g. to rebuild a known-bad log.
+const FORCE = args.includes('--force');
+// Also backfill in-progress games. Their early plate appearances predate the live atBatLog, so
+// without this their box score (and the lineup-panel stat lines) stays empty. Writing the
+// reconstructed log to their latest game_state is additive; the engine appends to it going forward.
+const INCLUDE_IN_PROGRESS = args.includes('--in-progress');
 const gameIdArg = args.find((a) => /^\d+$/.test(a));
 
 const pool = USE_PROD
@@ -45,7 +57,8 @@ function classifyOutcome(text) {
   if (/grounds into a double play/i.test(t)) return { kind: 'DP' };
   if (/fielder's choice/i.test(t)) return { kind: 'OUT' };
   if (/sacrifice bunt|lays down a bunt|bunts into/i.test(t)) return { kind: 'BUNT' };
-  if (/grounds out|flies out|pops out|\bis out\b|lines out|fouls out/i.test(t)) return { kind: 'OUT' };
+  if (/flies out/i.test(t)) return { kind: 'FB' }; // kept distinct so a run-scoring fly = sac fly
+  if (/grounds out|pops out|\bis out\b|lines out|fouls out/i.test(t)) return { kind: 'OUT' };
   return null;
 }
 
@@ -58,6 +71,7 @@ function applyKindToEntry(entry, kind) {
     case 'BB': case 'IBB': entry.bb = 1; break;
     case 'SO': entry.ab = 1; entry.so = 1; break;
     case 'BUNT': break; // sacrifice — PA only
+    case 'FB': entry.ab = 1; break; // fly out; demoted to a sac fly (ab 0) below if it scored a run
     default: entry.ab = 1; // OUT, DP, FC
   }
 }
@@ -180,6 +194,8 @@ function reconstructAtBatLog(events, awayRoster, homeRoster, opts = {}) {
     // RBI: run count on the event, except a GIDP run is not an RBI.
     const runs = countRuns(text);
     entry.rbi = kind.kind === 'DP' ? Math.max(0, runs - 1) : runs;
+    // Sacrifice fly: a fly-out that scored a runner is a PA, not an at-bat (matches the live engine).
+    if (kind.kind === 'FB' && runs > 0) entry.ab = 0;
 
     // Runs scored (R) per runner — best-effort name extraction per scoring clause.
     const clauses = text.split(/(?<=[.!])\s+/);
@@ -194,6 +210,46 @@ function reconstructAtBatLog(events, awayRoster, homeRoster, opts = {}) {
   }
 
   return log;
+}
+
+// Best-effort reconstruction of the stolen-base log from the play-by-play. Mirrors the live
+// engine's stealLog shape ({ runnerId, side, success }). Steal phrasing is unambiguous:
+//   - auto-steal embedded in a hit:     "<runner> steals second without a throw"  → SB
+//   - single steal (event_type steal):  "<runner> takes off for X... SAFE|CAUGHT STEALING"
+//   - double steal (event_type steal):  "<runner> is SAFE|OUT at X" / "<runner> advances to X"
+// "is SAFE at" / "advances to" also describe runners on hits, so they're only trusted inside a
+// dedicated steal event. Ellipses are flattened first so "takes off for X... SAFE" stays one clause.
+function reconstructStealLog(events, awayRoster, homeRoster, opts = {}) {
+  const namesBySide = { away: buildNameMap(awayRoster), home: buildNameMap(homeRoster) };
+  const stealLog = [];
+  let isTop = true;
+
+  for (const ev of events) {
+    const text = stripHtml(ev.log_message);
+    if (!text) continue;
+    if (/inning-change-message/.test(ev.log_message) || /Top of the|Bottom of the/.test(text)) {
+      isTop = /Top of the|Top\b/.test(text);
+      continue;
+    }
+    const side = isTop ? 'away' : 'home';
+    const names = namesBySide[side];
+    const isStealEvent = ev.event_type === 'steal';
+
+    for (const clause of text.replace(/\.\.\./g, ' ').split(/(?<=[.!])\s+/)) {
+      let success = null;
+      if (/steals second without a throw/i.test(clause)) success = true;
+      else if (/takes off for .*\bCAUGHT STEALING\b/i.test(clause)) success = false;
+      else if (/takes off for .*\bSAFE\b/i.test(clause)) success = true;
+      else if (isStealEvent && /\bis OUT at\b/i.test(clause)) success = false;
+      else if (isStealEvent && /\bis SAFE at\b/i.test(clause)) success = true;
+      else if (isStealEvent && /\badvances to\b/i.test(clause)) success = true;
+      if (success === null) continue;
+
+      const lead = leadingBatter(clause, names);
+      if (lead) stealLog.push({ runnerId: lead.id, side, success });
+    }
+  }
+  return stealLog;
 }
 
 function summarize(log, label) {
@@ -234,9 +290,11 @@ async function processGame(client, gameId) {
     startAwayPitcherId: first.currentAwayPitcher?.card_id ?? null,
     startHomePitcherId: first.currentHomePitcher?.card_id ?? null,
   });
+  const stealLog = reconstructStealLog(evRes.rows, rosterFor(away.user_id), rosterFor(home.user_id));
 
   console.log(`\nGame ${gameId}:`);
   summarize(log, 'reconstructed');
+  console.log(`    steals → ${stealLog.length} (SB:${stealLog.filter((s) => s.success).length} CS:${stealLog.filter((s) => !s.success).length})`);
 
   if (!COMMIT) return;
 
@@ -244,12 +302,25 @@ async function processGame(client, gameId) {
     'SELECT game_state_id, state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1', [gameId]);
   if (stateRes.rows.length === 0) { console.log('  no game_state, skipping write.'); return; }
   const { game_state_id, state_data } = stateRes.rows[0];
-  const updated = { ...state_data, atBatLog: log };
+  const existingAtBat = state_data?.atBatLog;
+  // atBatLog: never clobber a higher-fidelity live log. stealLog is brand-new, so absent means a
+  // pre-feature game that needs it; present (even empty) means live play we keep. The two are
+  // decided independently so a game already carrying atBatLog still gets its steals backfilled.
+  const writeAtBat = FORCE || !(Array.isArray(existingAtBat) && existingAtBat.length > 0);
+  const writeSteal = FORCE || state_data?.stealLog == null;
+  if (!writeAtBat && !writeSteal) {
+    console.log(`  already has atBatLog (${existingAtBat.length} PAs) and stealLog, skipping (use --force to overwrite).`);
+    return;
+  }
+  const updated = { ...state_data };
+  if (writeAtBat) updated.atBatLog = log;
+  if (writeSteal) updated.stealLog = stealLog;
   await client.query('UPDATE game_states SET state_data = $1 WHERE game_state_id = $2', [updated, game_state_id]);
-  console.log(`  ✏️  wrote atBatLog (${log.length} PAs) to game_state ${game_state_id}`);
+  const wrote = [writeAtBat && `atBatLog (${log.length} PAs)`, writeSteal && `stealLog (${stealLog.length})`].filter(Boolean).join(' + ');
+  console.log(`  ✏️  wrote ${wrote} to game_state ${game_state_id}`);
 }
 
-module.exports = { reconstructAtBatLog, classifyOutcome, countRuns, buildNameMap };
+module.exports = { reconstructAtBatLog, reconstructStealLog, classifyOutcome, countRuns, buildNameMap };
 
 async function main() {
   const client = await pool.connect();
@@ -258,7 +329,8 @@ async function main() {
     if (gameIdArg) {
       ids = [Number(gameIdArg)];
     } else {
-      const res = await client.query("SELECT game_id FROM games WHERE status = 'completed' ORDER BY game_id ASC");
+      const statuses = INCLUDE_IN_PROGRESS ? ['completed', 'in_progress'] : ['completed'];
+      const res = await client.query('SELECT game_id FROM games WHERE status = ANY($1) ORDER BY game_id ASC', [statuses]);
       ids = res.rows.map((r) => r.game_id);
     }
     console.log(`${COMMIT ? 'COMMIT' : 'DRY-RUN'} | ${USE_PROD ? 'PROD' : 'local'} | ${ids.length} game(s)`);

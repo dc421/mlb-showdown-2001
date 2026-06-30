@@ -12,7 +12,7 @@ const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
 const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
   recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
-  toRunnerCard } = require('./gameLogic');
+  recordStealAttempt, toRunnerCard } = require('./gameLogic');
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { startPhantomMonitor } = require('./jobs/phantomMonitor');
@@ -4387,6 +4387,7 @@ if (newState.pendingStealAttempt && requestedBases.length === 1) {
                 const { outcome, ...resultDetails } = stealResult;
                 const runnerName = runner.name;
 
+                recordStealAttempt(newState, runner, isSafe);
                 if (!isSafe) {
                     recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                 }
@@ -4550,6 +4551,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
                     const { outcome: newOutcome, isSafe, ...resultDetails } = calculateStealResult(runner, toBase, catcherArm, getSpeedValue, offensiveTeam);
                     const newRunnerName = runner.name;
 
+                    recordStealAttempt(newState, runner, isSafe);
                     if (!isSafe) {
                         recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                     }
@@ -4624,6 +4626,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
             const { runner, isSafe, isContested } = outcomes[fromBase];
             const toBase = fromBase + 1;
             newState.bases[baseMap[fromBase]] = null;
+            recordStealAttempt(newState, runner, isSafe);
             if (isSafe) {
                 newState.bases[baseMap[toBase]] = runner;
                 allEvents.push(isContested ? `${runner.name} is SAFE at ${getOrdinal(toBase)}!` : `${runner.name} advances to ${getOrdinal(toBase)}.`);

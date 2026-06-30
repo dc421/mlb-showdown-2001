@@ -915,9 +915,9 @@ thead th.sticky-col {
     border-top: 2px solid #dee2e6;
     font-size: 0.7rem;
     vertical-align: middle;
-    height: 3.2rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
+    height: 1.9rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
 }
 .summary-row .total-label {
     font-weight: bold;

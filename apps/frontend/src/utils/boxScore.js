@@ -76,7 +76,7 @@ function normalizePitcherKey(key) {
 }
 
 const emptyBatter = () => ({ ab: 0, r: 0, h: 0, doubles: 0, triples: 0, hr: 0, rbi: 0, bb: 0, so: 0,
-  adv: { ab: 0, h: 0 }, dis: { ab: 0, h: 0 } });
+  sb: 0, cs: 0, adv: { ab: 0, h: 0 }, dis: { ab: 0, h: 0 } });
 const emptyPitcher = () => ({ outs: 0, bf: 0, h: 0, r: 0, er: 0, bb: 0, so: 0,
   adv: { bf: 0, h: 0 }, dis: { bf: 0, h: 0 } });
 
@@ -154,6 +154,17 @@ export function buildBoxScore(gameState, lineups, rosters, teams) {
     }
   }
 
+  // Stolen bases / caught stealing: the engine records one stealLog entry per deliberate steal
+  // attempt, attributed to the runner's card_id and offensive side. Folded into the batting rows
+  // (creating a row if a pinch-runner stole without ever batting).
+  for (const s of Array.isArray(gameState?.stealLog) ? gameState.stealLog : []) {
+    if (s == null || s.runnerId == null) continue;
+    const side = s.side === 'home' ? 'home' : 'away';
+    let row = batting[side].get(s.runnerId);
+    if (!row) { row = emptyBatter(); batting[side].set(s.runnerId, row); }
+    if (s.success) row.sb += 1; else row.cs += 1;
+  }
+
   const buildSide = (side) => {
     const battingRows = [];
     const totals = { ab: 0, r: 0, h: 0, rbi: 0, bb: 0, so: 0 };
@@ -165,7 +176,7 @@ export function buildBoxScore(gameState, lineups, rosters, teams) {
         name: fullNameFor(cardId, cardMap),
         shortName: shortNameFor(cardId, cardMap),
         ab: b.ab, r, h: b.h, doubles: b.doubles, triples: b.triples, hr: b.hr, rbi: b.rbi,
-        bb: b.bb, so: b.so, avg: formatAvg(b.h, b.ab),
+        bb: b.bb, so: b.so, sb: b.sb, cs: b.cs, avg: formatAvg(b.h, b.ab),
         adv: { ...b.adv }, dis: { ...b.dis },
       });
     }

@@ -569,6 +569,7 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
               newState.bases.second = newState.bases.first;
               newState.bases.first = null;
               combinedEvent += ` ${batter.displayName} steals second without a throw.`;
+              recordStealAttempt(newState, batter, true);
           }
 
           events.push(combinedEvent);
@@ -889,6 +890,7 @@ function resolveThrow(state, throwTo, outfieldDefense, getSpeedValue, finalizeEv
     if (batterOnFirst && !newState.bases.second && outcome === '1B+' && throwTo !== 2) {
         newState.bases.second = batterOnFirst;
         newState.bases.first = null;
+        recordStealAttempt(newState, batterOnFirst, true);
         const stealEvent = `${batterOnFirst.displayName} steals second without a throw!`;
         if (outcomeMessage) outcomeMessage += ` ${stealEvent}`;
         else outcomeMessage = stealEvent;
@@ -963,7 +965,13 @@ function recordRunForPitcher(state, runner, currentPitcher, opts = {}) {
   const entry = currentAtBatEntry(state);
   if (entry) {
     if (runner && runner.card_id != null) entry.scoredRunnerIds.push(runner.card_id);
-    if (opts.rbiEligible !== false) entry.rbi += 1;
+    if (opts.rbiEligible !== false) {
+      entry.rbi += 1;
+      // A run scoring on a fly-out (a tag-up from third) makes it a sacrifice fly: a PA, not an
+      // at-bat. This catches the deferred manual tag-up; the immediate auto-advance case is caught
+      // in fillBattingResult, which runs after that run has already been credited here.
+      if (entry.isFlyOut && entry.ab === 1) entry.ab = 0;
+    }
   }
 }
 
@@ -987,9 +995,30 @@ function fillBattingResult(entry, outcome) {
   else if (outcome === 'BB' || outcome === 'IBB') { entry.bb = 1; }
   else if (outcome === 'SO') { entry.ab = 1; entry.so = 1; }
   else if (outcome === 'BUNT') { /* sacrifice bunt: PA only, not an at-bat */ }
-  else { entry.ab = 1; } // PU, FB, GB outs, double play, fielder's choice, generic OUT
+  else if (outcome.includes('FB')) {
+    // Sacrifice fly: a fly-out that scored a runner (tag-up) is a PA, not an at-bat. An immediate
+    // auto-advance has already credited the run by now (rbi > 0); a deferred manual tag-up is
+    // handled later in recordRunForPitcher, which flips ab→0 when the run lands on this entry.
+    entry.isFlyOut = true;
+    entry.ab = entry.rbi > 0 ? 0 : 1;
+  }
+  else { entry.ab = 1; } // PU, GB outs, double play, fielder's choice, generic OUT
+}
+
+// Box score: record one stolen-base attempt for a runner, keyed by card_id and offensive side
+// (away bats in the top, home in the bottom). Purely additive — it never affects game flow — so it
+// is safe to call at each deliberate-steal resolution point. Auto-advances on 1B+ are NOT steals
+// and are intentionally excluded.
+function recordStealAttempt(state, runner, success) {
+  if (!state || !runner || runner.card_id == null) return;
+  if (!Array.isArray(state.stealLog)) state.stealLog = [];
+  state.stealLog.push({
+    runnerId: runner.card_id,
+    side: state.isTopInning ? 'away' : 'home',
+    success: !!success,
+  });
 }
 
 module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
   recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
-  toRunnerCard, getPitcherKey };
+  recordStealAttempt, toRunnerCard, getPitcherKey };

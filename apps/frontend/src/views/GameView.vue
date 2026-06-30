@@ -759,6 +759,54 @@ const rightPanelData = computed(() => {
     };
 });
 
+// Compact "today's line" shown beneath each player in the lineup panels, e.g. "2-4, 2B, 2 RBI" for
+// a batter or "6.0 IP, 4 H, 2 R, 5 SO" for a pitcher. Built from gameStore.boxScore, which is
+// already trimmed to be spoiler-safe for the live at-bat. Both maps are keyed by card_id so they
+// resolve for active starters, the current pitcher, and players already removed from the game.
+function formatBatLine(row) {
+    if (!row || (row.ab === 0 && row.bb === 0 && !row.sb && !row.cs)) return null;
+    const tokens = [`${row.h}-${row.ab}`];
+    if (row.doubles) tokens.push(row.doubles > 1 ? `${row.doubles} 2B` : '2B');
+    if (row.triples) tokens.push(row.triples > 1 ? `${row.triples} 3B` : '3B');
+    if (row.hr) tokens.push(row.hr > 1 ? `${row.hr} HR` : 'HR');
+    if (row.bb) tokens.push(row.bb > 1 ? `${row.bb} BB` : 'BB');
+    if (row.rbi) tokens.push(row.rbi > 1 ? `${row.rbi} RBI` : 'RBI');
+    if (row.r) tokens.push(row.r > 1 ? `${row.r} R` : 'R');
+    if (row.so) tokens.push(row.so > 1 ? `${row.so} SO` : 'SO');
+    if (row.sb) tokens.push(row.sb > 1 ? `${row.sb} SB` : 'SB');
+    if (row.cs) tokens.push(row.cs > 1 ? `${row.cs} CS` : 'CS');
+    return tokens.join(', ');
+}
+
+// There are no errors in this game, so every run is earned — IP/ER/H are always shown.
+function formatPitchLine(row) {
+    if (!row) return null;
+    const tokens = [`${row.ip} IP`, `${row.er} ER`, `${row.h} H`];
+    if (row.so) tokens.push(row.so > 1 ? `${row.so} K` : 'K');
+    if (row.bb) tokens.push(row.bb > 1 ? `${row.bb} BB` : 'BB');
+    return tokens.join(', ');
+}
+
+const linesFor = (teamKey, rowsKey, formatter) => {
+    const m = new Map();
+    for (const row of gameStore.boxScore?.[teamKey]?.[rowsKey] || []) {
+        const line = formatter(row);
+        if (line && row.cardId != null) m.set(row.cardId, line);
+    }
+    return m;
+};
+const leftBatLines = computed(() => linesFor(leftPanelData.value?.teamKey, 'batting', formatBatLine));
+const rightBatLines = computed(() => linesFor(rightPanelData.value?.teamKey, 'batting', formatBatLine));
+const leftPitchLines = computed(() => linesFor(leftPanelData.value?.teamKey, 'pitching', formatPitchLine));
+const rightPitchLines = computed(() => linesFor(rightPanelData.value?.teamKey, 'pitching', formatPitchLine));
+
+// In a no-DH game a pinch-hitter who bats for the pitcher inherits the pitcher's 'P' batting slot
+// but is not a pitcher (hitters have no `control` rating). Label them PH rather than P. The same
+// signal (`isSlotPitcher`) gates the pitcher-fatigue dots so they never render on a PH's row.
+const isSlotPitcher = (spot) => spot?.player?.control != null;
+const slotPositionLabel = (spot) =>
+    (spot?.position === 'P' && !isSlotPitcher(spot)) ? 'PH' : spot?.position;
+
 const usedPlayerIds = computed(() => {
     if (!gameStore.gameState || !leftPanelData.value?.teamKey) return new Set();
     const teamKey = leftPanelData.value.teamKey;
@@ -2398,6 +2446,21 @@ const opponentPlayer = computed(() => {
   return amIDisplayOffensivePlayer.value ? pitcherToDisplay.value : batterToDisplay.value;
 });
 
+// Box-score line for the player on the cards in the center at-bat area: the displayed batter's
+// batting line and the displayed pitcher's pitching line, looked up by card_id across both sides.
+const lineFromBox = (rowsKey, cardId, formatter) => {
+  if (cardId == null || !gameStore.boxScore) return null;
+  for (const side of ['away', 'home']) {
+    const row = (gameStore.boxScore[side]?.[rowsKey] || []).find((r) => r.cardId === cardId);
+    if (row) return formatter(row);
+  }
+  return null;
+};
+const displayedBatterLine = computed(() => lineFromBox('batting', batterToDisplay.value?.card_id, formatBatLine));
+const displayedPitcherLine = computed(() => lineFromBox('pitching', pitcherToDisplay.value?.card_id, formatPitchLine));
+const controlledPlayerLine = computed(() => amIDisplayOffensivePlayer.value ? displayedBatterLine.value : displayedPitcherLine.value);
+const opponentPlayerLine = computed(() => amIDisplayOffensivePlayer.value ? displayedPitcherLine.value : displayedBatterLine.value);
+
 const controlledPlayerRole = computed(() => {
   return amIDisplayOffensivePlayer.value ? 'Batter' : 'Pitcher';
 });
@@ -2844,6 +2907,7 @@ async function handleReauthenticate() {
                     <span class="tbd-name">TBD</span>
                 </template>
             </div>
+            <small v-if="controlledPlayerLine" class="card-stat-line">{{ controlledPlayerLine }}</small>
           </div>
 
           <!-- OPPONENT PLAYER -->
@@ -2865,6 +2929,7 @@ async function handleReauthenticate() {
                     <span class="tbd-name"></span>
                 </template>
             </div>
+            <small v-if="opponentPlayerLine" class="card-stat-line">{{ opponentPlayerLine }}</small>
           </div>
         </div>
       </div>
@@ -2897,13 +2962,15 @@ async function handleReauthenticate() {
                         }">
                       ⇄
                   </span>
-                  <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
-                  <template v-if="!useDh && spot.position === 'P'">
+                  <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }}, {{ slotPositionLabel(spot) }}</span>
+                  <template v-if="!useDh && spot.position === 'P' && isSlotPitcher(spot)">
                       <span v-if="leftPitcherFatigue.penalty > 0" class="status-indicators">
                           <span v-for="n in leftPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${leftPitcherFatigue.penalty}`"></span>
                       </span>
                       <span v-else-if="leftPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
                   </template>
+                  <small v-if="leftPitchLines.get(spot.player?.card_id)" class="stat-line">{{ leftPitchLines.get(spot.player?.card_id) }}</small>
+                  <small v-if="leftBatLines.get(spot.player?.card_id)" class="stat-line">{{ leftBatLines.get(spot.player?.card_id) }}</small>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
@@ -2924,6 +2991,7 @@ async function handleReauthenticate() {
                 <span v-for="n in leftPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${leftPitcherFatigue.penalty}`"></span>
             </span>
             <span v-else-if="leftPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
+            <small v-if="leftPitchLines.get(leftPanelData.pitcher?.card_id)" class="stat-line">{{ leftPitchLines.get(leftPanelData.pitcher?.card_id) }}</small>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
@@ -2939,6 +3007,7 @@ async function handleReauthenticate() {
                           <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
                       </span>
                       <span v-else-if="p.isBufferUsed && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
+                      <small v-if="leftPitchLines.get(p.card_id)" class="stat-line">{{ leftPitchLines.get(p.card_id) }}</small>
                   </li>
               </ul>
           </div>
@@ -2951,7 +3020,8 @@ async function handleReauthenticate() {
                             :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && isPlayerValidSubTarget(p) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7 || p.assignment !== 'BENCH') }">
                           ⇄
                       </span>
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }}, {{p.displayPosition}}</span>
+                      <small v-if="leftBatLines.get(p.card_id)" class="stat-line">{{ leftBatLines.get(p.card_id) }}</small>
                   </li>
               </ul>
           </div>
@@ -3019,13 +3089,15 @@ async function handleReauthenticate() {
                   }"
                   class="lineup-item">
                   <span class="sub-icon"></span>
-                  <span @click.stop="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }} ({{ spot.position }})</span>
-                  <template v-if="!useDh && spot.position === 'P'">
+                  <span @click.stop="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }}, {{ slotPositionLabel(spot) }}</span>
+                  <template v-if="!useDh && spot.position === 'P' && isSlotPitcher(spot)">
                       <span v-if="rightPitcherFatigue.penalty > 0" class="status-indicators">
                           <span v-for="n in rightPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${rightPitcherFatigue.penalty}`"></span>
                       </span>
                       <span v-else-if="rightPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
                   </template>
+                  <small v-if="rightPitchLines.get(spot.player?.card_id)" class="stat-line">{{ rightPitchLines.get(spot.player?.card_id) }}</small>
+                  <small v-if="rightBatLines.get(spot.player?.card_id)" class="stat-line">{{ rightBatLines.get(spot.player?.card_id) }}</small>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info">
@@ -3040,6 +3112,7 @@ async function handleReauthenticate() {
                   <span v-for="n in rightPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${rightPitcherFatigue.penalty}`"></span>
               </span>
               <span v-else-if="rightPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
+              <small v-if="rightPitchLines.get(rightPanelData.pitcher?.card_id)" class="stat-line">{{ rightPitchLines.get(rightPanelData.pitcher?.card_id) }}</small>
           </div>
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
@@ -3051,6 +3124,7 @@ async function handleReauthenticate() {
                               <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
                           </span>
                           <span v-else-if="p.isBufferUsed && !opponentUsedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
+                          <small v-if="rightPitchLines.get(p.card_id)" class="stat-line">{{ rightPitchLines.get(p.card_id) }}</small>
                   </li>
               </ul>
           </div>
@@ -3059,7 +3133,8 @@ async function handleReauthenticate() {
               <ul>
                   <li v-for="p in rightPanelData.bench" :key="p.card_id" class="lineup-item">
                       <span class="sub-icon"></span>
-                      <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.displayPosition}})</span>
+                      <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id)}">{{ p.displayName }}, {{p.displayPosition}}</span>
+                      <small v-if="rightBatLines.get(p.card_id)" class="stat-line">{{ rightBatLines.get(p.card_id) }}</small>
                   </li>
               </ul>
           </div>
@@ -3109,6 +3184,20 @@ async function handleReauthenticate() {
   display: contents;
 }
 
+.player-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* Displayed batter/pitcher's box-score line, tucked just under their card (above the buttons). */
+.card-stat-line {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: #6b7280;
+  text-align: center;
+  max-width: 320px;
+}
 .player-container:first-child {
   grid-column: 1 / 2;
   grid-row: 1 / 2;
@@ -3319,11 +3408,20 @@ async function handleReauthenticate() {
 
 .lineup-panel {
   background: #f9f9f9;
-  padding: 1rem;
+  padding: 0.85rem 0.9rem;
   border-radius: 8px;
   flex: 1;
   min-width: 280px;
   max-width: 350px;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+/* Tight section dividers — the default hr eats a lot of vertical space. */
+.lineup-panel hr {
+  flex-basis: 100%;
+  border: none;
+  border-top: 1px solid #e3e3e3;
+  margin: 0.4rem 0;
 }
 
 .event-log {
@@ -3384,7 +3482,7 @@ async function handleReauthenticate() {
 .reauth-form button:disabled { opacity: 0.6; cursor: not-allowed; }
 .reauth-error { color: #f87171; font-size: 0.8rem; margin: 0; }
 
-.lineup-header { display: flex; align-items: center; gap: 0.75rem; margin-top: 0; }
+.lineup-header { display: flex; align-items: center; gap: 0.75rem; margin: 0 0 0.35rem; }
 .lineup-header span:first-of-type { flex-grow: 1; }
 .sub-icon {
   cursor: pointer;
@@ -3409,17 +3507,35 @@ async function handleReauthenticate() {
   color: #000;
 }
 .lineup-logo { height: 28px; flex-shrink: 0; object-fit: contain; }
-.lineup-panel ol, .lineup-panel ul { padding-left: 0; margin: 0.5rem 0; list-style: none; }
+.lineup-panel ol, .lineup-panel ul { padding-left: 0; margin: 0.25rem 0; list-style: none; }
 .lineup-item, .pitcher-info {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  padding: 2px 8px;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 1px 8px;
+  gap: 0.4rem;
   border-radius: 6px;
-  margin: 0px -8px;
+  margin: 0 -8px 6px;
   transition: background-color 0.2s, color 0.2s;
 }
+/* "Today's line" beneath a player — wraps to its own row, indented under the name
+   (sub-icon 20px + gap) so it reads like a mini box-score entry. A batter shows one line;
+   a no-DH pitcher shows their pitching line then their batting line. It hugs the name above
+   (negative top margin, no bottom margin) while the row's bottom margin separates players, so
+   each name+line reads as one cluster and never floats ambiguously between two names. */
+.stat-line {
+  flex-basis: 100%;
+  margin: -2px 0 0;
+  padding-left: 28px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.15;
+  color: #6b7280;
+  cursor: default;
+}
+.now-batting .stat-line, .next-up .stat-line { color: #444; }
 .lineup-item > span:not(.sub-icon), .pitcher-info > span:not(.sub-icon) {
   cursor: pointer;
 }
