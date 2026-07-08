@@ -17,8 +17,8 @@ const PLAYOFF_ROUNDS = ['Golden Spaceship', 'Wooden Spoon'];
 function insertSeries(db, seasonName, round, seeds) {
     return db.query(
         `INSERT INTO series_results
-            (season_name, round, date, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score)
-         VALUES ($1, $2, now(), $3, $4, $5, $6, NULL, NULL)`,
+            (season_name, round, date, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score, status)
+         VALUES ($1, $2, now(), $3, $4, $5, $6, NULL, NULL, 'scheduled')`,
         [seasonName, round, seeds[0].team_id, seeds[1].team_id, seeds[0].name, seeds[1].name]
     );
 }

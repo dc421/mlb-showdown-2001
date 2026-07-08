@@ -118,3 +118,51 @@ describe('box-score stat accumulation in applyOutcome', () => {
     expect(entry.scoredRunnerIds).toContain(8);
   });
 });
+
+// The spoiler-hidden box score backs a not-yet-revealed PA out of the live pitcherStats aggregate
+// using entry.pitcherDeltas, so those deltas must exactly mirror what the PA added to pitcherStats.
+describe('pitcherDeltas mirror the PA contribution to pitcherStats', () => {
+  // Sum outs/runs/bf per pitcher key from a single-PA state's pitcherStats and from its atBatLog
+  // entry's pitcherDeltas; starting from empty pitcherStats they must match key-for-key.
+  const fromStats = (s) => Object.fromEntries(Object.entries(s).map(([k, v]) =>
+    [k, { outs: v.outs_recorded || 0, runs: v.runs || 0, bf: v.batters_faced || 0 }]));
+
+  test('strikeout: 1 out, 0 runs, 1 bf on the pitcher', () => {
+    const { newState } = run(makeState({ advantage: 'pitcher' }), 'SO');
+    expect(newState.atBatLog[0].pitcherDeltas).toEqual(fromStats(newState.pitcherStats));
+    expect(newState.atBatLog[0].pitcherDeltas['100_9']).toEqual({ outs: 1, runs: 0, bf: 1 });
+  });
+
+  test('walk: 0 outs, 0 runs, 1 bf', () => {
+    const { newState } = run(makeState(), 'BB');
+    expect(newState.atBatLog[0].pitcherDeltas).toEqual(fromStats(newState.pitcherStats));
+    expect(newState.atBatLog[0].pitcherDeltas['100_9']).toEqual({ outs: 0, runs: 0, bf: 1 });
+  });
+
+  test('3-run homer: 3 runs charged, 1 bf, 0 outs', () => {
+    const state = makeState({ bases: { first: runner(7, 'A'), second: runner(8, 'B'), third: null } });
+    const { newState } = run(state, 'HR');
+    expect(newState.atBatLog[0].pitcherDeltas).toEqual(fromStats(newState.pitcherStats));
+    expect(newState.atBatLog[0].pitcherDeltas['100_9']).toEqual({ outs: 0, runs: 3, bf: 1 });
+  });
+
+  test('GIDP: two outs and the run both land on the delta', () => {
+    const state = makeState({ bases: { first: runner(7, 'A'), second: null, third: runner(8, 'B') }, outs: 0 });
+    const { newState } = run(state, 'GB', { infieldDefense: 20 });
+    expect(newState.atBatLog[0].pitcherDeltas).toEqual(fromStats(newState.pitcherStats));
+    expect(newState.atBatLog[0].pitcherDeltas['100_9']).toEqual({ outs: 2, runs: 1, bf: 1 });
+  });
+
+  test('deferred run charged to an inherited pitcher lands on the delta for that pitcher', () => {
+    const onFirst = { card_id: 7, name: 'Wheels', displayName: 'Wheels', speed: 15 };
+    const state = makeState({ bases: { first: onFirst, second: null, third: null } });
+    const { newState } = run(state, '1B', { outfieldDefense: 0 });
+    // Deferred: the runner later scores, charged to a different (inherited) pitcher key.
+    const inheritedKey = '100_42';
+    recordRunForPitcher(newState, { ...onFirst, pitcherOfRecordId: inheritedKey }, pitcher);
+    expect(newState.atBatLog[0].pitcherDeltas).toEqual(fromStats(newState.pitcherStats));
+    expect(newState.atBatLog[0].pitcherDeltas[inheritedKey]).toEqual({ outs: 0, runs: 1, bf: 0 });
+    // The batter's pitcher still logged the batter faced.
+    expect(newState.atBatLog[0].pitcherDeltas['100_9'].bf).toBe(1);
+  });
+});

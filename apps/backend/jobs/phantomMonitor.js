@@ -17,10 +17,13 @@ const { sendPhantomWarningEmail, sendPhantomLossesEmail } = require('../services
 //   - sendPhantomWarnings runs each morning and, on the single day one week
 //     before a mark, emails the league naming the teams at risk.
 //
-// PHANTOM_ENFORCEMENT_START is a floor that prevents retroactively penalizing
-// marks that fell before this feature existed. Marks before this date are never
-// enforced; future seasons (drafted after this date) are unaffected because all
-// of their marks fall on or after it.
+// PHANTOM_ENFORCEMENT_START gates WHEN enforcement begins: no warnings or losses
+// are issued for any mark before this date (see latestMark / nextMarkAfter). It
+// does NOT shrink how many series are owed. The first mark on/after the floor is
+// the first enforced mark, and at it teams are held to the FULL cadence since the
+// draft — a season drafted three months before the first enforced mark owes three
+// series by it, collapsed into that first reconciliation. Future seasons (drafted
+// after this date) are unaffected because all of their marks fall on or after it.
 const PHANTOM_ENFORCEMENT_START = new Date(2026, 5, 17); // 2026-06-17, local time
 
 const POSTSEASON_ROUNDS = ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'];
@@ -52,15 +55,19 @@ function addMonths(date, k) {
 
 const MAX_MARKS = 240; // safety cap on the monthly-mark loop
 
-// Number of enforced marks that have come due as of `asOf` (marks in [floor, asOf]).
-function requiredSeries(asOf, draftDate, floor) {
+// Total monthly marks that have come due since the draft as of `asOf`
+// (marks in (draftDate, asOf]). This is the full expected series count and is
+// deliberately NOT reduced by the enforcement floor: when enforcement first kicks
+// in at a mark on/after the floor, teams are held to the entire cadence since the
+// draft. The floor only gates WHEN losses/warnings are issued (latestMark /
+// nextMarkAfter), never how many series are required.
+function requiredSeries(asOf, draftDate) {
     const asOfDay = startOfDay(asOf);
-    const floorDay = startOfDay(floor);
     let count = 0;
     for (let k = 1; k <= MAX_MARKS; k++) {
         const m = addMonths(draftDate, k);
         if (m > asOfDay) break;
-        if (m >= floorDay) count++;
+        count++;
     }
     return count;
 }
@@ -171,7 +178,7 @@ async function applyPhantomLosses(db = pool, asOf = new Date(), opts = {}) {
     const season = await getPhantomSeason(db);
     if (!season) return { season: null, assignments: [] };
 
-    const required = requiredSeries(asOf, season.draftDate, PHANTOM_ENFORCEMENT_START);
+    const required = requiredSeries(asOf, season.draftDate);
     const markDate = latestMark(asOf, season.draftDate, PHANTOM_ENFORCEMENT_START);
     if (required <= 0 || !markDate) {
         return { season: season.seasonName, required, markDate, assignments: [] };
@@ -193,8 +200,8 @@ async function applyPhantomLosses(db = pool, asOf = new Date(), opts = {}) {
             await db.query(
                 `INSERT INTO series_results
                     (season_name, round, date, winning_team_id, losing_team_id,
-                     winning_team_name, losing_team_name, winning_score, losing_score, notes)
-                 VALUES ($1, 'Regular Season', $2, NULL, $3, 'Phantoms', $4, $5, 0, $6)`,
+                     winning_team_name, losing_team_name, winning_score, losing_score, notes, status, result_source)
+                 VALUES ($1, 'Regular Season', $2, NULL, $3, 'Phantoms', $4, $5, 0, $6, 'completed', 'auto')`,
                 [
                     season.seasonName,
                     markDate,
@@ -228,7 +235,7 @@ async function sendPhantomWarnings(db = pool, asOf = new Date(), opts = {}) {
         return { season: season.seasonName, nextMark, warnDay, teamsAtRisk: [] };
     }
 
-    const requiredAtMark = requiredSeries(nextMark, season.draftDate, PHANTOM_ENFORCEMENT_START);
+    const requiredAtMark = requiredSeries(nextMark, season.draftDate);
     const teamsAtRisk = [];
     for (const team of season.teams) {
         const realSeries = await countRealSeries(db, season.seasonName, team.team_id);

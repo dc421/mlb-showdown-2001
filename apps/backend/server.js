@@ -20,6 +20,9 @@ const { verifyConnection } = require('./services/emailService');
 const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('./utils/seasonUtils');
+const { resolveSeriesResultUpdate, seriesTypeForRound } = require('./utils/seriesUtils');
+const { schedulePlayoffsIfClinched } = require('./services/playoffSchedulingService');
+const { computeLinescore, computePitchingDecisions, computeHomeRuns, normalizeKey, cardIdOf } = require('./utils/gameSummary');
 
 function commitTransientPlayerIds(state) {
     for (const teamKey of ['homeTeam', 'awayTeam']) {
@@ -917,7 +920,8 @@ async function handleSeriesProgression(gameId, client, finalState) {
             s.series_away_user_id,
             s.home_wins,
             s.away_wins,
-            s.series_type
+            s.series_type,
+            s.series_result_id
         FROM games g
         JOIN series s ON g.series_id = s.id
         WHERE g.game_id = $1
@@ -928,7 +932,7 @@ async function handleSeriesProgression(gameId, client, finalState) {
     }
 
     const seriesInfo = gameAndSeriesResult.rows[0];
-    const { series_id, game_home_user_id, game_in_series, series_type } = seriesInfo;
+    const { series_id, game_home_user_id, game_in_series, series_type, series_result_id } = seriesInfo;
     let { series_home_user_id } = seriesInfo;
     let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
 
@@ -949,16 +953,27 @@ async function handleSeriesProgression(gameId, client, finalState) {
         series_away_user_id = gameAwayUserId; // Update local copy
     }
 
-    // 3. Robustly determine winner and update series score
-    const gameWinnerId = finalState.winningTeam === 'home' ? game_home_user_id : gameAwayUserId;
-
-    if (gameWinnerId === series_home_user_id) {
-        await client.query('UPDATE series SET home_wins = home_wins + 1 WHERE id = $1', [series_id]);
-        home_wins++;
-    } else if (gameWinnerId === series_away_user_id) {
-        await client.query('UPDATE series SET away_wins = away_wins + 1 WHERE id = $1', [series_id]);
-        away_wins++;
+    // 3. Recompute the series score from every completed game rather than blind-incrementing. This is
+    // idempotent: replaying/re-completing a game (e.g. a dev snapshot restore) can't double-count, and
+    // a tally that drifted self-heals. The current game's final game_state may not be persisted yet, so
+    // use finalState for it and each other completed game's latest state.
+    const completedGamesRes = await client.query(`
+        SELECT g.game_id, g.home_team_user_id,
+               (SELECT gs.state_data->>'winningTeam' FROM game_states gs
+                 WHERE gs.game_id = g.game_id ORDER BY gs.turn_number DESC LIMIT 1) AS winning_side
+        FROM games g WHERE g.series_id = $1 AND g.status = 'completed'`, [series_id]);
+    home_wins = 0;
+    away_wins = 0;
+    for (const g of completedGamesRes.rows) {
+        const side = Number(g.game_id) === Number(gameId) ? finalState.winningTeam : g.winning_side;
+        if (side !== 'home' && side !== 'away') continue;
+        // A series has two participants, so the away user of any game is whichever isn't its home user.
+        const gameAwayUser = g.home_team_user_id === series_home_user_id ? series_away_user_id : series_home_user_id;
+        const winnerId = side === 'home' ? g.home_team_user_id : gameAwayUser;
+        if (winnerId === series_home_user_id) home_wins++;
+        else if (winnerId === series_away_user_id) away_wins++;
     }
+    await client.query('UPDATE series SET home_wins = $1, away_wins = $2 WHERE id = $3', [home_wins, away_wins, series_id]);
 
     // 4. Check if the series is over
     let isSeriesOver = false;
@@ -969,6 +984,66 @@ async function handleSeriesProgression(gameId, client, finalState) {
         isSeriesOver = true;
     }
 
+    // 4b. Auto-populate standings: write this series' running tally back onto the scheduled
+    // series_results row it fulfills. Partial after every game ('in_progress'); finalized and
+    // normalized (winner in the winning_* slot) when the series ends. Only linked series (launched
+    // from the schedule) have a series_result_id — ad-hoc/exhibition series skip this.
+    let scheduledSeasonName = null;
+    if (series_result_id) {
+        const scheduledRes = await client.query(
+            `SELECT season_name, winning_team_id, winning_team_name, losing_team_id, losing_team_name
+             FROM series_results WHERE id = $1`,
+            [series_result_id]
+        );
+        if (scheduledRes.rows.length > 0) {
+            scheduledSeasonName = scheduledRes.rows[0].season_name;
+            const teamRows = await client.query(
+                'SELECT user_id, team_id FROM teams WHERE user_id = ANY($1)',
+                [[series_home_user_id, series_away_user_id]]
+            );
+            const homeTeam = teamRows.rows.find(t => t.user_id === series_home_user_id);
+            const awayTeam = teamRows.rows.find(t => t.user_id === series_away_user_id);
+
+            const update = resolveSeriesResultUpdate(scheduledRes.rows[0], {
+                homeTeamId: homeTeam ? homeTeam.team_id : null,
+                awayTeamId: awayTeam ? awayTeam.team_id : null,
+                homeGames: home_wins,
+                awayGames: away_wins,
+                isOver: isSeriesOver,
+            });
+
+            await client.query(
+                `UPDATE series_results SET
+                    status = $1, result_source = $2,
+                    winning_team_id = $3, winning_team_name = $4, winning_score = $5,
+                    losing_team_id = $6, losing_team_name = $7, losing_score = $8
+                 WHERE id = $9`,
+                [
+                    update.status, update.result_source,
+                    update.winning_team_id, update.winning_team_name, update.winning_score,
+                    update.losing_team_id, update.losing_team_name, update.losing_score,
+                    series_result_id,
+                ]
+            );
+        }
+    }
+
+    // 4c. This game's freshly-written standings may have clinched the playoff field (possibly mid-series,
+    // e.g. game 6 of 7 locking every seed). Create the Golden Spaceship / Wooden Spoon series now
+    // (idempotent, best-effort) so the dashboard's early-stop action lights up and the playoff matchups
+    // appear without waiting for a League page load. Only regular-season league games can clinch.
+    if (series_type === 'regular_season' && scheduledSeasonName) {
+        // Cheap pre-check: skip the clinch computation (Monte Carlo) entirely once the field is scheduled.
+        const alreadyScheduled = await client.query(
+            `SELECT 1 FROM series_results WHERE season_name = $1 AND round IN ('Golden Spaceship','Wooden Spoon') LIMIT 1`,
+            [scheduledSeasonName]
+        );
+        if (alreadyScheduled.rows.length === 0) {
+            const created = await schedulePlayoffsIfClinched(client, scheduledSeasonName);
+            if (created) io.emit('games-updated');
+        }
+    }
+
     if (isSeriesOver) {
         await client.query(`UPDATE series SET status = 'completed' WHERE id = $1`, [series_id]);
         io.emit('games-updated'); // Notify clients the series is done
@@ -977,6 +1052,20 @@ async function handleSeriesProgression(gameId, client, finalState) {
 
     // 5. If not over, create the next game in the series
     const nextGameNumber = game_in_series + 1;
+
+    // Don't create a duplicate if the next game already exists (e.g. this completion was replayed).
+    const existingNext = await client.query(
+        'SELECT game_id FROM games WHERE series_id = $1 AND game_in_series = $2 ORDER BY game_id LIMIT 1',
+        [series_id, nextGameNumber]
+    );
+    if (existingNext.rows.length > 0) {
+        io.emit('games-updated');
+        io.to(gameId.toString()).emit('series-next-game-ready', {
+            nextGameId: existingNext.rows[0].game_id, home_wins, away_wins,
+        });
+        return;
+    }
+
     const nextHomeUserId = [3, 4, 5].includes(nextGameNumber) ? series_away_user_id : series_home_user_id;
     const nextAwayUserId = nextHomeUserId === series_home_user_id ? series_away_user_id : series_home_user_id;
 
@@ -2289,6 +2378,430 @@ app.get('/api/games/open', authenticateToken, async (req, res) => {
   }
 });
 
+// Every series the current user's team is matched up in, across all league seasons and Classics,
+// grouped so the dashboard can present the live season/Classic distinctly from older ones. Each entry
+// carries its lifecycle (scheduled -> in_progress -> completed) and, when launched in-app, the linked
+// live series + its current unfinished game. System-generated phantom/auto rows are excluded.
+app.get('/api/series/mine', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  try {
+    const meRes = await pool.query('SELECT team_id FROM users WHERE user_id = $1', [userId]);
+    const myTeamId = meRes.rows[0] && meRes.rows[0].team_id;
+    if (!myTeamId) return res.json({ groups: [], myTeamId: null, currentSeason: null, seeds_clinched: false });
+
+    // Current live LEAGUE season = the most recent non-Classic one (matches routes/league.js). Classic
+    // rows carry the prior league season's name but can be dated later, so they must be excluded here.
+    const seasonRes = await pool.query(
+      `SELECT season_name FROM series_results
+       WHERE season_name IS NOT NULL AND style IS DISTINCT FROM 'Classic'
+       ORDER BY date DESC LIMIT 1`
+    );
+    const currentSeason = seasonRes.rows[0] ? seasonRes.rows[0].season_name : null;
+
+    // "Seeds clinched" for the live season = the Golden Spaceship / Wooden Spoon series exist (created
+    // by schedulePlayoffsIfClinched once the field locks). Enables the optional early-stop action.
+    let seedsClinched = false;
+    if (currentSeason) {
+      const clinchRes = await pool.query(
+        `SELECT EXISTS(SELECT 1 FROM series_results
+           WHERE season_name = $1 AND round IN ('Golden Spaceship', 'Wooden Spoon')) AS clinched`,
+        [currentSeason]
+      );
+      seedsClinched = clinchRes.rows[0].clinched;
+    }
+
+    const activeClassicRes = await pool.query('SELECT id FROM classics WHERE is_active = true ORDER BY id LIMIT 1');
+    const activeClassicId = activeClassicRes.rows[0] ? activeClassicRes.rows[0].id : null;
+
+    // The dashboard is about IN-APP play, so we only surface a row if it was actually played in-app
+    // (has a linked series) OR it's still actionable in the live season / active Classic (a scheduled
+    // or in-progress matchup to Play/Continue). Purely offline-entered results are left to the League
+    // and team pages. live_series_id ties a row to the in-app series that produced/plays it.
+    const rows = (await pool.query(
+      `SELECT sr.id, sr.round, sr.style, sr.season_name, sr.status, sr.result_source, sr.classic_id,
+              sr.winning_team_id, sr.winning_team_name, sr.losing_team_id, sr.losing_team_name,
+              sr.winning_score, sr.losing_score, sr.date,
+              (SELECT s.id FROM series s WHERE s.series_result_id = sr.id ORDER BY s.id DESC LIMIT 1) AS live_series_id
+       FROM series_results sr
+       WHERE (sr.winning_team_id = $1 OR sr.losing_team_id = $1)
+         AND sr.result_source IS DISTINCT FROM 'auto'
+         AND (
+           EXISTS (SELECT 1 FROM series s WHERE s.series_result_id = sr.id)
+           OR (sr.status <> 'completed' AND (
+                (sr.style IS DISTINCT FROM 'Classic' AND sr.season_name = $2)
+                OR sr.classic_id = $3
+           ))
+         )
+       ORDER BY sr.date DESC, sr.id DESC`,
+      [myTeamId, currentSeason, activeClassicId]
+    )).rows;
+
+    // Batch lookups: teams, classic names, linked live series + their current unfinished game.
+    const teamIds = [...new Set(rows.flatMap(r => [r.winning_team_id, r.losing_team_id]).filter(Boolean))];
+    const teamById = {};
+    if (teamIds.length) {
+      (await pool.query('SELECT team_id, city, name, logo_url FROM teams WHERE team_id = ANY($1)', [teamIds]))
+        .rows.forEach(t => { teamById[t.team_id] = t; });
+    }
+    const classicIds = [...new Set(rows.map(r => r.classic_id).filter(Boolean))];
+    const classicById = {};
+    if (classicIds.length) {
+      (await pool.query('SELECT id, name, is_active FROM classics WHERE id = ANY($1)', [classicIds]))
+        .rows.forEach(c => { classicById[c.id] = c; });
+    }
+    const liveIds = [...new Set(rows.map(r => r.live_series_id).filter(Boolean))];
+    const liveById = {};
+    const activeGameBySeries = {};
+    if (liveIds.length) {
+      (await pool.query(
+        `SELECT id, home_wins, away_wins, status, series_home_user_id, series_away_user_id
+         FROM series WHERE id = ANY($1)`, [liveIds]
+      )).rows.forEach(s => { liveById[s.id] = s; });
+      (await pool.query(
+        `SELECT DISTINCT ON (series_id) series_id, game_id, status, game_in_series
+         FROM games WHERE series_id = ANY($1) AND status <> 'completed'
+         ORDER BY series_id, game_in_series DESC`, [liveIds]
+      )).rows.forEach(g => { activeGameBySeries[g.series_id] = g; });
+    }
+
+    const groupsMap = new Map();
+    const groupFor = (r) => {
+      if (r.style === 'Classic' && r.classic_id) {
+        const key = `classic:${r.classic_id}`;
+        if (!groupsMap.has(key)) {
+          const c = classicById[r.classic_id];
+          groupsMap.set(key, { key, type: 'classic', label: c ? c.name : 'Classic', season_name: r.season_name, is_live: !!(c && c.is_active), seeds_clinched: false, series: [], _latest: r.date });
+        }
+        return groupsMap.get(key);
+      }
+      const key = `league:${r.season_name}`;
+      if (!groupsMap.has(key)) {
+        const isLive = r.season_name === currentSeason;
+        groupsMap.set(key, { key, type: 'league', label: r.season_name || 'League', season_name: r.season_name, is_live: isLive, seeds_clinched: isLive ? seedsClinched : false, series: [], _latest: r.date });
+      }
+      return groupsMap.get(key);
+    };
+
+    for (const r of rows) {
+      const iAmWinningSlot = r.winning_team_id === myTeamId;
+      const oppTeamId = iAmWinningSlot ? r.losing_team_id : r.winning_team_id;
+      const ot = teamById[oppTeamId];
+      const opponent = ot
+        ? { team_id: oppTeamId, city: ot.city, name: ot.name, logo_url: ot.logo_url }
+        : { team_id: oppTeamId, name: iAmWinningSlot ? r.losing_team_name : r.winning_team_name, city: null, logo_url: null };
+
+      let live = null;
+      if (r.live_series_id && liveById[r.live_series_id]) {
+        const s = liveById[r.live_series_id];
+        const iAmHome = Number(s.series_home_user_id) === Number(userId);
+        const iAmParticipant = iAmHome || Number(s.series_away_user_id) === Number(userId);
+        const g = activeGameBySeries[s.id];
+        live = {
+          series_id: s.id,
+          series_status: s.status,
+          my_wins: iAmHome ? s.home_wins : s.away_wins,
+          opp_wins: iAmHome ? s.away_wins : s.home_wins,
+          i_am_participant: iAmParticipant,
+          active_game: g ? { game_id: g.game_id, status: g.status, game_in_series: g.game_in_series } : null,
+        };
+      }
+
+      const group = groupFor(r);
+      if (new Date(r.date) > new Date(group._latest)) group._latest = r.date;
+      group.series.push({
+        series_result_id: r.id,
+        round: r.round,
+        result_status: r.status,
+        result_source: r.result_source,
+        opponent,
+        my_score: iAmWinningSlot ? r.winning_score : r.losing_score,
+        opp_score: iAmWinningSlot ? r.losing_score : r.winning_score,
+        live,
+      });
+    }
+
+    // Live groups first (league before classic), then the rest most-recent first.
+    const groups = [...groupsMap.values()].sort((a, b) => {
+      if (a.is_live !== b.is_live) return a.is_live ? -1 : 1;
+      if (a.is_live && b.is_live && a.type !== b.type) return a.type === 'league' ? -1 : 1;
+      return new Date(b._latest) - new Date(a._latest);
+    });
+    groups.forEach(g => { delete g._latest; });
+
+    res.json({ groups, myTeamId, currentSeason, seeds_clinched: seedsClinched });
+  } catch (error) {
+    console.error('Error fetching my series:', error);
+    res.status(500).json({ message: 'Server error while fetching series.' });
+  }
+});
+
+// Stop a regular-season series early once the playoff seeds have clinched (optional). An in-progress
+// series is finalized at its current partial score; a never-launched one is recorded 0-0 "not
+// required". Guarded by the clinch condition and by the requester belonging to the matchup.
+app.post('/api/series/stop', authenticateToken, async (req, res) => {
+  const { series_result_id } = req.body;
+  const userId = req.user.userId;
+  if (!series_result_id) return res.status(400).json({ message: 'series_result_id is required.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const srRes = await client.query(
+      `SELECT id, season_name, round, status, winning_team_id, winning_team_name, losing_team_id, losing_team_name
+       FROM series_results WHERE id = $1 FOR UPDATE`,
+      [series_result_id]
+    );
+    if (srRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Series not found.' }); }
+    const sr = srRes.rows[0];
+    if (sr.status === 'completed') { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Series is already completed.' }); }
+    // Early-stop is a regular-season concept (skip games that no longer matter). Never let it touch a
+    // playoff series — recording a Spaceship/Spoon/etc. as 0-0 "not required" would wipe the matchup.
+    const PLAYOFF_ROUNDS = ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine', 'Semifinal', 'Semi-Final', 'Play-In', 'Final'];
+    if (PLAYOFF_ROUNDS.includes(sr.round)) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Only regular-season series can be stopped early.' }); }
+
+    const clinch = await client.query(
+      `SELECT EXISTS(SELECT 1 FROM series_results WHERE season_name = $1 AND round IN ('Golden Spaceship','Wooden Spoon')) AS clinched`,
+      [sr.season_name]
+    );
+    if (!clinch.rows[0].clinched) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'A series can only be stopped early once the playoff seeds have clinched.' }); }
+
+    const teamRes = await client.query('SELECT team_id FROM users WHERE user_id = $1', [userId]);
+    const myTeamId = teamRes.rows[0] && teamRes.rows[0].team_id;
+    if (myTeamId !== sr.winning_team_id && myTeamId !== sr.losing_team_id) {
+      await client.query('ROLLBACK'); return res.status(403).json({ message: 'Your team is not part of this series.' });
+    }
+
+    const liveRes = await client.query(
+      `SELECT id, home_wins, away_wins, series_home_user_id, series_away_user_id, status
+       FROM series WHERE series_result_id = $1 ORDER BY id DESC LIMIT 1`,
+      [series_result_id]
+    );
+
+    if (liveRes.rows.length > 0 && liveRes.rows[0].status !== 'completed') {
+      // Finalize the in-app series at its current score.
+      const s = liveRes.rows[0];
+      const teamRows = await client.query('SELECT user_id, team_id FROM teams WHERE user_id = ANY($1)', [[s.series_home_user_id, s.series_away_user_id]]);
+      const homeTeam = teamRows.rows.find(t => t.user_id === s.series_home_user_id);
+      const awayTeam = teamRows.rows.find(t => t.user_id === s.series_away_user_id);
+      const update = resolveSeriesResultUpdate(sr, {
+        homeTeamId: homeTeam ? homeTeam.team_id : null,
+        awayTeamId: awayTeam ? awayTeam.team_id : null,
+        homeGames: s.home_wins, awayGames: s.away_wins, isOver: true,
+      });
+      await client.query(
+        `UPDATE series_results SET status=$1, result_source=$2, winning_team_id=$3, winning_team_name=$4, winning_score=$5, losing_team_id=$6, losing_team_name=$7, losing_score=$8 WHERE id=$9`,
+        [update.status, update.result_source, update.winning_team_id, update.winning_team_name, update.winning_score, update.losing_team_id, update.losing_team_name, update.losing_score, series_result_id]
+      );
+      await client.query(`UPDATE series SET status='completed' WHERE id = $1`, [s.id]);
+    } else {
+      // Never launched: record a 0-0 "not required" row (contributes nothing to the standings).
+      await client.query(
+        `UPDATE series_results SET status='completed', result_source='auto', winning_score=0, losing_score=0,
+         notes='Not required — playoff seeds clinched' WHERE id = $1`,
+        [series_result_id]
+      );
+    }
+
+    await client.query('COMMIT');
+    io.emit('games-updated');
+    res.json({ message: 'Series stopped.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error stopping series:', error);
+    res.status(500).json({ message: 'Server error stopping series.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Detail for one in-app series (by live series id): the two teams, the series score/status, its place
+// in the schedule (season/round), and every game with its final score + a link target. Powers the
+// series page. 404s for a series that doesn't exist.
+app.get('/api/series/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const sRes = await pool.query(
+      `SELECT s.id, s.series_type, s.status, s.home_wins, s.away_wins,
+              s.series_home_user_id, s.series_away_user_id, s.series_result_id,
+              sr.season_name, sr.round, sr.status AS result_status, sr.result_source
+       FROM series s
+       LEFT JOIN series_results sr ON s.series_result_id = sr.id
+       WHERE s.id = $1`,
+      [id]
+    );
+    if (sRes.rows.length === 0) return res.status(404).json({ message: 'Series not found.' });
+    const s = sRes.rows[0];
+
+    // The two teams in the series, resolved from participants across its games (robust even before
+    // series_away_user_id is set on the row). Keyed by user_id.
+    const teamRows = await pool.query(
+      `SELECT DISTINCT u.user_id, t.team_id, t.city, t.name, t.abbreviation, t.logo_url
+       FROM game_participants gp
+       JOIN games g ON gp.game_id = g.game_id
+       JOIN users u ON gp.user_id = u.user_id
+       JOIN teams t ON u.team_id = t.team_id
+       WHERE g.series_id = $1`,
+      [id]
+    );
+    const teamByUser = {};
+    teamRows.rows.forEach(r => { teamByUser[r.user_id] = r; });
+    const teamFor = (uid) => (uid != null && teamByUser[uid]) ? teamByUser[uid] : null;
+
+    // Series-level home/away (falls back to the two participants if the away user isn't set yet).
+    let homeUser = s.series_home_user_id;
+    let awayUser = s.series_away_user_id;
+    const allUsers = teamRows.rows.map(r => r.user_id);
+    if (homeUser == null && allUsers.length) homeUser = allUsers[0];
+    if (awayUser == null) awayUser = allUsers.find(u => u !== homeUser) ?? null;
+
+    const gamesRes = await pool.query(
+      `SELECT game_id, game_in_series, status, home_team_user_id, completed_at, created_at
+       FROM games WHERE series_id = $1 ORDER BY game_in_series ASC`,
+      [id]
+    );
+
+    const games = [];
+    const nameCardIds = new Set();
+    for (const g of gamesRes.rows) {
+      const gHomeUser = g.home_team_user_id;
+      const gAwayUser = allUsers.find(u => u !== gHomeUser) ?? (gHomeUser === homeUser ? awayUser : homeUser);
+
+      let homeScore = null, awayScore = null, inning = null, linescore = null, decisionsRaw = null, hrRaw = null;
+      if (g.status === 'in_progress' || g.status === 'completed') {
+        const st = await pool.query(
+          'SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1',
+          [g.game_id]
+        );
+        if (st.rows.length) {
+          const d = st.rows[0].state_data || {};
+          homeScore = d.homeScore ?? null;
+          awayScore = d.awayScore ?? null;
+          inning = d.inning ?? null;
+          linescore = computeLinescore(d.atBatLog);
+          hrRaw = computeHomeRuns(d.atBatLog);
+          Object.keys(hrRaw).forEach(cid => { const n = parseInt(cid); if (n) nameCardIds.add(n); });
+          // Innings pitched (outs) per pitcher, for the W-must-go-5 / save-3-innings rules.
+          const outsByKey = {};
+          for (const [k, v] of Object.entries(d.pitcherStats || {})) {
+            outsByKey[normalizeKey(k)] = (v && v.outs_recorded != null) ? v.outs_recorded : ((v && v.innings_pitched) ? v.innings_pitched.length * 3 : 0);
+          }
+          if (g.status === 'completed') {
+            decisionsRaw = computePitchingDecisions(d.atBatLog || [], { away: { user_id: gAwayUser }, home: { user_id: gHomeUser } }, outsByKey);
+            Object.keys(decisionsRaw).forEach(k => { const cid = parseInt(cardIdOf(k)); if (cid) nameCardIds.add(cid); });
+          }
+        }
+      }
+      // Not-yet-played game: if the players have set their lineups, surface the starting-pitcher matchup.
+      let probableSP = null;
+      if (g.status === 'pending' || g.status === 'lineups') {
+        const parts = (await pool.query('SELECT user_id, lineup FROM game_participants WHERE game_id = $1', [g.game_id])).rows;
+        const sp = { away: null, home: null };
+        const leftover = [];
+        for (const pr of parts) {
+          const cid = pr.lineup && pr.lineup.startingPitcher ? parseInt(pr.lineup.startingPitcher) : null;
+          if (!cid) continue;
+          if (pr.user_id === gAwayUser) sp.away = cid;
+          else if (pr.user_id === gHomeUser) sp.home = cid;
+          else leftover.push(cid);
+          nameCardIds.add(cid);
+        }
+        for (const cid of leftover) { if (!sp.away) sp.away = cid; else if (!sp.home) sp.home = cid; }
+        if (sp.away || sp.home) probableSP = sp;
+      }
+
+      let winner = null;
+      if (g.status === 'completed' && homeScore != null && awayScore != null) {
+        winner = homeScore > awayScore ? 'home' : (awayScore > homeScore ? 'away' : null);
+      }
+
+      const homeTeam = teamFor(gHomeUser);
+      const awayTeam = teamFor(gAwayUser);
+      games.push({
+        game_id: g.game_id,
+        game_in_series: g.game_in_series,
+        status: g.status,
+        inning,
+        home: homeTeam ? { team_id: homeTeam.team_id, abbreviation: homeTeam.abbreviation, city: homeTeam.city, name: homeTeam.name, logo_url: homeTeam.logo_url, score: homeScore } : { abbreviation: 'HOME', score: homeScore },
+        away: awayTeam ? { team_id: awayTeam.team_id, abbreviation: awayTeam.abbreviation, city: awayTeam.city, name: awayTeam.name, logo_url: awayTeam.logo_url, score: awayScore } : { abbreviation: 'AWAY', score: awayScore },
+        winner,
+        linescore,
+        _decisionsRaw: decisionsRaw,
+        _hrRaw: hrRaw,
+        _awayUser: gAwayUser,
+        _probableSP: probableSP,
+        completed_at: g.completed_at,
+      });
+    }
+
+    // Resolve pitcher-decision and home-run batter names in one query, then attach per game an ordered
+    // decisions list (W/L/S — blown saves omitted) and a home-runs list.
+    const nameByCard = {};
+    if (nameCardIds.size) {
+      (await pool.query('SELECT card_id, display_name, name FROM cards_player WHERE card_id = ANY($1)', [[...nameCardIds]]))
+        .rows.forEach(c => { nameByCard[c.card_id] = c.display_name || c.name; });
+    }
+    const TAG_ORDER = ['W', 'L', 'S'];
+    for (const game of games) {
+      const raw = game._decisionsRaw;
+      const hr = game._hrRaw;
+      const awayU = game._awayUser;
+      delete game._decisionsRaw;
+      delete game._hrRaw;
+      delete game._awayUser;
+
+      const list = [];
+      if (raw) {
+        for (const [key, tags] of Object.entries(raw)) {
+          const name = nameByCard[parseInt(cardIdOf(key))] || null;
+          const side = String(key.split('_')[0]) === String(awayU) ? 'away' : 'home';
+          for (const t of tags) if (t !== 'BS') list.push({ tag: t, name, side });
+        }
+        list.sort((a, b) => TAG_ORDER.indexOf(a.tag) - TAG_ORDER.indexOf(b.tag));
+      }
+      game.decisions = list;
+
+      game.home_runs = hr
+        ? Object.entries(hr)
+            .map(([cid, info]) => ({
+              name: nameByCard[parseInt(cid)] || null,
+              count: info.count,
+              side: info.side,
+              team: info.side === 'away' ? game.away.abbreviation : game.home.abbreviation,
+            }))
+            .sort((a, b) => b.count - a.count || (a.name || '').localeCompare(b.name || ''))
+        : [];
+
+      const psp = game._probableSP;
+      delete game._probableSP;
+      game.probable_pitchers = psp
+        ? { away: psp.away ? (nameByCard[psp.away] || null) : null, home: psp.home ? (nameByCard[psp.home] || null) : null }
+        : null;
+    }
+
+    const fmtTeam = (uid) => {
+      const t = teamFor(uid);
+      return t ? { user_id: uid, team_id: t.team_id, city: t.city, name: t.name, abbreviation: t.abbreviation, logo_url: t.logo_url } : null;
+    };
+
+    res.json({
+      series_id: s.id,
+      series_type: s.series_type,
+      status: s.status,
+      home_wins: s.home_wins,
+      away_wins: s.away_wins,
+      season_name: s.season_name,
+      round: s.round,
+      result_status: s.result_status,
+      result_source: s.result_source,
+      home_team: fmtTeam(homeUser),
+      away_team: fmtTeam(awayUser),
+      games,
+    });
+  } catch (error) {
+    console.error('Error fetching series detail:', error);
+    res.status(500).json({ message: 'Server error fetching series detail.' });
+  }
+});
+
 // in server.js
 // in server.js
 app.get('/api/games', authenticateToken, async (req, res) => {
@@ -3004,17 +3517,61 @@ app.get('/api/league', authenticateToken, async (req, res) => {
 
 // GAME SETUP & PLAY
 app.post('/api/games', authenticateToken, async (req, res) => {
-    const { roster_id, home_or_away, league_designation, series_type } = req.body;
+    // series_result_id (optional): launch a scheduled series from the league schedule. When present the
+    // series_type is derived from the scheduled row's round, the new series is linked back to that row
+    // (so results auto-populate the standings), and the launcher's team must be one of the two matched
+    // up. Without it this behaves as before: an ad-hoc exhibition/series game.
+    const { roster_id, home_or_away, league_designation, series_type, series_result_id } = req.body;
     const userId = req.user.userId;
-    if (!roster_id || !home_or_away || !league_designation || !series_type) {
-        return res.status(400).json({ message: 'roster_id, home_or_away, league_designation, and series_type are required.' });
+    if (!roster_id || !home_or_away || !league_designation || (!series_type && !series_result_id)) {
+        return res.status(400).json({ message: 'roster_id, home_or_away, league_designation, and series_type (or series_result_id) are required.' });
     }
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         let gameId;
 
-        if (series_type !== 'exhibition') {
+        if (series_result_id) {
+            // Lock the scheduled row so two owners can't both launch the same matchup at once.
+            const schedRes = await client.query(
+                `SELECT id, round, style, status, winning_team_id, losing_team_id
+                 FROM series_results WHERE id = $1 FOR UPDATE`,
+                [series_result_id]
+            );
+            if (schedRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ message: 'Scheduled series not found.' });
+            }
+            const sched = schedRes.rows[0];
+
+            // The launcher must be one of the two teams in this scheduled matchup.
+            const teamRes = await client.query('SELECT team_id FROM users WHERE user_id = $1', [userId]);
+            const myTeamId = teamRes.rows[0] && teamRes.rows[0].team_id;
+            if (myTeamId !== sched.winning_team_id && myTeamId !== sched.losing_team_id) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({ message: 'Your team is not part of this scheduled series.' });
+            }
+
+            // Don't launch twice: if a live series is already linked, send the caller to it.
+            const existing = await client.query('SELECT id FROM series WHERE series_result_id = $1 LIMIT 1', [series_result_id]);
+            if (existing.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ message: 'This series has already been started.', seriesId: existing.rows[0].id });
+            }
+
+            const derivedType = seriesTypeForRound(sched.round, sched.style);
+            const newSeries = await client.query(
+                `INSERT INTO series (series_type, series_home_user_id, series_result_id) VALUES ($1, $2, $3) RETURNING id`,
+                [derivedType, userId, series_result_id]
+            );
+            const seriesId = newSeries.rows[0].id;
+
+            const newGame = await client.query(
+                `INSERT INTO games (status, series_id, game_in_series) VALUES ('pending', $1, 1) RETURNING game_id`,
+                [seriesId]
+            );
+            gameId = newGame.rows[0].game_id;
+        } else if (series_type !== 'exhibition') {
             const newSeries = await client.query(
                 `INSERT INTO series (series_type, series_home_user_id) VALUES ($1, $2) RETURNING id`,
                 [series_type, userId] // The creator is the series home user

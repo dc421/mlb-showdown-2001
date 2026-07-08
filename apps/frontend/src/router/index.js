@@ -16,6 +16,7 @@ import ClassicView from '../views/ClassicView.vue'
 import TeamPageView from '../views/TeamPageView.vue'
 import TeamSeasonView from '../views/TeamSeasonView.vue' // <-- IMPORT NEW VIEW
 import PlayersView from '../views/PlayersView.vue'
+import SeriesView from '../views/SeriesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -76,6 +77,12 @@ const router = createRouter({
       path: '/teams/:teamId/seasons/:seasonName', // <-- NEW ROUTE
       name: 'team-season-page',
       component: TeamSeasonView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/series/:id',
+      name: 'series',
+      component: SeriesView,
       meta: { requiresAuth: true }
     },
     {

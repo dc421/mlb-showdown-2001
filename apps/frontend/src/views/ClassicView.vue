@@ -437,6 +437,7 @@ onMounted(async () => {
                         @click="openResultModal(bracket.matchups.playIn, 'Play-In')">
                         +
                     </button>
+                    <RouterLink v-if="bracket.matchups.playIn.series && bracket.matchups.playIn.series.live_series_id" class="view-series-btn" style="top: 110px; left: 175px;" :to="`/series/${bracket.matchups.playIn.series.live_series_id}`" title="View series">›</RouterLink>
 
 
                     <!-- SEMI 1 (1 vs Winner 4/5) -->
@@ -474,6 +475,7 @@ onMounted(async () => {
                         @click="openResultModal(bracket.matchups.semi1, 'Semi-Final')">
                         +
                     </button>
+                    <RouterLink v-if="bracket.matchups.semi1.series && bracket.matchups.semi1.series.live_series_id" class="view-series-btn" style="top: 70px; left: 425px;" :to="`/series/${bracket.matchups.semi1.series.live_series_id}`" title="View series">›</RouterLink>
 
 
                     <!-- SEMI 2 (2 vs 3) -->
@@ -510,6 +512,7 @@ onMounted(async () => {
                         @click="openResultModal(bracket.matchups.semi2, 'Semi-Final')">
                         +
                     </button>
+                    <RouterLink v-if="bracket.matchups.semi2.series && bracket.matchups.semi2.series.live_series_id" class="view-series-btn" style="top: 270px; left: 425px;" :to="`/series/${bracket.matchups.semi2.series.live_series_id}`" title="View series">›</RouterLink>
 
 
                     <!-- FINALS -->
@@ -543,6 +546,7 @@ onMounted(async () => {
                     <div class="connector-arm" style="top: 170px; left: 700px; width: 50px;"></div>
 
                     <!-- Plus Button (Left of connector) -->
+                     <RouterLink v-if="bracket.matchups.final.series && bracket.matchups.final.series.live_series_id" class="view-series-btn" style="top: 170px; left: 675px;" :to="`/series/${bracket.matchups.final.series.live_series_id}`" title="View series">›</RouterLink>
                      <button class="enter-result-btn" style="top: 170px; left: 675px;"
                         v-if="!bracket.matchups.final.series && bracket.matchups.final.team1.user_id && bracket.matchups.final.team2.user_id && state.classic && state.classic.is_active"
                         @click="openResultModal(bracket.matchups.final, 'Silver Submarine')">
@@ -705,6 +709,26 @@ onMounted(async () => {
 }
 .enter-result-btn:hover {
     background: #218838;
+}
+
+.view-series-btn {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    background: #007bff;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    z-index: 10;
+}
+.view-series-btn:hover {
+    background: #0056b3;
 }
 
 .score {

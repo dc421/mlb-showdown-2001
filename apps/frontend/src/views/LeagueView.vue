@@ -647,17 +647,40 @@ onMounted(async () => {
                 <h3>Results</h3>
                 <div class="results-list">
                     <div v-for="result in filteredRecentResults" :key="result.id" class="result-item">
-                        <template v-if="result.score">
-                            <div class="result-participant">
-                                <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="tiny-logo" alt=""/>
-                                <span class="result-winner">{{ result.winner_name || result.winner }}</span>
-                            </div>
-                            <span class="def-text">def.</span>
-                            <div class="result-participant">
-                                <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="tiny-logo" alt=""/>
-                                <span class="result-loser">{{ result.loser_name || result.loser }}</span>
-                            </div>
-                            <span class="result-score">({{ result.score }})</span>
+                        <!-- In-progress: a live series being played. Its winning_*/losing_* slots are just
+                             the scheduled home/away orientation, not a winner yet, so render neutrally
+                             (no "def.") with the current game tally and an "in progress" tag. -->
+                        <template v-if="result.status === 'in_progress'">
+                            <component :is="result.series_id ? 'RouterLink' : 'span'"
+                                :to="result.series_id ? `/series/${result.series_id}` : null"
+                                class="result-line" :class="{ 'result-line-link': result.series_id }">
+                                <div class="result-participant">
+                                    <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="tiny-logo" alt=""/>
+                                    <span class="result-matchup">{{ result.winner_name || result.winner }}</span>
+                                </div>
+                                <span class="result-score">{{ result.score }}</span>
+                                <div class="result-participant">
+                                    <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="tiny-logo" alt=""/>
+                                    <span class="result-matchup">{{ result.loser_name || result.loser }}</span>
+                                </div>
+                                <span class="in-progress-tag">in progress</span>
+                            </component>
+                        </template>
+                        <template v-else-if="result.score">
+                            <component :is="result.series_id ? 'RouterLink' : 'span'"
+                                :to="result.series_id ? `/series/${result.series_id}` : null"
+                                class="result-line" :class="{ 'result-line-link': result.series_id }">
+                                <div class="result-participant">
+                                    <img v-if="result.winner_logo" :src="getLogoUrl(result.winner_logo)" class="tiny-logo" alt=""/>
+                                    <span class="result-winner">{{ result.winner_name || result.winner }}</span>
+                                </div>
+                                <span class="def-text">def.</span>
+                                <div class="result-participant">
+                                    <img v-if="result.loser_logo" :src="getLogoUrl(result.loser_logo)" class="tiny-logo" alt=""/>
+                                    <span class="result-loser">{{ result.loser_name || result.loser }}</span>
+                                </div>
+                                <span class="result-score">({{ result.score }})</span>
+                            </component>
                         </template>
                         <template v-else>
                             <div class="result-participant">
@@ -1167,6 +1190,31 @@ h1 {
     color: #666;
     font-weight: bold;
     margin-left: 0.5rem;
+}
+.in-progress-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #2f855a;
+    background: #f0fbf4;
+    border: 1px solid #cdefd9;
+    border-radius: 999px;
+    padding: 1px 7px;
+}
+.result-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.result-line-link {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    border-bottom: 1.5px solid transparent;
+}
+.result-line-link:hover {
+    border-bottom-color: currentColor;
 }
 
 .add-result-btn {

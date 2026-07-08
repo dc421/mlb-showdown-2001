@@ -59,8 +59,8 @@ async function generateSchedule(client, seasonName, teamIds) {
 
     for (const m of matchups) {
         await client.query(
-            `INSERT INTO series_results (season_name, round, date, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score)
-             VALUES ($1, 'Regular Season', $2, $3, $4, $5, $6, NULL, NULL)`,
+            `INSERT INTO series_results (season_name, round, date, winning_team_id, losing_team_id, winning_team_name, losing_team_name, winning_score, losing_score, status)
+             VALUES ($1, 'Regular Season', $2, $3, $4, $5, $6, NULL, NULL, 'scheduled')`,
             [seasonName, today, m.home, m.away, teamCityMap[m.home], teamCityMap[m.away]]
         );
     }

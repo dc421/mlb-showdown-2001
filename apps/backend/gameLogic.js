@@ -136,10 +136,17 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
     ab: 0, h: 0, double: 0, triple: 0, hr: 0, bb: 0, so: 0,
     rbi: 0,
     scoredRunnerIds: [],
+    // Per-pitcher outs/runs/bf this PA contributes to pitcherStats, keyed by pitcher key. Lets a
+    // spoiler-hidden box score back this PA's contribution out of the live pitcherStats aggregate
+    // (see buildBoxScore). Seeded below with the batter-faced already recorded for this PA's pitcher.
+    pitcherDeltas: {},
     advantage: (state.currentAtBat && state.currentAtBat.pitchRollResult && state.currentAtBat.pitchRollResult.advantage) || null,
   };
   newState.currentAtBat.atBatIndex = newState.atBatLog.length;
   newState.atBatLog.push(atBatEntry);
+  if (atBatEntry.pitcherKey) {
+    atBatEntry.pitcherDeltas[atBatEntry.pitcherKey] = { outs: 0, runs: 0, bf: 1 };
+  }
 
   const isWalkOffSituation = !newState.isTopInning && newState.inning >= 9 && newState.homeScore <= newState.awayScore;
 
@@ -795,6 +802,7 @@ function recordOutsForPitcher(state, pitcher, count) {
     state.pitcherStats[pitcherId].outs_recorded = 0;
   }
   state.pitcherStats[pitcherId].outs_recorded += count;
+  addPitcherDelta(state, pitcherId, 'outs', count);
 }
 
 
@@ -955,6 +963,7 @@ function recordRunForPitcher(state, runner, currentPitcher, opts = {}) {
       state.pitcherStats[pitcherId] = { ip: 0, runs: 0, outs_recorded: 0, batters_faced: 0 };
     }
     state.pitcherStats[pitcherId].runs++;
+    addPitcherDelta(state, pitcherId, 'runs', 1);
   }
 
   // --- Box score attribution ---
@@ -982,6 +991,18 @@ function currentAtBatEntry(state) {
   const idx = state.currentAtBat && state.currentAtBat.atBatIndex;
   if (idx == null || !Array.isArray(state.atBatLog)) return null;
   return state.atBatLog[idx] || null;
+}
+
+// Mirror a pitcherStats increment onto the at-bat currently being resolved, so a spoiler-hidden box
+// score can back this PA's contribution out of the live aggregate (immediate outcomes and deferred
+// baserunning both flow through the same chokepoints, keeping the mirror complete).
+function addPitcherDelta(state, pitcherId, field, amount) {
+  if (!pitcherId || !amount) return;
+  const entry = currentAtBatEntry(state);
+  if (!entry) return;
+  if (!entry.pitcherDeltas) entry.pitcherDeltas = {};
+  if (!entry.pitcherDeltas[pitcherId]) entry.pitcherDeltas[pitcherId] = { outs: 0, runs: 0, bf: 0 };
+  entry.pitcherDeltas[pitcherId][field] += amount;
 }
 
 // Fill the batting result on a freshly-pushed atBatLog entry from the (possibly reassigned)

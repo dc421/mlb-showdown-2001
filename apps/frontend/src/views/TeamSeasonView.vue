@@ -289,7 +289,9 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(game, index) in sortedResults" :key="index" :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon'}">
+                            <tr v-for="(game, index) in sortedResults" :key="index"
+                                :class="{'gold-bg': game.round === 'Golden Spaceship', 'brown-bg': game.round === 'Wooden Spoon', 'series-link-row': game.series_id}"
+                                @click="game.series_id && $router.push(`/series/${game.series_id}`)">
                                 <td>{{ new Date(game.date).toLocaleDateString() }}</td>
                                 <td class="opponent-cell">
                                     <img :src="getLogoUrl(game.opponent_logo || getLogoForTeam(game.opponent))" class="opponent-logo" v-if="game.opponent_logo || getLogoForTeam(game.opponent)" />
@@ -417,6 +419,8 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
 .results-table td { padding: 0.5rem; border-bottom: 1px solid #eee; }
 .opponent-cell { display: flex; align-items: center; gap: 0.5rem; }
 .opponent-logo { height: 24px; width: 24px; object-fit: contain; }
+.series-link-row { cursor: pointer; }
+.series-link-row:hover td { border-bottom-color: #333; }
 .win { color: green; font-weight: bold; }
 .loss { color: red; font-weight: bold; }
 .empty-msg { text-align: center; color: #999; padding: 2rem; }

@@ -130,13 +130,92 @@ const gamesToJoin = computed(() => {
     return authStore.openGames.filter(game => game.host_user_id !== authStore.user.userId);
 });
 
+// Games belonging to a launched league series (linked to a scheduled row) are represented in the
+// "My Series" view, so we keep them out of these per-game lists to avoid duplication. Exhibitions,
+// Classic games, and legacy series (no series_result_id) still show here.
+function isScheduledLinked(game) {
+  return !!(game.series && game.series.series_result_id);
+}
+
 const activeGames = computed(() => {
-  return authStore.myGames.filter(game => game.status !== 'completed');
+  return authStore.myGames.filter(game => game.status !== 'completed' && !isScheduledLinked(game));
 });
 
 const completedGames = computed(() => {
-  return authStore.myGames.filter(game => game.status === 'completed');
+  return authStore.myGames.filter(game => game.status === 'completed' && !isScheduledLinked(game));
 });
+
+// --- Series (grouped by season / Classic). The backend only returns in-app series (played or live-
+// actionable), so offline-only results never appear here. Both League and Classic groups show. ---
+const showOlderSeries = ref(false);
+
+// Live groups (current season / active Classic) that still have unplayed/in-progress series.
+const liveActiveGroups = computed(() =>
+  authStore.myGroups
+    .filter(g => g.is_live)
+    .map(g => ({ ...g, entries: g.series.filter(s => s.result_status !== 'completed') }))
+    .filter(g => g.entries.length > 0)
+);
+
+// Completed series grouped; live groups first (highlighted), older ones collapsible.
+const completedGroups = computed(() =>
+  authStore.myGroups
+    .map(g => ({ ...g, entries: g.series.filter(s => s.result_status === 'completed') }))
+    .filter(g => g.entries.length > 0)
+);
+const liveCompletedGroups = computed(() => completedGroups.value.filter(g => g.is_live));
+const olderCompletedGroups = computed(() => completedGroups.value.filter(g => !g.is_live));
+
+function opponentLabel(s) {
+  const o = s.opponent || {};
+  return o.city ? `${o.city} ${o.name}` : (o.name || 'TBD');
+}
+
+function gameRouteFor(game) {
+  if (!game) return null;
+  if (game.status === 'pending') return `/game/${game.game_id}/setup`;
+  if (game.status === 'lineups') return `/game/${game.game_id}/lineup`;
+  return `/game/${game.game_id}`;
+}
+
+function rosterForGroup(group) {
+  return group?.type === 'classic' ? authStore.myClassicRoster : authStore.myLeagueRoster;
+}
+
+async function playSeries(s, group) {
+  const roster = rosterForGroup(group);
+  if (!roster) { alert(`You must create a ${group?.type === 'classic' ? 'Classic' : 'League'} roster before starting a series.`); return; }
+  const gameId = await authStore.launchSeries(s.series_result_id, roster.roster_id);
+  if (gameId) router.push(`/game/${gameId}/setup`);
+}
+
+async function joinSeries(s, group) {
+  const roster = rosterForGroup(group);
+  if (!roster) { alert(`You must create a ${group?.type === 'classic' ? 'Classic' : 'League'} roster before joining a series.`); return; }
+  const gameId = s.live?.active_game?.game_id;
+  if (!gameId) return;
+  await authStore.joinGame(gameId, roster.roster_id);
+  await authStore.fetchMySeries();
+  router.push(gameRouteFor(s.live.active_game));
+}
+
+function continueSeries(s) {
+  const route = gameRouteFor(s.live?.active_game);
+  if (route) router.push(route);
+}
+
+// Early-stop only applies to regular-season series (skipping games that no longer matter once seeds
+// clinch). Never offer it on a playoff matchup like the Golden Spaceship / Wooden Spoon.
+const PLAYOFF_ROUNDS = ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine', 'Semifinal', 'Semi-Final', 'Play-In', 'Final'];
+function canStopSeries(s, g) {
+  return g.seeds_clinched && !PLAYOFF_ROUNDS.includes(s.round);
+}
+
+async function handleStopSeries(s) {
+  const score = s.live ? ` at ${s.live.my_wins}–${s.live.opp_wins}` : '';
+  if (!confirm(`Playoff seeds are clinched. Stop this series early${score}? The current result becomes final.`)) return;
+  await authStore.stopSeries(s.series_result_id);
+}
 
 function getGameTypeName(seriesType) {
   switch (seriesType) {
@@ -202,6 +281,7 @@ async function handleBulkDelete() {
 function refreshData() {
     authStore.fetchMyGames();
     authStore.fetchOpenGames();
+    authStore.fetchMySeries();
 }
 
 function goToRosterBuilder() {
@@ -258,6 +338,7 @@ onMounted(async () => {
 
   authStore.fetchMyGames();
   authStore.fetchOpenGames();
+  authStore.fetchMySeries();
   fetchTeamAccolades();
   socket.connect();
   socket.on('games-updated', refreshData);
@@ -374,14 +455,46 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- COLUMN 2: Active Games + New Game / Open Games -->
+      <!-- COLUMN 2: My Series (league schedule) + Active Exhibitions + New game -->
       <div class="panel">
+        <!-- Scheduled / in-progress series for the live season (or active Classic), played in-app -->
+        <div class="my-series-section">
+            <div class="section-header">
+                <h2>My Series</h2>
+            </div>
+            <p v-if="authStore.isFetchingSeries">Loading series...</p>
+            <template v-else-if="liveActiveGroups.length > 0">
+                <div v-for="g in liveActiveGroups" :key="g.key" class="series-group">
+                    <div class="group-label live">{{ g.label }}</div>
+                    <ul class="series-list">
+                        <li v-for="s in g.entries" :key="s.series_result_id" class="series-item">
+                            <div class="series-opp">
+                                <img v-if="s.opponent.logo_url" :src="s.opponent.logo_url" :alt="s.opponent.name" class="series-logo" />
+                                <RouterLink v-if="s.live && s.live.series_id" :to="`/series/${s.live.series_id}`" class="series-opp-name link">{{ opponentLabel(s) }}</RouterLink>
+                                <span v-else class="series-opp-name">{{ opponentLabel(s) }}</span>
+                            </div>
+                            <div class="series-action">
+                                <template v-if="s.live && s.live.series_status !== 'completed'">
+                                    <span class="series-score">{{ s.live.my_wins }}–{{ s.live.opp_wins }}</span>
+                                    <button v-if="s.live.i_am_participant" @click="continueSeries(s)" class="series-btn continue">Continue</button>
+                                    <button v-else @click="joinSeries(s, g)" class="series-btn join">Join</button>
+                                </template>
+                                <button v-else @click="playSeries(s, g)" :disabled="authStore.isDraftActive || (g.type === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster)" class="series-btn play">Play</button>
+                                <button v-if="canStopSeries(s, g)" @click="handleStopSeries(s)" class="stop-btn" title="Playoff seeds clinched — stop this series early">Stop</button>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </template>
+            <p v-else class="empty-note">No series to play right now.</p>
+        </div>
+
         <div class="active-games-section">
             <div class="section-header">
-                <h2>Active Games</h2>
+                <h2>{{ activeRosterTab === 'classic' ? 'Active Games' : 'Active Exhibitions' }}</h2>
             </div>
-            
-            <p v-if="authStore.isFetchingGames">Loading active games...</p>
+
+            <p v-if="authStore.isFetchingGames">Loading...</p>
             <ul v-else-if="activeGames.length > 0" class="game-list">
                 <li v-for="game in activeGames" :key="game.game_id" class="game-list-item">
                     <div v-if="isDeleteMode" class="checkbox-wrapper">
@@ -392,7 +505,7 @@ onUnmounted(() => {
                     </RouterLink>
                 </li>
             </ul>
-            <p v-else>You have no active games.</p>
+            <p v-else>You have no active {{ activeRosterTab === 'classic' ? 'games' : 'exhibitions' }}.</p>
 
             <div v-if="activeGames.length > 0" class="delete-controls">
                 <button v-if="!isDeleteMode" @click="toggleDeleteMode" class="text-btn delete-mode-btn">
@@ -408,20 +521,15 @@ onUnmounted(() => {
         </div>
 
         <div class="new-games-section">
-            <h2>New Game</h2>
+            <h2>{{ activeRosterTab === 'classic' ? 'New Classic Game' : 'New Exhibition' }}</h2>
             <button @click="handleCreateGame" :disabled="(activeRosterTab === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster) || (activeRosterTab === 'league' && authStore.isDraftActive)" class="action-btn">
-                {{ (activeRosterTab === 'league' && authStore.isDraftActive) ? 'Draft in Progress' : '+ Create New Game' }}
+                {{ (activeRosterTab === 'league' && authStore.isDraftActive) ? 'Draft in Progress' : (activeRosterTab === 'classic' ? '+ Create Classic Game' : '+ Create Exhibition') }}
             </button>
             <div class="series-options">
-                <template v-if="activeRosterTab === 'league'">
-                    <label><input type="radio" v-model="seriesType" value="exhibition" :disabled="authStore.isDraftActive"> Exhibition</label>
-                    <label><input type="radio" v-model="seriesType" value="regular_season" :disabled="authStore.isDraftActive"> Regular Season (7 Games)</label>
-                    <label><input type="radio" v-model="seriesType" value="golden_spaceship" :disabled="authStore.isDraftActive"> Golden Spaceship (Best of 7)</label>
-                    <label><input type="radio" v-model="seriesType" value="wooden_spoon" :disabled="authStore.isDraftActive"> Wooden Spoon (Best of 7)</label>
-                </template>
-                <template v-else-if="activeRosterTab === 'classic'">
+                <template v-if="activeRosterTab === 'classic'">
                      <label><input type="radio" v-model="seriesType" value="classic"> Classic (Best of 7)</label>
                 </template>
+                <p v-else class="exhibition-note">Scheduled league series are played from “My Series” above. Use this for a one-off exhibition that doesn’t affect the standings.</p>
             </div>
             <h3 class="join-header">Open Games to Join</h3>
             <p v-if="authStore.isFetchingOpenGames">Loading open games...</p>
@@ -437,9 +545,63 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- COLUMN 3: Completed Games -->
+      <!-- COLUMN 3: Completed Series + Completed Exhibitions/Games -->
        <div class="panel">
-        <h2>Completed Games</h2>
+        <div class="completed-series-section">
+            <h2>Completed Series</h2>
+            <p v-if="authStore.isFetchingSeries">Loading...</p>
+            <template v-else-if="completedGroups.length > 0">
+                <div v-for="g in liveCompletedGroups" :key="g.key" class="series-group">
+                    <div class="group-label live">{{ g.label }}</div>
+                    <ul class="series-list">
+                        <li v-for="s in g.entries" :key="s.series_result_id" class="series-item">
+                            <div class="series-opp">
+                                <img v-if="s.opponent.logo_url" :src="s.opponent.logo_url" :alt="s.opponent.name" class="series-logo" />
+                                <RouterLink v-if="s.live && s.live.series_id" :to="`/series/${s.live.series_id}`" class="series-opp-name link">{{ opponentLabel(s) }}</RouterLink>
+                                <span v-else class="series-opp-name">{{ opponentLabel(s) }}</span>
+                            </div>
+                            <div class="series-action">
+                                <span v-if="s.round && !['Regular Season','Round Robin'].includes(s.round)" class="round-tag">{{ s.round }}</span>
+                                <span class="series-result" :class="{ win: s.my_score > s.opp_score, loss: s.my_score < s.opp_score }">
+                                    {{ s.my_score > s.opp_score ? 'W' : (s.my_score < s.opp_score ? 'L' : 'T') }} {{ s.my_score }}–{{ s.opp_score }}
+                                </span>
+                                <span v-if="s.result_source === 'offline' && !(s.live && s.live.series_id)" class="source-tag">offline</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <template v-if="olderCompletedGroups.length > 0">
+                    <button class="older-toggle" @click="showOlderSeries = !showOlderSeries">
+                        {{ showOlderSeries ? '▾ Hide' : '▸ Show' }} older ({{ olderCompletedGroups.length }})
+                    </button>
+                    <div v-if="showOlderSeries">
+                        <div v-for="g in olderCompletedGroups" :key="g.key" class="series-group older">
+                            <div class="group-label">{{ g.label }}</div>
+                            <ul class="series-list">
+                                <li v-for="s in g.entries" :key="s.series_result_id" class="series-item">
+                                    <div class="series-opp">
+                                        <img v-if="s.opponent.logo_url" :src="s.opponent.logo_url" :alt="s.opponent.name" class="series-logo" />
+                                        <RouterLink v-if="s.live && s.live.series_id" :to="`/series/${s.live.series_id}`" class="series-opp-name link">{{ opponentLabel(s) }}</RouterLink>
+                                        <span v-else class="series-opp-name">{{ opponentLabel(s) }}</span>
+                                    </div>
+                                    <div class="series-action">
+                                        <span v-if="s.round && !['Regular Season','Round Robin'].includes(s.round)" class="round-tag">{{ s.round }}</span>
+                                        <span class="series-result" :class="{ win: s.my_score > s.opp_score, loss: s.my_score < s.opp_score }">
+                                            {{ s.my_score > s.opp_score ? 'W' : (s.my_score < s.opp_score ? 'L' : 'T') }} {{ s.my_score }}–{{ s.opp_score }}
+                                        </span>
+                                        <span v-if="s.result_source === 'offline' && !(s.live && s.live.series_id)" class="source-tag">offline</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </template>
+            </template>
+            <p v-else class="empty-note">No completed series yet.</p>
+        </div>
+
+        <h2>Completed {{ activeRosterTab === 'classic' ? 'Games' : 'Exhibitions' }}</h2>
         <p v-if="authStore.isFetchingGames">Loading completed games...</p>
         <ul v-else-if="completedGames.length > 0" class="game-list">
           <li v-for="game in completedGames" :key="game.game_id">
@@ -448,7 +610,7 @@ onUnmounted(() => {
             </RouterLink>
           </li>
         </ul>
-        <p v-else>You have no completed games.</p>
+        <p v-else>You have no completed {{ activeRosterTab === 'classic' ? 'games' : 'exhibitions' }}.</p>
       </div>
     </main>
 
@@ -629,6 +791,178 @@ onUnmounted(() => {
   padding-bottom: 1rem;
   border-bottom: 1px solid #eee;
 }
+
+.exhibition-note {
+  font-size: 0.85rem;
+  color: #777;
+  margin: 0.25rem 0 0 0;
+}
+
+/* --- My Series / Completed Series --- */
+.my-series-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+.completed-series-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+.season-tag {
+  font-size: 0.85rem;
+  color: #666;
+  background: #eef1f4;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.series-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0 0;
+}
+.series-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+.series-opp {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.series-logo {
+  height: 28px;
+  width: 28px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.series-opp-name {
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.series-opp-name.link {
+  color: #007bff;
+  text-decoration: none;
+}
+.series-opp-name.link:hover { text-decoration: underline; }
+.series-action {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+.series-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #444;
+}
+.series-btn {
+  border: none;
+  border-radius: 5px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.series-btn.play { background: #007bff; color: #fff; }
+.series-btn.play:hover:not(:disabled) { background: #0056b3; }
+.series-btn.continue { background: #28a745; color: #fff; }
+.series-btn.continue:hover { background: #1e7e34; }
+.series-btn.join { background: #ffc107; color: #333; }
+.series-btn.join:hover { background: #e0a800; }
+.series-btn:disabled { background: #e2e6ea; color: #aaa; cursor: not-allowed; }
+.stop-btn {
+  background: none;
+  border: none;
+  color: #b02a37;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.2rem 0.3rem;
+}
+.stop-btn:hover { color: #7d1d26; }
+.series-result {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #666;
+}
+.series-result.win { color: #28a745; }
+.series-result.loss { color: #dc3545; }
+.source-tag {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #999;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+.empty-note {
+  color: #888;
+  font-size: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+/* Grouping by season / Classic, with the live one differentiated */
+.series-group { margin-top: 0.75rem; }
+.series-group.older { opacity: 0.9; }
+.group-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a8a8a;
+  padding: 0.1rem 0 0.35rem;
+}
+.group-label.live {
+  color: #0d6efd;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.group-label.live::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #28a745;
+  display: inline-block;
+}
+.round-tag {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6c5ce7;
+  border: 1px solid #ddd6fb;
+  background: #f3f1fe;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+.older-toggle {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 0.75rem;
+  padding: 0.25rem 0;
+}
+.older-toggle:hover { color: #333; }
 
 .active-games-section {
     margin-bottom: 2rem;

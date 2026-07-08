@@ -7,12 +7,13 @@ import { useAuthStore } from '@/stores/auth';
 import { socket } from '@/services/socket';
 import { sessionExpiredFlag } from '@/services/api';
 import { getContrastingTextColor } from '@/utils/colors';
+import { buildNameResolver } from '@/utils/newspaperNames';
 import PlayerCard from '@/components/PlayerCard.vue';
 import PlayerCardModal from '@/components/PlayerCardModal.vue';
 import BaseballDiamond from '@/components/BaseballDiamond.vue';
 import ThrowRollResult from '@/components/ThrowRollResult.vue';
 import HomeRunCelebration from '@/components/HomeRunCelebration.vue';
-import BoxScore from '@/components/BoxScore.vue';
+import NewspaperBoxScore from '@/components/NewspaperBoxScore.vue';
 
 const showSubModal = ref(false);
 const showSessionExpiredModal = ref(false);
@@ -799,6 +800,126 @@ const leftBatLines = computed(() => linesFor(leftPanelData.value?.teamKey, 'batt
 const rightBatLines = computed(() => linesFor(rightPanelData.value?.teamKey, 'batting', formatBatLine));
 const leftPitchLines = computed(() => linesFor(leftPanelData.value?.teamKey, 'pitching', formatPitchLine));
 const rightPitchLines = computed(() => linesFor(rightPanelData.value?.teamKey, 'pitching', formatPitchLine));
+
+// A single, persisted toggle (shared by both lineup panels) flips each player's
+// supporting line between their live box-score line ('box') and a description of
+// their card ('card'): compact ratings ride the right of the name row, and a single
+// compact chart line sits beneath.
+const LINE_MODE_KEY = 'showdown-lineup-line-mode';
+const lineMode = ref(localStorage.getItem(LINE_MODE_KEY) === 'card' ? 'card' : 'box');
+watch(lineMode, (m) => localStorage.setItem(LINE_MODE_KEY, m));
+const toggleLineMode = () => { lineMode.value = lineMode.value === 'card' ? 'box' : 'card'; };
+
+// Box-score / scorecard style names ("Burks (SFG)", "A. Rodriguez (TEX)"), resolved against the
+// full player pool so a card always renders the same way. Used for the compact 'card' view.
+const nameResolver = computed(() => buildNameResolver(authStore.allPlayers));
+const cardName = (p) => nameResolver.value(p?.card_id, p?.display_name || p?.displayName || p?.name);
+
+// Speed as an A/B/C grade (the card data buckets speed to 20/15/10).
+const speedLetter = (speed) => { const s = Number(speed); return s >= 20 ? 'A' : s >= 15 ? 'B' : 'C'; };
+
+// The Fld cell: the position the player is filling in this game plus his fielding rating
+// there, e.g. "SS +4". LF/RF share the "LFRF" key; fall back to the player's best rating if
+// the exact position isn't rated.
+function fldCell(player, pos) {
+    if (pos === 'DH') return 'DH —';           // designated hitter — no fielding
+    const r = player?.fielding_ratings;
+    if (!r) return pos || '';
+    let v = pos != null ? r[pos.replace('/', '')] : undefined;   // "LF/RF" -> "LFRF"
+    if (v == null && (pos === 'LF' || pos === 'RF')) v = r['LFRF'];
+    if (v == null) {
+        const vals = Object.values(r);
+        if (!vals.length) return pos || '';
+        v = Math.max(...vals);
+    }
+    const rating = `${v >= 0 ? '+' : ''}${v}`;
+    return pos ? `${pos} ${rating}` : rating;
+}
+
+// 'card'-view aligned columns, as { t: text, cls: width-class } so the header row and the
+// value rows share widths. Hitters: OB / Spd grade / position+fielding / Pts. Pitchers:
+// Ctl / IP / (blank, keeps Pts aligned) / Pts. Points resolve through getPoints (the card
+// objects carry points:null, so the raw field is empty).
+// Fld is the leftmost column (blank for pitchers, who don't field), then the numbers.
+const HITTER_COLS = [
+    { t: 'Fld', cls: 'sc-fld' }, { t: 'OB', cls: 'sc-num' },
+    { t: 'Spd', cls: 'sc-num' }, { t: 'Pts', cls: 'sc-pts' },
+];
+const PITCHER_COLS = [
+    { t: '', cls: 'sc-fld' }, { t: 'Ctl', cls: 'sc-num' },
+    { t: 'IP', cls: 'sc-num' }, { t: 'Pts', cls: 'sc-pts' },
+];
+const hitterCells = (p, pos) => [
+    { t: fldCell(p, pos), cls: 'sc-fld' },
+    { t: p?.on_base != null ? `${p.on_base}` : '', cls: 'sc-num' },
+    { t: p?.speed != null ? speedLetter(p.speed) : '', cls: 'sc-num' },
+    { t: getPoints(p) || '', cls: 'sc-pts' },
+];
+// Every position a bench player can field, each as its own "POS +rating" line
+// (they aren't locked into one game slot, so we list them all, stacked). DH has no fielding.
+const benchFieldingLines = (p) => Object.entries(p?.fielding_ratings || {})
+    .map(([pos, v]) => pos === 'DH' ? 'DH —' : `${pos.replace('LFRF', 'LF/RF')} ${v >= 0 ? '+' : ''}${v}`);
+const benchCells = (p) => [
+    { lines: benchFieldingLines(p), cls: 'sc-fld' },
+    { t: p?.on_base != null ? `${p.on_base}` : '', cls: 'sc-num' },
+    { t: p?.speed != null ? speedLetter(p.speed) : '', cls: 'sc-num' },
+    { t: getPoints(p) || '', cls: 'sc-pts' },
+];
+const pitcherCells = (p) => [
+    { t: '', cls: 'sc-fld' },
+    { t: p?.control != null ? `${p.control}` : '', cls: 'sc-num' },
+    { t: p?.ip != null ? `${p.ip}` : '', cls: 'sc-num' },
+    { t: getPoints(p) || '', cls: 'sc-pts' },
+];
+// A lineup slot is usually a hitter, but in a no-DH game the pitcher bats — show his
+// pitcher columns there so his Ctl/IP still surface.
+const lineupCells = (p, pos) => (p?.control != null ? pitcherCells(p) : hitterCells(p, pos));
+
+// The chart as FIXED columns so a given result always sits in the same slot down the roster
+// (every hitter's HR lines up, etc.). Missing results are blank cells that still hold their
+// width. Hitters collapse SO/GB/FB into one leading "OUT"; pitchers have room to keep their
+// outs split (PU/SO/GB/FB). Full roll ranges throughout ("OUT 1-8", "1B 12-16", "HR 20").
+// A leading "· " is baked onto every filled cell except the first, so the dots align too.
+const HITTER_CHART_COLS = ['BB', '1B', '1B+', '2B', '3B', 'HR'];   // after the merged OUT
+const PITCHER_CHART_COLS = ['PU', 'SO', 'GB', 'FB', 'BB', '1B', '2B', 'HR'];
+function chartColumns(player) {
+    const chart = player?.chart_data;
+    if (!chart) return null;
+    const span = (lo, hi) => lo === hi ? `${lo}` : `${lo}-${hi}`;
+    const by = {};
+    for (const [range, outcome] of Object.entries(chart)) {
+        const [lo, hi] = range.split('-').map(x => parseInt(x, 10));
+        by[outcome] = { lo, hi };
+    }
+    const cell = (o) => by[o] ? `${o} ${span(by[o].lo, by[o].hi)}` : '';
+    let cells;
+    if (player?.control != null) {
+        cells = PITCHER_CHART_COLS.map(cell);
+    } else {
+        const outs = ['SO', 'GB', 'FB'].map(o => by[o]).filter(Boolean);
+        const out = outs.length
+            ? `OUT ${span(Math.min(...outs.map(o => o.lo)), Math.max(...outs.map(o => o.hi)))}` : '';
+        cells = [out, ...HITTER_CHART_COLS.map(cell)];
+    }
+    let seen = false;
+    return cells.map(c => c ? (seen ? `· ${c}` : (seen = true, c)) : '');
+}
+
+// Sub-line(s) beneath a player. Box mode: the pitching then batting line from whichever
+// maps are relevant to this slot. Card mode: the fixed-width chart cells (the aligned
+// rating columns render separately, on the name row).
+function panelLines(player, pitchMap, batMap) {
+    if (lineMode.value === 'card') {
+        const cells = chartColumns(player);
+        return cells ? [{ cells, cls: 'card-chart' }] : [];
+    }
+    const lines = [];
+    const pitch = pitchMap?.get(player?.card_id);
+    if (pitch) lines.push({ text: pitch });
+    const bat = batMap?.get(player?.card_id);
+    if (bat) lines.push({ text: bat });
+    return lines;
+}
 
 // In a no-DH game a pinch-hitter who bats for the pitcher inherits the pitcher's 'P' batting slot
 // but is not a pitcher (hitters have no `control` rating). Label them PH rather than P. The same
@@ -2937,13 +3058,20 @@ async function handleReauthenticate() {
 
     <!-- BOTTOM SECTION: INFO PANELS -->
     <div class="info-container">
-      <!-- Left Panel (User's Team) -->
-      <div class="lineup-panel" v-if="leftPanelData.team">
+      <!-- Left Panel (User's Team) — final games show a newspaper box in place of the lineup -->
+      <template v-if="leftPanelData.team">
+      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="leftPanelData.teamKey" @select-player="selectedCard = $event" />
+      <div v-else class="lineup-panel" :class="{ 'card-wide': lineMode === 'card' }">
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
               <span>{{ leftPanelData.team.city }} Lineup</span>
+              <button type="button" class="line-mode-toggle" @click.stop="toggleLineMode"
+                      :title="lineMode === 'card' ? 'Show box-score lines' : 'Show card info lines'">
+                  {{ lineMode === 'card' ? 'show box score' : 'show card info' }}
+              </button>
               <span v-if="leftPanelData.isMyTeam && ((amIDisplayDefensivePlayer && !gameStore.gameState.currentAtBat.pitcherAction && !(!gameStore.amIReadyForNext && (gameStore.gameState.awayPlayerReadyForNext || gameStore.gameState.homePlayerReadyForNext))) ||(amIDisplayOffensivePlayer && !gameStore.gameState.currentAtBat.batterAction && (gameStore.amIReadyForNext || bothPlayersCaughtUp)) || (gameStore.gameState?.awaiting_lineup_change && amIDisplayDefensivePlayer))" @click.stop="toggleSubMode" class="sub-icon visible" :class="{'active': isSubModeActive}">⇄</span>
           </h3>
+          <div v-if="lineMode === 'card'" class="stat-header"><span class="hdr-spacer"></span><span v-for="(h, hi) in HITTER_COLS" :key="hi" class="stat-col" :class="h.cls">{{ h.t }}</span></div>
           <ol>
               <li v-for="(spot, index) in leftPanelData.lineup" :key="index"
                   :class="{
@@ -2962,15 +3090,15 @@ async function handleReauthenticate() {
                         }">
                       ⇄
                   </span>
-                  <span @click="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }}, {{ slotPositionLabel(spot) }}</span>
+                  <span @click="selectedCard = spot.player" :class="{ 'name-cell': lineMode === 'card' }">{{ index + 1 }}. {{ lineMode === 'card' ? cardName(spot.player) : spot.player.displayName }}<template v-if="lineMode !== 'card'">, {{ slotPositionLabel(spot) }}</template></span>
                   <template v-if="!useDh && spot.position === 'P' && isSlotPitcher(spot)">
                       <span v-if="leftPitcherFatigue.penalty > 0" class="status-indicators">
                           <span v-for="n in leftPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${leftPitcherFatigue.penalty}`"></span>
                       </span>
                       <span v-else-if="leftPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
                   </template>
-                  <small v-if="leftPitchLines.get(spot.player?.card_id)" class="stat-line">{{ leftPitchLines.get(spot.player?.card_id) }}</small>
-                  <small v-if="leftBatLines.get(spot.player?.card_id)" class="stat-line">{{ leftBatLines.get(spot.player?.card_id) }}</small>
+                  <template v-if="lineMode === 'card'"><span v-for="(c, ci) in lineupCells(spot.player, slotPositionLabel(spot))" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+                  <small v-for="(l, li) in panelLines(spot.player, leftPitchLines, leftBatLines)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info" :class="{'is-sub-target': playerToSubOut?.source === 'pitcher'}" :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { backgroundColor: leftPanelData.colors.primary, color: getContrastingTextColor(leftPanelData.colors.primary) } : {}">
@@ -2983,18 +3111,20 @@ async function handleReauthenticate() {
                   }">
                 ⇄
             </span>
-            <span @click="selectedCard = leftPanelData.pitcher">
+            <span @click="selectedCard = leftPanelData.pitcher" :class="{ 'name-cell': lineMode === 'card' }">
                 <strong :style="playerToSubOut && playerToSubOut.source === 'pitcher' ? { color: 'inherit' } : { color: black }">Pitching: </strong>
-                <template v-if="leftPanelData.pitcher">{{ leftPanelData.pitcher.name }}</template>
+                <template v-if="leftPanelData.pitcher">{{ lineMode === 'card' ? cardName(leftPanelData.pitcher) : leftPanelData.pitcher.name }}</template>
             </span>
             <span v-if="leftPitcherFatigue.penalty > 0" class="status-indicators">
                 <span v-for="n in leftPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${leftPitcherFatigue.penalty}`"></span>
             </span>
             <span v-else-if="leftPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
-            <small v-if="leftPitchLines.get(leftPanelData.pitcher?.card_id)" class="stat-line">{{ leftPitchLines.get(leftPanelData.pitcher?.card_id) }}</small>
+            <template v-if="lineMode === 'card'"><span v-for="(c, ci) in pitcherCells(leftPanelData.pitcher)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+            <small v-for="(l, li) in panelLines(leftPanelData.pitcher, leftPitchLines, null)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
           </div>
           <div v-if="leftPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bullpen:</strong>
+              <div v-if="lineMode === 'card'" class="stat-header"><span class="hdr-spacer"></span><span v-for="(h, hi) in PITCHER_COLS" :key="hi" class="stat-col" :class="h.cls">{{ h.t }}</span></div>
               <ul>
                   <li v-for="p in leftPanelData.bullpen" :key="p.card_id" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && isPlayerValidSubTarget(p)}">
                       <span @click.stop="handleSubstitution(p)"
@@ -3002,17 +3132,19 @@ async function handleReauthenticate() {
                             :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && isPlayerValidSubTarget(p) && isStartingPitcherEligible }">
                           ⇄
                       </span>
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id), 'name-cell': lineMode === 'card'}">{{ lineMode === 'card' ? cardName(p) : p.displayName }}<template v-if="lineMode !== 'card'"> ({{p.ip}} IP)</template></span>
                       <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-indicators">
                           <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
                       </span>
                       <span v-else-if="p.isBufferUsed && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
-                      <small v-if="leftPitchLines.get(p.card_id)" class="stat-line">{{ leftPitchLines.get(p.card_id) }}</small>
+                      <template v-if="lineMode === 'card'"><span v-for="(c, ci) in pitcherCells(p)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+                      <small v-for="(l, li) in panelLines(p, leftPitchLines, null)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
                   </li>
               </ul>
           </div>
           <div v-if="leftPanelData.bench.length > 0">
               <hr /><strong :style="{ color: leftPanelData.colors.primary }">Bench:</strong>
+              <div v-if="lineMode === 'card'" class="stat-header"><span class="hdr-spacer"></span><span v-for="(h, hi) in HITTER_COLS" :key="hi" class="stat-col" :class="h.cls">{{ h.t }}</span></div>
               <ul>
                   <li v-for="(p, index) in leftPanelData.bench" :key="index" class="lineup-item" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut && isPlayerValidSubTarget(p)}">
                       <span @click.stop="handleSubstitution(p)"
@@ -3020,8 +3152,9 @@ async function handleReauthenticate() {
                             :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam && isPlayerValidSubTarget(p) && (amIDisplayOffensivePlayer || gameStore.gameState.inning >= 7 || p.assignment !== 'BENCH') }">
                           ⇄
                       </span>
-                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id)}">{{ p.displayName }}, {{p.displayPosition}}</span>
-                      <small v-if="leftBatLines.get(p.card_id)" class="stat-line">{{ leftBatLines.get(p.card_id) }}</small>
+                      <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'name-cell': lineMode === 'card'}">{{ lineMode === 'card' ? cardName(p) : p.displayName }}<template v-if="lineMode !== 'card'">, {{p.displayPosition}}</template></span>
+                      <template v-if="lineMode === 'card'"><span v-for="(c, ci) in benchCells(p)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+                      <small v-for="(l, li) in panelLines(p, null, leftBatLines)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
                   </li>
               </ul>
           </div>
@@ -3047,6 +3180,7 @@ async function handleReauthenticate() {
               </ul>
           </div>
       </div>
+      </template>
 
       <!-- Game Log -->
       <div class="event-log">
@@ -3076,11 +3210,14 @@ async function handleReauthenticate() {
         </div>
       </div>
 
-      <!-- Right Panel (Opponent's Team) -->
-      <div class="lineup-panel" v-if="rightPanelData.team">
+      <!-- Right Panel (Opponent's Team) — final games show a newspaper box in place of the lineup -->
+      <template v-if="rightPanelData.team">
+      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="rightPanelData.teamKey" @select-player="selectedCard = $event" />
+      <div v-else class="lineup-panel" :class="{ 'card-wide': lineMode === 'card' }">
           <h3 :style="{ color: rightPanelData.colors.primary }" class="lineup-header">
               <img :src="rightPanelData.team.logo_url" class="lineup-logo" /> {{ rightPanelData.team.city }} Lineup
           </h3>
+          <div v-if="lineMode === 'card'" class="stat-header"><span class="hdr-spacer"></span><span v-for="(h, hi) in HITTER_COLS" :key="hi" class="stat-col" :class="h.cls">{{ h.t }}</span></div>
           <ol>
               <li v-for="(spot, index) in rightPanelData.lineup" :key="index"
                   :class="{
@@ -3089,60 +3226,63 @@ async function handleReauthenticate() {
                   }"
                   class="lineup-item">
                   <span class="sub-icon"></span>
-                  <span @click.stop="selectedCard = spot.player">{{ index + 1 }}. {{ spot.player.displayName }}, {{ slotPositionLabel(spot) }}</span>
+                  <span @click.stop="selectedCard = spot.player" :class="{ 'name-cell': lineMode === 'card' }">{{ index + 1 }}. {{ lineMode === 'card' ? cardName(spot.player) : spot.player.displayName }}<template v-if="lineMode !== 'card'">, {{ slotPositionLabel(spot) }}</template></span>
                   <template v-if="!useDh && spot.position === 'P' && isSlotPitcher(spot)">
                       <span v-if="rightPitcherFatigue.penalty > 0" class="status-indicators">
                           <span v-for="n in rightPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${rightPitcherFatigue.penalty}`"></span>
                       </span>
                       <span v-else-if="rightPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
                   </template>
-                  <small v-if="rightPitchLines.get(spot.player?.card_id)" class="stat-line">{{ rightPitchLines.get(spot.player?.card_id) }}</small>
-                  <small v-if="rightBatLines.get(spot.player?.card_id)" class="stat-line">{{ rightBatLines.get(spot.player?.card_id) }}</small>
+                  <template v-if="lineMode === 'card'"><span v-for="(c, ci) in lineupCells(spot.player, slotPositionLabel(spot))" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+                  <small v-for="(l, li) in panelLines(spot.player, rightPitchLines, rightBatLines)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
               </li>
           </ol>
           <div v-if="useDh" class="pitcher-info">
               <hr />
               <span class="sub-icon"></span>
-              <span @click.stop="selectedCard = rightPanelData.pitcher">
+              <span @click.stop="selectedCard = rightPanelData.pitcher" :class="{ 'name-cell': lineMode === 'card' }">
                 <strong :style="{ color: black }">Pitching: </strong>
-                <template v-if="rightPanelData.pitcher">{{ rightPanelData.pitcher.name }}</template>
+                <template v-if="rightPanelData.pitcher">{{ lineMode === 'card' ? cardName(rightPanelData.pitcher) : rightPanelData.pitcher.name }}</template>
                 <template v-else>TBD</template>
               </span>
               <span v-if="rightPitcherFatigue.penalty > 0" class="status-indicators">
                   <span v-for="n in rightPitcherFatigue.penalty" :key="n" class="status-icon tired" :title="`Penalty: -${rightPitcherFatigue.penalty}`"></span>
               </span>
               <span v-else-if="rightPitcherFatigue.bufferUsed" class="status-icon used" title="Buffer Used"></span>
-              <small v-if="rightPitchLines.get(rightPanelData.pitcher?.card_id)" class="stat-line">{{ rightPitchLines.get(rightPanelData.pitcher?.card_id) }}</small>
+              <template v-if="lineMode === 'card'"><span v-for="(c, ci) in pitcherCells(rightPanelData.pitcher)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+              <small v-for="(l, li) in panelLines(rightPanelData.pitcher, rightPitchLines, null)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
           </div>
           <div v-if="rightPanelData.bullpen.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bullpen:</strong>
+              <div v-if="lineMode === 'card'" class="stat-header"><span class="hdr-spacer"></span><span v-for="(h, hi) in PITCHER_COLS" :key="hi" class="stat-col" :class="h.cls">{{ h.t }}</span></div>
               <ul>
                   <li v-for="p in rightPanelData.bullpen" :key="p.card_id" class="lineup-item">
                           <span class="sub-icon"></span>
-                          <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !opponentUsedPlayerIds.has(p.card_id)}">{{ p.displayName }} ({{p.ip}} IP)</span>
+                          <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !opponentUsedPlayerIds.has(p.card_id), 'name-cell': lineMode === 'card'}">{{ lineMode === 'card' ? cardName(p) : p.displayName }}<template v-if="lineMode !== 'card'"> ({{p.ip}} IP)</template></span>
                           <span v-if="p.fatigueStatus === 'tired' && !opponentUsedPlayerIds.has(p.card_id)" class="status-indicators">
                               <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
                           </span>
                           <span v-else-if="p.isBufferUsed && !opponentUsedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
-                          <small v-if="rightPitchLines.get(p.card_id)" class="stat-line">{{ rightPitchLines.get(p.card_id) }}</small>
+                          <template v-if="lineMode === 'card'"><span v-for="(c, ci) in pitcherCells(p)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+                          <small v-for="(l, li) in panelLines(p, rightPitchLines, null)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
                   </li>
               </ul>
           </div>
           <div v-if="rightPanelData.bench.length > 0">
               <hr /><strong :style="{ color: rightPanelData.colors.primary }">Bench:</strong>
+              <div v-if="lineMode === 'card'" class="stat-header"><span class="hdr-spacer"></span><span v-for="(h, hi) in HITTER_COLS" :key="hi" class="stat-col" :class="h.cls">{{ h.t }}</span></div>
               <ul>
                   <li v-for="p in rightPanelData.bench" :key="p.card_id" class="lineup-item">
                       <span class="sub-icon"></span>
-                      <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id)}">{{ p.displayName }}, {{p.displayPosition}}</span>
-                      <small v-if="rightBatLines.get(p.card_id)" class="stat-line">{{ rightBatLines.get(p.card_id) }}</small>
+                      <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id), 'name-cell': lineMode === 'card'}">{{ lineMode === 'card' ? cardName(p) : p.displayName }}<template v-if="lineMode !== 'card'">, {{p.displayPosition}}</template></span>
+                      <template v-if="lineMode === 'card'"><span v-for="(c, ci) in benchCells(p)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
+                      <small v-for="(l, li) in panelLines(p, null, rightBatLines)" :key="li" class="stat-line" :class="l.cls"><template v-if="l.cells"><span v-for="(cell, cci) in l.cells" :key="cci" class="chart-cell">{{ cell }}</span></template><template v-else>{{ l.text }}</template></small>
                   </li>
               </ul>
           </div>
       </div>
+      </template>
     </div>
-
-    <!-- Live box score (batting / pitching lines + advantage splits) -->
-    <BoxScore />
   </div>
   <div v-else class="loading-container"><p>Loading game...</p></div>
 </template>
@@ -3416,6 +3556,9 @@ async function handleReauthenticate() {
   font-size: 0.9rem;
   line-height: 1.2;
 }
+/* Card view needs more width — the fixed chart columns (up to 8 for split-out pitchers)
+   don't fit at 350px. The game log (flex: 2) yields the room. */
+.lineup-panel.card-wide { max-width: 460px; }
 /* Tight section dividers — the default hr eats a lot of vertical space. */
 .lineup-panel hr {
   flex-basis: 100%;
@@ -3511,7 +3654,7 @@ async function handleReauthenticate() {
 .lineup-item, .pitcher-info {
   display: flex;
   justify-content: flex-start;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   padding: 1px 8px;
   gap: 0.4rem;
@@ -3536,13 +3679,94 @@ async function handleReauthenticate() {
   cursor: default;
 }
 .now-batting .stat-line, .next-up .stat-line { color: #444; }
+/* Card view: the full chart line under a player's aligned columns — lighter and small so
+   the scannable columns above stay the focus. Never wraps (one line); clips if it can't
+   fit rather than breaking to a second line. Tabular figures for tidy rolls. */
+.stat-line.card-chart {
+  font-size: 0.6rem;
+  color: #9aa1ab;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.now-batting .stat-line.card-chart, .next-up .stat-line.card-chart { color: #6b7280; }
+/* Each result is a fixed-width cell (blank when the card lacks that result) so a given
+   result — and its leading dot — sits in the same column down the roster. */
+.card-chart .chart-cell { display: inline-block; width: 2.9rem; }
+
+/* Card view: aligned stat columns. Each cell is fixed-width and right-aligned, and the
+   name flexes/ellipsizes, so the trailing cells line up in the same column down the panel
+   (and with the header row). Widths are in rem so header (smaller font) and rows match. */
+.stat-col {
+  flex: 0 0 auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+/* Per-column widths: numbers are narrow; the Fld cell holds "SS +4"; Pts holds 3–4 digits. */
+.stat-col.sc-num { width: 1.5rem; }
+.stat-col.sc-pts { width: 2.1rem; }
+/* Fld is text (a position), so it's left-aligned — positions line up in a column and read
+   like a normal table (text left, numbers right). Bench players stack a line per position. */
+.stat-col.sc-fld {
+  width: 3.4rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+.fld-line { white-space: nowrap; line-height: 1.15; }
+/* flex-basis:0 is what keeps the row on one line — with basis:auto the wrap algorithm
+   reserves the name's full width and pushes the trailing cells onto a second line. */
+.name-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The stat cells are informational, not links — undo the clickable name-span styling. */
+.lineup-item > span.stat-col, .pitcher-info > span.stat-col { cursor: default; }
+.lineup-item > span.stat-col:hover, .pitcher-info > span.stat-col:hover { text-decoration: none; }
+/* Column header row: a flex spacer pushes the labels into the same columns as the cells. */
+.stat-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0.15rem 0 2px;
+}
+.stat-header .hdr-spacer { flex: 1 1 auto; min-width: 0; }
+.stat-header .stat-col {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #9aa1ab;
+  letter-spacing: 0.02em;
+}
+
+/* Subtle, single control (in the user's panel header) that flips both lineup panels
+   between box-score lines and card-info lines. Reads like a muted text link. */
+.line-mode-toggle {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #9aa1ab;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.line-mode-toggle:hover { color: #4b5563; text-decoration: underline; }
 .lineup-item > span:not(.sub-icon), .pitcher-info > span:not(.sub-icon) {
   cursor: pointer;
 }
 .lineup-item > span:not(.sub-icon):hover, .pitcher-info > span:not(.sub-icon):hover {
   text-decoration: underline;
 }
-.pitcher-info { font-weight: bold; margin-top: 0.5rem; margin-left: -1.2rem}
+.pitcher-info { font-weight: bold; margin-top: 0.5rem; }
 .is-tired {
 }
 .is-sub-target {

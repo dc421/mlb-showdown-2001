@@ -1084,11 +1084,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
   const boxScore = computed(() => {
     const state = gameState.value;
     if (!state || !Array.isArray(state.atBatLog) || state.atBatLog.length === 0) return null;
-    let log = state.atBatLog;
-    if (isOutcomeHidden.value && log.length > 0) {
-      log = log.slice(0, -1);
-    }
-    return buildBoxScore({ ...state, atBatLog: log }, lineups.value, rosters.value, teams.value);
+    return buildBoxScore(state, lineups.value, rosters.value, teams.value, { hideLastPA: isOutcomeHidden.value });
   });
 
   return {

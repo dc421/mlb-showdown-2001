@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { calculateDisplayGameState } from '@/utils/gameState';
-import { formatNameShort } from '@/utils/playerUtils';
+import { buildNameResolver } from '@/utils/newspaperNames';
 
 const props = defineProps({
   game: {
@@ -12,6 +12,7 @@ const props = defineProps({
 });
 
 const authStore = useAuthStore();
+const resolveName = computed(() => buildNameResolver(authStore.allPlayers));
 
 // Determine the displayGameState, potentially rolling back to hide spoilers
 const gameState = computed(() => {
@@ -160,14 +161,14 @@ const pitcherDisplay = computed(() => {
     const pitcher = isTop ? gameState.value.currentHomePitcher : gameState.value.currentAwayPitcher;
     if (!pitcher || !pitcher.name) return 'P: TBD';
 
-    return `P: ${formatNameShort(pitcher.name, true)}`;
+    return `P: ${resolveName.value(pitcher.card_id, pitcher.name)}`;
 });
 
 const batterDisplay = computed(() => {
     if (!gameState.value || !gameState.value.currentAtBat || !gameState.value.currentAtBat.batter) return '';
     const batter = gameState.value.currentAtBat.batter;
 
-    return `AB: ${formatNameShort(batter.name, true)}`;
+    return `AB: ${resolveName.value(batter.card_id, batter.name)}`;
 });
 
 </script>

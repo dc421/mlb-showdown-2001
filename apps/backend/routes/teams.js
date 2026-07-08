@@ -634,9 +634,11 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
 
         // 2. Fetch Series Results (Done earlier to get Historical Name)
         const resultsQuery = `
-            SELECT * FROM series_results
-            WHERE season_name = $1
-            ORDER BY date DESC
+            SELECT sr.*,
+                   (SELECT s.id FROM series s WHERE s.series_result_id = sr.id ORDER BY s.id DESC LIMIT 1) AS live_series_id
+            FROM series_results sr
+            WHERE sr.season_name = $1
+            ORDER BY sr.date DESC
         `;
         const allResultsRes = await client.query(resultsQuery, [resultsSeasonName]);
 
@@ -830,6 +832,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     date: r.date,
                     game_wins: r.winning_score,
                     game_losses: r.losing_score,
+                    series_id: r.live_series_id,
                     mva: r.mva || null,
                     lvsc: r.lvsc || null
                 });
@@ -849,6 +852,7 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                     date: r.date,
                     game_wins: r.losing_score,
                     game_losses: r.winning_score,
+                    series_id: r.live_series_id,
                     mva: r.mva || null,
                     lvsc: r.lvsc || null
                 });

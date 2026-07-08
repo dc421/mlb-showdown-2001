@@ -380,11 +380,13 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
             currentSeason = seasonResult.rows[0].season_name;
         }
 
-        // 2. Fetch Series Results
+        // 2. Fetch Series Results. live_series_id links a row to the in-app series that produced it
+        // (if any), so the League page can deep-link to that series' page.
         let resultsQuery = `
-            SELECT *
-            FROM series_results
-            WHERE style IS DISTINCT FROM 'Classic'
+            SELECT sr.*,
+                   (SELECT s.id FROM series s WHERE s.series_result_id = sr.id ORDER BY s.id DESC LIMIT 1) AS live_series_id
+            FROM series_results sr
+            WHERE sr.style IS DISTINCT FROM 'Classic'
         `;
         const params = [];
 
@@ -454,6 +456,7 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                     winner_logo: winner.logo_url,
                     loser_logo: loser.logo_url,
                     score: hasScore ? `${r.winning_score}-${r.losing_score}` : null,
+                    series_id: r.live_series_id, // linked in-app series (null if entered offline)
                     mva: r.mva,
                     lvsc: r.lvsc
                 };
@@ -485,6 +488,7 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                         date: r.date,
                         round: r.round,
                         style: r.style,
+                        status: r.status, // 'scheduled' | 'in_progress' | 'completed' — drives result-line rendering
                         winning_team_id: r.winning_team_id,
                         losing_team_id: r.losing_team_id,
                         winner: r.winning_team_name,
@@ -497,6 +501,7 @@ router.get('/season-summary', authenticateToken, async (req, res) => {
                         score: hasScore ? `${r.winning_score}-${r.losing_score}` : null,
                         winning_score: r.winning_score, // Passed for sorting
                         losing_score: r.losing_score, // Passed for sorting
+                        series_id: r.live_series_id, // linked in-app series (null if entered offline)
                         mva: r.mva,
                         lvsc: r.lvsc,
                         // Per-win-count spaceship/spoon outlook for this upcoming series (null when the
@@ -636,7 +641,8 @@ router.post('/result', authenticateToken, async (req, res) => {
             SET winning_score = $1, losing_score = $2,
                 winning_team_id = $3, losing_team_id = $4,
                 winning_team_name = $5, losing_team_name = $6,
-                mva = $8, lvsc = $9
+                mva = $8, lvsc = $9,
+                status = 'completed', result_source = 'offline'
             WHERE id = $7
         `;
 
@@ -678,6 +684,10 @@ router.post('/result', authenticateToken, async (req, res) => {
         } catch (e) {
             console.error('Post-result odds/playoff scheduling error:', e.message);
         }
+
+        // Notify open dashboards so a just-entered offline result drops off "My Series" (and any newly
+        // scheduled Spaceship/Spoon appears) without a manual reload.
+        try { require('../server').io.emit('games-updated'); } catch (e) { /* io not ready — non-fatal */ }
 
         res.json({ message: 'Result updated successfully.' });
 

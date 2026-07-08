@@ -99,14 +99,30 @@ router.get('/state', authenticateToken, async (req, res) => {
         // 2. Bracket Data
         const classicSeriesQuery = `
             SELECT s.*,
-                   ht.city as home_city, ht.name as home_name,
-                   at.city as away_city, at.name as away_name
+                   ht.city as home_city, ht.name as home_name, ht.team_id as home_team_pk,
+                   at.city as away_city, at.name as away_name, at.team_id as away_team_pk
             FROM series s
             JOIN teams ht ON s.series_home_user_id = ht.user_id
             LEFT JOIN teams at ON s.series_away_user_id = at.user_id
             WHERE s.series_type = 'classic' AND s.classic_id = $1
         `;
         const bracketResult = await pool.query(classicSeriesQuery, [classic.id]);
+
+        // Map each bracket matchup (by team pair) to the in-app series that actually played it, so the
+        // bracket can link to that series' page. The played series are linked to this Classic's result
+        // rows via series_result_id.
+        const pairKey = (a, b) => [a, b].filter(Boolean).sort((x, y) => x - y).join('-');
+        const classicResultsRes = await pool.query(
+            `SELECT sr.winning_team_id, sr.losing_team_id,
+                    (SELECT s.id FROM series s WHERE s.series_result_id = sr.id ORDER BY s.id DESC LIMIT 1) AS live_series_id
+             FROM series_results sr WHERE sr.style = 'Classic' AND sr.classic_id = $1`,
+            [classic.id]
+        );
+        const liveSeriesByPair = {};
+        classicResultsRes.rows.forEach(r => {
+            if (r.live_series_id) liveSeriesByPair[pairKey(r.winning_team_id, r.losing_team_id)] = r.live_series_id;
+        });
+
         const seriesData = bracketResult.rows.map(s => ({
             id: s.id,
             home: `${s.home_city} ${s.home_name}`,
@@ -116,7 +132,8 @@ router.get('/state', authenticateToken, async (req, res) => {
             home_user_id: s.series_home_user_id,
             away_user_id: s.series_away_user_id,
             winning_team_id: s.home_wins > s.away_wins ? s.home_team_user_id : (s.away_wins > s.home_wins ? s.series_away_user_id : null),
-            home_team_id: s.home_team_user_id
+            home_team_id: s.home_team_user_id,
+            live_series_id: liveSeriesByPair[pairKey(s.home_team_pk, s.away_team_pk)] || null,
         }));
 
         // 3. Roster Reveal Status & Rosters
@@ -289,14 +306,16 @@ router.post('/result', authenticateToken, async (req, res) => {
                 date, season_name, style, round,
                 winning_team_name, losing_team_name,
                 winning_team_id, losing_team_id,
-                winning_score, losing_score
+                winning_score, losing_score,
+                status, result_source, classic_id
             ) VALUES (
                 NOW(), $1, 'Classic', $2,
                 $3, $4,
                 $5, $6,
-                $7, $8
+                $7, $8,
+                'completed', 'offline', $9
             )
-        `, [seasonName, round, winningTeamName, losingTeamName, winner.team_id, loser.team_id, winningScore, losingScore]);
+        `, [seasonName, round, winningTeamName, losingTeamName, winner.team_id, loser.team_id, winningScore, losingScore, classicId]);
 
         // 4. Insert into series
         await client.query(`

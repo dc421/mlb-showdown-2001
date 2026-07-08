@@ -51,11 +51,31 @@ const findTeamForRecord = (name, id, currentTeams) => {
     };
 };
 
+// A regular-season series is a fixed 7 games (record = total game wins). Used to size the "remaining"
+// games of a scheduled or in-progress series for the odds simulation.
+const REGULAR_SEASON_GAMES = 7;
+
+// Lifecycle of a series_results row. The status column drives it; rows predating that column (or any
+// external caller that omits it) fall back to score presence: unscored = scheduled, scored = completed.
+// 'in_progress' is a series being played in-app whose partial game tally is already recorded.
+function seriesState(s) {
+    if (s.status === 'scheduled' || s.status === 'in_progress' || s.status === 'completed') return s.status;
+    return (s.winning_score === null || s.winning_score === undefined ||
+            s.losing_score === null || s.losing_score === undefined) ? 'scheduled' : 'completed';
+}
+
+// Games still to be played in an in-progress series (its recorded scores are the games played so far).
+function gamesRemaining(s) {
+    const played = (s.winning_score || 0) + (s.losing_score || 0);
+    return Math.max(0, REGULAR_SEASON_GAMES - played);
+}
+
 // Builds the shared "season model" used by both the Monte Carlo odds simulation and the
 // deterministic playoff-scenario calculator: per-team game W/L (keyed "ID-<id>"/"NAME-<name>"),
-// the completed-game head-to-head, and the list of unplayed regular-season series. Postseason
-// rounds are excluded and Phantoms are never given their own entry (a phantom loss still counts
-// against its real opponent).
+// the head-to-head from games played so far, and the list of series with games left to play (each
+// carrying how many `remaining`). Games already played in an in-progress series count toward the
+// record and H2H now; only its remaining games are simulated. Postseason rounds are excluded and
+// Phantoms are never given their own entry (a phantom loss still counts against its real opponent).
 function buildSeasonModel(seriesResults, currentTeams) {
     const teamStats = {};
 
@@ -91,21 +111,29 @@ function buildSeasonModel(seriesResults, currentTeams) {
         const wKey = winnerIsPhantom ? null : initStats(winner);
         const lKey = loserIsPhantom ? null : initStats(loser);
 
-        const isCompleted = winning_score !== null && losing_score !== null;
-        if (isCompleted) {
+        const state = seriesState(series);
+        if (state === 'scheduled') {
+            // Unplayed scheduled series only exist between two real teams.
+            if (wKey) teamStats[wKey].remaining += REGULAR_SEASON_GAMES;
+            if (lKey) teamStats[lKey].remaining += REGULAR_SEASON_GAMES;
+        } else {
+            // Completed or in-progress: games played so far count toward the record.
             if (wKey) { teamStats[wKey].wins += (winning_score || 0); teamStats[wKey].losses += (losing_score || 0); }
             if (lKey) { teamStats[lKey].losses += (winning_score || 0); teamStats[lKey].wins += (losing_score || 0); }
-        } else {
-            // Unplayed scheduled series only exist between two real teams.
-            if (wKey) teamStats[wKey].remaining += 7;
-            if (lKey) teamStats[lKey].remaining += 7;
+            if (state === 'in_progress') {
+                // ...and its unplayed remainder is still to come.
+                const rem = gamesRemaining(series);
+                if (wKey) teamStats[wKey].remaining += rem;
+                if (lKey) teamStats[lKey].remaining += rem;
+            }
         }
     });
 
-    // Baseline head-to-head from completed regular-season games.
+    // Baseline head-to-head from games played so far (completed series and the played games of an
+    // in-progress one — both carry non-null scores; only scheduled series are skipped).
     const baseH2H = {};
     seriesResults.forEach(s => {
-        if (s.winning_score === null) return;
+        if (seriesState(s) === 'scheduled') return;
         if (['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(s.round)) return;
         const w = findTeamForRecord(s.winning_team_name, s.winning_team_id, currentTeams);
         const l = findTeamForRecord(s.losing_team_name, s.losing_team_id, currentTeams);
@@ -123,19 +151,28 @@ function buildSeasonModel(seriesResults, currentTeams) {
         baseH2H[lKey][wKey].losses += s.winning_score;
     });
 
-    // Unplayed regular-season series (each worth 7 games).
+    // Series with games left to play: fully-scheduled ones (7 games) plus in-progress ones (only the
+    // remaining games). Each carries `remaining` and `t1Played`/`t2Played` (games each side has already
+    // won in this series) so the simulation extends from the current tally rather than restarting it.
     const unplayedGames = seriesResults
-        .filter(s =>
-            s.winning_score === null &&
-            !['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(s.round)
-        )
+        .filter(s => {
+            if (['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine'].includes(s.round)) return false;
+            const st = seriesState(s);
+            if (st === 'completed') return false;
+            if (st === 'in_progress' && gamesRemaining(s) === 0) return false; // nothing left to simulate
+            return true;
+        })
         .map(s => {
             const t1 = findTeamForRecord(s.winning_team_name, s.winning_team_id, currentTeams);
             const t2 = findTeamForRecord(s.losing_team_name, s.losing_team_id, currentTeams);
+            const scheduled = seriesState(s) === 'scheduled';
             return {
                 id: s.id,
                 t1Key: t1.team_id ? `ID-${t1.team_id}` : `NAME-${t1.name}`,
-                t2Key: t2.team_id ? `ID-${t2.team_id}` : `NAME-${t2.name}`
+                t2Key: t2.team_id ? `ID-${t2.team_id}` : `NAME-${t2.name}`,
+                remaining: scheduled ? REGULAR_SEASON_GAMES : gamesRemaining(s),
+                t1Played: scheduled ? 0 : (s.winning_score || 0),
+                t2Played: scheduled ? 0 : (s.losing_score || 0)
             };
         })
         .filter(g => teamStats[g.t1Key] && teamStats[g.t2Key]);
@@ -539,12 +576,13 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false, opti
                 });
 
                 for (const game of unplayedGames) {
-                    // All 7 games are played; winner determined by majority
+                    // Play out only this series' remaining games (7 for a fresh series, fewer for one
+                    // already in progress — its played games are already in simWins/simH2H).
                     let w1 = 0;
-                    for (let g = 0; g < 7; g++) {
+                    for (let g = 0; g < game.remaining; g++) {
                         if (Math.random() < 0.5) w1++;
                     }
-                    const w2 = 7 - w1;
+                    const w2 = game.remaining - w1;
                     simWins[game.t1Key] += w1;
                     simLosses[game.t1Key] += w2;
                     simWins[game.t2Key] += w2;
@@ -616,21 +654,26 @@ function calculateStandings(seriesResults, currentTeams, isAllTime = false, opti
     }
 }
 
-// Performance cap on the scenario enumeration: we evaluate all 8^R outcomes of the R unplayed
-// series, so we only run it while R is small. Mathematical clinch/elimination guarantees are
-// essentially impossible with more series left, and 8^6 keeps the cost near the Monte Carlo's.
+// Performance cap on the scenario enumeration: we evaluate the product of every unplayed series'
+// possible results (at most 8 each, fewer for in-progress ones), so we only run it while R is small.
+// Mathematical clinch/elimination guarantees are essentially impossible with more series left, and the
+// R<=6 cap keeps the worst case (8^6) near the Monte Carlo's cost.
 const MAX_SCENARIO_SERIES = 6;
 
 // Converts a team's per-result tallies into conditional probabilities: spaceship[k] / spoon[k] = the
 // share of all other-game combinations in which the team finishes top-2 / bottom-2 when the series
-// resolves to result k (the first team's wins, 0..7 = index). Endpoints of exactly 0 or 1 are the
-// clinch/elimination guarantees; the values in between are the live odds at each possible result.
-function outlookFor(agg, envCount, team, hasSpoon) {
+// resolves to result k (the first team's FINAL total wins, 0..7 = index). Endpoints of exactly 0 or 1
+// are the clinch/elimination guarantees; the values in between are the live odds at each result. `lo`
+// and `hi` mark this series' reachable results (a fresh series is 0..7; an in-progress one is narrower
+// because some games are already banked) — buckets outside that range are always 0 and must be ignored.
+function outlookFor(agg, envCount, team, hasSpoon, lo, hi) {
     return {
         team_id: team.team_id,
         teamName: team.name,
         spaceship: agg.top2.map(c => c / envCount),
-        spoon: hasSpoon ? agg.bottom2.map(c => c / envCount) : new Array(8).fill(0)
+        spoon: hasSpoon ? agg.bottom2.map(c => c / envCount) : new Array(8).fill(0),
+        lo,
+        hi
     };
 }
 
@@ -642,12 +685,22 @@ function boxLocked(ship, spoon) {
 }
 // A team's row is worth showing only if (a) some result locks an outcome for it — a potential clinch,
 // the black-outline box — and (b) the result still matters, i.e. its outlook isn't identical in every
-// box. A team that's already decided regardless of this series (a flat row) is omitted.
+// box. A team that's already decided regardless of this series (a flat row) is omitted. Only the
+// reachable results lo..hi are considered; unreachable buckets are always-0 and would falsely read as
+// a locked "neither".
 function rowHasLock(row) {
-    return row.spaceship.some((s, k) => boxLocked(s, row.spoon[k]));
+    for (let k = row.lo; k <= row.hi; k++) {
+        if (boxLocked(row.spaceship[k], row.spoon[k])) return true;
+    }
+    return false;
 }
 function rowVaries(row) {
-    return [row.spaceship, row.spoon].some(arr => Math.max(...arr) - Math.min(...arr) > OUTLOOK_EPS);
+    for (const arr of [row.spaceship, row.spoon]) {
+        let mn = Infinity, mx = -Infinity;
+        for (let k = row.lo; k <= row.hi; k++) { if (arr[k] < mn) mn = arr[k]; if (arr[k] > mx) mx = arr[k]; }
+        if (mx - mn > OUTLOOK_EPS) return true;
+    }
+    return false;
 }
 
 // For each unplayed series, computes EVERY team's spaceship/spoon likelihood at every possible result
@@ -668,21 +721,29 @@ function computePlayoffScenarios(seriesResults, currentTeams) {
     const spoonSpots = n >= 4 ? 2 : 1;
     const hasSpoon = n >= 2;
 
-    // agg[i][teamKey] tallies a team's top-2/bottom-2 finishes for series i, bucketed by series i's
-    // result (the first team's wins). Every team is tracked. Each bucket spans 8^(R-1) combos.
-    const envCount = Math.pow(8, R - 1);
+    // Each series' first team can add 0..remaining wins, so it has (remaining+1) possible results; the
+    // result BUCKET is that team's FINAL total wins (games already banked + new), keeping the 0..7 index
+    // the display expects. A fresh series is 0..7 (base 8) exactly as before; an in-progress one is
+    // narrower (los[i]..his[i]). We enumerate the mixed-radix product of the per-series bases.
+    const bases = unplayedGames.map(g => g.remaining + 1);
+    const los = unplayedGames.map(g => g.t1Played);
+    const his = unplayedGames.map(g => g.t1Played + g.remaining);
+    const totalCombos = bases.reduce((a, b) => a * b, 1);
+    const envCounts = bases.map(b => totalCombos / b); // combos of all the OTHER series
+
+    // agg[i][teamKey] tallies a team's top-2/bottom-2 finishes for series i, bucketed by that series'
+    // result. Every team is tracked; only reachable buckets los[i]..his[i] are ever incremented.
     const agg = unplayedGames.map(() => {
         const m = {};
         for (const k of teamKeys) m[k] = { top2: new Array(8).fill(0), bottom2: new Array(8).fill(0) };
         return m;
     });
 
-    const combo = new Array(R).fill(0);
-    const totalCombos = Math.pow(8, R);
+    const combo = new Array(R).fill(0); // combo[i] = the first team's NEW wins in series i (0..remaining)
     for (let c = 0; c < totalCombos; c++) {
-        // Decode c into R base-8 digits (each = team1's wins in that series, 0..7).
+        // Decode c as a mixed-radix number over the per-series bases.
         let rem = c;
-        for (let i = 0; i < R; i++) { combo[i] = rem & 7; rem >>>= 3; }
+        for (let i = 0; i < R; i++) { combo[i] = rem % bases[i]; rem = Math.floor(rem / bases[i]); }
 
         const simWins = {};
         const simLosses = {};
@@ -700,8 +761,8 @@ function computePlayoffScenarios(seriesResults, currentTeams) {
         }
         for (let i = 0; i < R; i++) {
             const g = unplayedGames[i];
-            const w1 = combo[i];
-            const w2 = 7 - w1;
+            const w1 = combo[i];            // new wins for t1 across its remaining games
+            const w2 = g.remaining - w1;
             simWins[g.t1Key] += w1; simLosses[g.t1Key] += w2;
             simWins[g.t2Key] += w2; simLosses[g.t2Key] += w1;
             simH2H[g.t1Key][g.t2Key].wins += w1; simH2H[g.t1Key][g.t2Key].losses += w2;
@@ -713,7 +774,7 @@ function computePlayoffScenarios(seriesResults, currentTeams) {
         ranked.forEach((k, idx) => { rankIndex[k] = idx; });
 
         for (let i = 0; i < R; i++) {
-            const result = combo[i]; // series i's result = the bucket every team is tallied under
+            const result = los[i] + combo[i]; // bucket = the first team's FINAL total wins (0..7)
             for (const T of teamKeys) {
                 if (rankIndex[T] < 2) agg[i][T].top2[result]++;
                 if (hasSpoon && rankIndex[T] >= n - spoonSpots) agg[i][T].bottom2[result]++;
@@ -730,7 +791,7 @@ function computePlayoffScenarios(seriesResults, currentTeams) {
     for (let i = 0; i < R; i++) {
         const teams = [];
         for (const T of orderedKeys) {
-            const row = outlookFor(agg[i][T], envCount, teamStats[T], hasSpoon);
+            const row = outlookFor(agg[i][T], envCounts[i], teamStats[T], hasSpoon, los[i], his[i]);
             if (rowHasLock(row) && rowVaries(row)) teams.push(row);
         }
         if (teams.length) out[unplayedGames[i].id] = { teams };

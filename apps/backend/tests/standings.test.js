@@ -122,6 +122,56 @@ describe('Standings Logic', () => {
     });
 });
 
+describe('In-progress series (3-state standings)', () => {
+    test('games played so far count toward the record; the rest stay "remaining"', () => {
+        // Boston leads New York 3-1 through 4 games of a 7-game series still in progress.
+        const series = [{
+            id: 1, round: 'Regular Season', status: 'in_progress',
+            winning_team_id: 1, winning_team_name: 'Boston',
+            losing_team_id: 2, losing_team_name: 'New York',
+            winning_score: 3, losing_score: 1,
+        }];
+        const standings = calculateStandings(series, mockTeams, false, { numSims: 200 });
+        const bos = standings.find(t => t.team_id === 1);
+        const ny = standings.find(t => t.team_id === 2);
+        expect(bos.wins).toBe(3);
+        expect(bos.losses).toBe(1);
+        expect(bos.remaining).toBe(3); // 7 - 4 played
+        expect(ny.wins).toBe(1);
+        expect(ny.losses).toBe(3);
+        expect(ny.remaining).toBe(3);
+    });
+
+    test('a scheduled series is all remaining; an in-progress one is partly banked', () => {
+        const series = [
+            { id: 1, round: 'Regular Season', status: 'scheduled', winning_team_id: 1, winning_team_name: 'Boston', losing_team_id: 2, losing_team_name: 'New York', winning_score: null, losing_score: null },
+            { id: 2, round: 'Regular Season', status: 'in_progress', winning_team_id: 1, winning_team_name: 'Boston', losing_team_id: 3, losing_team_name: 'Laramie', winning_score: 2, losing_score: 0 },
+        ];
+        const standings = calculateStandings(series, mockTeams, false, { numSims: 200 });
+        const bos = standings.find(t => t.team_id === 1);
+        // 2 games banked (vs Laramie), plus 5 remaining there and 7 remaining (vs New York) = 12.
+        expect(bos.wins).toBe(2);
+        expect(bos.losses).toBe(0);
+        expect(bos.remaining).toBe(12);
+    });
+
+    test('odds still allocate ~2 spaceship and ~2 spoon spots with an in-progress series', () => {
+        const season = [
+            { id: 1, round: 'Regular Season', status: 'completed', winning_team_id: 1, winning_team_name: 'Boston', losing_team_id: 2, losing_team_name: 'New York', winning_score: 4, losing_score: 2 },
+            { id: 2, round: 'Regular Season', status: 'completed', winning_team_id: 3, winning_team_name: 'Laramie', losing_team_id: 4, losing_team_name: 'Ann Arbor', winning_score: 4, losing_score: 1 },
+            { id: 3, round: 'Regular Season', status: 'completed', winning_team_id: 5, winning_team_name: 'NY South', losing_team_id: 1, losing_team_name: 'Boston', winning_score: 4, losing_score: 3 },
+            // One series mid-flight (partial score), one fully scheduled.
+            { id: 4, round: 'Regular Season', status: 'in_progress', winning_team_id: 2, winning_team_name: 'New York', losing_team_id: 3, losing_team_name: 'Laramie', winning_score: 2, losing_score: 1 },
+            { id: 5, round: 'Regular Season', status: 'scheduled', winning_team_id: 4, winning_team_name: 'Ann Arbor', losing_team_id: 5, losing_team_name: 'NY South', winning_score: null, losing_score: null },
+        ];
+        const standings = calculateStandings(season, mockTeams, false, { numSims: 20000 });
+        const spaceshipSum = standings.reduce((s, t) => s + t.spaceshipOdds, 0);
+        const spoonSum = standings.reduce((s, t) => s + t.spoonOdds, 0);
+        expect(spaceshipSum).toBeCloseTo(2, 1);
+        expect(spoonSum).toBeCloseTo(2, 1);
+    });
+});
+
 describe('Playoff Odds', () => {
     // One completed series per pair plus one unplayed series, so the season is
     // in-progress and the Monte Carlo runs.
@@ -255,6 +305,50 @@ describe('Playoff scenarios', () => {
         const series = [
             done(1, 1, 2, 4, 3), done(2, 1, 3, 4, 3), done(3, 2, 4, 4, 3), done(4, 3, 5, 4, 3),
             unplayed(50, 1, 4), unplayed(51, 2, 5), unplayed(52, 3, 4)
+        ];
+        const out = computePlayoffScenarios(series, teams);
+        expect(Object.keys(out).length).toBeGreaterThan(0);
+        for (const sid of Object.keys(out)) {
+            for (const p of out[sid].teams) {
+                for (let k = 0; k < 8; k++) {
+                    expect(p.spaceship[k]).toBeGreaterThanOrEqual(0);
+                    expect(p.spoon[k]).toBeGreaterThanOrEqual(0);
+                    expect(p.spaceship[k] + p.spoon[k]).toBeLessThanOrEqual(1 + 1e-9);
+                }
+            }
+        }
+    });
+
+    // An in-progress series (partial score already banked).
+    const inProg = (id, t1, t2, s1, s2) => ({
+        id, round: 'R', status: 'in_progress',
+        winning_team_id: t1, losing_team_id: t2,
+        winning_team_name: String.fromCharCode(64 + t1), losing_team_name: String.fromCharCode(64 + t2),
+        winning_score: s1, losing_score: s2,
+    });
+
+    // Same 3-team shape as the first test, but A vs B is IN PROGRESS with A already up 2-0. A's final
+    // total wins can now only land in 2..7, so A is flat (always top-2) over its REACHABLE results and
+    // is dropped — proving the outlook is judged over lo..hi, not a blanket 0..7 (over the full range A
+    // would vary at 0/1 and wrongly show). B still varies (it loses its top-2 seat if A sweeps to 6-7),
+    // and C's spoon fate still swings, so both remain.
+    test('in-progress series: outlook is judged over reachable results only', () => {
+        const teams = teamsN(3);
+        const series = [done(10, 1, 3, 4, 3), done(11, 2, 3, 4, 3), inProg(12, 1, 2, 2, 0)];
+        const out = computePlayoffScenarios(series, teams);
+
+        expect(Object.keys(out)).toEqual(['12']);
+        expect(idsIn(out, 12).slice().sort()).toEqual([2, 3]); // A dropped (flat over reachable range)
+        expect(rowFor(out, 12, 3).spoon).toEqual([0, 0, 1, 1, 1, 1, 0, 0]);
+    });
+
+    // With an in-progress series in the mix the mixed-radix enumeration must still produce well-formed,
+    // mutually-exclusive probabilities.
+    test('in-progress series: probabilities stay bounded and mutually exclusive', () => {
+        const teams = teamsN(5);
+        const series = [
+            done(1, 1, 2, 4, 3), done(2, 1, 3, 4, 3), done(3, 2, 4, 4, 3), done(4, 3, 5, 4, 3),
+            inProg(50, 1, 4, 2, 1), unplayed(51, 2, 5), unplayed(52, 3, 4),
         ];
         const out = computePlayoffScenarios(series, teams);
         expect(Object.keys(out).length).toBeGreaterThan(0);

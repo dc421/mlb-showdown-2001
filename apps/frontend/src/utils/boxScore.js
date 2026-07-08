@@ -4,8 +4,13 @@
 //
 // Batting lines come entirely from `atBatLog` (so trimming the last, not-yet-revealed entry keeps
 // the box score spoiler-safe). Pitching IP and R/ER come from the authoritative live `pitcherStats`
-// (which already accounts for inherited runners and base-running outs); H/BB/SO/BF and the
-// advantage split come from `atBatLog`.
+// (which already accounts for inherited runners and base-running outs); H/BB/SO and the advantage
+// split come from `atBatLog`.
+//
+// Spoiler-safety extends to pitching: `pitcherStats` is a live aggregate with no per-PA breakdown,
+// so when the last PA is hidden (opts.hideLastPA) we subtract that entry's recorded per-pitcher
+// contribution (`atBatLog[].pitcherDeltas`) from the aggregate. Otherwise IP/R/BF would jump the
+// instant a swing resolved, before the reveal animation played.
 
 import { formatNameShort } from './playerUtils';
 
@@ -85,10 +90,19 @@ const emptyPitcher = () => ({ outs: 0, bf: 0, h: 0, r: 0, er: 0, bb: 0, so: 0,
  * @param {object} lineups    { home, away } each { battingOrder:[{player}], startingPitcher }
  * @param {object} rosters    { home:[card], away:[card] }
  * @param {object} teams      { home:{user_id,...}, away:{user_id,...} }
+ * @param {object} [opts]      { hideLastPA } — when the viewer is still hiding the latest outcome,
+ *                             drop the most recent plate appearance AND back its per-pitcher
+ *                             contribution out of the live pitcherStats aggregate, so the pitching
+ *                             IP/R/ER/BF stay spoiler-safe (they don't jump before the swing reveal).
  * @returns {{ away: SideBox, home: SideBox }}
  */
-export function buildBoxScore(gameState, lineups, rosters, teams) {
-  const log = Array.isArray(gameState?.atBatLog) ? gameState.atBatLog : [];
+export function buildBoxScore(gameState, lineups, rosters, teams, opts = {}) {
+  let log = Array.isArray(gameState?.atBatLog) ? gameState.atBatLog : [];
+  let hiddenEntry = null;
+  if (opts.hideLastPA && log.length > 0) {
+    hiddenEntry = log[log.length - 1];
+    log = log.slice(0, -1);
+  }
   const pitcherStats = gameState?.pitcherStats || {};
   const cardMap = buildCardMap(lineups, rosters);
   const awayUserId = teams?.away?.user_id;
@@ -113,6 +127,20 @@ export function buildBoxScore(gameState, lineups, rosters, teams) {
     cur.runs += v.runs || 0;
     cur.bf += v.batters_faced || 0;
     liveByPitcher.set(norm, cur);
+  }
+
+  // Spoiler-safety: if the last PA is hidden, back its per-pitcher contribution out of the live
+  // aggregate so IP/R/ER/BF match the (trimmed) atBatLog-derived columns until the swing reveals.
+  // Deltas are keyed by raw pitcher key (owner_card or an inherited runner's pitcherOfRecordId),
+  // so normalize before subtracting. Older entries without pitcherDeltas simply skip this (the last
+  // PA of an in-flight game at deploy time), self-healing the moment the outcome is revealed.
+  for (const [rawKey, d] of Object.entries(hiddenEntry?.pitcherDeltas || {})) {
+    const norm = normalizePitcherKey(rawKey);
+    const cur = norm && liveByPitcher.get(norm);
+    if (!cur) continue;
+    cur.outs = Math.max(0, cur.outs - (d.outs || 0));
+    cur.runs = Math.max(0, cur.runs - (d.runs || 0));
+    cur.bf = Math.max(0, cur.bf - (d.bf || 0));
   }
 
   // Accumulators keyed by card_id (batting) / pitcher key (pitching), preserving first-seen order.

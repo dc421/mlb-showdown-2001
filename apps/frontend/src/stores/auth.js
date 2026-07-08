@@ -14,9 +14,13 @@ export const useAuthStore = defineStore('auth', () => {
   const selectedPointSetId = ref(null);
   const myGames = ref([]);
   const openGames = ref([]);
+  const myGroups = ref([]);          // this user's series grouped by league season / Classic
+  const mySeason = ref(null);        // current live league season
+  const seedsClinched = ref(false);  // when true, remaining regular-season series can be stopped early
   const activeRosterCards = ref([]);
   const isFetchingGames = ref(false);
   const isFetchingOpenGames = ref(false);
+  const isFetchingSeries = ref(false);
   // API_URL is handled inside apiClient, but we expose it if needed by components
   // (though they should prefer using apiClient or store actions)
   const API_URL = import.meta.env.VITE_API_URL || '';
@@ -291,6 +295,62 @@ async function fetchAvailableTeams() {
     }
   }
 
+  async function fetchMySeries() {
+    if (!token.value) return;
+    isFetchingSeries.value = true;
+    try {
+        const response = await apiClient(`/api/series/mine`);
+        if (!response.ok) throw new Error('Failed to fetch series');
+        const data = await response.json();
+        myGroups.value = data.groups || [];
+        mySeason.value = data.currentSeason || null;
+        seedsClinched.value = data.seeds_clinched || false;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        isFetchingSeries.value = false;
+    }
+  }
+
+  // Stop a regular-season series early (only offered once the season's playoff seeds have clinched).
+  async function stopSeries(seriesResultId) {
+    if (!token.value) return;
+    try {
+        const response = await apiClient(`/api/series/stop`, {
+            method: 'POST',
+            body: JSON.stringify({ series_result_id: seriesResultId })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to stop series');
+        await fetchMySeries();
+        await fetchMyGames();
+    } catch (error) {
+        console.error('Stop series error:', error);
+        alert(`Error: ${error.message}`);
+    }
+  }
+
+  // Launch a scheduled league series in-app: creates the live series (linked to its scheduled row so
+  // results auto-populate) and game 1, with this user as the series host.
+  async function launchSeries(seriesResultId, rosterId) {
+    if (!token.value) return null;
+    try {
+        const response = await apiClient(`/api/games`, {
+            method: 'POST',
+            body: JSON.stringify({ roster_id: rosterId, home_or_away: 'home', league_designation: 'AL', series_result_id: seriesResultId })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to start series');
+        await fetchMySeries();
+        await fetchMyGames();
+        return data.gameId;
+    } catch (error) {
+        console.error('Launch series error:', error);
+        alert(`Error: ${error.message}`);
+        return null;
+    }
+  }
+
 async function createGame(rosterId, seriesType) {
   if (!token.value) return;
   try {
@@ -414,10 +474,10 @@ async function submitLineup(gameId, lineupData) {
   }
 
   return { 
-    token, user, allPlayers, myGames, openGames, activeRosterCards, API_URL, router,
-    pointSets, selectedPointSetId, isFetchingRoster, isFetchingGames, isFetchingOpenGames,
+    token, user, allPlayers, myGames, openGames, myGroups, mySeason, seedsClinched, activeRosterCards, API_URL, router,
+    pointSets, selectedPointSetId, isFetchingRoster, isFetchingGames, isFetchingOpenGames, isFetchingSeries,
     isAuthenticated, login, register, logout, reauthenticate, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
-    fetchAllPlayers, fetchMyGames, fetchOpenGames, joinGame,fetchAvailableTeams,
+    fetchAllPlayers, fetchMyGames, fetchOpenGames, fetchMySeries, launchSeries, stopSeries, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo, fetchOpponentRoster, availableTeams,
     fetchPointSets, isDraftActive, fetchDraftStatus, hideGame, bulkHideGames
   }
