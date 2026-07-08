@@ -792,7 +792,12 @@ function computePlayoffScenarios(seriesResults, currentTeams) {
         const teams = [];
         for (const T of orderedKeys) {
             const row = outlookFor(agg[i][T], envCounts[i], teamStats[T], hasSpoon, los[i], his[i]);
-            if (rowHasLock(row) && rowVaries(row)) teams.push(row);
+            // A team that has finished its whole slate (no games left) has a fixed record — its
+            // playoff fate rides entirely on other series. Show it on any series that still moves its
+            // outlook, even when no single result locks a 100% clinch/elimination for it. Teams with
+            // games left still require a lock (a potential clinch) to earn a row.
+            const finished = teamStats[T].remaining === 0;
+            if (rowVaries(row) && (finished || rowHasLock(row))) teams.push(row);
         }
         if (teams.length) out[unplayedGames[i].id] = { teams };
     }

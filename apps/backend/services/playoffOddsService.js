@@ -26,7 +26,7 @@ async function fetchSeasonData(db, seasonName) {
 // Bump when the odds/scenario MATH changes (not just the data) so cached rows computed by older
 // logic are treated as stale and recomputed. The signature only tracks result rows, so without this
 // a logic change would keep serving stale cached values for unchanged seasons.
-const CACHE_ALGO_VERSION = 3;
+const CACHE_ALGO_VERSION = 4;
 
 // Order-independent hash of every field that can change the odds, plus the algorithm version. Any
 // edited/added/removed result row — or a logic-version bump — changes this and invalidates the cache.

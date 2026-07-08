@@ -381,6 +381,43 @@ describe('Playoff scenarios', () => {
         expect(computePlayoffScenarios(series, teams)).toEqual({});
     });
 
+    // A team that has finished its whole slate (28 games / no series left) has a fixed record, so its
+    // playoff fate rides entirely on the remaining series it's NOT in. We surface it on any such series
+    // that still moves its outlook — even when no single result locks a 100% clinch/elimination for it
+    // (which is exactly what the lock rule would otherwise require). Teams with games left still need a lock.
+    test('shows a finished (28-game) team on a series that swings it, even with no 100% lock', () => {
+        const { buildSeasonModel } = require('../utils/standingsUtils');
+        const boxLocked = (ship, spoon) => ship >= 1 - 1e-9 || spoon >= 1 - 1e-9 || (ship <= 1e-9 && spoon <= 1e-9);
+
+        const teams = teamsN(5);
+        // Full 5-team round robin (10 series). A (team 1) plays and completes all four of its series
+        // (28 games) — it's finished. Two series remain that A is NOT in: B-vs-C (id 50) and D-vs-E
+        // (id 51). The completed margins are lopsided enough that A lands on the bubble, so those
+        // remaining series shift A's odds without ever pinning them to 0% or 100%.
+        const series = [
+            done(1, 1, 2, 1, 6), done(2, 1, 3, 3, 4), done(3, 1, 4, 6, 1), done(4, 1, 5, 6, 1),
+            done(5, 2, 4, 2, 5), done(6, 3, 5, 6, 1),
+            unplayed(50, 2, 3), unplayed(51, 4, 5)
+        ];
+
+        // A really has played its full slate: no games remaining.
+        const aStats = buildSeasonModel(series, teams).teamStats['ID-1'];
+        expect(aStats.remaining).toBe(0);
+        expect(aStats.wins + aStats.losses).toBe(28);
+
+        const out = computePlayoffScenarios(series, teams);
+        const a = rowFor(out, 50, 1);
+        expect(a).toBeDefined(); // finished A is surfaced on the B-vs-C series...
+
+        let anyLock = false, min = Infinity, max = -Infinity;
+        for (let k = a.lo; k <= a.hi; k++) {
+            if (boxLocked(a.spaceship[k], a.spoon[k])) anyLock = true;
+            for (const v of [a.spaceship[k], a.spoon[k]]) { if (v < min) min = v; if (v > max) max = v; }
+        }
+        expect(anyLock).toBe(false);       // ...with no result locking a 100% outcome for it (the old rule dropped it)...
+        expect(max - min).toBeGreaterThan(1e-9); // ...and the series genuinely swings its outlook.
+    });
+
     test('performance guard: returns empty when too many series remain (R > 6)', () => {
         const teams = teamsN(4);
         // 7 unplayed series — above the 8^6 enumeration cap.
