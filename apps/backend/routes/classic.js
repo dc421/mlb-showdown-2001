@@ -61,10 +61,14 @@ router.get('/state', authenticateToken, async (req, res) => {
             seeds = classic.seeding;
         } else {
             // Dynamic Seeding (Wooden Spoon Logic)
+            // Only COMPLETED spoons determine seeding. A scheduled/in-progress Wooden Spoon (which
+            // has no real loser yet) would otherwise count as the most-recent spoon and shift every
+            // seed — corrupting the Classic bracket (e.g. a scheduled Spring 2026 spoon reseeding the
+            // whole field).
             const spoonQuery = `
                 SELECT losing_team_id, date
                 FROM series_results
-                WHERE round = 'Wooden Spoon'
+                WHERE round = 'Wooden Spoon' AND status = 'completed'
             `;
             const spoonResult = await pool.query(spoonQuery);
 

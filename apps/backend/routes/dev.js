@@ -422,4 +422,122 @@ router.post('/games/:gameId/recreate', async (req, res) => {
     }
 });
 
+// DEV SERIES/GAMES INSPECTOR
+// Read-only master overview of every series (with its games) and every orphan game, annotated with
+// how each ties (or fails to tie) to a league season / Classic. Powers the /dev/series page so the
+// whole series+games state can be eyeballed and spot-checked in the UI.
+router.get('/series-overview', async (req, res) => {
+    try {
+        const seriesRes = await pool.query(`
+            SELECT s.id, s.series_type, s.status, s.classic_id, s.series_result_id,
+                   s.series_home_user_id, s.series_away_user_id, s.home_wins, s.away_wins, s.created_at,
+                   ht.city AS home_city, ht.name AS home_name, ht.team_id AS home_team_id,
+                   at.city AS away_city, at.name AS away_name, at.team_id AS away_team_id,
+                   sr.season_name, sr.round, sr.style AS sr_style, sr.status AS sr_status,
+                   sr.result_source, sr.winning_team_name AS sr_winner, sr.losing_team_name AS sr_loser,
+                   sr.winning_score AS sr_wscore, sr.losing_score AS sr_lscore,
+                   c.name AS classic_name
+            FROM series s
+            LEFT JOIN teams ht ON ht.user_id = s.series_home_user_id
+            LEFT JOIN teams at ON at.user_id = s.series_away_user_id
+            LEFT JOIN series_results sr ON sr.id = s.series_result_id
+            LEFT JOIN classics c ON c.id = s.classic_id
+            ORDER BY s.id
+        `);
+
+        const gamesRes = await pool.query(`
+            SELECT g.game_id, g.series_id, g.game_in_series, g.status,
+                   g.home_team_user_id, g.completed_at, g.created_at,
+                   COALESCE(e.cnt, 0) AS events,
+                   (SELECT gs.state_data->>'winningTeam' FROM game_states gs
+                     WHERE gs.game_id = g.game_id ORDER BY gs.turn_number DESC LIMIT 1) AS winning_side
+            FROM games g
+            LEFT JOIN (SELECT game_id, count(*) AS cnt FROM game_events GROUP BY game_id) e
+                   ON e.game_id = g.game_id
+            ORDER BY g.series_id NULLS LAST, g.game_in_series NULLS LAST, g.game_id
+        `);
+
+        // Who actually played each game — the truth even when series_home/away_user_id is unset (as
+        // on abandoned/stray series). Lets the UI show a real matchup instead of "TBD".
+        const partsRes = await pool.query(`
+            SELECT p.game_id, t.city, t.name
+            FROM game_participants p
+            JOIN teams t ON t.user_id = p.user_id
+        `);
+        const teamsByGame = {};
+        for (const r of partsRes.rows) {
+            const label = `${r.city || ''} ${r.name || ''}`.trim();
+            if (label) (teamsByGame[r.game_id] ||= new Set()).add(label);
+        }
+
+        // Bucket games under their series; series_id = null are orphan (no-series) games.
+        const gamesBySeries = {};
+        const orphanGames = [];
+        for (const g of gamesRes.rows) {
+            const game = {
+                game_id: g.game_id, game_in_series: g.game_in_series, status: g.status,
+                events: Number(g.events), winning_side: g.winning_side,
+                completed_at: g.completed_at, created_at: g.created_at,
+                teams: [...(teamsByGame[g.game_id] || [])],
+            };
+            if (g.series_id == null) orphanGames.push(game);
+            else (gamesBySeries[g.series_id] ||= []).push(game);
+        }
+
+        const teamLabel = (city, name) => (city || name) ? `${city || ''} ${name || ''}`.trim() : null;
+
+        const series = seriesRes.rows.map(s => {
+            const games = gamesBySeries[s.id] || [];
+            const gamesCompleted = games.filter(g => g.status === 'completed').length;
+            const gamesNonFinal = games.length - gamesCompleted;
+            const eventsTotal = games.reduce((n, g) => n + g.events, 0);
+            const linked = s.series_result_id != null;
+            const seriesDone = s.status === 'completed' || s.sr_status === 'completed';
+
+            // How this series ties to the wider record.
+            let category;
+            if (s.classic_id != null && games.length === 0) category = 'classic_shadow'; // bracket placeholder
+            else if (s.series_type === 'classic' && linked) category = 'classic_played';
+            else if (linked) category = 'league';           // regular-season / playoff off the schedule
+            else if (s.classic_id != null) category = 'classic_other';
+            else category = 'stray';                          // tied to no season and no Classic
+
+            // Actual participants across all this series' games (the reliable matchup).
+            const participantTeams = [...new Set(games.flatMap(g => g.teams))];
+
+            return {
+                ...s,
+                home_team: teamLabel(s.home_city, s.home_name),
+                away_team: teamLabel(s.away_city, s.away_name),
+                participant_teams: participantTeams,
+                games,
+                games_total: games.length,
+                games_completed: gamesCompleted,
+                games_nonfinal: gamesNonFinal,
+                events_total: eventsTotal,
+                category,
+                flags: {
+                    stray: !linked && s.classic_id == null,
+                    played: eventsTotal > 0,
+                    empty_shell: games.length > 0 && eventsTotal === 0,
+                    phantom_trailing: seriesDone && gamesNonFinal > 0,
+                },
+            };
+        });
+
+        const summary = {
+            series_count: series.length,
+            orphan_game_count: orphanGames.length,
+            by_category: series.reduce((acc, s) => { acc[s.category] = (acc[s.category] || 0) + 1; return acc; }, {}),
+            stray_count: series.filter(s => s.flags.stray).length,
+            phantom_trailing_count: series.filter(s => s.flags.phantom_trailing).length,
+        };
+
+        res.json({ summary, series, orphanGames });
+    } catch (error) {
+        console.error('Error building series overview:', error);
+        res.status(500).json({ message: 'Server error building series overview.' });
+    }
+});
+
 module.exports = router;

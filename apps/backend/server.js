@@ -1046,6 +1046,15 @@ async function handleSeriesProgression(gameId, client, finalState) {
 
     if (isSeriesOver) {
         await client.query(`UPDATE series SET status = 'completed' WHERE id = $1`, [series_id]);
+        // Drop any leftover unplayed next-game shell so a finished series can't leave a phantom
+        // "extra unplayed game at the end". Only empty shells (no events) are removed; a
+        // partially-played game keeps its log (and is hidden by the dashboard completion guard).
+        await client.query(
+            `DELETE FROM games g
+              WHERE g.series_id = $1 AND g.status <> 'completed'
+                AND NOT EXISTS (SELECT 1 FROM game_events e WHERE e.game_id = g.game_id)`,
+            [series_id]
+        );
         io.emit('games-updated'); // Notify clients the series is done
         return;
     }
@@ -2496,13 +2505,17 @@ app.get('/api/series/mine', authenticateToken, async (req, res) => {
         const iAmHome = Number(s.series_home_user_id) === Number(userId);
         const iAmParticipant = iAmHome || Number(s.series_away_user_id) === Number(userId);
         const g = activeGameBySeries[s.id];
+        // A finalized series must never surface a "Continue" game: if the result or the live series
+        // is already completed, a leftover unplayed/next game would otherwise show as a phantom
+        // action ("extra unplayed game at the end"). Guard on completion regardless of stray games.
+        const seriesDone = r.status === 'completed' || s.status === 'completed';
         live = {
           series_id: s.id,
           series_status: s.status,
           my_wins: iAmHome ? s.home_wins : s.away_wins,
           opp_wins: iAmHome ? s.away_wins : s.home_wins,
           i_am_participant: iAmParticipant,
-          active_game: g ? { game_id: g.game_id, status: g.status, game_in_series: g.game_in_series } : null,
+          active_game: (g && !seriesDone) ? { game_id: g.game_id, status: g.status, game_in_series: g.game_in_series } : null,
         };
       }
 
@@ -2592,6 +2605,15 @@ app.post('/api/series/stop', authenticateToken, async (req, res) => {
         [update.status, update.result_source, update.winning_team_id, update.winning_team_name, update.winning_score, update.losing_team_id, update.losing_team_name, update.losing_score, series_result_id]
       );
       await client.query(`UPDATE series SET status='completed' WHERE id = $1`, [s.id]);
+      // Stopping early skips the remaining games — drop any leftover unplayed shells so the
+      // finalized series can't leave a phantom "Continue" game (empty shells only; a partially
+      // played game keeps its log and is hidden by the dashboard completion guard).
+      await client.query(
+        `DELETE FROM games g
+          WHERE g.series_id = $1 AND g.status <> 'completed'
+            AND NOT EXISTS (SELECT 1 FROM game_events e WHERE e.game_id = g.game_id)`,
+        [s.id]
+      );
     } else {
       // Never launched: record a 0-0 "not required" row (contributes nothing to the standings).
       await client.query(
@@ -2622,7 +2644,9 @@ app.get('/api/series/:id', authenticateToken, async (req, res) => {
     const sRes = await pool.query(
       `SELECT s.id, s.series_type, s.status, s.home_wins, s.away_wins,
               s.series_home_user_id, s.series_away_user_id, s.series_result_id,
-              sr.season_name, sr.round, sr.status AS result_status, sr.result_source
+              sr.season_name, sr.round, sr.status AS result_status, sr.result_source,
+              sr.winning_team_id AS sr_winning_team_id, sr.losing_team_id AS sr_losing_team_id,
+              sr.winning_score AS sr_winning_score, sr.losing_score AS sr_losing_score
        FROM series s
        LEFT JOIN series_results sr ON s.series_result_id = sr.id
        WHERE s.id = $1`,
@@ -2782,12 +2806,27 @@ app.get('/api/series/:id', authenticateToken, async (req, res) => {
       return t ? { user_id: uid, team_id: t.team_id, city: t.city, name: t.name, abbreviation: t.abbreviation, logo_url: t.logo_url } : null;
     };
 
+    // Header score: once the linked result is completed it is the source of truth. The raw in-app
+    // s.home_wins/s.away_wins tally can be wrong for messy/partial series (e.g. games where the home
+    // team didn't alternate), so map the official winner/loser scores onto this series' home/away
+    // teams by team_id. Fall back to the in-app tally when there's no completed result (or no id match).
+    let headerHomeWins = s.home_wins;
+    let headerAwayWins = s.away_wins;
+    if (s.result_status === 'completed' && s.sr_winning_score != null && s.sr_losing_score != null) {
+      const homeTeamId = teamFor(homeUser)?.team_id;
+      if (homeTeamId === s.sr_winning_team_id) {
+        headerHomeWins = s.sr_winning_score; headerAwayWins = s.sr_losing_score;
+      } else if (homeTeamId === s.sr_losing_team_id) {
+        headerHomeWins = s.sr_losing_score; headerAwayWins = s.sr_winning_score;
+      }
+    }
+
     res.json({
       series_id: s.id,
       series_type: s.series_type,
       status: s.status,
-      home_wins: s.home_wins,
-      away_wins: s.away_wins,
+      home_wins: headerHomeWins,
+      away_wins: headerAwayWins,
       season_name: s.season_name,
       round: s.round,
       result_status: s.result_status,
