@@ -2,12 +2,16 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { apiClient } from '@/services/api';
+import { useAuthStore } from '@/stores/auth';
 import PlayerCard from '@/components/PlayerCard.vue';
 import PlayerCardModal from '@/components/PlayerCardModal.vue';
+import SeriesBoxScore from '@/components/SeriesBoxScore.vue';
 import { formatNameShort } from '@/utils/playerUtils';
 import { getLogoForTeam } from '@/utils/franchiseUtils';
+import { aggregateTeamBoxScore } from '@/utils/seriesBoxScore';
 
 const route = useRoute();
+const authStore = useAuthStore();
 const teamId = ref(route.params.teamId);
 const seasonName = ref(route.params.seasonName);
 const isClassic = computed(() => route.query.type === 'Classic');
@@ -28,6 +32,12 @@ const loading = ref(true);
 const selectedPlayer = ref(null);
 const apiUrl = import.meta.env.VITE_API_URL || '';
 
+// Cumulative box score for this team across every recorded game it played this season.
+const teamBox = ref(null);        // { side, gamesCounted }
+const boxLoading = ref(false);
+const boxError = ref(null);
+const boxCardMap = ref(new Map()); // pooled cards so aggregate names open the card modal
+
 function getLogoUrl(url) {
     if (!url) return '';
     if (url.startsWith('http')) return url;
@@ -44,6 +54,7 @@ async function fetchSeasonData() {
         const response = await apiClient(url);
         if (response.ok) {
             seasonData.value = await response.json();
+            loadTeamBox();
         } else {
             console.error('Failed to fetch season data');
         }
@@ -51,6 +62,52 @@ async function fetchSeasonData() {
         console.error('Error fetching season data:', error);
     } finally {
         loading.value = false;
+    }
+}
+
+// Fold every completed game the team played this season (across all its live series) into one
+// cumulative box score. Only series results with a live_series_id have recorded box scores, so a
+// mostly-historical season simply yields nothing here.
+async function loadTeamBox() {
+    teamBox.value = null;
+    boxError.value = null;
+    const data = seasonData.value;
+    const userId = data?.team?.user_id;
+    const seriesIds = [...new Set((data?.results || []).map(r => r.series_id).filter(Boolean))];
+    if (!userId || seriesIds.length === 0) return;
+
+    boxLoading.value = true;
+    try {
+        // Collect every completed game across the team's series this season.
+        const seriesList = await Promise.all(seriesIds.map(async (id) => {
+            const res = await apiClient(`/api/series/${id}`);
+            return res.ok ? res.json() : null;
+        }));
+        const gameIds = [];
+        for (const s of seriesList) {
+            for (const g of s?.games || []) if (g.status === 'completed') gameIds.push(g.game_id);
+        }
+        if (gameIds.length === 0) return;
+
+        const payloads = await Promise.all(gameIds.map(async (gid) => {
+            const res = await apiClient(`/api/games/${gid}`);
+            if (!res.ok) throw new Error('Failed to load box scores.');
+            return res.json();
+        }));
+
+        // Pool every card so aggregate names are clickable in the card modal.
+        const map = new Map();
+        for (const p of payloads) {
+            for (const sideKey of ['home', 'away']) {
+                for (const c of p.rosters?.[sideKey] || []) if (c?.card_id != null && !map.has(c.card_id)) map.set(c.card_id, c);
+            }
+        }
+        boxCardMap.value = map;
+        teamBox.value = aggregateTeamBoxScore(payloads, userId);
+    } catch (e) {
+        boxError.value = e.message;
+    } finally {
+        boxLoading.value = false;
     }
 }
 
@@ -65,6 +122,10 @@ watch(() => route.query.type, () => {
 
 onMounted(() => {
     fetchSeasonData();
+    // Best-effort: load the full player pool so box-score names disambiguate the same way as in-game.
+    if (authStore.selectedPointSetId && !authStore.allPlayers.length) {
+        authStore.fetchAllPlayers(authStore.selectedPointSetId);
+    }
 });
 
 function openPlayerCard(player) {
@@ -310,6 +371,23 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
             </section>
         </main>
 
+        <!-- CUMULATIVE BOX SCORE -->
+        <section class="section box-section"
+                 v-if="boxLoading || boxError || (teamBox && teamBox.gamesCounted > 0)">
+            <h3>Season Box Score</h3>
+            <p v-if="boxLoading" class="box-state">Loading season stats…</p>
+            <p v-else-if="boxError" class="box-state error">{{ boxError }}</p>
+            <template v-else-if="teamBox && teamBox.gamesCounted > 0">
+                <p class="box-sub">Combined totals from {{ teamBox.gamesCounted }} recorded {{ teamBox.gamesCounted === 1 ? 'game' : 'games' }}.</p>
+                <SeriesBoxScore
+                    :side="teamBox.side"
+                    :team="seasonData.team"
+                    :color="seasonData.team.primary_color || '#1a1a1a'"
+                    :cardMap="boxCardMap"
+                    @select-player="openPlayerCard" />
+            </template>
+        </section>
+
         <!-- Player Card Modal -->
         <PlayerCardModal :player="selectedPlayer" @close="closePlayerCard" />
     </div>
@@ -388,6 +466,16 @@ const tgaootPlayerName = computed(() => extractAwardPlayerName(seasonData.value?
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
 }
+
+/* Full-width cumulative box score below the roster/results grid. */
+.box-section { margin-top: 2rem; }
+.box-sub {
+    color: #888;
+    font-size: 0.85rem;
+    margin: 0 0 1rem;
+}
+.box-state { color: #888; padding: 0.5rem 0; margin: 0; }
+.box-state.error { color: #dc3545; }
 
 .section {
     background: #fff;

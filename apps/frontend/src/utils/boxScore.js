@@ -118,15 +118,27 @@ export function buildBoxScore(gameState, lineups, rosters, teams, opts = {}) {
 
   // Authoritative IP/R/BF per pitcher, merging any legacy malformed keys into the real pitcher.
   const liveByPitcher = new Map(); // normalized "ownerId_cardId" -> { outs, runs, bf }
+  // Fallback index by bare card id. Older games (roughly the earliest ones) store pitcherStats
+  // keyed by a plain card_id ("558") instead of "ownerId_cardId" ("4_558"); those keys carry no
+  // owner, so they don't normalize and would drop out of liveByPitcher — leaving every pitcher at
+  // 0.0 IP / 0 R. Indexed by card id, they still join to the atBatLog-derived row (which does carry
+  // the composite key) whenever the composite lookup misses.
+  const liveByCardId = new Map(); // cardId(Number) -> { outs, runs, bf }
   for (const rawKey of Object.keys(pitcherStats)) {
-    const norm = normalizePitcherKey(rawKey);
-    if (!norm) continue;
     const v = pitcherStats[rawKey] || {};
-    const cur = liveByPitcher.get(norm) || { outs: 0, runs: 0, bf: 0 };
-    cur.outs += v.outs_recorded || 0;
-    cur.runs += v.runs || 0;
-    cur.bf += v.batters_faced || 0;
-    liveByPitcher.set(norm, cur);
+    const outs = v.outs_recorded || 0, runs = v.runs || 0, bf = v.batters_faced || 0;
+    const norm = normalizePitcherKey(rawKey);
+    if (norm) {
+      const cur = liveByPitcher.get(norm) || { outs: 0, runs: 0, bf: 0 };
+      cur.outs += outs; cur.runs += runs; cur.bf += bf;
+      liveByPitcher.set(norm, cur);
+    }
+    const cardId = String(rawKey).includes('_') ? parsePitcherKey(rawKey).cardId : Number(rawKey);
+    if (cardId != null && !Number.isNaN(cardId)) {
+      const c = liveByCardId.get(cardId) || { outs: 0, runs: 0, bf: 0 };
+      c.outs += outs; c.runs += runs; c.bf += bf;
+      liveByCardId.set(cardId, c);
+    }
   }
 
   // Spoiler-safety: if the last PA is hidden, back its per-pitcher contribution out of the live
@@ -137,15 +149,29 @@ export function buildBoxScore(gameState, lineups, rosters, teams, opts = {}) {
   for (const [rawKey, d] of Object.entries(hiddenEntry?.pitcherDeltas || {})) {
     const norm = normalizePitcherKey(rawKey);
     const cur = norm && liveByPitcher.get(norm);
-    if (!cur) continue;
-    cur.outs = Math.max(0, cur.outs - (d.outs || 0));
-    cur.runs = Math.max(0, cur.runs - (d.runs || 0));
-    cur.bf = Math.max(0, cur.bf - (d.bf || 0));
+    if (cur) {
+      cur.outs = Math.max(0, cur.outs - (d.outs || 0));
+      cur.runs = Math.max(0, cur.runs - (d.runs || 0));
+      cur.bf = Math.max(0, cur.bf - (d.bf || 0));
+    }
+    const cardId = norm ? parsePitcherKey(norm).cardId : Number(rawKey);
+    const curC = (cardId != null && !Number.isNaN(cardId)) && liveByCardId.get(cardId);
+    if (curC) {
+      curC.outs = Math.max(0, curC.outs - (d.outs || 0));
+      curC.runs = Math.max(0, curC.runs - (d.runs || 0));
+      curC.bf = Math.max(0, curC.bf - (d.bf || 0));
+    }
   }
 
   // Accumulators keyed by card_id (batting) / pitcher key (pitching), preserving first-seen order.
   const batting = { away: new Map(), home: new Map() };
   const pitching = { away: new Map(), home: new Map() };
+
+  // atBatLog-derived IP/R/BF per normalized composite key, plus which composite keys each card id
+  // appears under. Used ONLY to disambiguate legacy bare-key pitcherStats shared by both teams
+  // (see the split below); composite-key games never consult these.
+  const logByKey = new Map();      // "ownerId_cardId" -> { outs, runs, bf }
+  const keysByCardId = new Map();  // cardId(Number) -> Set("ownerId_cardId")
 
   for (const e of log) {
     // --- Batting (offense side) ---
@@ -179,7 +205,50 @@ export function buildBoxScore(gameState, lineups, rosters, teams, opts = {}) {
       row.so += e.so || 0;
       if (e.advantage === 'pitcher') { row.adv.bf += 1; row.adv.h += e.h || 0; }
       else if (e.advantage === 'batter') { row.dis.bf += 1; row.dis.h += e.h || 0; }
+
+      // Reconstruct this PA's outs/runs for the legacy shared-card split. A batter reaching base
+      // (hit or walk) records no out; every other PA is one out, a double play two. Runs are the
+      // runners that scored while this pitcher was on the mound.
+      const norm = normalizePitcherKey(e.pitcherKey);
+      if (norm) {
+        const reached = (e.h || 0) > 0 || (e.bb || 0) > 0;
+        const outs = reached ? 0 : (e.outcome === 'DP' ? 2 : 1);
+        const lg = logByKey.get(norm) || { outs: 0, runs: 0, bf: 0 };
+        lg.outs += outs; lg.runs += (e.scoredRunnerIds || []).length; lg.bf += 1;
+        logByKey.set(norm, lg);
+        const cid = parsePitcherKey(norm).cardId;
+        if (cid != null && !Number.isNaN(cid)) {
+          let set = keysByCardId.get(cid);
+          if (!set) { set = new Set(); keysByCardId.set(cid, set); }
+          set.add(norm);
+        }
+      }
     }
+  }
+
+  // Legacy bare-key disambiguation. When pitcherStats is keyed by a bare card_id that BOTH teams
+  // used (older games), liveByCardId holds the two pitchers' merged totals — applying it to each
+  // would show (and double-count) the same line on both. Split it back apart with the atBatLog,
+  // which does carry the composite key per PA, then reconcile the split to the authoritative merged
+  // total: any residual (e.g. a base-running out the atBatLog can't see) goes to the busier stint.
+  // Only shared cards with no composite pitcherStats entry take this path.
+  const splitByKey = new Map(); // "ownerId_cardId" -> { outs, runs, bf }
+  for (const [cardId, keys] of keysByCardId) {
+    if (keys.size < 2) continue;                             // not shared: liveByCardId is already right
+    const merged = liveByCardId.get(cardId);
+    if (!merged) continue;
+    const keyArr = [...keys];
+    if (keyArr.some((k) => liveByPitcher.has(k))) continue;  // authoritative composite stats exist
+    const parts = keyArr.map((k) => ({ key: k, ...(logByKey.get(k) || { outs: 0, runs: 0, bf: 0 }) }));
+    for (const stat of ['outs', 'runs', 'bf']) {
+      const sum = parts.reduce((n, p) => n + p[stat], 0);
+      const residual = (merged[stat] || 0) - sum;
+      if (residual) {
+        const top = parts.reduce((a, b) => (b[stat] >= a[stat] ? b : a));
+        top[stat] = Math.max(0, top[stat] + residual);
+      }
+    }
+    for (const p of parts) splitByKey.set(p.key, { outs: p.outs, runs: p.runs, bf: p.bf });
   }
 
   // Stolen bases / caught stealing: the engine records one stealLog entry per deliberate steal
@@ -225,13 +294,16 @@ export function buildBoxScore(gameState, lineups, rosters, teams, opts = {}) {
 
     const pitchingRows = pitchingKeys.map((key) => {
       const { cardId } = parsePitcherKey(key);
+      const norm = normalizePitcherKey(key) || key;
       const p = overlay.get(key) || emptyPitcher();
-      const live = liveByPitcher.get(key) || { outs: 0, runs: 0, bf: 0 };
+      const live = liveByPitcher.get(norm) || splitByKey.get(norm)
+        || liveByCardId.get(cardId) || { outs: 0, runs: 0, bf: 0 };
       return {
         cardId,
         pitcherKey: key,
         name: fullNameFor(cardId, cardMap),
         shortName: shortNameFor(cardId, cardMap),
+        outs: live.outs,
         ip: formatIp(live.outs),
         bf: live.bf || p.bf || 0,
         h: p.h, r: live.runs, er: live.runs, bb: p.bb, so: p.so,

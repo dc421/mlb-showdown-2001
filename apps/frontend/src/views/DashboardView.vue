@@ -168,7 +168,8 @@ const olderCompletedGroups = computed(() => completedGroups.value.filter(g => !g
 
 function opponentLabel(s) {
   const o = s.opponent || {};
-  return o.city ? `${o.city} ${o.name}` : (o.name || 'TBD');
+  // City only on the dashboard cards (nickname dropped to keep them compact).
+  return o.city || o.name || 'TBD';
 }
 
 function gameRouteFor(game) {
@@ -204,17 +205,78 @@ function continueSeries(s) {
   if (route) router.push(route);
 }
 
-// Early-stop only applies to regular-season series (skipping games that no longer matter once seeds
-// clinch). Never offer it on a playoff matchup like the Golden Spaceship / Wooden Spoon.
-const PLAYOFF_ROUNDS = ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine', 'Semifinal', 'Semi-Final', 'Play-In', 'Final'];
-function canStopSeries(s, g) {
-  return g.seeds_clinched && !PLAYOFF_ROUNDS.includes(s.round);
+// The whole series card is the click target now (no per-action button). Launching a scheduled
+// series is gated the same way the old "Play" button was (roster present + no live draft);
+// continue/join of an in-progress series is always allowed.
+function seriesDisabled(s, g) {
+  if (s.live && s.live.series_status !== 'completed') return false;
+  const noRoster = g?.type === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster;
+  return authStore.isDraftActive || noRoster;
+}
+function seriesClickable(s, g) {
+  if (s.result_status === 'completed') return !!(s.live && s.live.series_id);
+  return !seriesDisabled(s, g);
+}
+// A scheduled series we can't launch yet (no roster / draft in progress) is shown dimmed.
+function seriesMuted(s, g) {
+  return s.result_status !== 'completed' && seriesDisabled(s, g);
+}
+function onSeriesCardClick(s, g) {
+  if (s.result_status === 'completed') { goSeries(s); return; }
+  if (seriesDisabled(s, g)) return;
+  if (s.live && s.live.series_status !== 'completed') {
+    if (s.live.i_am_participant) continueSeries(s);
+    else joinSeries(s, g);
+  } else {
+    playSeries(s, g);
+  }
+}
+// Completed-series card → its in-app series page (only when a live series is linked).
+function goSeries(s) {
+  if (s.live && s.live.series_id) router.push(`/series/${s.live.series_id}`);
 }
 
-async function handleStopSeries(s) {
-  const score = s.live ? ` at ${s.live.my_wins}–${s.live.opp_wins}` : '';
-  if (!confirm(`Playoff seeds are clinched. Stop this series early${score}? The current result becomes final.`)) return;
-  await authStore.stopSeries(s.series_result_id);
+// Trophy rounds show the trophy image in place of a text round tag.
+const TROPHY_IMAGES = {
+  'Golden Spaceship': 'golden_spaceship.png',
+  'Wooden Spoon': 'wooden_spoon.png',
+  'Silver Submarine': 'silver_submarine.png',
+};
+function trophyImage(round) {
+  const file = TROPHY_IMAGES[round];
+  return file ? `${apiUrl}/images/${file}` : null;
+}
+// Round tag gets the trophy's metal/wood color scheme (silver matches ClassicView's finale card).
+const TROPHY_TAG_CLASS = {
+  'Golden Spaceship': 'trophy-gold',
+  'Wooden Spoon': 'trophy-wood',
+  'Silver Submarine': 'trophy-silver',
+};
+function roundTagClass(round) {
+  return TROPHY_TAG_CLASS[round] || '';
+}
+// Playoff/trophy series carry a round tag (and stack onto two lines); regular-season ones don't.
+function hasRoundTag(s) {
+  return !!(s.round && !['Regular Season', 'Round Robin'].includes(s.round));
+}
+
+function ordinalInning(n) {
+  const v = n % 100;
+  const suffix = (v >= 11 && v <= 13) ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+  return `${n}${suffix}`;
+}
+// The active-series card's right-hand label: says exactly what you're about to click into —
+// the live game and where it stands (e.g. "Game 2 · Top 7th"), or its pre-game step, or that a
+// scheduled series is ready to launch.
+function seriesStateLabel(s) {
+  if (s.result_status === 'completed') return null;
+  const ag = s.live && s.live.active_game;
+  if (!ag) return 'Ready to play';
+  const game = ag.game_in_series ? `Game ${ag.game_in_series}` : 'Game';
+  if (ag.status === 'pending') return `${game} · Setup`;
+  if (ag.status === 'lineups') return `${game} · Set lineups`;
+  if (ag.inning) return `${game} · ${ag.is_top ? 'Top' : 'Bot'} ${ordinalInning(ag.inning)}`;
+  return `${game} · In progress`;
 }
 
 function getGameTypeName(seriesType) {
@@ -467,20 +529,17 @@ onUnmounted(() => {
                 <div v-for="g in liveActiveGroups" :key="g.key" class="series-group">
                     <div class="group-label live">{{ g.label }}</div>
                     <ul class="series-list">
-                        <li v-for="s in g.entries" :key="s.series_result_id" class="series-item">
+                        <li v-for="s in g.entries" :key="s.series_result_id"
+                            class="series-item"
+                            :class="{ clickable: seriesClickable(s, g), muted: seriesMuted(s, g) }"
+                            @click="onSeriesCardClick(s, g)">
                             <div class="series-opp">
                                 <img v-if="s.opponent.logo_url" :src="s.opponent.logo_url" :alt="s.opponent.name" class="series-logo" />
-                                <RouterLink v-if="s.live && s.live.series_id" :to="`/series/${s.live.series_id}`" class="series-opp-name link">{{ opponentLabel(s) }}</RouterLink>
-                                <span v-else class="series-opp-name">{{ opponentLabel(s) }}</span>
+                                <span class="series-opp-name">{{ opponentLabel(s) }}</span>
                             </div>
                             <div class="series-action">
-                                <template v-if="s.live && s.live.series_status !== 'completed'">
-                                    <span class="series-score">{{ s.live.my_wins }}–{{ s.live.opp_wins }}</span>
-                                    <button v-if="s.live.i_am_participant" @click="continueSeries(s)" class="series-btn continue">Continue</button>
-                                    <button v-else @click="joinSeries(s, g)" class="series-btn join">Join</button>
-                                </template>
-                                <button v-else @click="playSeries(s, g)" :disabled="authStore.isDraftActive || (g.type === 'classic' ? !authStore.myClassicRoster : !authStore.myLeagueRoster)" class="series-btn play">Play</button>
-                                <button v-if="canStopSeries(s, g)" @click="handleStopSeries(s)" class="stop-btn" title="Playoff seeds clinched — stop this series early">Stop</button>
+                                <span v-if="seriesStateLabel(s)" class="series-state">{{ seriesStateLabel(s) }}</span>
+                                <span v-if="seriesClickable(s, g)" class="series-go" aria-hidden="true">›</span>
                             </div>
                         </li>
                     </ul>
@@ -552,16 +611,19 @@ onUnmounted(() => {
             <p v-if="authStore.isFetchingSeries">Loading...</p>
             <template v-else-if="completedGroups.length > 0">
                 <div v-for="g in liveCompletedGroups" :key="g.key" class="series-group">
-                    <div class="group-label live">{{ g.label }}</div>
+                    <div class="group-label current">{{ g.label }}</div>
                     <ul class="series-list">
-                        <li v-for="s in g.entries" :key="s.series_result_id" class="series-item">
+                        <li v-for="s in g.entries" :key="s.series_result_id"
+                            class="series-item"
+                            :class="{ clickable: seriesClickable(s, g), muted: seriesMuted(s, g), stacked: hasRoundTag(s) }"
+                            @click="onSeriesCardClick(s, g)">
+                            <img v-if="trophyImage(s.round)" :src="trophyImage(s.round)" :alt="s.round" class="trophy-bg" aria-hidden="true" />
                             <div class="series-opp">
                                 <img v-if="s.opponent.logo_url" :src="s.opponent.logo_url" :alt="s.opponent.name" class="series-logo" />
-                                <RouterLink v-if="s.live && s.live.series_id" :to="`/series/${s.live.series_id}`" class="series-opp-name link">{{ opponentLabel(s) }}</RouterLink>
-                                <span v-else class="series-opp-name">{{ opponentLabel(s) }}</span>
+                                <span class="series-opp-name">{{ opponentLabel(s) }}</span>
                             </div>
                             <div class="series-action">
-                                <span v-if="s.round && !['Regular Season','Round Robin'].includes(s.round)" class="round-tag">{{ s.round }}</span>
+                                <span v-if="s.round && !['Regular Season','Round Robin'].includes(s.round)" class="round-tag" :class="roundTagClass(s.round)">{{ s.round }}</span>
                                 <span class="series-result" :class="{ win: s.my_score > s.opp_score, loss: s.my_score < s.opp_score }">
                                     {{ s.my_score > s.opp_score ? 'W' : (s.my_score < s.opp_score ? 'L' : 'T') }} {{ s.my_score }}–{{ s.opp_score }}
                                 </span>
@@ -579,14 +641,17 @@ onUnmounted(() => {
                         <div v-for="g in olderCompletedGroups" :key="g.key" class="series-group older">
                             <div class="group-label">{{ g.label }}</div>
                             <ul class="series-list">
-                                <li v-for="s in g.entries" :key="s.series_result_id" class="series-item">
+                                <li v-for="s in g.entries" :key="s.series_result_id"
+                                    class="series-item"
+                                    :class="{ clickable: seriesClickable(s, g), muted: seriesMuted(s, g), stacked: hasRoundTag(s) }"
+                                    @click="onSeriesCardClick(s, g)">
+                                    <img v-if="trophyImage(s.round)" :src="trophyImage(s.round)" :alt="s.round" class="trophy-bg" aria-hidden="true" />
                                     <div class="series-opp">
                                         <img v-if="s.opponent.logo_url" :src="s.opponent.logo_url" :alt="s.opponent.name" class="series-logo" />
-                                        <RouterLink v-if="s.live && s.live.series_id" :to="`/series/${s.live.series_id}`" class="series-opp-name link">{{ opponentLabel(s) }}</RouterLink>
-                                        <span v-else class="series-opp-name">{{ opponentLabel(s) }}</span>
+                                        <span class="series-opp-name">{{ opponentLabel(s) }}</span>
                                     </div>
                                     <div class="series-action">
-                                        <span v-if="s.round && !['Regular Season','Round Robin'].includes(s.round)" class="round-tag">{{ s.round }}</span>
+                                        <span v-if="s.round && !['Regular Season','Round Robin'].includes(s.round)" class="round-tag" :class="roundTagClass(s.round)">{{ s.round }}</span>
                                         <span class="series-result" :class="{ win: s.my_score > s.opp_score, loss: s.my_score < s.opp_score }">
                                             {{ s.my_score > s.opp_score ? 'W' : (s.my_score < s.opp_score ? 'L' : 'T') }} {{ s.my_score }}–{{ s.opp_score }}
                                         </span>
@@ -823,81 +888,103 @@ onUnmounted(() => {
   margin: 1rem 0 0 0;
 }
 .series-item {
+  position: relative;
+  overflow: hidden;
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   background: #fff;
   border: 1px solid #ddd;
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
+  border-radius: 7px;
+  margin-bottom: 0.45rem;
 }
+/* Playoff/trophy cards carry a round tag + result (+ trophy watermark) that fill a second line;
+   basic regular-season results stay a single tight row so there's no wasted vertical space. */
+.series-item.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.3rem;
+}
+.series-item.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.series-item.clickable:hover {
+  background: #f5f8fc;
+  border-color: #c7d6f0;
+  box-shadow: 0 1px 4px rgba(13, 110, 253, 0.08);
+}
+.series-item.muted { opacity: 0.55; }
 .series-opp {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
   min-width: 0;
 }
 .series-logo {
-  height: 28px;
-  width: 28px;
+  height: 30px;
+  width: 30px;
   object-fit: contain;
   background: #fff;
-  border-radius: 4px;
+  border-radius: 5px;
   flex-shrink: 0;
 }
 .series-opp-name {
   font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.2;
   color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.series-opp-name.link {
-  color: #007bff;
-  text-decoration: none;
-}
-.series-opp-name.link:hover { text-decoration: underline; }
 .series-action {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.6rem;
-  flex-shrink: 0;
 }
-.series-score {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: #444;
-}
-.series-btn {
-  border: none;
-  border-radius: 5px;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.9rem;
+/* What you're clicking into on an active series card (e.g. "Game 2 · Top 7th"). */
+.series-state {
   font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
+  font-size: 0.92rem;
+  color: #4a5460;
+  font-variant-numeric: tabular-nums;
 }
-.series-btn.play { background: #007bff; color: #fff; }
-.series-btn.play:hover:not(:disabled) { background: #0056b3; }
-.series-btn.continue { background: #28a745; color: #fff; }
-.series-btn.continue:hover { background: #1e7e34; }
-.series-btn.join { background: #ffc107; color: #333; }
-.series-btn.join:hover { background: #e0a800; }
-.series-btn:disabled { background: #e2e6ea; color: #aaa; cursor: not-allowed; }
-.stop-btn {
-  background: none;
-  border: none;
-  color: #b02a37;
-  font-size: 0.8rem;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0.2rem 0.3rem;
+/* Subtle "click me" affordance on the active series card, in place of the old action button. */
+.series-go {
+  color: #b8bfc9;
+  font-size: 1.5rem;
+  line-height: 1;
+  font-weight: 700;
 }
-.stop-btn:hover { color: #7d1d26; }
+.series-item.clickable:hover .series-go { color: #0d6efd; }
+.series-item.clickable:hover .series-state { color: #0d6efd; }
+/* Trophy round → large faint watermark bleeding off the right edge, behind the result. */
+.trophy-bg {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 58px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+}
 .series-result {
   font-weight: 700;
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
   color: #666;
 }
@@ -943,6 +1030,11 @@ onUnmounted(() => {
   background: #28a745;
   display: inline-block;
 }
+/* Completed-series label for the current season/Classic: highlighted like "live" but
+   WITHOUT the green dot, so a finished group no longer reads as ongoing. */
+.group-label.current {
+  color: #0d6efd;
+}
 .round-tag {
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -951,8 +1043,12 @@ onUnmounted(() => {
   border: 1px solid #ddd6fb;
   background: #f3f1fe;
   border-radius: 4px;
-  padding: 0.05rem 0.35rem;
+  padding: 0.08rem 0.4rem;
+  margin-right: auto;
 }
+.round-tag.trophy-gold { color: #9a7a10; border-color: #ecd79a; background: #fbf4dc; }
+.round-tag.trophy-silver { color: #5a6672; border-color: #cdd4dc; background: #eef1f4; }
+.round-tag.trophy-wood { color: #8a5a2b; border-color: #ddc6a8; background: #f4e9d8; }
 .older-toggle {
   background: none;
   border: none;

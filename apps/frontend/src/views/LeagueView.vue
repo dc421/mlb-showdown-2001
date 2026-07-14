@@ -5,7 +5,9 @@ import { useAuthStore } from '@/stores/auth';
 import { apiClient } from '@/services/api';
 import PlayerCard from '@/components/PlayerCard.vue';
 import PlayerCardModal from '@/components/PlayerCardModal.vue';
+import LeagueLeaders from '@/components/LeagueLeaders.vue';
 import { sortRoster } from '@/utils/playerUtils';
+import { aggregateLeaguePlayers, computeLeaders } from '@/utils/leagueLeaders';
 
 const route = useRoute();
 const authStore = useAuthStore();
@@ -17,6 +19,14 @@ const seasonsList = ref([]);
 const selectedSeason = ref('');
 const matrixData = ref([]);
 const hoveredSlotId = ref(null);
+
+// League leaders (specific season only). Lazy-loaded from a lean box-score payload and aggregated
+// client-side with the same buildBoxScore() the rest of the app uses.
+const leaders = ref(null);
+const leadersLoading = ref(false);
+const leadersError = ref(null);
+const leadersTeams = ref({});
+const leadersCardMap = ref(new Map());
 
 // Modal State for Result Input
 const showResultModal = ref(false);
@@ -97,6 +107,30 @@ async function fetchLeagueData() {
   } finally {
       loading.value = false;
   }
+
+  // Kick off leaders separately so the standings/results render without waiting on it.
+  loadLeaders();
+}
+
+// League leaders for the selected season. Fetches the lean per-game box-score inputs and folds them
+// into league-wide per-player totals; skipped for the all-time view (no single-season leaderboard).
+async function loadLeaders() {
+    leaders.value = null;
+    leadersError.value = null;
+    if (!selectedSeason.value || selectedSeason.value === 'all-time') return;
+    leadersLoading.value = true;
+    try {
+        const res = await apiClient(`/api/league/leaders-data?season=${encodeURIComponent(selectedSeason.value)}`);
+        if (!res.ok) throw new Error('Failed to load league leaders.');
+        const payload = await res.json();
+        leadersTeams.value = payload.teams || {};
+        leadersCardMap.value = new Map((payload.cards || []).map(c => [c.card_id, c]));
+        leaders.value = computeLeaders(aggregateLeaguePlayers(payload));
+    } catch (e) {
+        leadersError.value = e.message;
+    } finally {
+        leadersLoading.value = false;
+    }
 }
 
 async function fetchMatrix() {
@@ -733,6 +767,13 @@ onMounted(async () => {
                 </div>
             </div>
 
+        </div>
+
+        <!-- LEAGUE LEADERS (specific season only) -->
+        <div v-if="selectedSeason !== 'all-time'" class="leaders-wrap">
+            <p v-if="leadersLoading" class="loading">Loading league leaders…</p>
+            <p v-else-if="leadersError" class="no-results">{{ leadersError }}</p>
+            <LeagueLeaders v-else-if="leaders" :leaders="leaders" :teams="leadersTeams" :cardMap="leadersCardMap" @select-player="openPlayerCard" />
         </div>
 
         <!-- ALL-TIME CHRONOLOGICAL LIST -->

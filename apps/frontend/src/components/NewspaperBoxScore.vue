@@ -197,13 +197,13 @@ const hasData = computed(() =>
       <thead>
         <tr>
           <th class="np-name">Pitching</th>
-          <th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th>
+          <th>IP</th><th>H</th><th>ER</th><th>BB</th><th>SO</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="p in side.pitching" :key="p.pitcherKey">
           <td class="np-name"><span class="np-click" @click="selectPlayer(p.cardId)">{{ nameFor(p) }}</span><span v-if="decisionFor(p.pitcherKey)" class="np-decision"> ({{ decisionFor(p.pitcherKey) }})</span></td>
-          <td>{{ p.ip }}</td><td>{{ p.h }}</td><td>{{ p.r }}</td><td>{{ p.er }}</td>
+          <td>{{ p.ip }}</td><td>{{ p.h }}</td><td>{{ p.er }}</td>
           <td>{{ p.bb }}</td><td>{{ p.so }}</td>
         </tr>
       </tbody>

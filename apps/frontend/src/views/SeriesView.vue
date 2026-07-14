@@ -2,19 +2,34 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, RouterLink } from 'vue-router';
 import { apiClient } from '@/services/api';
+import { useAuthStore } from '@/stores/auth';
+import SeriesBoxScore from '@/components/SeriesBoxScore.vue';
+import PlayerCardModal from '@/components/PlayerCardModal.vue';
+import { aggregateSeriesBoxScore } from '@/utils/seriesBoxScore';
 
 const route = useRoute();
+const authStore = useAuthStore();
 const series = ref(null);
 const loading = ref(true);
 const error = ref(null);
 
+// Cumulative series box score, summed across every completed game (built once, at the bottom).
+const seriesBox = ref(null);     // { home, away, gamesCounted }
+const boxLoading = ref(false);
+const boxError = ref(null);
+const cardMap = ref(new Map());  // pooled cards across all games, so aggregate names are clickable
+const teamColors = ref({ home: '#1a1a1a', away: '#1a1a1a' });
+const selectedCard = ref(null);
+
 async function fetchSeries() {
   loading.value = true;
   error.value = null;
+  seriesBox.value = null;
   try {
     const res = await apiClient(`/api/series/${route.params.id}`);
     if (!res.ok) throw new Error(res.status === 404 ? 'Series not found.' : 'Failed to load series.');
     series.value = await res.json();
+    loadSeriesBox();
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -22,7 +37,50 @@ async function fetchSeries() {
   }
 }
 
-onMounted(fetchSeries);
+// Fetch every completed game's payload in parallel, then fold them into one combined box score.
+async function loadSeriesBox() {
+  const s = series.value;
+  const completed = (s?.games || []).filter((g) => g.status === 'completed');
+  if (completed.length === 0) { seriesBox.value = null; return; }
+  boxLoading.value = true;
+  boxError.value = null;
+  try {
+    const payloads = await Promise.all(completed.map(async (g) => {
+      const res = await apiClient(`/api/games/${g.game_id}`);
+      if (!res.ok) throw new Error('Failed to load box scores.');
+      return res.json();
+    }));
+
+    // Pool every card (for the clickable-name modal) and pick each team's color from a game payload.
+    const map = new Map();
+    const colors = { home: '#1a1a1a', away: '#1a1a1a' };
+    for (const p of payloads) {
+      for (const sideKey of ['home', 'away']) {
+        for (const c of p.rosters?.[sideKey] || []) if (c?.card_id != null && !map.has(c.card_id)) map.set(c.card_id, c);
+        const t = p.teams?.[sideKey];
+        if (t?.primary_color) {
+          if (String(t.user_id) === String(s.home_team?.user_id)) colors.home = t.primary_color;
+          else if (String(t.user_id) === String(s.away_team?.user_id)) colors.away = t.primary_color;
+        }
+      }
+    }
+    cardMap.value = map;
+    teamColors.value = colors;
+    seriesBox.value = aggregateSeriesBoxScore(payloads, s.home_team?.user_id, s.away_team?.user_id);
+  } catch (e) {
+    boxError.value = e.message;
+  } finally {
+    boxLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchSeries();
+  // Best-effort: load the full player pool so box-score names disambiguate the same way as in-game.
+  if (authStore.selectedPointSetId && !authStore.allPlayers.length) {
+    authStore.fetchAllPlayers(authStore.selectedPointSetId);
+  }
+});
 watch(() => route.params.id, fetchSeries);
 
 const teamLabel = (t) => t ? (t.city ? `${t.city} ${t.name}` : t.name) : 'TBD';
@@ -192,7 +250,23 @@ function teamOf(g, side) {
         </li>
         <li v-if="series.games.length === 0" class="empty">No games in this series yet.</li>
       </ul>
+
+      <section class="series-box">
+        <h2 class="series-box-title">Series Box Score</h2>
+        <p v-if="boxLoading" class="box-state">Loading series stats…</p>
+        <p v-else-if="boxError" class="box-state error">{{ boxError }}</p>
+        <template v-else-if="seriesBox && seriesBox.gamesCounted > 0">
+          <p class="series-box-sub">Combined totals from {{ seriesBox.gamesCounted }} completed {{ seriesBox.gamesCounted === 1 ? 'game' : 'games' }}.</p>
+          <div class="box-pair">
+            <SeriesBoxScore :side="seriesBox.away" :team="series.away_team" :color="teamColors.away" :cardMap="cardMap" @select-player="selectedCard = $event" />
+            <SeriesBoxScore :side="seriesBox.home" :team="series.home_team" :color="teamColors.home" :cardMap="cardMap" @select-player="selectedCard = $event" />
+          </div>
+        </template>
+        <p v-else class="box-state">No completed games to total yet.</p>
+      </section>
     </template>
+
+    <PlayerCardModal :player="selectedCard" @close="selectedCard = null" />
   </div>
 </template>
 
@@ -379,4 +453,32 @@ function teamOf(g, side) {
 .ts-logo { height: 16px; width: 16px; object-fit: contain; }
 .ts-line { line-height: 1.35; }
 .empty { color: #888; text-align: center; padding: 1.5rem; }
+
+/* Cumulative series box score at the bottom of the page. */
+.series-box {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e2e2;
+}
+.series-box-title {
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #333;
+  margin: 0 0 0.25rem;
+}
+.series-box-sub {
+  text-align: center;
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0 0 1.25rem;
+}
+.box-state { color: #888; text-align: center; padding: 1rem; margin: 0; }
+.box-state.error { color: #dc3545; }
+/* Away block above home block — the traditional stacked newspaper box-score layout. */
+.box-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 </style>

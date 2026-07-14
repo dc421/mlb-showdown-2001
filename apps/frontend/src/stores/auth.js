@@ -16,7 +16,6 @@ export const useAuthStore = defineStore('auth', () => {
   const openGames = ref([]);
   const myGroups = ref([]);          // this user's series grouped by league season / Classic
   const mySeason = ref(null);        // current live league season
-  const seedsClinched = ref(false);  // when true, remaining regular-season series can be stopped early
   const activeRosterCards = ref([]);
   const isFetchingGames = ref(false);
   const isFetchingOpenGames = ref(false);
@@ -304,29 +303,10 @@ async function fetchAvailableTeams() {
         const data = await response.json();
         myGroups.value = data.groups || [];
         mySeason.value = data.currentSeason || null;
-        seedsClinched.value = data.seeds_clinched || false;
     } catch (error) {
         console.error(error);
     } finally {
         isFetchingSeries.value = false;
-    }
-  }
-
-  // Stop a regular-season series early (only offered once the season's playoff seeds have clinched).
-  async function stopSeries(seriesResultId) {
-    if (!token.value) return;
-    try {
-        const response = await apiClient(`/api/series/stop`, {
-            method: 'POST',
-            body: JSON.stringify({ series_result_id: seriesResultId })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Failed to stop series');
-        await fetchMySeries();
-        await fetchMyGames();
-    } catch (error) {
-        console.error('Stop series error:', error);
-        alert(`Error: ${error.message}`);
     }
   }
 
@@ -474,10 +454,10 @@ async function submitLineup(gameId, lineupData) {
   }
 
   return { 
-    token, user, allPlayers, myGames, openGames, myGroups, mySeason, seedsClinched, activeRosterCards, API_URL, router,
+    token, user, allPlayers, myGames, openGames, myGroups, mySeason, activeRosterCards, API_URL, router,
     pointSets, selectedPointSetId, isFetchingRoster, isFetchingGames, isFetchingOpenGames, isFetchingSeries,
     isAuthenticated, login, register, logout, reauthenticate, myRoster, myLeagueRoster, myClassicRoster, fetchMyRoster, saveRoster,
-    fetchAllPlayers, fetchMyGames, fetchOpenGames, fetchMySeries, launchSeries, stopSeries, joinGame,fetchAvailableTeams,
+    fetchAllPlayers, fetchMyGames, fetchOpenGames, fetchMySeries, launchSeries, joinGame,fetchAvailableTeams,
     submitLineup, fetchRosterDetails, createGame, fetchMyParticipantInfo, fetchOpponentRoster, availableTeams,
     fetchPointSets, isDraftActive, fetchDraftStatus, hideGame, bulkHideGames
   }
