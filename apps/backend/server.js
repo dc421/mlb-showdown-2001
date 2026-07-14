@@ -1029,9 +1029,9 @@ async function handleSeriesProgression(gameId, client, finalState) {
     }
 
     // 4c. This game's freshly-written standings may have clinched the playoff field (possibly mid-series,
-    // e.g. game 6 of 7 locking every seed). Create the Golden Spaceship / Wooden Spoon series now
-    // (idempotent, best-effort) so the dashboard's early-stop action lights up and the playoff matchups
-    // appear without waiting for a League page load. Only regular-season league games can clinch.
+    // e.g. game 6 of 7 locking every seed). When it does, schedulePlayoffsIfClinched creates the Golden
+    // Spaceship / Wooden Spoon series AND auto-finalizes every remaining (now-meaningless) regular-season
+    // series — including this one if it isn't already over. Only regular-season league games can clinch.
     if (series_type === 'regular_season' && scheduledSeasonName) {
         // Cheap pre-check: skip the clinch computation (Monte Carlo) entirely once the field is scheduled.
         const alreadyScheduled = await client.query(
@@ -1040,7 +1040,12 @@ async function handleSeriesProgression(gameId, client, finalState) {
         );
         if (alreadyScheduled.rows.length === 0) {
             const created = await schedulePlayoffsIfClinched(client, scheduledSeasonName);
-            if (created) io.emit('games-updated');
+            if (created) {
+                io.emit('games-updated');
+                // If this still-unfinished series was just auto-stopped, it's finalized (live series
+                // completed, empty shells removed) — there's no next game to create.
+                if (!isSeriesOver) return;
+            }
         }
     }
 
@@ -2467,9 +2472,14 @@ app.get('/api/series/mine', authenticateToken, async (req, res) => {
          FROM series WHERE id = ANY($1)`, [liveIds]
       )).rows.forEach(s => { liveById[s.id] = s; });
       (await pool.query(
-        `SELECT DISTINCT ON (series_id) series_id, game_id, status, game_in_series
-         FROM games WHERE series_id = ANY($1) AND status <> 'completed'
-         ORDER BY series_id, game_in_series DESC`, [liveIds]
+        `SELECT DISTINCT ON (g.series_id) g.series_id, g.game_id, g.status, g.game_in_series,
+                gs.state_data->>'inning' AS inning, gs.state_data->>'isTopInning' AS is_top
+         FROM games g
+         LEFT JOIN LATERAL (
+           SELECT state_data FROM game_states WHERE game_id = g.game_id ORDER BY turn_number DESC LIMIT 1
+         ) gs ON true
+         WHERE g.series_id = ANY($1) AND g.status <> 'completed'
+         ORDER BY g.series_id, g.game_in_series DESC`, [liveIds]
       )).rows.forEach(g => { activeGameBySeries[g.series_id] = g; });
     }
 
@@ -2515,7 +2525,7 @@ app.get('/api/series/mine', authenticateToken, async (req, res) => {
           my_wins: iAmHome ? s.home_wins : s.away_wins,
           opp_wins: iAmHome ? s.away_wins : s.home_wins,
           i_am_participant: iAmParticipant,
-          active_game: (g && !seriesDone) ? { game_id: g.game_id, status: g.status, game_in_series: g.game_in_series } : null,
+          active_game: (g && !seriesDone) ? { game_id: g.game_id, status: g.status, game_in_series: g.game_in_series, inning: g.inning != null ? Number(g.inning) : null, is_top: g.is_top === 'true' } : null,
         };
       }
 
@@ -2545,93 +2555,6 @@ app.get('/api/series/mine', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching my series:', error);
     res.status(500).json({ message: 'Server error while fetching series.' });
-  }
-});
-
-// Stop a regular-season series early once the playoff seeds have clinched (optional). An in-progress
-// series is finalized at its current partial score; a never-launched one is recorded 0-0 "not
-// required". Guarded by the clinch condition and by the requester belonging to the matchup.
-app.post('/api/series/stop', authenticateToken, async (req, res) => {
-  const { series_result_id } = req.body;
-  const userId = req.user.userId;
-  if (!series_result_id) return res.status(400).json({ message: 'series_result_id is required.' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const srRes = await client.query(
-      `SELECT id, season_name, round, status, winning_team_id, winning_team_name, losing_team_id, losing_team_name
-       FROM series_results WHERE id = $1 FOR UPDATE`,
-      [series_result_id]
-    );
-    if (srRes.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ message: 'Series not found.' }); }
-    const sr = srRes.rows[0];
-    if (sr.status === 'completed') { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Series is already completed.' }); }
-    // Early-stop is a regular-season concept (skip games that no longer matter). Never let it touch a
-    // playoff series — recording a Spaceship/Spoon/etc. as 0-0 "not required" would wipe the matchup.
-    const PLAYOFF_ROUNDS = ['Golden Spaceship', 'Wooden Spoon', 'Silver Submarine', 'Semifinal', 'Semi-Final', 'Play-In', 'Final'];
-    if (PLAYOFF_ROUNDS.includes(sr.round)) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'Only regular-season series can be stopped early.' }); }
-
-    const clinch = await client.query(
-      `SELECT EXISTS(SELECT 1 FROM series_results WHERE season_name = $1 AND round IN ('Golden Spaceship','Wooden Spoon')) AS clinched`,
-      [sr.season_name]
-    );
-    if (!clinch.rows[0].clinched) { await client.query('ROLLBACK'); return res.status(400).json({ message: 'A series can only be stopped early once the playoff seeds have clinched.' }); }
-
-    const teamRes = await client.query('SELECT team_id FROM users WHERE user_id = $1', [userId]);
-    const myTeamId = teamRes.rows[0] && teamRes.rows[0].team_id;
-    if (myTeamId !== sr.winning_team_id && myTeamId !== sr.losing_team_id) {
-      await client.query('ROLLBACK'); return res.status(403).json({ message: 'Your team is not part of this series.' });
-    }
-
-    const liveRes = await client.query(
-      `SELECT id, home_wins, away_wins, series_home_user_id, series_away_user_id, status
-       FROM series WHERE series_result_id = $1 ORDER BY id DESC LIMIT 1`,
-      [series_result_id]
-    );
-
-    if (liveRes.rows.length > 0 && liveRes.rows[0].status !== 'completed') {
-      // Finalize the in-app series at its current score.
-      const s = liveRes.rows[0];
-      const teamRows = await client.query('SELECT user_id, team_id FROM teams WHERE user_id = ANY($1)', [[s.series_home_user_id, s.series_away_user_id]]);
-      const homeTeam = teamRows.rows.find(t => t.user_id === s.series_home_user_id);
-      const awayTeam = teamRows.rows.find(t => t.user_id === s.series_away_user_id);
-      const update = resolveSeriesResultUpdate(sr, {
-        homeTeamId: homeTeam ? homeTeam.team_id : null,
-        awayTeamId: awayTeam ? awayTeam.team_id : null,
-        homeGames: s.home_wins, awayGames: s.away_wins, isOver: true,
-      });
-      await client.query(
-        `UPDATE series_results SET status=$1, result_source=$2, winning_team_id=$3, winning_team_name=$4, winning_score=$5, losing_team_id=$6, losing_team_name=$7, losing_score=$8 WHERE id=$9`,
-        [update.status, update.result_source, update.winning_team_id, update.winning_team_name, update.winning_score, update.losing_team_id, update.losing_team_name, update.losing_score, series_result_id]
-      );
-      await client.query(`UPDATE series SET status='completed' WHERE id = $1`, [s.id]);
-      // Stopping early skips the remaining games — drop any leftover unplayed shells so the
-      // finalized series can't leave a phantom "Continue" game (empty shells only; a partially
-      // played game keeps its log and is hidden by the dashboard completion guard).
-      await client.query(
-        `DELETE FROM games g
-          WHERE g.series_id = $1 AND g.status <> 'completed'
-            AND NOT EXISTS (SELECT 1 FROM game_events e WHERE e.game_id = g.game_id)`,
-        [s.id]
-      );
-    } else {
-      // Never launched: record a 0-0 "not required" row (contributes nothing to the standings).
-      await client.query(
-        `UPDATE series_results SET status='completed', result_source='auto', winning_score=0, losing_score=0,
-         notes='Not required — playoff seeds clinched' WHERE id = $1`,
-        [series_result_id]
-      );
-    }
-
-    await client.query('COMMIT');
-    io.emit('games-updated');
-    res.json({ message: 'Series stopped.' });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error stopping series:', error);
-    res.status(500).json({ message: 'Server error stopping series.' });
-  } finally {
-    client.release();
   }
 });
 
@@ -3030,6 +2953,10 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         .replace(/\([^)]*\)/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+    // Same, but keep the "(TEAM)" suffix — needed to tell apart two cards that share
+    // a plain name (e.g. "David Wells (TOR)" vs "David Wells (CHW)").
+    const collapseName = (n) => (n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const hasSuffix = (n) => /\([^)]*\)/.test(n || '');
 
     try {
         const cardRes = await pool.query(
@@ -3040,6 +2967,12 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
             return res.status(404).json({ message: 'Card not found.' });
         }
         const cardKey = normName(cardRes.rows[0].name);
+        const cardDisplayKey = collapseName(cardRes.rows[0].display_name || cardRes.rows[0].name);
+        // Match an award's player string to this card. When the award carries a
+        // "(TEAM)" suffix (recorded precisely because the plain name is shared), match
+        // the full display name so the honor lands on the right card only; otherwise
+        // fall back to the suffix-stripped plain name.
+        const awardMatches = (a) => a && (hasSuffix(a) ? collapseName(a) === cardDisplayKey : normName(a) === cardKey);
 
         const [historyRes, seriesRes, teamsRes] = await Promise.all([
             pool.query('SELECT season, team_name, position FROM historical_rosters WHERE card_id = $1', [cardId]),
@@ -3190,9 +3123,9 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         // Personal honors — attributed to the league or the Classic by where they were won.
         series.forEach(r => {
             const tgt = r.style === 'Classic' ? ensureC : ensure;
-            if (r.mva && normName(r.mva) === cardKey) tgt(r.season_name).mva = true;
-            if (r.lvsc && normName(r.lvsc) === cardKey) tgt(r.season_name).lvsc = true;
-            if (r.tgaoot && normName(r.tgaoot) === cardKey) tgt(r.season_name).tgaoot = true;
+            if (awardMatches(r.mva)) tgt(r.season_name).mva = true;
+            if (awardMatches(r.lvsc)) tgt(r.season_name).lvsc = true;
+            if (awardMatches(r.tgaoot)) tgt(r.season_name).tgaoot = true;
         });
 
         // Per-season point value: the card's price in the point set that season used
