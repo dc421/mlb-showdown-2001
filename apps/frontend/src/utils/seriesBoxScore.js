@@ -73,12 +73,18 @@ function finalizeSide(batMap, pitMap) {
   return { batting, pitching, totals, pitchingTotals: pTotals };
 }
 
-// Build one game's per-side box score + pitching decisions, or null if the game has no plays yet.
-function boxFromPayload(payload) {
-  const state = payload?.gameState?.state_data;
+// Build one lean game's per-side box score + pitching decisions, or null if the game has no plays
+// yet. `game` is a lean entry from GET /api/series/:id/box-score-data
+// ({ homeUserId, awayUserId, state:{atBatLog,pitcherStats}, startingPitchers }); `cards` is the
+// shared card pool. As in aggregateLeaguePlayers, buildBoxScore only reads rosters to name cards and
+// maps sides by user_id, so the shared pool as both sides works and the log decides home/away.
+function boxFromGame(game, cards) {
+  const state = game?.state;
   if (!state || !Array.isArray(state.atBatLog) || state.atBatLog.length === 0) return null;
-  const box = buildBoxScore(state, payload.lineups, payload.rosters, payload.teams);
-  const decisions = computePitchingDecisions(state.atBatLog, payload.teams, box);
+  const rosters = { home: cards, away: cards };
+  const teams = { home: { user_id: game.homeUserId }, away: { user_id: game.awayUserId } };
+  const box = buildBoxScore(state, {}, rosters, teams);
+  const decisions = computePitchingDecisions(state.atBatLog, teams, box);
   return { box, decisions };
 }
 
@@ -104,30 +110,31 @@ function foldGameSide(box, decisions, gameSide, starterId, batMap, pitMap) {
 }
 
 /**
- * Fold a list of completed-game payloads into a two-team cumulative box score.
+ * Fold a list of lean completed-game entries into a two-team cumulative box score.
  *
- * @param {Array<object>} gamePayloads  each shaped like GET /api/games/:id
- *                                       ({ gameState:{state_data}, lineups, rosters, teams })
- * @param {string|number} homeUserId    series home team's user_id
- * @param {string|number} awayUserId    series away team's user_id
+ * @param {Array<object>} games     lean entries from GET /api/series/:id/box-score-data
+ *                                   ({ homeUserId, awayUserId, state:{atBatLog,pitcherStats}, startingPitchers })
+ * @param {Array<object>} cards     shared card pool (for naming), from the same payload
+ * @param {string|number} homeUserId  series home team's user_id
+ * @param {string|number} awayUserId  series away team's user_id
  * @returns {{ home: SideAgg, away: SideAgg, gamesCounted: number }}
  */
-export function aggregateSeriesBoxScore(gamePayloads, homeUserId, awayUserId) {
+export function aggregateSeriesBoxScore(games, cards, homeUserId, awayUserId) {
   const bat = { home: new Map(), away: new Map() };
   const pit = { home: new Map(), away: new Map() };
   let gamesCounted = 0;
 
-  for (const payload of gamePayloads || []) {
-    const built = boxFromPayload(payload);
+  for (const game of games || []) {
+    const built = boxFromGame(game, cards);
     if (!built) continue;
     gamesCounted += 1;
 
     for (const gameSide of ['home', 'away']) {
-      const uid = payload.teams?.[gameSide]?.user_id;
+      const uid = gameSide === 'home' ? game.homeUserId : game.awayUserId;
       const seriesSide = String(uid) === String(homeUserId) ? 'home'
         : String(uid) === String(awayUserId) ? 'away' : null;
       if (!seriesSide) continue;
-      const starterId = payload.lineups?.[gameSide]?.startingPitcher?.card_id;
+      const starterId = game.startingPitchers?.[gameSide] ?? null;
       foldGameSide(built.box, built.decisions, gameSide, starterId, bat[seriesSide], pit[seriesSide]);
     }
   }
@@ -140,29 +147,30 @@ export function aggregateSeriesBoxScore(gamePayloads, homeUserId, awayUserId) {
 }
 
 /**
- * Fold a list of completed-game payloads into a single cumulative box score for one team.
+ * Fold a list of lean completed-game entries into a single cumulative box score for one team.
  *
  * The team's physical home/away side changes game to game, so each game is matched to the team by
  * user_id and only that side is folded in. Use this for team-season pages, where every game the
  * team played (across many series) rolls up into one batting + pitching line per player.
  *
- * @param {Array<object>} gamePayloads  each shaped like GET /api/games/:id
- * @param {string|number} userId        the team's user_id
+ * @param {Array<object>} games   lean entries (as in aggregateSeriesBoxScore), merged across series
+ * @param {Array<object>} cards   shared card pool (for naming), merged across series
+ * @param {string|number} userId  the team's user_id
  * @returns {{ side: SideAgg, gamesCounted: number }}
  */
-export function aggregateTeamBoxScore(gamePayloads, userId) {
+export function aggregateTeamBoxScore(games, cards, userId) {
   const bat = new Map();
   const pit = new Map();
   let gamesCounted = 0;
 
-  for (const payload of gamePayloads || []) {
-    const built = boxFromPayload(payload);
+  for (const game of games || []) {
+    const built = boxFromGame(game, cards);
     if (!built) continue;
-    const gameSide = String(payload.teams?.home?.user_id) === String(userId) ? 'home'
-      : String(payload.teams?.away?.user_id) === String(userId) ? 'away' : null;
+    const gameSide = String(game.homeUserId) === String(userId) ? 'home'
+      : String(game.awayUserId) === String(userId) ? 'away' : null;
     if (!gameSide) continue;
     gamesCounted += 1;
-    const starterId = payload.lineups?.[gameSide]?.startingPitcher?.card_id;
+    const starterId = game.startingPitchers?.[gameSide] ?? null;
     foldGameSide(built.box, built.decisions, gameSide, starterId, bat, pit);
   }
 

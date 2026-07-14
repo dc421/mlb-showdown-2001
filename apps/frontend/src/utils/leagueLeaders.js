@@ -87,12 +87,13 @@ function rankTopBottom(rows, valueOf, { n = 3, asc = false, withBottom = false }
   const cmp = (a, b) => (asc ? a.v - b.v : b.v - a.v) || (a.row.name || '').localeCompare(b.row.name || '');
   scored.sort(cmp);
   const top = scored.slice(0, n);
-  // Trailers = the worst n (opposite end from top), always displayed value-descending regardless of
-  // which end is "best". Guard against overlap when the pool is tiny.
+  // Trailers = the worst n (opposite end from top), displayed in the category's own natural order so
+  // the whole card reads monotonically: descending for "higher is better" (BA/OPS/W–L), ascending
+  // for "lower is better" (ERA). Guard against overlap when the pool is tiny.
   let bottom = [];
   if (withBottom) {
     bottom = scored.slice(-n).filter((x) => !top.includes(x));
-    bottom.sort((a, b) => b.v - a.v || (a.row.name || '').localeCompare(b.row.name || ''));
+    bottom.sort(cmp);
   }
   return { top, bottom };
 }

@@ -37,36 +37,32 @@ async function fetchSeries() {
   }
 }
 
-// Fetch every completed game's payload in parallel, then fold them into one combined box score.
+// Fetch the series' lean box-score inputs in one request, then fold them into one combined box
+// score. The endpoint ships only what the box score needs (atBatLog/pitcherStats + a shared card
+// pool), so this is a single query instead of one heavy /api/games/:id per completed game.
 async function loadSeriesBox() {
   const s = series.value;
-  const completed = (s?.games || []).filter((g) => g.status === 'completed');
-  if (completed.length === 0) { seriesBox.value = null; return; }
+  const hasCompleted = (s?.games || []).some((g) => g.status === 'completed');
+  if (!hasCompleted) { seriesBox.value = null; return; }
   boxLoading.value = true;
   boxError.value = null;
   try {
-    const payloads = await Promise.all(completed.map(async (g) => {
-      const res = await apiClient(`/api/games/${g.game_id}`);
-      if (!res.ok) throw new Error('Failed to load box scores.');
-      return res.json();
-    }));
+    const res = await apiClient(`/api/series/${route.params.id}/box-score-data`);
+    if (!res.ok) throw new Error('Failed to load box scores.');
+    const payload = await res.json();
 
-    // Pool every card (for the clickable-name modal) and pick each team's color from a game payload.
+    // Pool every card (for the clickable-name modal) and pick each team's color from the teams map.
     const map = new Map();
+    for (const c of payload.cards || []) if (c?.card_id != null && !map.has(c.card_id)) map.set(c.card_id, c);
     const colors = { home: '#1a1a1a', away: '#1a1a1a' };
-    for (const p of payloads) {
-      for (const sideKey of ['home', 'away']) {
-        for (const c of p.rosters?.[sideKey] || []) if (c?.card_id != null && !map.has(c.card_id)) map.set(c.card_id, c);
-        const t = p.teams?.[sideKey];
-        if (t?.primary_color) {
-          if (String(t.user_id) === String(s.home_team?.user_id)) colors.home = t.primary_color;
-          else if (String(t.user_id) === String(s.away_team?.user_id)) colors.away = t.primary_color;
-        }
-      }
-    }
+    const homeTeam = payload.teams?.[s.home_team?.user_id];
+    const awayTeam = payload.teams?.[s.away_team?.user_id];
+    if (homeTeam?.primary_color) colors.home = homeTeam.primary_color;
+    if (awayTeam?.primary_color) colors.away = awayTeam.primary_color;
+
     cardMap.value = map;
     teamColors.value = colors;
-    seriesBox.value = aggregateSeriesBoxScore(payloads, s.home_team?.user_id, s.away_team?.user_id);
+    seriesBox.value = aggregateSeriesBoxScore(payload.games, payload.cards, s.home_team?.user_id, s.away_team?.user_id);
   } catch (e) {
     boxError.value = e.message;
   } finally {

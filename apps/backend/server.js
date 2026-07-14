@@ -2605,6 +2605,24 @@ app.get('/api/series/:id', authenticateToken, async (req, res) => {
        FROM games WHERE series_id = $1 ORDER BY game_in_series ASC`,
       [id]
     );
+    const gameIds = gamesRes.rows.map(g => g.game_id);
+
+    // Batched up front so the games loop makes no per-game DB round-trips:
+    //  - latest state per game (scores, linescore, decisions, HR)
+    //  - participants (probable-SP matchup on not-yet-played games)
+    const stateByGame = {};
+    const partsByGame = {};
+    if (gameIds.length) {
+      const stRes = await pool.query(`
+        SELECT DISTINCT ON (game_id) game_id, state_data
+        FROM game_states WHERE game_id = ANY($1)
+        ORDER BY game_id, turn_number DESC`, [gameIds]);
+      for (const r of stRes.rows) stateByGame[r.game_id] = r.state_data;
+
+      const prRes = await pool.query(
+        'SELECT game_id, user_id, lineup FROM game_participants WHERE game_id = ANY($1)', [gameIds]);
+      for (const r of prRes.rows) (partsByGame[r.game_id] = partsByGame[r.game_id] || []).push(r);
+    }
 
     const games = [];
     const nameCardIds = new Set();
@@ -2614,12 +2632,8 @@ app.get('/api/series/:id', authenticateToken, async (req, res) => {
 
       let homeScore = null, awayScore = null, inning = null, linescore = null, decisionsRaw = null, hrRaw = null;
       if (g.status === 'in_progress' || g.status === 'completed') {
-        const st = await pool.query(
-          'SELECT state_data FROM game_states WHERE game_id = $1 ORDER BY turn_number DESC LIMIT 1',
-          [g.game_id]
-        );
-        if (st.rows.length) {
-          const d = st.rows[0].state_data || {};
+        const d = stateByGame[g.game_id];
+        if (d) {
           homeScore = d.homeScore ?? null;
           awayScore = d.awayScore ?? null;
           inning = d.inning ?? null;
@@ -2640,7 +2654,7 @@ app.get('/api/series/:id', authenticateToken, async (req, res) => {
       // Not-yet-played game: if the players have set their lineups, surface the starting-pitcher matchup.
       let probableSP = null;
       if (g.status === 'pending' || g.status === 'lineups') {
-        const parts = (await pool.query('SELECT user_id, lineup FROM game_participants WHERE game_id = $1', [g.game_id])).rows;
+        const parts = partsByGame[g.game_id] || [];
         const sp = { away: null, home: null };
         const leftover = [];
         for (const pr of parts) {
@@ -2761,6 +2775,92 @@ app.get('/api/series/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching series detail:', error);
     res.status(500).json({ message: 'Server error fetching series detail.' });
+  }
+});
+
+// SERIES BOX-SCORE DATA: lean box-score inputs for one series' completed games.
+// Returns a shared card pool + per-game { atBatLog, pitcherStats, home/away user_id, starting
+// pitchers } so the client can rebuild each game's box score with the same buildBoxScore() and fold
+// them into a cumulative series box score. Mirrors GET /api/league/leaders-data — we deliberately do
+// NOT reuse getAndProcessGameData here (it re-reads every card + the full event log per game); this
+// ships only what the box score needs, in a handful of set-based queries.
+app.get('/api/series/:id/box-score-data', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    // Completed games in this series.
+    const gamesRes = await client.query(
+      `SELECT game_id, home_team_user_id FROM games WHERE series_id = $1 AND status = 'completed'`,
+      [id]
+    );
+    const gameIds = gamesRes.rows.map(r => r.game_id);
+    if (gameIds.length === 0) return res.json({ series_id: id, games: [], cards: [], teams: {} });
+
+    const homeByGame = {};
+    for (const r of gamesRes.rows) homeByGame[r.game_id] = r.home_team_user_id;
+
+    // Participants → the away user per game (non-home participant), the full user set, and the
+    // starting pitcher card_id per side (from lineup.startingPitcher, as getAndProcessGameData reads).
+    const partRes = await client.query(
+      'SELECT game_id, user_id, lineup FROM game_participants WHERE game_id = ANY($1)', [gameIds]);
+    const usersByGame = {};
+    const spByGameUser = {};
+    const userSet = new Set();
+    for (const r of partRes.rows) {
+      (usersByGame[r.game_id] = usersByGame[r.game_id] || []).push(r.user_id);
+      userSet.add(r.user_id);
+      const sp = r.lineup && r.lineup.startingPitcher != null ? parseInt(r.lineup.startingPitcher) : null;
+      spByGameUser[`${r.game_id}_${r.user_id}`] = Number.isNaN(sp) ? null : sp;
+    }
+
+    // Latest state per game (atBatLog + pitcherStats live in the newest game_state).
+    const stateRes = await client.query(`
+      SELECT DISTINCT ON (game_id) game_id, state_data
+      FROM game_states WHERE game_id = ANY($1)
+      ORDER BY game_id, turn_number DESC`, [gameIds]);
+    const stateByGame = {};
+    for (const r of stateRes.rows) stateByGame[r.game_id] = r.state_data;
+
+    // Teams (for display + colors) keyed by user_id.
+    const teamsRes = await client.query(
+      'SELECT user_id, team_id, city, name, abbreviation, logo_url, primary_color FROM teams WHERE user_id = ANY($1)',
+      [[...userSet]]);
+    const teams = {};
+    for (const t of teamsRes.rows) teams[t.user_id] = t;
+
+    // Shared card pool: union of every roster used in this series (names + full cards for the modal).
+    const rostersRes = await client.query('SELECT roster_data FROM game_rosters WHERE game_id = ANY($1)', [gameIds]);
+    const cardMap = new Map();
+    for (const row of rostersRes.rows) {
+      for (const c of row.roster_data || []) {
+        if (c && c.card_id != null && !cardMap.has(c.card_id)) cardMap.set(c.card_id, c);
+      }
+    }
+
+    const games = [];
+    for (const gid of gameIds) {
+      const state = stateByGame[gid];
+      if (!state || !Array.isArray(state.atBatLog) || state.atBatLog.length === 0) continue;
+      const homeUserId = homeByGame[gid];
+      const awayUserId = (usersByGame[gid] || []).find(u => u !== homeUserId);
+      games.push({
+        game_id: gid,
+        homeUserId,
+        awayUserId,
+        startingPitchers: {
+          home: spByGameUser[`${gid}_${homeUserId}`] ?? null,
+          away: spByGameUser[`${gid}_${awayUserId}`] ?? null,
+        },
+        state: { atBatLog: state.atBatLog, pitcherStats: state.pitcherStats || {} },
+      });
+    }
+
+    res.json({ series_id: id, games, cards: [...cardMap.values()], teams });
+  } catch (error) {
+    console.error('Error building series box-score data:', error);
+    res.status(500).json({ message: 'Server error building series box-score data.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -3802,7 +3902,6 @@ app.post('/api/games/:gameId/hide', authenticateToken, async (req, res) => {
 
 // --- NEW REUSABLE FUNCTION ---
 async function getAndProcessGameData(gameId, dbClient) {
-  const allCardsResult = await dbClient.query('SELECT name, team FROM cards_player');
   const gameResult = await dbClient.query('SELECT * FROM games WHERE game_id = $1', [gameId]);
   if (gameResult.rows.length === 0) {
     return null; // Game not found

@@ -815,6 +815,11 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
             const isWinner = matchesFranchise(r.winning_team_name, r.winning_team_id, currentTeam, allTeams, mappedIds);
             const isLoser = matchesFranchise(r.losing_team_name, r.losing_team_id, currentTeam, allTeams, mappedIds);
 
+            // A scheduled/unplayed series has no score yet, and its winning/losing slots are just the
+            // two participants — not an actual outcome. Blank the result and score so the row reads as
+            // an upcoming matchup rather than a phantom "null-null" loss.
+            const isUnplayed = r.winning_score == null || r.losing_score == null;
+
             if (isWinner) {
                 // Resolve Opponent Logo
                 let opponentLogo = null;
@@ -826,8 +831,8 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 results.push({
                     opponent: r.losing_team_name,
                     opponent_logo: opponentLogo,
-                    result: 'W',
-                    score: `${r.winning_score}-${r.losing_score}`,
+                    result: isUnplayed ? '' : 'W',
+                    score: isUnplayed ? '' : `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
                     date: r.date,
                     game_wins: r.winning_score,
@@ -846,8 +851,8 @@ router.get('/:teamId/seasons/:seasonName', authenticateToken, async (req, res) =
                 results.push({
                     opponent: r.winning_team_name,
                     opponent_logo: opponentLogo,
-                    result: 'L',
-                    score: `${r.winning_score}-${r.losing_score}`,
+                    result: isUnplayed ? '' : 'L',
+                    score: isUnplayed ? '' : `${r.winning_score}-${r.losing_score}`,
                     round: r.round,
                     date: r.date,
                     game_wins: r.losing_score,

@@ -78,32 +78,27 @@ async function loadTeamBox() {
 
     boxLoading.value = true;
     try {
-        // Collect every completed game across the team's series this season.
-        const seriesList = await Promise.all(seriesIds.map(async (id) => {
-            const res = await apiClient(`/api/series/${id}`);
-            return res.ok ? res.json() : null;
-        }));
-        const gameIds = [];
-        for (const s of seriesList) {
-            for (const g of s?.games || []) if (g.status === 'completed') gameIds.push(g.game_id);
-        }
-        if (gameIds.length === 0) return;
-
-        const payloads = await Promise.all(gameIds.map(async (gid) => {
-            const res = await apiClient(`/api/games/${gid}`);
+        // Pull each series' lean box-score inputs in one request per series (instead of a per-series
+        // detail fetch plus one heavy /api/games/:id per completed game), then merge and fold.
+        const payloads = await Promise.all(seriesIds.map(async (id) => {
+            const res = await apiClient(`/api/series/${id}/box-score-data`);
             if (!res.ok) throw new Error('Failed to load box scores.');
             return res.json();
         }));
 
-        // Pool every card so aggregate names are clickable in the card modal.
+        // Merge lean games + union the card pool across every series, so aggregate names are
+        // clickable in the card modal.
+        const games = [];
         const map = new Map();
         for (const p of payloads) {
-            for (const sideKey of ['home', 'away']) {
-                for (const c of p.rosters?.[sideKey] || []) if (c?.card_id != null && !map.has(c.card_id)) map.set(c.card_id, c);
-            }
+            for (const g of p.games || []) games.push(g);
+            for (const c of p.cards || []) if (c?.card_id != null && !map.has(c.card_id)) map.set(c.card_id, c);
         }
+        if (games.length === 0) return;
+
+        const cards = [...map.values()];
         boxCardMap.value = map;
-        teamBox.value = aggregateTeamBoxScore(payloads, userId);
+        teamBox.value = aggregateTeamBoxScore(games, cards, userId);
     } catch (e) {
         boxError.value = e.message;
     } finally {
