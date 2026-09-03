@@ -16,6 +16,7 @@ const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { startPhantomMonitor } = require('./jobs/phantomMonitor');
+const { startEmailKeepalive } = require('./jobs/emailKeepalive');
 const { verifyConnection } = require('./services/emailService');
 const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
@@ -1134,6 +1135,10 @@ app.use('/api/draft', require('./routes/draft'));
 app.use('/api/league', require('./routes/league'));
 app.use('/api/classic', require('./routes/classic'));
 app.use('/api/teams', require('./routes/teams'));
+// Win-probability endpoints (/api/games/:id/win-probability, /api/series/:id/win-probability).
+// Mounted at /api but only claims the specific /win-probability paths, so all other /api/games and
+// /api/series routes (defined below) fall through unaffected.
+app.use('/api', require('./routes/winProbability'));
 
 // Global captaincy data for client-side card badges: per-team-season captains,
 // current captains, Faces, and Core Squad members, plus team colors/logos.
@@ -6210,6 +6215,7 @@ async function startServer() {
     // Start Cron Jobs
     startDraftMonitor();
     startPhantomMonitor();
+    startEmailKeepalive();
 
     // Verify Email Connection
     verifyConnection();

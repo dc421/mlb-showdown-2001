@@ -9,6 +9,7 @@ const { calculateStandings, findTeamForRecord } = require('../utils/standingsUti
 const { checkAllTeamsPlayed, snapshotRosters, rolloverPointSets } = require('../services/seasonRolloverService');
 const { recomputeOdds, getCachedOddsMap } = require('../services/playoffOddsService');
 const { schedulePlayoffsIfClinched } = require('../services/playoffSchedulingService');
+const { computeGameWinProbability } = require('../services/winProbability');
 
 function processPlayers(playersToProcess) {
     if (!playersToProcess) return [];
@@ -770,7 +771,25 @@ router.get('/leaders-data', authenticateToken, async (req, res) => {
             });
         }
 
-        res.json({ season, games, cards: [...cardMap.values()], teams });
+        // Win Probability Added per player, summed across the season. WPA needs the full state
+        // timeline (not just the latest state), so load every game's states and run the model.
+        const allStates = await client.query(
+            'SELECT game_id, turn_number, state_data FROM game_states WHERE game_id = ANY($1) ORDER BY game_id, turn_number',
+            [gameIds]);
+        const statesByGame = {};
+        for (const r of allStates.rows) (statesByGame[r.game_id] = statesByGame[r.game_id] || []).push(r);
+        const wpa = { batters: {}, pitchers: {} };
+        const accum = (dst, src) => {
+            for (const k of Object.keys(src || {})) dst[k] = Math.round(((dst[k] || 0) + src[k]) * 1000) / 1000;
+        };
+        for (const gid of gameIds) {
+            const wp = computeGameWinProbability(statesByGame[gid] || []);
+            if (!wp) continue;
+            accum(wpa.batters, wp.playerWpa.batters);
+            accum(wpa.pitchers, wp.playerWpa.pitchers);
+        }
+
+        res.json({ season, games, cards: [...cardMap.values()], teams, wpa });
     } catch (error) {
         console.error('Error building leaders data:', error);
         res.status(500).json({ message: 'Server error building leaders data.' });

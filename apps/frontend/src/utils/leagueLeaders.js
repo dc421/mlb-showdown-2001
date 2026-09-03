@@ -18,6 +18,7 @@ const tb = (b) => b.h + b.doubles + 2 * b.triples + 3 * b.hr; // total bases
 const rate = (num, den) => (den > 0 ? num / den : null);
 const fmt3 = (x) => (x == null ? '—' : x.toFixed(3).replace(/^0\./, '.'));
 const fmt2 = (x) => (x == null ? '—' : x.toFixed(2));
+const fmtWpa = (x) => (x == null ? '—' : `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(2).replace(/^0(?=\.)/, '')}`);
 
 /**
  * Fold every game into league-wide batting + pitching lines, keyed by card_id.
@@ -72,6 +73,11 @@ export function aggregateLeaguePlayers(payload) {
 
   const batters = [...batMap.values()];
   const pitchers = [...pitMap.values()];
+  // Season-long Win Probability Added, precomputed per player by the backend (needs the full timeline).
+  const wpaBat = payload?.wpa?.batters || {};
+  const wpaPit = payload?.wpa?.pitchers || {};
+  for (const b of batters) b.wpa = Object.prototype.hasOwnProperty.call(wpaBat, b.cardId) ? wpaBat[b.cardId] : null;
+  for (const p of pitchers) p.wpa = Object.prototype.hasOwnProperty.call(wpaPit, p.cardId) ? wpaPit[p.cardId] : null;
   // Season length proxy: the most games any single player appeared in (an everyday regular ≈ team's
   // schedule). Used to scale the rate-stat qualifiers.
   const seasonGames = Math.max(0, ...batters.map((b) => b.games), ...pitchers.map((p) => p.games));
@@ -132,6 +138,13 @@ export function computeLeaders(agg) {
     return { top: top.map((x) => entry(x, fmt(x.v))), bottom: bottom.map((x) => entry(x, fmt(x.v))) };
   };
 
+  // WPA is a cumulative impact stat: leaders (biggest positive) on top, trailers (most negative) below.
+  const wpaCat = (rows, label) => {
+    const withWpa = rows.filter((r) => r.wpa != null);
+    const { top, bottom } = rankTopBottom(withWpa, (r) => r.wpa, { n: 3, withBottom: true });
+    return { label, top: top.map((x) => entry(x, fmtWpa(x.v))), bottom: bottom.map((x) => entry(x, fmtWpa(x.v))) };
+  };
+
   const wlCat = (rows) => {
     // Rank by win–loss differential (best record on top, worst in the trailers); a pitcher with no
     // decision is ranked at neither end. Encode wins as a tiebreak so 6-1 outranks 5-0 at equal diff.
@@ -149,12 +162,14 @@ export function computeLeaders(agg) {
       ops: { label: 'OPS', ...rateCat(qualifiedBat, (b) => b.ops, fmt3) },
       hr: { label: 'Home Runs', top: countingTop(batters, 'hr') },
       rbi: { label: 'RBI', top: countingTop(batters, 'rbi') },
+      wpa: wpaCat(withRates, 'Win Probability Added'),
     },
     pitching: {
       era: { label: 'ERA', ...rateCat(qualifiedPit, (p) => p.era, fmt2, true) },
       wins: wlCat(withEra),
       sv: { label: 'Saves', top: countingTop(withEra, 's') },
       so: { label: 'Strikeouts', top: countingTop(withEra, 'so') },
+      wpa: wpaCat(withEra, 'Win Probability Added'),
     },
   };
 }

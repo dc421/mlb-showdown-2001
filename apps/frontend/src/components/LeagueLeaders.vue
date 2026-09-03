@@ -28,13 +28,14 @@ const selectPlayer = (e) => {
   if (c) emit('select-player', c);
 };
 
+const hasEntries = (c) => c && (c.top?.length || c.bottom?.length);
 const battingCats = computed(() => {
   const b = props.leaders?.batting;
-  return b ? [b.avg, b.hr, b.rbi, b.ops] : [];
+  return b ? [b.avg, b.hr, b.rbi, b.ops, b.wpa].filter(hasEntries) : [];
 });
 const pitchingCats = computed(() => {
   const p = props.leaders?.pitching;
-  return p ? [p.wins, p.era, p.so, p.sv] : [];
+  return p ? [p.wins, p.era, p.so, p.sv, p.wpa].filter(hasEntries) : [];
 });
 const hasData = computed(() => battingCats.value.some((c) => c?.top?.length) || pitchingCats.value.some((c) => c?.top?.length));
 </script>

@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { useAuthStore } from '@/stores/auth';
 import { socket } from '@/services/socket';
-import { sessionExpiredFlag } from '@/services/api';
+import { sessionExpiredFlag, apiClient } from '@/services/api';
 import { getContrastingTextColor } from '@/utils/colors';
 import { buildNameResolver } from '@/utils/newspaperNames';
 import PlayerCard from '@/components/PlayerCard.vue';
@@ -14,6 +14,7 @@ import BaseballDiamond from '@/components/BaseballDiamond.vue';
 import ThrowRollResult from '@/components/ThrowRollResult.vue';
 import HomeRunCelebration from '@/components/HomeRunCelebration.vue';
 import NewspaperBoxScore from '@/components/NewspaperBoxScore.vue';
+import WinProbabilityChart from '@/components/WinProbabilityChart.vue';
 
 const showSubModal = ref(false);
 const showSessionExpiredModal = ref(false);
@@ -194,6 +195,55 @@ const isMyTurn = computed(() => {
 });
 
 const isGameOver = computed(() => gameStore.game?.status === 'completed');
+
+// Win-probability graph data (fetched once a game is final).
+const winProb = ref(null);
+const winProbLoading = ref(false);
+async function loadWinProbability() {
+  if (winProb.value || winProbLoading.value) return;
+  winProbLoading.value = true;
+  try {
+    const res = await apiClient(`/api/games/${gameId}/win-probability`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.available) winProb.value = data;
+    }
+  } catch (e) {
+    console.warn('Failed to load win probability:', e);
+  } finally {
+    winProbLoading.value = false;
+  }
+}
+// The top swing of the game, phrased for the tagline.
+const WP_OUTCOME_LABELS = { '1B': 'single', '1B+': 'single', '2B': 'double', '3B': 'triple', HR: 'home run', BB: 'walk', SO: 'strikeout', GB: 'groundout', FB: 'flyout', PU: 'popout', DP: 'double play', FC: "fielder's choice", SB: 'stolen base', CS: 'caught stealing' };
+const wpOutcomeLabel = (o) => WP_OUTCOME_LABELS[o] || o || 'play';
+function wpaText(p) {
+  const v = Math.round(p.wpa * 100);
+  return `${v > 0 ? '+' : ''}${v}%`;
+}
+// Fallback description when a play has no game-log message (rare).
+function playFallback(p) {
+  if (!p.batter) return wpOutcomeLabel(p.outcome);
+  return `${p.batter} ${wpOutcomeLabel(p.outcome)}`;
+}
+// The three biggest plays get a card-image annotation on the graph, dot-coloured for the team whose
+// win probability rose (home if home WP went up, else away).
+const wpAnnotations = computed(() => {
+  const plays = winProb.value?.plays || [];
+  return plays.slice(0, 3)
+    .filter((p) => p.batterImage)
+    .map((p) => ({ i: p.i, image: p.batterImage, name: p.batter, homeUp: p.homeWPAfter >= p.homeWPBefore }));
+});
+// Some older games have truncated state data (only later innings stored); flag when the curve can't
+// start at the 1st so the graph isn't silently missing its opening.
+const ordinal = (nn) => { const s = ['th', 'st', 'nd', 'rd']; const v = nn % 100; return nn + (s[(v - 20) % 10] || s[v] || s[0]); };
+const wpPartialNote = computed(() => {
+  const p0 = winProb.value?.points?.[0];
+  return p0 && p0.inning > 1 ? `Play data before the ${ordinal(p0.inning)} inning wasn’t recorded for this game.` : null;
+});
+
+// Fetch when the game finishes live (walk-off) as well as on a fresh load of a final game.
+watch(isGameOver, (over) => { if (over) loadWinProbability(); });
 
 const amIOffensivePlayer = computed(() => {
     if (!authStore.user || !gameStore.gameState) return false;
@@ -2706,6 +2756,7 @@ onMounted(async () => {
     // pre-walk-off tie because the reveal flag is never set on a fresh load.
     gameStore.setIsSwingResultVisible(true);
     simulPitchVisible.value = true;
+    loadWinProbability();
   } else if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
     if (authStore.user) {
       // SIMUL: If returning to a completed at-bat, show everything
@@ -3060,7 +3111,7 @@ async function handleReauthenticate() {
     <div class="info-container">
       <!-- Left Panel (User's Team) — final games show a newspaper box in place of the lineup -->
       <template v-if="leftPanelData.team">
-      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="leftPanelData.teamKey" @select-player="selectedCard = $event" />
+      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="leftPanelData.teamKey" :playerWpa="winProb?.playerWpa" @select-player="selectedCard = $event" />
       <div v-else class="lineup-panel" :class="{ 'card-wide': lineMode === 'card' }">
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
@@ -3212,7 +3263,7 @@ async function handleReauthenticate() {
 
       <!-- Right Panel (Opponent's Team) — final games show a newspaper box in place of the lineup -->
       <template v-if="rightPanelData.team">
-      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="rightPanelData.teamKey" @select-player="selectedCard = $event" />
+      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="rightPanelData.teamKey" :playerWpa="winProb?.playerWpa" @select-player="selectedCard = $event" />
       <div v-else class="lineup-panel" :class="{ 'card-wide': lineMode === 'card' }">
           <h3 :style="{ color: rightPanelData.colors.primary }" class="lineup-header">
               <img :src="rightPanelData.team.logo_url" class="lineup-logo" /> {{ rightPanelData.team.city }} Lineup
@@ -3283,6 +3334,23 @@ async function handleReauthenticate() {
       </div>
       </template>
     </div>
+
+    <!-- WIN PROBABILITY (final games only) -->
+    <section v-if="isGameOver && winProb" class="win-prob-section">
+      <h2 class="wp-heading">Win Probability</h2>
+      <p v-if="wpPartialNote" class="wp-partial-note">{{ wpPartialNote }}</p>
+      <WinProbabilityChart :points="winProb.points" :homeTeam="winProb.teams.home" :awayTeam="winProb.teams.away" :annotations="wpAnnotations" />
+      <div v-if="winProb.plays && winProb.plays.length" class="wp-plays">
+        <h3 class="wp-plays-title">Biggest Plays</h3>
+        <ol class="wp-plays-list">
+          <li v-for="(p, i) in winProb.plays" :key="i" class="wp-play">
+            <span class="wp-play-wpa" :class="p.wpa >= 0 ? 'pos' : 'neg'">{{ wpaText(p) }}</span>
+            <span class="wp-play-desc">{{ p.log || playFallback(p) }}</span>
+            <span class="wp-play-meta">{{ p.half }}</span>
+          </li>
+        </ol>
+      </div>
+    </section>
   </div>
   <div v-else class="loading-container"><p>Loading game...</p></div>
 </template>
@@ -3590,6 +3658,33 @@ async function handleReauthenticate() {
 }
 
 .loading-container { text-align: center; padding: 5rem; font-size: 1.5rem; }
+
+/* Win probability (final games) */
+.win-prob-section {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 1.5rem;
+  border: 1px solid #ececec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.wp-heading { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #222; margin: 0 0 0.75rem; }
+.wp-partial-note { font-size: 0.72rem; color: #b07d2b; background: #fdf6e6; border: 1px solid #f0e3c0; border-radius: 6px; padding: 0.35rem 0.6rem; margin: 0 0 0.75rem; }
+.wp-plays { margin-top: 1.25rem; border-top: 1px solid #f0f0f0; padding-top: 0.9rem; }
+.wp-plays-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin: 0 0 0.6rem; }
+.wp-plays-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.wp-play { display: grid; grid-template-columns: 3.2rem 1fr auto; align-items: baseline; gap: 0.6rem; font-size: 0.82rem; padding: 0.15rem 0; }
+.wp-play-wpa { font-variant-numeric: tabular-nums; font-weight: 800; text-align: right; }
+.wp-play-wpa.pos { color: #1e874b; }
+.wp-play-wpa.neg { color: #b03535; }
+.wp-play-desc { color: #333; line-height: 1.35; }
+.wp-play-meta { color: #999; font-size: 0.72rem; white-space: nowrap; }
+@media (max-width: 560px) {
+  .wp-play { grid-template-columns: 3rem 1fr; }
+  .wp-play-meta { grid-column: 2; }
+}
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal-overlay > div { max-width: 320px; }
 

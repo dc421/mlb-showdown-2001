@@ -10,8 +10,19 @@ const props = defineProps({
   team: { type: Object, default: null },    // series team ({ city, name, logo_url })
   color: { type: String, default: '#1a1a1a' },
   cardMap: { type: Object, default: null }, // optional Map<cardId, card> so names open the card modal
+  playerWpa: { type: Object, default: null }, // { batters: {cardId: wpa}, pitchers: {cardId: wpa} } summed across the series
 });
 const emit = defineEmits(['select-player']);
+
+// Win Probability Added, summed across the series (shown when the data is available).
+const showWpa = computed(() => !!props.playerWpa);
+const wpaFor = (cardId, isPitcher) => {
+  const grp = isPitcher ? props.playerWpa?.pitchers : props.playerWpa?.batters;
+  const v = grp ? grp[cardId] : undefined;
+  return v == null ? null : v;
+};
+const fmtWpa = (v) => (v == null ? '' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2).replace(/^0(?=\.)/, '')}`);
+const wpaClass = (v) => (v == null ? '' : v >= 0 ? 'wpa-pos' : 'wpa-neg');
 
 const authStore = useAuthStore();
 
@@ -52,7 +63,7 @@ const hasData = computed(() =>
           <tr>
             <th class="np-name">Batting</th>
             <th>G</th><th>AB</th><th>R</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>BB</th><th>SO</th><th>SB</th><th>CS</th>
-            <th class="np-rate">AVG</th><th class="np-rate">OBP</th><th class="np-rate">SLG</th><th class="np-rate">OPS</th>
+            <th class="np-rate">AVG</th><th class="np-rate">OBP</th><th class="np-rate">SLG</th><th class="np-rate">OPS</th><th v-if="showWpa" class="np-wpa">WPA</th>
           </tr>
         </thead>
         <tbody>
@@ -61,6 +72,7 @@ const hasData = computed(() =>
             <td>{{ b.games }}</td><td>{{ b.ab }}</td><td>{{ b.r }}</td><td>{{ b.h }}</td>
             <td>{{ z(b.doubles) }}</td><td>{{ z(b.triples) }}</td><td>{{ z(b.hr) }}</td><td>{{ b.rbi }}</td><td>{{ b.bb }}</td><td>{{ b.so }}</td><td>{{ z(b.sb) }}</td><td>{{ z(b.cs) }}</td>
             <td class="np-rate">{{ b.avg }}</td><td class="np-rate">{{ b.obp }}</td><td class="np-rate">{{ b.slg }}</td><td class="np-rate np-ops">{{ b.ops }}</td>
+            <td v-if="showWpa" class="np-wpa" :class="wpaClass(wpaFor(b.cardId, false))">{{ fmtWpa(wpaFor(b.cardId, false)) }}</td>
           </tr>
         </tbody>
         <tfoot>
@@ -70,6 +82,7 @@ const hasData = computed(() =>
             <td>{{ side.totals.ab }}</td><td>{{ side.totals.r }}</td><td>{{ side.totals.h }}</td>
             <td>{{ z(side.totals.doubles) }}</td><td>{{ z(side.totals.triples) }}</td><td>{{ z(side.totals.hr) }}</td><td>{{ side.totals.rbi }}</td><td>{{ side.totals.bb }}</td><td>{{ side.totals.so }}</td><td>{{ z(side.totals.sb) }}</td><td>{{ z(side.totals.cs) }}</td>
             <td class="np-rate">{{ side.totals.avg }}</td><td class="np-rate">{{ side.totals.obp }}</td><td class="np-rate">{{ side.totals.slg }}</td><td class="np-rate np-ops">{{ side.totals.ops }}</td>
+            <td v-if="showWpa" class="np-wpa"></td>
           </tr>
         </tfoot>
       </table>
@@ -81,7 +94,7 @@ const hasData = computed(() =>
           <tr>
             <th class="np-name">Pitching</th>
             <th>G</th><th>GS</th><th>W-L</th><th>S</th><th>IP</th><th>H</th><th>ER</th><th>BB</th><th>SO</th>
-            <th class="np-rate">ERA</th>
+            <th class="np-rate">ERA</th><th v-if="showWpa" class="np-wpa">WPA</th>
           </tr>
         </thead>
         <tbody>
@@ -90,6 +103,7 @@ const hasData = computed(() =>
             <td>{{ p.games }}</td><td>{{ z(p.gs) }}</td><td>{{ wl(p) }}</td><td>{{ z(p.s) }}</td>
             <td>{{ p.ip }}</td><td>{{ p.h }}</td><td>{{ p.er }}</td><td>{{ p.bb }}</td><td>{{ p.so }}</td>
             <td class="np-rate">{{ p.era }}</td>
+            <td v-if="showWpa" class="np-wpa" :class="wpaClass(wpaFor(p.cardId, true))">{{ fmtWpa(wpaFor(p.cardId, true)) }}</td>
           </tr>
         </tbody>
         <tfoot>
@@ -100,6 +114,7 @@ const hasData = computed(() =>
             <td>{{ side.pitchingTotals.ip }}</td><td>{{ side.pitchingTotals.h }}</td><td>{{ side.pitchingTotals.er }}</td>
             <td>{{ side.pitchingTotals.bb }}</td><td>{{ side.pitchingTotals.so }}</td>
             <td class="np-rate">{{ side.pitchingTotals.era }}</td>
+            <td v-if="showWpa" class="np-wpa"></td>
           </tr>
         </tfoot>
       </table>
@@ -174,6 +189,9 @@ const hasData = computed(() =>
 /* Rate stats (AVG/OBP/SLG/OPS, ERA) set apart in a muted tone; OPS reads as the summary figure. */
 .np-rate { color: #555; }
 .np-ops { color: #1a1a1a; font-weight: 700; }
+.np-wpa { font-weight: 700; }
+.np-wpa.wpa-pos { color: #1e874b; }
+.np-wpa.wpa-neg { color: #b03535; }
 
 .np-pitching { margin-top: 0.75rem; }
 </style>

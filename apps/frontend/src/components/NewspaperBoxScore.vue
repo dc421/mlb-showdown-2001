@@ -10,8 +10,19 @@ import { computePitchingDecisions, normalizeKey } from '@/utils/pitchingDecision
 // the linescore and game log exactly.
 const props = defineProps({
   teamKey: { type: String, required: true }, // 'home' | 'away'
+  playerWpa: { type: Object, default: null }, // { batters: {cardId: wpa}, pitchers: {cardId: wpa} }
 });
 const emit = defineEmits(['select-player']);
+
+// Win Probability Added per player (shown once a game is final, when the data is loaded).
+const showWpa = computed(() => !!props.playerWpa);
+const wpaFor = (cardId, isPitcher) => {
+  const grp = isPitcher ? props.playerWpa?.pitchers : props.playerWpa?.batters;
+  const v = grp ? grp[cardId] : undefined;
+  return v == null ? null : v;
+};
+const fmtWpa = (v) => (v == null ? '' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2).replace(/^0(?=\.)/, '')}`);
+const wpaClass = (v) => (v == null ? '' : v >= 0 ? 'wpa-pos' : 'wpa-neg');
 
 const gameStore = useGameStore();
 const authStore = useAuthStore();
@@ -170,7 +181,7 @@ const hasData = computed(() =>
       <thead>
         <tr>
           <th class="np-name">Batting</th>
-          <th>AB</th><th>R</th><th>H</th><th>BI</th><th>BB</th><th>SO</th><th class="np-avg">AVG</th>
+          <th>AB</th><th>R</th><th>H</th><th>BI</th><th>BB</th><th>SO</th><th class="np-avg">AVG</th><th v-if="showWpa" class="np-wpa">WPA</th>
         </tr>
       </thead>
       <tbody>
@@ -178,13 +189,14 @@ const hasData = computed(() =>
           <td class="np-name"><span class="np-click" @click="selectPlayer(b.cardId)">{{ nameFor(b) }}</span><span v-if="posFor(b.cardId)" class="np-pos">{{ posFor(b.cardId) }}</span></td>
           <td>{{ b.ab }}</td><td>{{ b.r }}</td><td>{{ b.h }}</td><td>{{ b.rbi }}</td>
           <td>{{ b.bb }}</td><td>{{ b.so }}</td><td class="np-avg">{{ b.avg }}</td>
+          <td v-if="showWpa" class="np-wpa" :class="wpaClass(wpaFor(b.cardId, false))">{{ fmtWpa(wpaFor(b.cardId, false)) }}</td>
         </tr>
       </tbody>
       <tfoot>
         <tr>
           <td class="np-name">Totals</td>
           <td>{{ side.totals.ab }}</td><td>{{ side.totals.r }}</td><td>{{ side.totals.h }}</td>
-          <td>{{ side.totals.rbi }}</td><td>{{ side.totals.bb }}</td><td>{{ side.totals.so }}</td><td class="np-avg"></td>
+          <td>{{ side.totals.rbi }}</td><td>{{ side.totals.bb }}</td><td>{{ side.totals.so }}</td><td class="np-avg"></td><td v-if="showWpa" class="np-wpa"></td>
         </tr>
       </tfoot>
     </table>
@@ -197,7 +209,7 @@ const hasData = computed(() =>
       <thead>
         <tr>
           <th class="np-name">Pitching</th>
-          <th>IP</th><th>H</th><th>ER</th><th>BB</th><th>SO</th>
+          <th>IP</th><th>H</th><th>ER</th><th>BB</th><th>SO</th><th v-if="showWpa" class="np-wpa">WPA</th>
         </tr>
       </thead>
       <tbody>
@@ -205,6 +217,7 @@ const hasData = computed(() =>
           <td class="np-name"><span class="np-click" @click="selectPlayer(p.cardId)">{{ nameFor(p) }}</span><span v-if="decisionFor(p.pitcherKey)" class="np-decision"> ({{ decisionFor(p.pitcherKey) }})</span></td>
           <td>{{ p.ip }}</td><td>{{ p.h }}</td><td>{{ p.er }}</td>
           <td>{{ p.bb }}</td><td>{{ p.so }}</td>
+          <td v-if="showWpa" class="np-wpa" :class="wpaClass(wpaFor(p.cardId, true))">{{ fmtWpa(wpaFor(p.cardId, true)) }}</td>
         </tr>
       </tbody>
     </table>
@@ -289,6 +302,9 @@ const hasData = computed(() =>
   font-weight: 700;
 }
 .np-avg { color: #555; }
+.np-wpa { font-weight: 700; }
+.np-wpa.wpa-pos { color: #1e874b; }
+.np-wpa.wpa-neg { color: #b03535; }
 
 /* Below-the-line notes, set in italic serif like real agate type. */
 .np-notes {

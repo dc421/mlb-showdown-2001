@@ -5,6 +5,7 @@ import { apiClient } from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
 import SeriesBoxScore from '@/components/SeriesBoxScore.vue';
 import PlayerCardModal from '@/components/PlayerCardModal.vue';
+import WinProbabilityChart from '@/components/WinProbabilityChart.vue';
 import { aggregateSeriesBoxScore } from '@/utils/seriesBoxScore';
 
 const route = useRoute();
@@ -30,6 +31,7 @@ async function fetchSeries() {
     if (!res.ok) throw new Error(res.status === 404 ? 'Series not found.' : 'Failed to load series.');
     series.value = await res.json();
     loadSeriesBox();
+    loadWinProb();
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -69,6 +71,33 @@ async function loadSeriesBox() {
     boxLoading.value = false;
   }
 }
+
+// Per-game win-probability sparklines + series-wide player WPA for the completed games in this series.
+const winProbByGame = ref({}); // game_id -> { points, teams, summary, topPlay }
+const seriesPlayerWpa = ref(null); // { batters, pitchers } summed across the series
+async function loadWinProb() {
+  const s = series.value;
+  if (!(s?.games || []).some((g) => g.status === 'completed')) return;
+  try {
+    const res = await apiClient(`/api/series/${route.params.id}/win-probability`);
+    if (!res.ok) return;
+    const payload = await res.json();
+    const map = {};
+    for (const g of payload.games || []) {
+      map[g.game_id] = {
+        points: (g.curve || []).map((wp) => ({ homeWP: wp })),
+        teams: g.teams,
+        summary: g.summary,
+        topPlay: g.topPlay,
+      };
+    }
+    winProbByGame.value = map;
+    seriesPlayerWpa.value = payload.playerWpa || null;
+  } catch {
+    /* sparklines are best-effort; ignore failures */
+  }
+}
+const wpForGame = (g) => winProbByGame.value[g.game_id] || null;
 
 onMounted(() => {
   fetchSeries();
@@ -228,6 +257,9 @@ function teamOf(g, side) {
                 <span class="dtag">SP</span> {{ g.probable_pitchers.away || 'TBD' }} vs. {{ g.probable_pitchers.home || 'TBD' }}
               </div>
             </template>
+            <div v-if="wpForGame(g)" class="game-sparkline">
+              <WinProbabilityChart compact :points="wpForGame(g).points" :homeTeam="wpForGame(g).teams.home" :awayTeam="wpForGame(g).teams.away" />
+            </div>
             <div v-if="hasTeamSummary(g)" class="team-summary">
               <div class="ts-col ts-left">
                 <div class="ts-team">
@@ -254,8 +286,8 @@ function teamOf(g, side) {
         <template v-else-if="seriesBox && seriesBox.gamesCounted > 0">
           <p class="series-box-sub">Combined totals from {{ seriesBox.gamesCounted }} completed {{ seriesBox.gamesCounted === 1 ? 'game' : 'games' }}.</p>
           <div class="box-pair">
-            <SeriesBoxScore :side="seriesBox.away" :team="series.away_team" :color="teamColors.away" :cardMap="cardMap" @select-player="selectedCard = $event" />
-            <SeriesBoxScore :side="seriesBox.home" :team="series.home_team" :color="teamColors.home" :cardMap="cardMap" @select-player="selectedCard = $event" />
+            <SeriesBoxScore :side="seriesBox.away" :team="series.away_team" :color="teamColors.away" :cardMap="cardMap" :playerWpa="seriesPlayerWpa" @select-player="selectedCard = $event" />
+            <SeriesBoxScore :side="seriesBox.home" :team="series.home_team" :color="teamColors.home" :cardMap="cardMap" :playerWpa="seriesPlayerWpa" @select-player="selectedCard = $event" />
           </div>
         </template>
         <p v-else class="box-state">No completed games to total yet.</p>
@@ -344,6 +376,7 @@ function teamOf(g, side) {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .game-link:hover { background: #f4f8ff; border-color: #cdddf5; }
+.game-sparkline { margin-top: 0.5rem; }
 .game-head {
   display: flex;
   justify-content: space-between;

@@ -200,58 +200,110 @@ async function getLeagueEmails(client) {
     }
 }
 
-async function sendEmail(to, subject, html) {
+// Record one send attempt in email_log. Best-effort: a logging failure must never
+// take down the caller (a cron job or a request handler that already did its work),
+// so this swallows its own errors after complaining to stdout.
+async function recordEmailAttempt(kind, to, subject, outcome) {
+    const recipients = Array.isArray(to) ? to : [to];
+    try {
+        await pool.query(
+            `INSERT INTO email_log (kind, recipients, subject, status, provider, message_id, error)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+                kind,
+                recipients,
+                subject,
+                outcome.status,
+                outcome.provider || null,
+                outcome.messageId || null,
+                outcome.error || null,
+            ]
+        );
+    } catch (err) {
+        console.error(`[email] Could not write email_log row for "${subject}":`, err.message);
+    }
+}
+
+// Send an email and REPORT WHAT HAPPENED.
+//
+// Returns { ok, status, provider, messageId?, error? } and never throws — callers
+// are mid-request or mid-cron and must not fail because mail is down. But every
+// outcome is now loud on stdout and persisted to email_log, so a dead provider is
+// visible instead of being swallowed. `kind` is a short slug identifying the
+// template (used to query the log later).
+async function sendEmail(to, subject, html, kind = 'unknown') {
     if (!to || to.length === 0) {
-        console.log("No recipients for email:", subject);
-        return;
+        console.warn(`[email] ⚠️  No recipients for "${subject}" (${kind}) — nothing sent.`);
+        const outcome = { status: 'skipped', provider: 'none', error: 'no recipients' };
+        await recordEmailAttempt(kind, [], subject, outcome);
+        return { ok: false, ...outcome };
     }
 
     const isProduction = process.env.NODE_ENV === 'production';
+    const recipientList = Array.isArray(to) ? to : [to];
 
     // Priority: API if available
     if (process.env.BREVO_API_KEY) {
-         try {
-            console.log(`Sending email via Brevo API to ${Array.isArray(to) ? to.join(', ') : to}`);
+        try {
+            console.log(`[email] Sending "${subject}" (${kind}) via Brevo to ${recipientList.join(', ')}`);
             const result = await sendViaBrevo(to, subject, html);
-            console.log("Message sent via Brevo:", result.messageId || 'Success');
-            return;
+            const outcome = { status: 'sent', provider: 'brevo', messageId: result.messageId || null };
+            console.log(`[email] ✅ Sent via Brevo (${kind}): ${outcome.messageId || 'ok'}`);
+            await recordEmailAttempt(kind, recipientList, subject, outcome);
+            return { ok: true, ...outcome };
         } catch (error) {
-            console.error("Error sending email via Brevo:", error.message);
-            // We could fall back to SMTP here, but if BREVO is set, it likely means SMTP is blocked.
-            // Let's fallback only if explicitly requested, otherwise fail.
-            // For now, let's log and try SMTP as a desperate backup?
-            // No, the user goal is to avoid timeouts. SMTP will timeout.
-            return;
+            // Deliberately NO SMTP fallback: BREVO_API_KEY being set means SMTP is
+            // blocked on this host, so falling back would just burn the 60s timeout.
+            // Fail fast, but fail *visibly*.
+            const outcome = { status: 'failed', provider: 'brevo', error: error.message };
+            console.error(`[email] ❌ EMAIL FAILED (${kind}) "${subject}" -> ${recipientList.join(', ')}: ${error.message}`);
+            await recordEmailAttempt(kind, recipientList, subject, outcome);
+            return { ok: false, ...outcome };
         }
     }
 
     const hasEmailConfig = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
 
     if (!isProduction || !hasEmailConfig) {
-        console.log("--- SIMULATING EMAIL SEND ---");
+        // Nothing was actually delivered. In production this is a misconfiguration,
+        // not a normal state, so say so at error level and log it as 'simulated'
+        // rather than 'sent' — the two must never look alike after the fact.
         if (!hasEmailConfig && isProduction) {
-            console.log("(Simulation active due to missing email configuration)");
+            console.error(`[email] ❌ NOT SENT (${kind}) "${subject}": no email configuration in production (need BREVO_API_KEY, or EMAIL_HOST + EMAIL_USER + EMAIL_PASS).`);
+        } else {
+            console.log(`--- SIMULATING EMAIL SEND (${kind}) ---`);
+            console.log(`To: ${recipientList.join(', ')}`);
+            console.log(`Subject: ${subject}`);
+            console.log(`Content: ${html.substring(0, 100)}...`);
         }
 
-        const recipients = Array.isArray(to) ? to.join(', ') : to;
-        console.log(`To: ${recipients}`);
-        console.log(`Subject: ${subject}`);
-        console.log(`Content: ${html.substring(0, 100)}...`);
-        return;
+        const outcome = {
+            status: 'simulated',
+            provider: 'none',
+            error: !hasEmailConfig && isProduction ? 'missing email configuration in production' : null,
+        };
+        await recordEmailAttempt(kind, recipientList, subject, outcome);
+        return { ok: false, ...outcome };
     }
 
     const mailOptions = {
         from: `"League Commissioner" <${process.env.EMAIL_USER}>`,
-        to: Array.isArray(to) ? to.join(', ') : to,
+        to: recipientList.join(', '),
         subject: subject,
         html: html,
     };
 
     try {
         const info = await transporter.sendMail(mailOptions);
-        console.log("Message sent: %s", info.messageId);
+        const outcome = { status: 'sent', provider: 'smtp', messageId: info.messageId || null };
+        console.log(`[email] ✅ Sent via SMTP (${kind}): ${outcome.messageId || 'ok'}`);
+        await recordEmailAttempt(kind, recipientList, subject, outcome);
+        return { ok: true, ...outcome };
     } catch (error) {
-        console.error("Error sending email:", error);
+        const outcome = { status: 'failed', provider: 'smtp', error: error.message };
+        console.error(`[email] ❌ EMAIL FAILED (${kind}) "${subject}" -> ${recipientList.join(', ')}: ${error.message}`);
+        await recordEmailAttempt(kind, recipientList, subject, outcome);
+        return { ok: false, ...outcome };
     }
 }
 
@@ -314,7 +366,7 @@ async function sendPickConfirmation(pickDetails, nextTeam, client) {
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'pick_confirmation');
 }
 
 // Template: Classic Roster Submission
@@ -341,7 +393,7 @@ async function sendClassicRosterSubmissionEmail(userWhoSubmitted, missingUsers, 
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'classic_roster_submission');
 }
 
 // Template: Stalled Draft Notification
@@ -388,7 +440,7 @@ async function sendStalledDraftNotification(level, team, client) {
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'stalled_draft');
 }
 
 // Template: Random Removals Email
@@ -423,7 +475,7 @@ async function sendRandomRemovalsEmail(removalsByTeam, firstPickTeamName, client
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'random_removals');
 }
 
 // Template: Roster Update Notification (Manual Edits)
@@ -457,7 +509,7 @@ async function sendRosterUpdateEmail(teamName, added, dropped, client) {
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'roster_update');
 }
 
 // Helper: format a Date for phantom emails (e.g. "July 9, 2026")
@@ -503,7 +555,7 @@ async function sendPhantomWarningEmail(teamsAtRisk, markDate, client) {
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'phantom_warning');
 }
 
 // Template: Phantom Losses Assigned (on the mark date)
@@ -531,7 +583,90 @@ async function sendPhantomLossesEmail(assignments, markDate, client) {
         </div>
     `;
 
-    await sendEmail(recipients, subject, html);
+    return sendEmail(recipients, subject, html, 'phantom_losses');
+}
+
+// Template: Postseason Stall (Spaceship / Wooden Spoon left unplayed)
+//
+// series: [{ round, seasonName, teams: [{ city, logo_url }], deadline, months, kind }]
+// kind is 'warning' (one week out) or 'overdue' (the deadline has arrived). A
+// single email covers every stalled series; if both the Spaceship and the Spoon
+// are dragging, one notice names both rather than two arriving together.
+async function sendPostseasonStallEmail(series, client) {
+    if (!series || series.length === 0) return;
+    const recipients = await getLeagueEmails(client);
+
+    const anyOverdue = series.some(s => s.kind === 'overdue');
+
+    const blocks = series.map(s => {
+        const teamsHtml = s.teams.map(t => {
+            const logoImg = t.logo_url
+                ? `<img src="${t.logo_url}" style="height: 22px; width: auto; object-fit: contain; vertical-align: middle; margin-right: 8px;" />`
+                : '';
+            return `<li style="margin-bottom: 6px;">${logoImg}<strong>${t.city}</strong></li>`;
+        }).join('');
+        const when = formatPhantomDate(s.deadline);
+        const line = s.kind === 'overdue'
+            ? `has now gone <strong>${s.months} month${s.months === 1 ? '' : 's'}</strong> unplayed as of <strong>${when}</strong>.`
+            : `must be played by <strong>${when}</strong> — one week from now.`;
+        return `
+            <div style="margin-bottom: 18px;">
+                <p style="margin-bottom: 6px;">The <strong>${s.round}</strong> (${s.seasonName}) ${line}</p>
+                <ul style="list-style: none; padding-left: 0; margin-top: 6px;">${teamsHtml}</ul>
+            </div>
+        `;
+    }).join('');
+
+    const subject = anyOverdue
+        ? `🏆 Postseason Overdue: The ${series.map(s => s.round).join(' & ')} Is Still Unplayed`
+        : `⏳ One Week Warning: Postseason Series Unplayed`;
+
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="margin-top: 0;">🏆 The Postseason Is Waiting</h2>
+            ${blocks}
+            <p>Teams that leave a postseason series unplayed <strong>each drop a spot in the next draft</strong>. Get it on the calendar.</p>
+            <p>Your Friend, Roger</p>
+            <p>
+                <a href="${process.env.FRONTEND_URL}/league" style="background-color: ${anyOverdue ? '#dc3545' : '#6c757d'}; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Schedule</a>
+            </p>
+        </div>
+    `;
+
+    return sendEmail(recipients, subject, html, 'postseason_stall');
+}
+
+// Template: Provider Keep-Alive
+//
+// Brevo deactivates an API key after 90 days with no activity, which is what
+// silently killed all league email over the 2026 offseason. This goes to the
+// commissioner rather than the league — nobody else needs to see it — purely so
+// the account clock resets. Sent only when nothing else has gone out recently
+// (see jobs/emailKeepalive.js), so an active season never triggers it.
+async function sendKeepaliveEmail(daysSinceLastSend) {
+    const to = process.env.KEEPALIVE_RECIPIENT || process.env.EMAIL_USER;
+    if (!to) {
+        console.error('[email] ❌ Keep-alive has no recipient (set KEEPALIVE_RECIPIENT or EMAIL_USER).');
+        return { ok: false, status: 'skipped', provider: 'none', error: 'no keepalive recipient' };
+    }
+
+    const gap = daysSinceLastSend === null
+        ? 'No previous successful send is on record.'
+        : `The last successful send was ${daysSinceLastSend} days ago.`;
+
+    const subject = '🫀 Showdown League email keep-alive';
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="margin-top: 0;">Keep-alive</h2>
+            <p>${gap} This message exists only to keep the Brevo API key from being
+               deactivated for inactivity (Brevo drops keys after 90 days of no activity).</p>
+            <p>No action needed. If you are seeing these during a season, league email
+               may be failing — check <code>email_log</code> for rows with status
+               <code>failed</code>.</p>
+        </div>
+    `;
+
+    return sendEmail([to], subject, html, 'keepalive');
 }
 
 module.exports = {
@@ -542,5 +677,7 @@ module.exports = {
     sendRosterUpdateEmail,
     sendPhantomWarningEmail,
     sendPhantomLossesEmail,
+    sendPostseasonStallEmail,
+    sendKeepaliveEmail,
     verifyConnection
 };
