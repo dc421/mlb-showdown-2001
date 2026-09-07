@@ -4,15 +4,15 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 
-// GET INELIGIBLE PLAYERS (>= 5 Historical Appearances)
+// GET PLAYERS WHO DO NOT MEET THE CURRENT CLASSIC RATINGS LIMITS
 router.get('/eligibility', authenticateToken, async (req, res) => {
     try {
         const query = `
-            SELECT card_id, COUNT(*) as appearances
-            FROM historical_rosters
-            WHERE card_id IS NOT NULL
-            GROUP BY card_id
-            HAVING COUNT(*) >= 5
+            SELECT card_id
+            FROM cards_player
+            WHERE
+                (control IS NULL AND (on_base IS NULL OR on_base > 8))
+                OR (control IS NOT NULL AND control > 3)
         `;
         const result = await pool.query(query);
         const ineligibleIds = result.rows.map(r => r.card_id);

@@ -1352,6 +1352,37 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
                  return res.status(400).json({ message: 'No active Classic found to submit a roster for.' });
              }
              classicId = activeClassicRes.rows[0].id;
+
+             const requestedCardIds = [...new Set(cards.map(card => Number(card.card_id)))];
+             if (requestedCardIds.some(id => !Number.isInteger(id))) {
+                 await client.query('ROLLBACK');
+                 return res.status(400).json({ message: 'Classic roster contains an unknown player card.' });
+             }
+
+             const classicCardsRes = await client.query(
+                 `SELECT card_id, display_name, on_base, control
+                  FROM cards_player
+                  WHERE card_id = ANY($1::int[])`,
+                 [requestedCardIds]
+             );
+
+             if (classicCardsRes.rows.length !== requestedCardIds.length) {
+                 await client.query('ROLLBACK');
+                 return res.status(400).json({ message: 'Classic roster contains an unknown player card.' });
+             }
+
+             const ineligibleCards = classicCardsRes.rows.filter(card =>
+                 card.control === null
+                     ? card.on_base === null || Number(card.on_base) > 8
+                     : Number(card.control) > 3
+             );
+             if (ineligibleCards.length > 0) {
+                 await client.query('ROLLBACK');
+                 const names = ineligibleCards.map(card => card.display_name).join(', ');
+                 return res.status(400).json({
+                     message: `Classic players must have 8 OB or less (hitters) or 3 Control or less (pitchers). Ineligible: ${names}`
+                 });
+             }
         }
         
         // Revised lookup for existing roster
@@ -1485,10 +1516,10 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
                 SELECT r.user_id
                 FROM rosters r
                 JOIN roster_cards rc ON r.roster_id = rc.roster_id
-                WHERE r.roster_type = 'classic'
+                WHERE r.roster_type = 'classic' AND r.classic_id = $1
                 GROUP BY r.user_id
                 HAVING COUNT(rc.card_id) = 20
-             `);
+             `, [classicId]);
              const validUserIds = validRostersRes.rows.map(r => r.user_id);
 
              const currentUser = allOwners.find(u => u.user_id === userId);

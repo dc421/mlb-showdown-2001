@@ -33,6 +33,20 @@ function isPlayerOwnedByOther(player) {
     return player.owned_by_team_id && player.owned_by_team_id !== authStore.user.team.team_id;
 }
 
+function isClassicEligible(player) {
+    if (!player) return false;
+    if (player.control !== null && player.control !== undefined) {
+        return Number(player.control) <= 3;
+    }
+    return player.on_base !== null && player.on_base !== undefined && Number(player.on_base) <= 8;
+}
+
+function classicIneligibilityReason(player) {
+    return player.control !== null && player.control !== undefined
+      ? 'Control must be 3 or less'
+      : 'OB must be 8 or less';
+}
+
 function isPlayerEligibleForPosition(player, position) {
     if (!player || !position) return false;
     if (player.control !== null) return false; // Pitchers can't play in the lineup
@@ -112,9 +126,9 @@ const availablePlayers = computed(() => {
     .map(p => {
         let pObj = { ...p };
         // Classic Mode: Mark ineligible players
-        if (rosterType.value === 'classic' && ineligibleIds.value.has(p.card_id)) {
+        if (rosterType.value === 'classic' && (ineligibleIds.value.has(p.card_id) || !isClassicEligible(p))) {
             pObj.isUnavailable = true;
-            pObj.unavailabilityReason = 'Ineligible';
+            pObj.unavailabilityReason = classicIneligibilityReason(p);
         }
         // Mark unavailable players if in draft mode
         if (rosterType.value !== 'classic' && draftState.value && draftState.value.is_active && draftState.value.takenPlayerIds) {
@@ -158,8 +172,11 @@ const isRosterValid = computed(() => {
   // Rule 1: Must have 20 players
   if (playerCount.value !== 20) return false;
   
-  // Rule 2: Must be under 5000 points
-  if (totalPoints.value > 5000) return false;
+  // League rosters have a 5000-point limit; Classic rosters have no point maximum.
+  if (rosterType.value !== 'classic' && totalPoints.value > 5000) return false;
+
+  // Classic hitters are limited to 8 OB and pitchers to 3 Control.
+  if (rosterType.value === 'classic' && allPlayersOnRoster.value.some(p => !isClassicEligible(p))) return false;
 
   // Rule 3: Must have exactly 4 Starting Pitchers on the staff
   if (startingPitchersOnRoster.value.length !== 4) return false;
@@ -228,6 +245,7 @@ function onDrop(event, to, targetPosition = null) {
 }
 
 function addPlayer(player) {
+  if (rosterType.value === 'classic' && !isClassicEligible(player)) return;
   if (allPlayersOnRoster.value.some(p => p.name === player.name)) return;
   if (player.control !== null) {
     roster.value.pitchingStaff.push(player);
@@ -290,6 +308,11 @@ function buildRosterPayload() {
 }
 
 async function saveRoster() {
+  if (rosterType.value === 'classic' && !isRosterValid.value) {
+      alert('A valid Classic roster requires 20 players, exactly 4 starting pitchers, a complete legal lineup, unique players, and only hitters with 8 OB or less and pitchers with 3 Control or less.');
+      return;
+  }
+
   // Check for players owned by other teams
   if (rosterType.value === 'league') {
       const takenPlayers = allPlayersOnRoster.value.filter(isPlayerTaken);
@@ -487,7 +510,8 @@ onMounted(async () => {
             </div>
             <div class="roster-stats">
                 <span>Players: {{ playerCount }} / 20</span>
-                <span :class="{ 'over-limit': totalPoints > 5000 }">Points: {{ totalPoints }} / 5000</span>
+                <span v-if="rosterType === 'classic'">Points: {{ totalPoints }} (no maximum)</span>
+                <span v-else :class="{ 'over-limit': totalPoints > 5000 }">Points: {{ totalPoints }} / 5000</span>
             </div>
             <button v-if="draftState && draftState.is_active && (draftState.current_round === 4 || draftState.current_round === 5) && authStore.user.team.team_id === draftState.active_team_id && rosterType !== 'classic'"
                     @click="submitDraftTurn"
@@ -510,7 +534,7 @@ onMounted(async () => {
                            @view-card="selectedCard = $event"
                            draggable="true"
                            @dragstart="onDragStart($event, player, 'lineup', pos)"
-                           :isIllegal="!isPlayerEligibleForPosition(player, pos)"
+                           :isIllegal="!isPlayerEligibleForPosition(player, pos) || (rosterType === 'classic' && !isClassicEligible(player))"
                         />
                         <div v-else class="empty-slot">
                             <span class="empty-slot-label">{{ pos }}:</span> <span class="empty-text">Empty</span>
@@ -531,6 +555,7 @@ onMounted(async () => {
                         @view-card="selectedCard = $event"
                         draggable="true"
                         @dragstart="onDragStart($event, p, 'pitchingStaff')"
+                        :isIllegal="rosterType === 'classic' && !isClassicEligible(p)"
                       />
                   </div>
                   <strong>Bullpen ({{ bullpenOnRoster.length }}):</strong>
@@ -544,6 +569,7 @@ onMounted(async () => {
                         @view-card="selectedCard = $event"
                         draggable="true"
                         @dragstart="onDragStart($event, p, 'pitchingStaff')"
+                        :isIllegal="rosterType === 'classic' && !isClassicEligible(p)"
                       />
                   </div>
                 <strong>Bench ({{ benchPlayers.length }})</strong>
@@ -557,6 +583,7 @@ onMounted(async () => {
                       @view-card="selectedCard = $event"
                       draggable="true"
                       @dragstart="onDragStart($event, p, 'bench')"
+                      :isIllegal="rosterType === 'classic' && !isClassicEligible(p)"
                     />
                 </div>
                 </div>
