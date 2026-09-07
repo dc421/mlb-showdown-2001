@@ -183,4 +183,42 @@ function computeGameWinProbability(rawStates, opts = {}) {
   };
 }
 
-module.exports = { computeGameWinProbability, getTable };
+// --- Loading state timelines without blowing the heap -------------------------------------------
+//
+// A full `state_data` row carries the whole game snapshot: both rosters plus the cumulative
+// atBatLog, re-serialized on every turn. That averages ~15 MB of JSON per completed game (399 turns
+// x ~40 KB), so pulling a season's timelines in one query decoded well over a gigabyte and OOM'd the
+// process inside pg's JSON.parse. The model itself reads only the handful of fields below (see
+// extractSituations / collectNameCardMap), so we project those in SQL and let Postgres drop the rest
+// before it ever hits the wire.
+//
+// `bases`, `currentAtBat` and `lastStealResult` are kept whole (they hold the cards used for play
+// attribution and are small); `lastCompletedAtBat` is trimmed to the one field collectNameCardMap
+// reads. Together this is ~1 MB per game instead of ~15 MB.
+const WP_STATE_COLUMN = `jsonb_build_object(
+      'inning', state_data->'inning',
+      'isTopInning', state_data->'isTopInning',
+      'outs', state_data->'outs',
+      'homeScore', state_data->'homeScore',
+      'awayScore', state_data->'awayScore',
+      'bases', state_data->'bases',
+      'currentAtBat', state_data->'currentAtBat',
+      'lastStealResult', state_data->'lastStealResult',
+      'lastCompletedAtBat', jsonb_build_object('batter', state_data->'lastCompletedAtBat'->'batter')
+    ) AS state_data`;
+
+// Run `fn(gameId, states)` for each game, loading at most `chunkSize` games' timelines at a time so
+// peak memory stays flat no matter how many games the caller passes.
+async function forEachGameStates(client, gameIds, fn, { chunkSize = 10 } = {}) {
+  for (let i = 0; i < gameIds.length; i += chunkSize) {
+    const chunk = gameIds.slice(i, i + chunkSize);
+    const res = await client.query(
+      `SELECT game_id, turn_number, ${WP_STATE_COLUMN}
+       FROM game_states WHERE game_id = ANY($1) ORDER BY game_id, turn_number`, [chunk]);
+    const byGame = {};
+    for (const r of res.rows) (byGame[r.game_id] = byGame[r.game_id] || []).push(r);
+    for (const gid of chunk) await fn(gid, byGame[gid] || []);
+  }
+}
+
+module.exports = { computeGameWinProbability, getTable, WP_STATE_COLUMN, forEachGameStates };
