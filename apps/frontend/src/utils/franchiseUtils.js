@@ -19,6 +19,7 @@ export function getLogoForTeam(name, defaultLogo = null) {
     if (lowerName.includes('phantoms')) return `${apiUrl}/images/phantoms.png`;
     if (lowerName.includes('laramie') || lowerName.includes('lugnuts')) return `${apiUrl}/images/lugnuts.png`;
     if (lowerName.includes('cincinnati') || lowerName.includes('catastrophe')) return `${apiUrl}/images/catastrophe.png`;
+    if (lowerName.includes('colossus')) return `${apiUrl}/images/colossus.png`;
 
     // Other deprecated identities do not have logos yet (as per user instruction).
     // If we add them later, they would go here.

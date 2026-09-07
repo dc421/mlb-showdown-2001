@@ -1,4 +1,4 @@
-const { matchesFranchise, getMappedIds } = require('../utils/franchiseUtils');
+const { matchesFranchise, getMappedIds, getLogoForTeam } = require('../utils/franchiseUtils');
 
 describe('franchiseUtils', () => {
     const mockCurrentTeams = [
@@ -21,6 +21,12 @@ describe('franchiseUtils', () => {
         });
         test('maps other -> itself', () => {
              expect(getMappedIds(7)).toEqual([7]);
+        });
+    });
+
+    describe('getLogoForTeam', () => {
+        test('uses the local recolored logo for the Colossus', () => {
+            expect(getLogoForTeam('Colossus of New York', 'old-logo.png')).toBe('/images/colossus.png');
         });
     });
 

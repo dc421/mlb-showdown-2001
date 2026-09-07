@@ -149,6 +149,7 @@ function getLogoForTeam(name, defaultLogo) {
     if (lowerName.includes('phantoms')) return '/images/phantoms.png';
     if (lowerName.includes('laramie') || lowerName.includes('lugnuts')) return '/images/lugnuts.png';
     if (lowerName.includes('cincinnati') || lowerName.includes('catastrophe')) return '/images/catastrophe.png';
+    if (lowerName.includes('colossus')) return '/images/colossus.png';
 
     return defaultLogo;
 }
