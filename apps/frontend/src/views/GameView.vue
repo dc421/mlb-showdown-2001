@@ -2172,6 +2172,16 @@ const scoredTeamColors = computed(() =>
   isDisplayTopInning.value ? awayTeamColors.value : homeTeamColors.value
 );
 
+// The game is over AND its final play has finished the staged reveal. End-of-game
+// panels (the newspaper box score, the final-score / series banners) must all wait
+// for this — otherwise a game-ending play swaps the lineup panels to the newspaper
+// ~900ms before the swing result animates in.
+const isGameOverRevealed = computed(() =>
+  isGameOver.value &&
+  (isSwingResultVisible.value || isGameEndingSteal.value) &&
+  !shouldHideCurrentAtBatOutcome.value
+);
+
 const finalScoreMessage = computed(() => {
   const isWaitingForOpponentOnSteal = gameStore.gameState?.pendingStealAttempt && !gameStore.gameState?.lastStealResult && amIDisplayOffensivePlayer.value;
   const basicVisibility = isGameOver.value && (isSwingResultVisible.value || isGameEndingSteal.value) && !isWaitingForOpponentOnSteal && !shouldHideCurrentAtBatOutcome.value;
@@ -2749,14 +2759,16 @@ onMounted(async () => {
   // play (live updates arrive via the socket 'game-updated' handler), so this does
   // not affect the in-progress walk-off reveal animation.
   const atBat = atBatToDisplay.value;
-  if (gameStore.game?.status === 'completed' && authStore.user) {
-    // Revisiting a finished game: nothing left to hide. Reveal the final result so
-    // displayGameState stops rolling back the winning play and the final-score /
-    // series banners render. Without this a walk-off game stays frozen on the
-    // pre-walk-off tie because the reveal flag is never set on a fresh load.
+  if (gameStore.game?.status === 'completed') {
+    // Revisiting a finished game: nothing left to hide, for anyone — including
+    // logged-out viewers following a shared link. Reveal the final result so
+    // displayGameState stops rolling back the winning play, the walk-off hit
+    // stays in the game log (isOutcomeHidden would otherwise slice the last
+    // event), and the final-score / series banners render. Without this a
+    // walk-off game stays frozen on the pre-walk-off tie.
     gameStore.setIsSwingResultVisible(true);
     simulPitchVisible.value = true;
-    loadWinProbability();
+    if (authStore.user) loadWinProbability();
   } else if (atBat && atBat.swingRollResult && atBat.pitchRollResult) {
     if (authStore.user) {
       // SIMUL: If returning to a completed at-bat, show everything
@@ -3111,7 +3123,7 @@ async function handleReauthenticate() {
     <div class="info-container">
       <!-- Left Panel (User's Team) — final games show a newspaper box in place of the lineup -->
       <template v-if="leftPanelData.team">
-      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="leftPanelData.teamKey" :playerWpa="winProb?.playerWpa" @select-player="selectedCard = $event" />
+      <NewspaperBoxScore v-if="isGameOverRevealed && gameStore.boxScore" :teamKey="leftPanelData.teamKey" :playerWpa="winProb?.playerWpa" @select-player="selectedCard = $event" />
       <div v-else class="lineup-panel" :class="{ 'card-wide': lineMode === 'card' }">
           <h3 :style="{ color: leftPanelData.colors.primary }" class="lineup-header">
               <img :src="leftPanelData.team.logo_url" class="lineup-logo" />
@@ -3263,7 +3275,7 @@ async function handleReauthenticate() {
 
       <!-- Right Panel (Opponent's Team) — final games show a newspaper box in place of the lineup -->
       <template v-if="rightPanelData.team">
-      <NewspaperBoxScore v-if="isGameOver && gameStore.boxScore" :teamKey="rightPanelData.teamKey" :playerWpa="winProb?.playerWpa" @select-player="selectedCard = $event" />
+      <NewspaperBoxScore v-if="isGameOverRevealed && gameStore.boxScore" :teamKey="rightPanelData.teamKey" :playerWpa="winProb?.playerWpa" @select-player="selectedCard = $event" />
       <div v-else class="lineup-panel" :class="{ 'card-wide': lineMode === 'card' }">
           <h3 :style="{ color: rightPanelData.colors.primary }" class="lineup-header">
               <img :src="rightPanelData.team.logo_url" class="lineup-logo" /> {{ rightPanelData.team.city }} Lineup
