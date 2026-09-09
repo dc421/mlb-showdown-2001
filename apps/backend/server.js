@@ -3356,7 +3356,13 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
         const classicList = Object.values(classicSeasons)
             .flatMap(c => {
                 const cd = classicDiamond[c.season] || {};
-                return c.franchises.map(f => {
+                // A player can be drafted onto more than one club in the same Classic.
+                // Personal honors (MVA/LVSC/TGAOOT) are won once, so show them on a
+                // single row — the Silver Submarine winner's if he was on it, else the
+                // first — rather than repeating on every club he appeared for.
+                const honorIdx = Math.max(0, c.franchises.findIndex(f => cd.submarine === f.key));
+                return c.franchises.map((f, idx) => {
+                    const honorRow = idx === honorIdx;
                     const eraName = classicFr[c.season]?.[f.key]?.eraName || f.histName;
                     const fr = classicFr[c.season]?.[f.key];
                     return {
@@ -3369,7 +3375,7 @@ app.get('/api/players/:cardId/league-history', authenticateToken, async (req, re
                         wins: fr ? fr.wins : null,
                         losses: fr ? fr.losses : null,
                         submarine: cd.submarine === f.key,
-                        mva: c.mva, lvsc: c.lvsc, tgaoot: c.tgaoot
+                        mva: c.mva && honorRow, lvsc: c.lvsc && honorRow, tgaoot: c.tgaoot && honorRow
                     };
                 });
             })
