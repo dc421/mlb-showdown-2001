@@ -444,7 +444,7 @@ async function sendStalledDraftNotification(level, team, client) {
 }
 
 // Template: Random Removals Email
-async function sendRandomRemovalsEmail(removalsByTeam, firstPickTeamName, client) {
+async function sendRandomRemovalsEmail(removalsByTeam, firstPickTeamName, client, draftOrderNames = []) {
     const recipients = await getLeagueEmails(client);
 
     let removalsHtml = '';
@@ -469,6 +469,7 @@ async function sendRandomRemovalsEmail(removalsByTeam, firstPickTeamName, client
             <hr />
             <h3>Draft Order Set!</h3>
             <p><strong>${firstPickTeamName}</strong> has the first pick!</p>
+            ${draftOrderNames.length ? `<ol>${draftOrderNames.map(name => `<li>${name}</li>`).join('')}</ol>` : ''}
             <p>
                 <a href="${process.env.FRONTEND_URL}/draft" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Draft Board</a>
             </p>
