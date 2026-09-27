@@ -26,6 +26,7 @@ const draftState = ref({
 });
 const availablePlayers = ref([]);
 const loading = ref(true);
+const loadError = ref('');
 const searchQuery = ref('');
 const filterPosition = ref('ALL');
 const availableSeasons = ref([]);
@@ -33,6 +34,7 @@ const selectedSeason = ref('');
 const isSeasonOver = ref(false);
 const globalDraftActive = ref(false);
 const leagueRosterIds = ref(new Set());
+let draftStateRequestId = 0;
 
 // Ensure apiUrl is an empty string if VITE_API_URL is not defined
 const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -307,29 +309,33 @@ async function fetchAvailableSeasons() {
 }
 
 async function fetchDraftState() {
+    const requestId = ++draftStateRequestId;
     loading.value = true;
+    loadError.value = '';
     try {
         let url = `/api/draft/state`;
         if (selectedSeason.value) {
             url += `?season=${encodeURIComponent(selectedSeason.value)}`;
         }
 
-        const response = await apiClient(url);
-        if (response.ok) {
-            const data = await response.json();
-            draftState.value = data;
-            isSeasonOver.value = data.isSeasonOver;
-            globalDraftActive.value = data.globalDraftActive;
+        const response = await apiClient(url, { signal: AbortSignal.timeout(15000) });
+        if (!response.ok) throw new Error(`Draft request failed (${response.status})`);
+        const data = await response.json();
+        if (requestId !== draftStateRequestId) return;
+        draftState.value = data;
+        isSeasonOver.value = data.isSeasonOver;
+        globalDraftActive.value = data.globalDraftActive;
 
-            // If we have a state and no season selected in dropdown (e.g. initial load), set it
-            if (data.season_name && !selectedSeason.value) {
-                selectedSeason.value = data.season_name;
-            }
+        if (data.season_name && !selectedSeason.value) {
+            selectedSeason.value = data.is_active ? 'Live Draft' : data.season_name;
         }
     } catch (error) {
         console.error("Error fetching draft state:", error);
+        if (requestId === draftStateRequestId) {
+            loadError.value = 'Could not load the draft. Please try again.';
+        }
     } finally {
-        loading.value = false;
+        if (requestId === draftStateRequestId) loading.value = false;
     }
 }
 
@@ -426,19 +432,21 @@ watch(selectedSeason, (newVal, oldVal) => {
     }
 });
 
-onMounted(async () => {
-    await authStore.fetchPointSets();
-    const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
-    if (upcoming) {
-        authStore.selectedPointSetId = upcoming.point_set_id;
-        await authStore.fetchAllPlayers(upcoming.point_set_id);
-    }
-
-    await fetchAvailableSeasons();
-    await fetchDraftState();
-    fetchAvailablePlayers();
-    fetchLeagueRosters(); // Fetch league rosters to gray out taken players
-
+onMounted(() => {
+    // Draft state is the only request needed to show the pane. Card loading can be slow.
+    fetchDraftState();
+    fetchAvailableSeasons();
+    (async () => {
+        await authStore.fetchPointSets();
+        const upcoming = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
+        if (upcoming) {
+            authStore.selectedPointSetId = upcoming.point_set_id;
+            await Promise.all([
+                authStore.fetchAllPlayers(upcoming.point_set_id).then(fetchAvailablePlayers),
+                fetchLeagueRosters()
+            ]);
+        }
+    })();
     socket.on('draft-updated', fetchDraftState);
 });
 
@@ -467,6 +475,9 @@ onUnmounted(() => {
         </div>
 
         <div v-if="loading" class="loading">Loading...</div>
+        <div v-else-if="loadError" class="loading-error">
+            {{ loadError }} <button @click="fetchDraftState">Retry</button>
+        </div>
 
         <!-- ACTIVE DRAFT CONTROLS -->
         <div v-else-if="isDraftActive && isMyTurn" class="active-controls">
@@ -541,7 +552,7 @@ onUnmounted(() => {
 
 
         <!-- DRAFT TABLE (Unified) -->
-        <div v-if="!loading && displayRows.length > 0" class="draft-table-container">
+        <div v-if="!loading && !loadError && displayRows.length > 0" class="draft-table-container">
             <table class="draft-table">
                 <thead>
                     <tr>
@@ -569,10 +580,10 @@ onUnmounted(() => {
                 </tbody>
             </table>
         </div>
-        <p v-else-if="!loading && !isSeasonOver && !isDraftActive">No draft data found.</p>
+        <p v-else-if="!loading && !loadError && !isSeasonOver && !isDraftActive">No draft data found.</p>
 
         <!-- RANDOM REMOVALS SECTION -->
-        <div class="removals-section" v-if="!loading && Object.keys(randomRemovalsByTeam).length > 0">
+        <div class="removals-section" v-if="!loading && !loadError && Object.keys(randomRemovalsByTeam).length > 0">
             <h2>Random Removals</h2>
             <div class="teams-list">
                 <div v-for="(players, teamName) in randomRemovalsByTeam" :key="teamName" class="team-block">
