@@ -387,6 +387,105 @@
         <dt>WALK</dt>
         <dd>The batter goes on first. If you already had a runner on first, this forces him to second. If you also had someone on second, this forces him to third. If you also had someone on third, he scores.</dd>
     </dl>
+
+    <div class="addendum">
+      <h1>ADDENDUM: How This Site Differs From the Official Rules</h1>
+      <p>The rules printed above are the published 2001 MLB Showdown advanced and expert rules. The version of the game on this site follows them closely, but not exactly. This section explains, in plain language, how the site's game, team building, and series play actually work where they differ - whether that is a deliberate house rule, a simplification, or something the official rules cover that the site leaves out. If a topic is not mentioned here, the site follows the rules above.</p>
+
+      <h2>1. There are no strategy cards</h2>
+      <p>The official advanced game is built around strategy cards: a 60-card deck you draw from, a hand you hold like a poker hand, and a 15-card sideboard you adjust between games. This site has none of that. There are no decks, no hands, no draws, no discards, and no sideboards.</p>
+      <p>Because the cards are gone, so is everything attached to them. There is nothing to build or tune between games in a series, and no back-and-forth of playing and passing cards during an at-bat. A few ratings that the rulebook says are "only used by strategy cards" - Speed, Fielding, and Arm - are instead wired straight into the plays described below. The closer-versus-reliever label also stops mattering, since it only ever affected strategy cards.</p>
+      <p>In place of the card game, each manager gets four fixed moves, free to use on any at-bat: steal a base, lay down a sacrifice bunt, order an intentional walk, and bring the infield in. The next three sections cover the first three; the infield-in move is section 4.</p>
+
+      <h2>2. Stealing bases</h2>
+      <p>Any time your team is batting, before the pitch, you can send a runner: steal second, steal third, or send two runners at once (a double steal). No card is needed.</p>
+      <p>The roll is the official one. The catcher rolls a twenty-sided die and adds his Arm; if that total beats the runner's Speed, the runner is out, otherwise he is safe. Stealing third is harder - add 5 to the catcher's roll. You cannot steal home. On a double steal, the defense picks one of the two runners to throw at; the other runner is safe automatically. You can also keep sending runners on the same at-bat, one after another.</p>
+      <p>One small difference from the rulebook: on a steal, a tie goes to the <em>defense</em> and the runner is out. Everywhere else on the site, a tie on a close play goes to the runner.</p>
+
+      <h2>3. Sacrifice bunts</h2>
+      <p>While batting, with fewer than two outs and a runner on first (or a runner on second with third base empty), you can call for a bunt. The batter is out and the runners move up a base.</p>
+      <p>The site is more permissive than the rulebook here. The official rules forbid a sacrifice bunt when there is a runner on third; the site allows it. With runners on first and third, the runner on first advances and the runner on third holds. With the bases loaded, it becomes a fielder's choice with the lead runner thrown out at home. The site also works the bunt out case by case depending on where the runners are, rather than the official's flat "the batter is out and every runner advances one base."</p>
+
+      <h2>4. Bringing the infield in</h2>
+      <p>This is a house rule - the official rulebook has nothing like it. It lets the defense play for an out at the plate when there is a runner on third.</p>
+
+      <h3>When you can use it</h3>
+      <p>While your team is in the field, before the pitch, you can bring the infield in if there is a runner on third and fewer than two outs. It is a one-batter decision: it switches itself off after the at-bat, and you turn it back on for the next hitter if you still want it. The button shows the number the defense needs on the die to throw the lead runner out at home - the runner's Speed, minus the team's total infield Fielding, plus one. A weaker infield or a faster runner makes that play harder.</p>
+
+      <h3>What it costs you</h3>
+      <p>With the infield in, one specific roll on the hitting chart - the highest number that would normally be a ground out - becomes a single instead ("a hole through the drawn-in infield"). Every other ground ball is still a ground ball. Nothing else about the at-bat changes: the rest of the chart is untouched, and there is no change to On-Base or the swing roll.</p>
+
+      <h3>What happens on a ground ball</h3>
+      <p>Fly balls, popups, strikeouts, walks, and hits all play out normally. Only ground balls are affected, and only while a runner is on third:</p>
+      <ul>
+        <li><strong>Bases loaded:</strong> automatic, with no roll. The throw goes home, the runner from third is forced out, everyone else moves up a base, and the batter is safe at first.</li>
+        <li><strong>Any other situation:</strong> the batting team chooses first - send the runner from third, or hold him.
+          <ul>
+            <li><strong>Hold:</strong> the batter is thrown out at first. A runner on first moves up to second; a runner on second stays put; the runner on third stays. No run scores.</li>
+            <li><strong>Send:</strong> now the defense chooses where to throw.
+              <ul>
+                <li><strong>Home:</strong> roll the die and add the team's total infield Fielding, then compare to the runner's Speed - a tie means the runner is safe. Either way, the batter is safe at first. If the throw wins, the runner is out at the plate and no run scores; if it loses, the run scores. A runner on first moves up to second; a runner on second stays.</li>
+                <li><strong>First:</strong> no roll. The batter is out and the run scores. A runner on first moves up to second; a runner on second stays.</li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <p>One thing to know: with the infield in, there is no double play, even with a runner on first. The most the defense can get on the play is one out.</p>
+      <p>The trade, in short: you give up the double play and concede one guaranteed hit, in exchange for a chance to throw a run out at the plate on every other ground ball. The batting team decides whether to risk the runner, so the defense is committing to the alignment before it knows what the offense will do.</p>
+
+      <h2>5. Building a team</h2>
+      <p>The official way to build a team is an open market: pick any 20 players you want, up to 5,000 points, with exactly four starting pitchers and enough position players to field a full lineup. This site does not work that way. There are two formats:</p>
+      <ul>
+        <li><strong>League:</strong> you get your players through a draft - a snake draft, with add/drop rounds and random roster cuts between seasons. Because players are drafted, no two teams can have the same player. When you lock in a roster it is still checked for the basics: 20 players, 5,000 points or fewer, exactly four starters, and a full lineup.</li>
+        <li><strong>Classic:</strong> preset rosters. There is no point limit, but every hitter must be 8 On-Base or lower and every pitcher 3 Control or lower.</li>
+      </ul>
+      <p>A few smaller points. Your roster has a fixed nine-slot lineup (eight fielders plus a DH), and it expects a DH to be assigned even for National League games - in an NL game the pitcher simply bats in that slot. Bench players who are position players cost one-fifth of their points, as in the rulebook, and the rulebook's rule that bench players cannot take the field before the 7th inning is enforced - though the site applies it to every bench player, not only the discounted ones. The site does not separately check the official "you must have at least nine position players who can cover every position at once" beyond that one nine-man lineup.</p>
+
+      <h2>6. Home team, the DH, and the rotation</h2>
+      <p>For a one-off game, the two managers roll a twenty-sided die; the higher roll is the home team and picks whether to use the DH. That matches the rulebook.</p>
+      <p>The pitching rotation is where the site differs. The rulebook has you write your four starters down in an order and roll to see which one starts a given game. The site enforces the rotation for you across a series instead: in the first three games you can start any pitcher who did not pitch in the previous three games; game four forces the one starter you have not used yet; and games five through seven repeat your game one, two, and three starters in order.</p>
+      <p>The series itself has a fixed shape the rulebook does not describe: up to seven games, with home field in a 2-3-2 pattern (two games at one team's park, three at the other's, two back at the first). In the playoffs it is best-of-seven; regular-season series play all seven games. The home team for the middle three games may re-pick the DH rule, and it flips back to the game one choice for the last two.</p>
+
+      <h2>7. Tired pitchers</h2>
+
+      <h3>The pitch</h3>
+      <p>Nothing changes here. The pitcher rolls a twenty-sided die, adds his Control, and if the total beats the batter's On-Base the pitcher has the advantage. A pitcher who is batting never gets the advantage, so there is no pitch roll for him.</p>
+
+      <h3>Getting tired</h3>
+      <p>This works as the rulebook describes: a pitcher who works past his IP loses ground on every pitch, and giving up runs makes it worse - every three runs charged to him effectively costs him an inning of stamina. The site applies the penalty by lowering his Control rather than his pitch total; the result is the same, and nothing on the site cares about a pitcher's Control on its own.</p>
+
+      <h3>Taking out your starter</h3>
+      <p>The rulebook says you cannot pull your starter before the 5th inning unless he is tired. The site enforces the same thing, just counted a different way: your starter has to have recorded 12 outs - four innings' worth - before you can replace him. Since a pitcher reaches 12 outs exactly when he has finished four innings, this comes to the same as "not before the 5th." The only added flexibility is that the "unless he's tired" exception also covers a starter who <em>will</em> be tired next inning, so you can pinch-hit or pinch-run for him one half-inning early.</p>
+
+      <h3>Bullpen rest across a series</h3>
+      <p>The rulebook keeps this simple: if a reliever pitches two days in a row, he starts the next game with 0 IP (tired), and a single day off puts him back to normal.</p>
+      <p>The site tracks it as a running tally instead, for every pitcher whose printed IP is 3 or lower. Think of each reliever as carrying a fatigue number that goes up when he works and slowly comes down when he rests:</p>
+      <ul>
+        <li>Pitching in a game adds points - one point per inning, so a long outing costs more than a quick one - plus extra points if he was already tired and gave up runs.</li>
+        <li>A game with no work takes one point back off.</li>
+        <li>The scheduled travel days, after games two and five, take one point off for everyone.</li>
+        <li>Every reliever has a cushion equal to his IP minus one. As long as his fatigue number stays inside that cushion, he is at full strength (the bullpen view marks this as "buffer used").</li>
+        <li>Once the number goes past the cushion, the overflow comes straight off his IP for the next game. Enough of it and he starts that game already tired - and can end up worse off than the rulebook's "starts at 0."</li>
+      </ul>
+      <p>The upshot: on this site, bullpen fatigue builds up over a long series and takes a while to shake off, rather than the rulebook's simple "did he pitch yesterday and the day before." Lean on a reliever early in a series and he may be worn down for several games; use him lightly on back-to-back days and he can still be fine.</p>
+
+      <h2>8. Filling in for missing players</h2>
+      <p>The official expert rules let you patch a thin roster with "emergency" players: an emergency fielder who can play anywhere at +0, and an emergency reliever copied from the cheapest pitcher in the game but with 0 IP and 0 Control. The site does not do either of those.</p>
+      <p>What it has instead: any non-pitcher can play first base, with a fielding penalty if it is not his position (this part matches the rulebook), but the other positions still need a real fielder - you cannot fake shortstop, third base, or the outfield. And if a lineup slot would otherwise be left empty, the site drops in a fixed generic player rather than copying someone off the roster: a "Replacement Hitter" (very low On-Base, average Speed, a bare-bones chart) or a "Replacement Pitcher" (Control -1, 1 IP).</p>
+
+      <h2>9. Baserunning and outs</h2>
+      <p>Most of this follows the expert rules. A ground ball with a runner on first and fewer than two outs can become a double play (roll the die, add infield Fielding, and try to beat the batter's Speed - a tie means he is safe at first). On base hits, runners can try for an extra base, with the usual adjustments: plus 5 heading home, plus 5 with two outs, ties to the runner. The site resolves the clear-cut cases for you and only asks you to decide the close ones. Runners never advance on a play that makes the third out.</p>
+      <p>Two specifics differ from the rulebook:</p>
+      <ul>
+        <li>On a fly ball, the site also lets a runner on first tag up and try for second. The official rules only let runners on second or third try to advance on a fly ball.</li>
+        <li>Tie games keep going into extra innings for as long as it takes. The rulebook only describes a nine-inning game.</li>
+      </ul>
+      <p>There are also two on-screen labels - "advantage backfired" and "pitcher HR" - that are only flavor. They do not change anything about the play.</p>
+
+      <h2>10. About this rules document</h2>
+      <p>The rules printed above are a faithful copy of the 2001 MLB Showdown Advanced &amp; Expert Rulebook - the edition this game is meant to follow. Player Speed uses the grouped values from that rulebook: Speed A is 20, Speed B is 15, Speed C is 10, and every pitcher is Speed C.</p>
+    </div>
   </div>
 </template>
 
@@ -430,5 +529,19 @@ dd {
 
 ul, ol {
     padding-left: 2rem;
+}
+
+.addendum {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 4px double #999;
+}
+
+.addendum h1 {
+    font-size: 1.6rem;
+}
+
+.addendum ul ul {
+    margin-top: 0.5rem;
 }
 </style>
