@@ -1,5 +1,4 @@
 const express = require('express');
-const { createHash, timingSafeEqual } = require('crypto');
 const router = express.Router();
 const authenticateToken = require('../middleware/authenticateToken');
 const { pool, io } = require('../server');
@@ -339,66 +338,6 @@ router.post('/start', authenticateToken, async (req, res) => {
         res.status(500).json({ message: "Error starting draft." });
     } finally {
         client.release();
-    }
-});
-
-// One-time recovery of the Fall 2026 kickoff email after its custom-order draft
-// was started directly in the database. Remove after the send is verified.
-router.post('/fall-2026-kickoff-email', async (req, res) => {
-    const expectedHash = Buffer.from('611afafb2731a7035d8c00b1fb166f8f4913c7eeac55241257fd3dae5efaa8ec', 'hex');
-    const supplied = req.get('x-kickoff-token') || '';
-    const suppliedHash = createHash('sha256').update(supplied).digest();
-    if (!timingSafeEqual(suppliedHash, expectedHash)) return res.sendStatus(404);
-
-    const client = await pool.connect();
-    try {
-        await client.query('SELECT pg_advisory_lock(2026, 926)');
-        const state = await getDraftState(client);
-        const order = [3, 1, 2, 4, 5];
-        if (!state || state.season_name !== 'Fall 2026' ||
-            JSON.stringify(state.draft_order) !== JSON.stringify(order)) {
-            return res.status(409).json({ message: 'Fall 2026 draft order does not match.' });
-        }
-        const sent = await client.query(
-            `SELECT 1 FROM email_log
-             WHERE kind = 'random_removals' AND status = 'sent' AND created_at >= $1
-             LIMIT 1`, [state.created_at]
-        );
-        if (sent.rowCount) return res.json({ message: 'Kickoff email was already sent.' });
-
-        const teams = (await client.query(
-            'SELECT team_id, city, name FROM teams WHERE team_id = ANY($1::int[])', [order]
-        )).rows;
-        const orderNames = order.map(id => {
-            const team = teams.find(t => t.team_id === id);
-            return team && `${team.city} ${team.name}`;
-        });
-        if (orderNames.some(name => !name)) {
-            return res.status(409).json({ message: 'Draft teams are incomplete.' });
-        }
-
-        const removals = (await client.query(
-            `SELECT team_name, player_name FROM random_removals
-             WHERE season = 'Fall 2026' ORDER BY team_name, player_name`
-        )).rows;
-        const removalsByTeam = {};
-        for (const row of removals) {
-            const team = teams.find(t => t.city === row.team_name);
-            if (!team) return res.status(409).json({ message: 'Unknown removal team.' });
-            const name = `${team.city} ${team.name}`;
-            (removalsByTeam[name] ||= []).push(row.player_name);
-        }
-        if (removals.length !== 25 || orderNames.some(name => removalsByTeam[name]?.length !== 5)) {
-            return res.status(409).json({ message: 'Removal records are incomplete.' });
-        }
-
-        const outcome = await sendRandomRemovalsEmail(removalsByTeam, orderNames[0], client, orderNames);
-        return res.status(outcome.ok ? 200 : 502).json({ status: outcome.status, provider: outcome.provider });
-    } catch (error) {
-        console.error('Fall 2026 kickoff email error:', error);
-        return res.status(500).json({ message: 'Could not send kickoff email.' });
-    } finally {
-        try { await client.query('SELECT pg_advisory_unlock(2026, 926)'); } finally { client.release(); }
     }
 });
 
