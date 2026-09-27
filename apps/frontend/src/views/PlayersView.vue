@@ -62,8 +62,7 @@ const PITCHER_POSITIONS = ['SP', 'RP'];
 
 const SPEED_LETTER = { '20': 'A', '15': 'B', '10': 'C' };
 
-// The app labels this point set as "Current Season" (see RosterBuilderView).
-const CURRENT_SEASON_SET = '8/4/25 Season';
+const FALL_2025_SET = '8/4/25 Season';
 
 // --- HELPERS ---
 function isPitcher(p) {
@@ -161,11 +160,10 @@ const positionOptions = computed(() => {
     return [...HITTER_POSITIONS, ...PITCHER_POSITIONS];
 });
 
-// Point-set dropdown options, with the current-season set relabeled to match the
-// rest of the app.
+// Use the actual season name for the legacy point set.
 const pointSetOptions = computed(() =>
     authStore.pointSets.map(ps =>
-        ps.name === CURRENT_SEASON_SET ? { ...ps, name: 'Current Season' } : ps
+        ps.name === FALL_2025_SET ? { ...ps, name: 'Fall 2025' } : ps
     )
 );
 
@@ -346,14 +344,11 @@ async function fetchLeagueStats() {
 
 onMounted(async () => {
     await authStore.fetchPointSets();
-    // Default to the current-season point set regardless of draft state; fall back
-    // to the store's default, then the first available set.
-    const currentSeason = authStore.pointSets.find(ps => ps.name === CURRENT_SEASON_SET);
-    selectedPointSetId.value = currentSeason?.point_set_id
+    const upcomingSeason = authStore.pointSets.find(ps => ps.name === 'Upcoming Season');
+    selectedPointSetId.value = upcomingSeason?.point_set_id
         ?? authStore.selectedPointSetId
         ?? authStore.pointSets[0]?.point_set_id
         ?? null;
-    await fetchPlayers();
     fetchLeagueStats();
 });
 </script>

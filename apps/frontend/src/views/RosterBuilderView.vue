@@ -89,7 +89,7 @@ const filteredPointSets = computed(() => {
     .filter(set => allowedNames.includes(set.name))
     .map(set => {
       if (set.name === "8/4/25 Season") {
-        return { ...set, name: "Current Season" };
+        return { ...set, name: "Fall 2025" };
       }
       return set;
     });
