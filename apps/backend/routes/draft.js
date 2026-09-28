@@ -657,7 +657,7 @@ router.post('/pick', authenticateToken, async (req, res) => {
                 position: card.control !== null ? (card.ip > 3 ? 'SP' : 'RP') : Object.keys(card.fielding_ratings || {}).join('/')
             },
             team: { name: teamDisplayName, logo_url: currentTeam.logo_url },
-            round: state.current_round,
+            round: roundName,
             pickNumber: state.current_pick_number
         };
 
@@ -906,7 +906,7 @@ router.post('/submit-turn', authenticateToken, async (req, res) => {
                 position: "Multi"
             },
             team: { name: teamDisplayName, logo_url: currentTeam.logo_url },
-            round: state.current_round,
+            round: state.current_round - 1,
             pickNumber: state.current_pick_number,
             addedPlayers: addedNames,
             droppedPlayers: droppedNames
