@@ -195,7 +195,7 @@ const displayRows = computed(() => {
                      player_name: name,
                      card_id: h.card_id,
                      action: h.action,
-                     team_logo: (h.action === 'DROPPED') ? null : getLogoForTeam(h.city || h.team_name, teamLogo)
+                     team_logo: (h.action === 'DROPPED') ? null : getLogoForTeam(h.city || h.team_name, h.logo_url || teamLogo)
                  });
             });
         } else {
