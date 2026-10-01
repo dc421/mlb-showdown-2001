@@ -65,12 +65,14 @@ router.get('/state', authenticateToken, async (req, res) => {
             // has no real loser yet) would otherwise count as the most-recent spoon and shift every
             // seed — corrupting the Classic bracket (e.g. a scheduled Spring 2026 spoon reseeding the
             // whole field).
+            // Likewise, only spoons played before this Classic was created count — otherwise a later
+            // season's spoon reseeds a past Classic's bracket.
             const spoonQuery = `
                 SELECT losing_team_id, date
                 FROM series_results
-                WHERE round = 'Wooden Spoon' AND status = 'completed'
+                WHERE round = 'Wooden Spoon' AND status = 'completed' AND date <= $1
             `;
-            const spoonResult = await pool.query(spoonQuery);
+            const spoonResult = await pool.query(spoonQuery, [classic.created_at]);
 
             const sortedSpoonRows = spoonResult.rows.sort((a, b) => {
                 const dateA = new Date(a.date);
