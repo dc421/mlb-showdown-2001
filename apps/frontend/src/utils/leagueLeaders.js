@@ -110,7 +110,7 @@ const entry = (x, display) => ({ cardId: x.row.cardId, teamUserId: x.row.teamUse
 
 /**
  * Compute the full leaders board: top+bottom 3 for rate stats (BA, OPS, ERA), top 3 for counting
- * stats (HR, RBI, W-L, SV, SO). Rate categories require season-scaled qualification.
+ * stats (HR, RBI, SB, W-L, SV, SO). Rate categories require season-scaled qualification.
  */
 export function computeLeaders(agg) {
   const { batters, pitchers, seasonGames } = agg;
@@ -162,6 +162,7 @@ export function computeLeaders(agg) {
       ops: { label: 'OPS', ...rateCat(qualifiedBat, (b) => b.ops, fmt3) },
       hr: { label: 'Home Runs', top: countingTop(batters, 'hr') },
       rbi: { label: 'RBI', top: countingTop(batters, 'rbi') },
+      sb: { label: 'Stolen Bases', top: countingTop(batters, 'sb') },
       wpa: wpaCat(withRates, 'Win Probability Added'),
     },
     pitching: {

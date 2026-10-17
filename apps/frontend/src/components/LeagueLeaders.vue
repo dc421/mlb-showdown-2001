@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 // League leaders board: batting + pitching categories, each a small ranked list. Rate categories
-// (BA, OPS, ERA) carry a top list and a muted "trailers" bottom list; counting categories (HR, RBI,
+// (BA, OPS, ERA) carry a top list and a muted "trailers" bottom list; counting categories (HR, RBI, SB,
 // Wins, SV, SO) are top-only. All the ranking is done upstream by computeLeaders(); this is display.
 const props = defineProps({
   leaders: { type: Object, required: true },     // computeLeaders() output
@@ -31,7 +31,7 @@ const selectPlayer = (e) => {
 const hasEntries = (c) => c && (c.top?.length || c.bottom?.length);
 const battingCats = computed(() => {
   const b = props.leaders?.batting;
-  return b ? [b.avg, b.hr, b.rbi, b.ops, b.wpa].filter(hasEntries) : [];
+  return b ? [b.avg, b.hr, b.rbi, b.sb, b.ops, b.wpa].filter(hasEntries) : [];
 });
 const pitchingCats = computed(() => {
   const p = props.leaders?.pitching;
