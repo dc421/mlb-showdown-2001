@@ -18,7 +18,7 @@ const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { startPhantomMonitor } = require('./jobs/phantomMonitor');
 const { startEmailKeepalive } = require('./jobs/emailKeepalive');
 const { verifyConnection } = require('./services/emailService');
-const { checkTeamHasPlayed } = require('./services/seasonRolloverService');
+const { checkTeamHasPlayed, maybeRolloverSeason } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('./utils/seasonUtils');
 const { resolveSeriesResultUpdate, seriesTypeForRound } = require('./utils/seriesUtils');
@@ -1027,6 +1027,12 @@ async function handleSeriesProgression(gameId, client, finalState) {
                 ]
             );
         }
+    }
+
+    // 4b'. Deferred season rollover: the first time every team has a result this season, lock in
+    // rosters (historical_rosters snapshot) and roll point sets — same trigger as offline entry.
+    if (scheduledSeasonName) {
+        await maybeRolloverSeason(client, scheduledSeasonName);
     }
 
     // 4c. This game's freshly-written standings may have clinched the playoff field (possibly mid-series,

@@ -6,7 +6,7 @@ const authenticateToken = require('../middleware/authenticateToken');
 const { matchesFranchise, getMappedIds, parseHistoricalIdentity, getLogoForTeam } = require('../utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('../utils/seasonUtils');
 const { calculateStandings, findTeamForRecord } = require('../utils/standingsUtils');
-const { checkAllTeamsPlayed, snapshotRosters, rolloverPointSets } = require('../services/seasonRolloverService');
+const { maybeRolloverSeason } = require('../services/seasonRolloverService');
 const { recomputeOdds, getCachedOddsMap } = require('../services/playoffOddsService');
 const { schedulePlayoffsIfClinched } = require('../services/playoffSchedulingService');
 const { computeGameWinProbability, forEachGameStates } = require('../services/winProbability');
@@ -658,20 +658,7 @@ router.post('/result', authenticateToken, async (req, res) => {
         // --- NEW: Check for Season Rollover ---
         const seasonName = original.season_name;
         // Check if this game being finished triggers the "All Teams Played" condition
-        const allPlayed = await checkAllTeamsPlayed(client, seasonName);
-
-        if (allPlayed) {
-            const histCheck = await client.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [seasonName]);
-            if (histCheck.rows.length === 0) {
-                console.log(`Triggering Season Rollover for ${seasonName}...`);
-                await snapshotRosters(client, seasonName);
-
-                const psCheck = await client.query('SELECT 1 FROM point_sets WHERE name = $1', [seasonName]);
-                if (psCheck.rows.length === 0) {
-                    await rolloverPointSets(client, seasonName);
-                }
-            }
-        }
+        await maybeRolloverSeason(client, seasonName);
         // ------------------------------------
 
         await client.query('COMMIT');

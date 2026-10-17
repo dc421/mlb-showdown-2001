@@ -210,8 +210,34 @@ async function checkAllTeamsPlayed(client, seasonName) {
     return unplayedRes.rows.length === 0;
 }
 
+/**
+ * Deferred season rollover: once every scheduled team has a result in `seasonName`, snapshot the
+ * league rosters to historical_rosters and roll the point sets. Idempotent — a season that already
+ * has historical rosters (or point set) is skipped. Called after any result lands, offline or in-app.
+ * @param {Object} client - Database client (transactional)
+ * @param {string} seasonName
+ * @returns {Promise<boolean>} true if the rollover ran
+ */
+async function maybeRolloverSeason(client, seasonName) {
+    if (!seasonName) return false;
+    if (!(await checkAllTeamsPlayed(client, seasonName))) return false;
+
+    const histCheck = await client.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [seasonName]);
+    if (histCheck.rows.length > 0) return false;
+
+    console.log(`Triggering Season Rollover for ${seasonName}...`);
+    await snapshotRosters(client, seasonName);
+
+    const psCheck = await client.query('SELECT 1 FROM point_sets WHERE name = $1', [seasonName]);
+    if (psCheck.rows.length === 0) {
+        await rolloverPointSets(client, seasonName);
+    }
+    return true;
+}
+
 module.exports = {
     snapshotRosters,
+    maybeRolloverSeason,
     generateSchedule,
     rolloverPointSets,
     checkTeamHasPlayed,
