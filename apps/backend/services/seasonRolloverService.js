@@ -211,16 +211,19 @@ async function checkAllTeamsPlayed(client, seasonName) {
 }
 
 /**
- * Deferred season rollover: once every scheduled team has a result in `seasonName`, snapshot the
- * league rosters to historical_rosters and roll the point sets. Idempotent — a season that already
- * has historical rosters (or point set) is skipped. Called after any result lands, offline or in-app.
+ * Season rollover: the moment `seasonName` starts (first scheduled game reaches the lineup screen,
+ * or its first offline result is entered), snapshot the league rosters to historical_rosters —
+ * which also locks every league roster for the season — and roll the point sets. Idempotent and
+ * serialized: a season that already has historical rosters is skipped.
  * @param {Object} client - Database client (transactional)
  * @param {string} seasonName
  * @returns {Promise<boolean>} true if the rollover ran
  */
 async function maybeRolloverSeason(client, seasonName) {
     if (!seasonName) return false;
-    if (!(await checkAllTeamsPlayed(client, seasonName))) return false;
+
+    // Two games set up at once must not both snapshot; held until the caller's transaction ends.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('season-rollover'))");
 
     const histCheck = await client.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [seasonName]);
     if (histCheck.rows.length > 0) return false;
@@ -235,9 +238,22 @@ async function maybeRolloverSeason(client, seasonName) {
     return true;
 }
 
+/**
+ * True once `seasonName` has started (rolled over), which locks all league rosters.
+ * @param {Object} client
+ * @param {string} seasonName
+ * @returns {Promise<boolean>}
+ */
+async function checkSeasonStarted(client, seasonName) {
+    if (!seasonName) return false;
+    const r = await client.query('SELECT 1 FROM historical_rosters WHERE season = $1 LIMIT 1', [seasonName]);
+    return r.rows.length > 0;
+}
+
 module.exports = {
     snapshotRosters,
     maybeRolloverSeason,
+    checkSeasonStarted,
     generateSchedule,
     rolloverPointSets,
     checkTeamHasPlayed,

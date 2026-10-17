@@ -18,7 +18,7 @@ const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { startPhantomMonitor } = require('./jobs/phantomMonitor');
 const { startEmailKeepalive } = require('./jobs/emailKeepalive');
 const { verifyConnection } = require('./services/emailService');
-const { checkTeamHasPlayed, maybeRolloverSeason } = require('./services/seasonRolloverService');
+const { checkSeasonStarted, maybeRolloverSeason } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('./utils/seasonUtils');
 const { resolveSeriesResultUpdate, seriesTypeForRound } = require('./utils/seriesUtils');
@@ -1029,12 +1029,6 @@ async function handleSeriesProgression(gameId, client, finalState) {
         }
     }
 
-    // 4b'. Deferred season rollover: the first time every team has a result this season, lock in
-    // rosters (historical_rosters snapshot) and roll point sets — same trigger as offline entry.
-    if (scheduledSeasonName) {
-        await maybeRolloverSeason(client, scheduledSeasonName);
-    }
-
     // 4c. This game's freshly-written standings may have clinched the playoff field (possibly mid-series,
     // e.g. game 6 of 7 locking every seed). When it does, schedulePlayoffsIfClinched creates the Golden
     // Spaceship / Wooden Spoon series AND auto-finalizes every remaining (now-meaningless) regular-season
@@ -1333,9 +1327,9 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
                 const isFinished = finishedRes.rows.length > 0;
 
                 if (!isFinished) {
-                    const hasPlayed = await checkTeamHasPlayed(pool, userId, seasonName);
-                    if (hasPlayed) {
-                        return res.status(403).json({ message: "Roster is locked because your team has already played a game this season." });
+                    // Every league roster locks once the season starts (first game reaches lineups).
+                    if (await checkSeasonStarted(pool, seasonName)) {
+                        return res.status(403).json({ message: "Rosters are locked because the season has started." });
                     }
                 }
             }
@@ -3737,6 +3731,19 @@ app.post('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
       `UPDATE games SET home_team_user_id = $1, use_dh = $2, status = 'lineups' WHERE game_id = $3`,
       [homeTeamUserId, useDh, gameId]
     );
+
+    // 1b. Season rollover: the first scheduled league game to reach the lineup screen starts the
+    // season — snapshot rosters (locking them league-wide) and roll point sets. No-op after that.
+    const seasonRes = await client.query(
+      `SELECT sr.season_name FROM games g
+         JOIN series s ON s.id = g.series_id
+         JOIN series_results sr ON sr.id = s.series_result_id
+        WHERE g.game_id = $1 AND sr.style IS DISTINCT FROM 'Classic'`,
+      [gameId]
+    );
+    if (seasonRes.rows.length > 0) {
+      await maybeRolloverSeason(client, seasonRes.rows[0].season_name);
+    }
 
     // 2. Synchronize the game_participants table
     // Set the declared home team user to 'home'
