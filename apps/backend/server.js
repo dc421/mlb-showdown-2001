@@ -2887,7 +2887,7 @@ app.get('/api/series/:id/box-score-data', authenticateToken, async (req, res) =>
           home: spByGameUser[`${gid}_${homeUserId}`] ?? null,
           away: spByGameUser[`${gid}_${awayUserId}`] ?? null,
         },
-        state: { atBatLog: state.atBatLog, pitcherStats: state.pitcherStats || {} },
+        state: { atBatLog: state.atBatLog, pitcherStats: state.pitcherStats || {}, stealLog: state.stealLog || [] },
       });
     }
 
