@@ -6242,7 +6242,11 @@ app.get('/api/games/:gameId/opponent-roster', authenticateToken, async (req, res
 app.get('/api/test', async (req, res) => {
     try {
         const dbTime = await pool.query('SELECT NOW()');
-        res.json({ message: 'API server is running and connected to the database!', dbTime: dbTime.rows[0].now });
+        res.json({
+            message: 'API server is running and connected to the database!',
+            dbTime: dbTime.rows[0].now,
+            revision: process.env.RENDER_GIT_COMMIT || null,
+        });
     } catch (error) {
         console.error('Database connection test failed:', error);
         res.status(500).json({ message: 'Error connecting to the database.' });
