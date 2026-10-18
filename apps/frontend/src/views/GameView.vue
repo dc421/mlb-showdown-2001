@@ -1794,7 +1794,9 @@ const bothPlayersSetAction = computed(() => {
 // SIMUL: When both players have acted, do a staged reveal:
 // - Pitch result appears immediately (0ms)
 // - Swing result appears after 900ms
-watch([bothPlayersSetAction, () => atBatToDisplay.value], ([isRevealing]) => {
+// Re-run after initialization: the initial fetch can load a resolved at-bat
+// while the guard below is still active, including the opponent's previous at-bat.
+watch([bothPlayersSetAction, () => atBatToDisplay.value, initialLoadComplete], ([isRevealing]) => {
   if (!initialLoadComplete.value || !gameStore.gameState) return;
 
   if (revealTimeout) clearTimeout(revealTimeout);
@@ -2784,17 +2786,24 @@ onMounted(async () => {
     window.socket = socket;
   }
 
+  socket.on('game-updated', (data) => {
+    gameStore.updateGameData(data);
+  });
+
   socket.connect();
 
   if (socket.connected) {
       isConnected.value = true;
       socket.emit('join-game-room', gameId);
+      gameStore.fetchGame(gameId);
   }
 
   socket.on('connect', () => {
       console.log('Socket connected/reconnected. Joining room:', gameId);
       isConnected.value = true;
       socket.emit('join-game-room', gameId);
+      // Room membership is lost on disconnect, including updates sent while offline.
+      gameStore.fetchGame(gameId);
   });
 
   socket.on('disconnect', () => {
@@ -2805,10 +2814,6 @@ onMounted(async () => {
   socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err);
       isConnected.value = false;
-  });
-
-  socket.on('game-updated', (data) => {
-    gameStore.updateGameData(data);
   });
 
   socket.on('series-next-game-ready', (data) => {

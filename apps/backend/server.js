@@ -24,6 +24,7 @@ const { mapSeasonToPointSet } = require('./utils/seasonUtils');
 const { resolveSeriesResultUpdate, seriesTypeForRound } = require('./utils/seriesUtils');
 const { schedulePlayoffsIfClinched } = require('./services/playoffSchedulingService');
 const { computeLinescore, computePitchingDecisions, computeHomeRuns, normalizeKey, cardIdOf } = require('./utils/gameSummary');
+const { getReturningPlayerPosition, isDefensivePitchingChange } = require('./utils/substitutionUtils');
 
 function commitTransientPlayerIds(state) {
     for (const teamKey of ['homeTeam', 'awayTeam']) {
@@ -37,6 +38,9 @@ function commitTransientPlayerIds(state) {
         }
         if (state[teamKey].transient_lineup_slots) {
             state[teamKey].transient_lineup_slots = {};
+        }
+        if (state[teamKey].transient_lineup_positions) {
+            state[teamKey].transient_lineup_positions = {};
         }
     }
 }
@@ -1789,7 +1793,7 @@ function validatePitcherSubstitution(gameState, playerOutCard, playerOutId, star
 
 app.post('/api/games/:gameId/substitute', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
-  const { playerInId, playerOutId, position, lineupIndex } = req.body;
+  const { playerInId, playerOutId, position: requestedPosition, lineupIndex } = req.body;
   const userId = req.user.userId;
   const client = await pool.connect();
 
@@ -1826,6 +1830,7 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
     // --- END REVISED TEAM IDENTIFICATION LOGIC ---
 
     const playerInIdInt = parseInt(playerInId, 10);
+    let position = getReturningPlayerPosition(newState[teamKey], playerInIdInt, requestedPosition);
 
     let playerOutCard;
     if (parseInt(playerOutId, 10) === -1) {
@@ -1887,6 +1892,9 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
         if (newState[teamKey].transient_lineup_slots) {
             delete newState[teamKey].transient_lineup_slots[playerInIdInt];
+        }
+        if (newState[teamKey].transient_lineup_positions) {
+            delete newState[teamKey].transient_lineup_positions[playerInIdInt];
         }
     } else {
         if (!newState[teamKey].transient_subbed_in_player_ids) {
@@ -1958,7 +1966,6 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
     // 2. Update currentAtBat (for pinch hitters and relief pitchers)
     const isSubForBatter = newState.currentAtBat.batter.card_id === playerOutId;
-    const isSubForPitcherOnMound = newState.currentAtBat.pitcher && newState.currentAtBat.pitcher.card_id === playerOutId;
 
     // --- RELIEVER FATIGUE FIX ---
     // If a pitcher is being removed (whether offensive or defensive sub), check if they faced any batters in the current inning.
@@ -2057,16 +2064,14 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
     } else {
         // Defensive substitutions can change the active pitcher on the mound.
         const wasAwaitingLineupChange = newState.awaiting_lineup_change;
-        if (wasAwaitingLineupChange) {
-            if (playerInCard.control !== null) { // A valid pitcher is being subbed in.
-                newState.awaiting_lineup_change = false;
-                wasReliefPitcher = true;
-                newState.currentAtBat.pitcher = playerInCard;
-            }
-        } else if (isSubForPitcherOnMound) {
-            // This is a standard mid-inning pitching change.
+        // An invalid fielding position does not make every incoming pitcher a
+        // pitching change. Only replace the mound pitcher or fill a pitching slot.
+        if (isDefensivePitchingChange(isOffensiveSub, newState.currentAtBat.pitcher, playerOutId, playerInCard, position)) {
             newState.currentAtBat.pitcher = playerInCard;
             wasReliefPitcher = true;
+            if (wasAwaitingLineupChange && playerInCard.control !== null) {
+                newState.awaiting_lineup_change = false;
+            }
         }
 
         // For any defensive sub involving a pitcher, update the team's designated pitcher.
@@ -2154,6 +2159,7 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         }
     }
 
+    const removedPosition = spotIndex > -1 ? lineup[spotIndex].position : 'P';
     if (spotIndex > -1) {
         lineup[spotIndex].card_id = playerInCard.card_id;
         // If a pinch hitter just came in for the pitcher, mark their position as 'PH'.
@@ -2169,10 +2175,12 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
             // and they are replacing a PH/PR/P, force their position to 'P'.
             // This handles cases where the previous P was pinch-hit for (slot became PH),
             // and now a new P is entering.
-            if (!isOffensiveSub && useDh === false && playerInCard.control !== null && ['PH', 'PR', 'P'].includes(position)) {
+            if (!isOffensiveSub && useDh === false && playerInCard.control !== null &&
+                (wasReliefPitcher || ['PH', 'PR', 'P'].includes(position))) {
                 newPosition = 'P';
             }
             lineup[spotIndex].position = newPosition;
+            position = newPosition;
         }
     }
 
@@ -2206,6 +2214,10 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
                 }
                 const removedSlotKey = lineupIndex >= 0 ? lineupIndex.toString() : 'pitcher';
                 newState[teamKey].transient_lineup_slots[playerOutIdInt] = removedSlotKey;
+                if (!newState[teamKey].transient_lineup_positions) {
+                    newState[teamKey].transient_lineup_positions = {};
+                }
+                newState[teamKey].transient_lineup_positions[playerOutIdInt] = removedPosition;
             }
         }
     }

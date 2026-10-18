@@ -9,7 +9,7 @@ export const useGameStore = defineStore('game', () => {
   const game = ref(null);
   const series = ref(null);
   const gameState = ref(null);
-  // Highest game_state_id applied from a socket snapshot, used to drop stale/duplicate emits.
+  // Highest game_state_id applied from HTTP or a socket, used to drop stale snapshots.
   const lastAppliedStateId = ref(0);
   const nextGameId = ref(null);
   const gameEvents = ref([]);
@@ -51,22 +51,7 @@ async function fetchGame(gameId) {
       const response = await apiClient(`/api/games/${gameId}`);
       if (!response.ok) throw new Error('Failed to fetch game data');
       
-      const data = await response.json();
-
-      game.value = data.game;
-      if (data.nextGameId) {
-        nextGameId.value = data.nextGameId;
-      }
-      
-      series.value = data.series;
-      gameState.value = data.gameState ? data.gameState.state_data : null;
-      gameEvents.value = data.gameEvents;
-      
-      batter.value = data.batter;
-      pitcher.value = data.pitcher;
-      lineups.value = data.lineups;
-      rosters.value = data.rosters;
-      teams.value = data.teams;
+      updateGameData(await response.json());
     } catch (error) {
       console.error(error);
     }
@@ -619,8 +604,8 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
 
 
   function updateGameData(data) {
-    console.log('📥 STORE: Received game data from socket.');
-    // De-dupe stale/duplicate socket snapshots: game_state_id is monotonic per game, so a
+    console.log('📥 STORE: Received game data.');
+    // De-dupe stale/duplicate snapshots: game_state_id is monotonic per game, so a
     // snapshot that isn't strictly newer is either a replay or arrived out of order. Dropping
     // it prevents overwriting newer state and re-triggering reveal/HR-celebration watchers.
     const incomingStateId = data.gameState?.game_state_id;
