@@ -1,4 +1,4 @@
-const { resolveSeriesResultUpdate, seriesTypeForRound } = require('../utils/seriesUtils');
+const { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty, homeFieldRule, higherClassicSeedUserId } = require('../utils/seriesUtils');
 
 describe('seriesTypeForRound', () => {
     test('regular-season rounds map to regular_season', () => {
@@ -72,5 +72,47 @@ describe('resolveSeriesResultUpdate', () => {
         expect(u.winning_score).toBe(2);  // away team's games, not home's
         expect(u.losing_team_id).toBe(10);
         expect(u.losing_score).toBe(5);
+    });
+});
+
+describe('relieverCarryoverPenalty', () => {
+    test('every point of fatigue comes off his IP', () => {
+        expect(relieverCarryoverPenalty(0)).toBe(0);
+        expect(relieverCarryoverPenalty(1)).toBe(1); // 2-IP reliever after 1 inning: C / C-1 / C-2
+        expect(relieverCarryoverPenalty(2)).toBe(2); // after 2 innings: C-1 / C-2 / C-3
+        expect(relieverCarryoverPenalty(3)).toBe(3);
+    });
+});
+
+describe('homeFieldRule', () => {
+    test('regular-season series roll for home', () => {
+        expect(homeFieldRule('regular_season')).toBe('roll');
+    });
+    test('Spaceship, Spoon and Classic series give home to the higher seed', () => {
+        expect(homeFieldRule('golden_spaceship')).toBe('seed');
+        expect(homeFieldRule('wooden_spoon')).toBe('seed');
+        expect(homeFieldRule('classic')).toBe('seed');
+    });
+    test('everything else lets the players choose', () => {
+        expect(homeFieldRule('exhibition')).toBe('choose');
+        expect(homeFieldRule('playoff')).toBe('choose');
+        expect(homeFieldRule(undefined)).toBe('choose');
+    });
+});
+
+describe('higherClassicSeedUserId', () => {
+    // Ordered 5th → 1st seed.
+    const seeding = [{ user_id: 5 }, { user_id: 4 }, { user_id: 3 }, { user_id: 2 }, { user_id: 1 }];
+    test('picks the better seed regardless of argument order', () => {
+        expect(higherClassicSeedUserId(seeding, 5, 4)).toBe(4);
+        expect(higherClassicSeedUserId(seeding, 1, 4)).toBe(1);
+        expect(higherClassicSeedUserId(seeding, 3, 2)).toBe(2);
+    });
+    test('matches ids across number/string types', () => {
+        expect(higherClassicSeedUserId(seeding, '5', '1')).toBe('1');
+    });
+    test('null when either team is unseeded', () => {
+        expect(higherClassicSeedUserId(seeding, 1, 99)).toBeNull();
+        expect(higherClassicSeedUserId([], 1, 2)).toBeNull();
     });
 });

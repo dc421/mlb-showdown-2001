@@ -486,7 +486,7 @@ onMounted(async () => {
 
                 <!-- SPACESHIP / SUBMARINE (Above Standings) -->
                 <div v-if="spaceshipSeries.length > 0 && selectedSeason !== 'all-time'" class="season-finales">
-                    <div v-for="result in spaceshipSeries" :key="result.id" class="finale-card" :class="{'spaceship-card': result.round === 'Golden Spaceship'}">
+                    <component v-for="result in spaceshipSeries" :key="result.id" :is="result.series_id ? 'RouterLink' : 'div'" :to="result.series_id ? `/series/${result.series_id}` : null" class="finale-card" :class="{'spaceship-card': result.round === 'Golden Spaceship', 'finale-card-link': result.series_id}">
                          <div class="finale-header-text">
                              {{ result.round.toUpperCase() }}
                          </div>
@@ -518,7 +518,7 @@ onMounted(async () => {
                                      </div>
                                      <div class="finale-score-line finale-scheduled-line">
                                          <span>Matchup set</span>
-                                         <button class="add-result-btn" @click="openResultModal(result)">+</button>
+                                         <button class="add-result-btn" @click.prevent.stop="openResultModal(result)">+</button>
                                      </div>
                                  </template>
                              </div>
@@ -527,7 +527,7 @@ onMounted(async () => {
                                  <img v-if="result.round === 'Silver Submarine'" :src="`${apiUrl}/images/silver_submarine.png`" class="finale-trophy-lg" />
                              </div>
                          </div>
-                    </div>
+                    </component>
                 </div>
 
                 <h3>Standings</h3>
@@ -636,7 +636,7 @@ onMounted(async () => {
             <div v-if="selectedSeason !== 'all-time'" class="summary-column results-column">
                 <!-- SPOON (Above Results) -->
                 <div v-if="spoonSeries.length > 0" class="season-finales">
-                    <div v-for="result in spoonSeries" :key="result.id" class="finale-card spoon-card">
+                    <component v-for="result in spoonSeries" :key="result.id" :is="result.series_id ? 'RouterLink' : 'div'" :to="result.series_id ? `/series/${result.series_id}` : null" class="finale-card spoon-card" :class="{'finale-card-link': result.series_id}">
                          <div class="finale-header-text">
                              {{ result.round.toUpperCase() }} - LAST PLACE
                          </div>
@@ -667,7 +667,7 @@ onMounted(async () => {
                                      </div>
                                      <div class="finale-score-line finale-scheduled-line">
                                          <span>Matchup set</span>
-                                         <button class="add-result-btn" @click="openResultModal(result)">+</button>
+                                         <button class="add-result-btn" @click.prevent.stop="openResultModal(result)">+</button>
                                      </div>
                                  </template>
                              </div>
@@ -675,7 +675,7 @@ onMounted(async () => {
                                  <img :src="`${apiUrl}/images/wooden_spoon.png`" class="finale-trophy-lg" />
                              </div>
                          </div>
-                    </div>
+                    </component>
                 </div>
 
                 <h3>Results</h3>
@@ -791,7 +791,7 @@ onMounted(async () => {
                     <tr v-for="row in groupedHistory" :key="row.season" class="history-row">
                         <td class="history-col-season">{{ row.season }}</td>
                         <td class="history-col-award history-spaceship-cell">
-                            <div v-if="row.spaceship" class="history-cell-content">
+                            <component v-if="row.spaceship" :is="row.spaceship.series_id ? 'RouterLink' : 'div'" :to="row.spaceship.series_id ? `/series/${row.spaceship.series_id}` : null" class="history-cell-content" :class="{'history-cell-link': row.spaceship.series_id}">
                                 <div class="history-matchup-line">
                                     <span class="history-logo-wrap">
                                         <img v-if="row.spaceship.winner_logo" :src="getLogoUrl(row.spaceship.winner_logo)" class="history-team-logo" />
@@ -801,11 +801,11 @@ onMounted(async () => {
                                     <span class="history-loser">{{ row.spaceship.loser_name }}</span>
                                 </div>
                                 <div v-if="row.spaceship.mva" class="history-accolade">MVA: {{ row.spaceship.mva }}</div>
-                            </div>
+                            </component>
                             <span v-else class="history-empty">—</span>
                         </td>
                         <td class="history-col-award history-spoon-cell">
-                            <div v-if="row.spoon" class="history-cell-content">
+                            <component v-if="row.spoon" :is="row.spoon.series_id ? 'RouterLink' : 'div'" :to="row.spoon.series_id ? `/series/${row.spoon.series_id}` : null" class="history-cell-content" :class="{'history-cell-link': row.spoon.series_id}">
                                 <div class="history-matchup-line">
                                     <span class="history-logo-wrap">
                                         <img v-if="row.spoon.loser_logo" :src="getLogoUrl(row.spoon.loser_logo)" class="history-team-logo" />
@@ -815,7 +815,7 @@ onMounted(async () => {
                                     <span class="history-loser">{{ row.spoon.winner_name }}</span>
                                 </div>
                                 <div v-if="row.spoon.lvsc" class="history-accolade">LVSC: {{ row.spoon.lvsc }}</div>
-                            </div>
+                            </component>
                             <span v-else class="history-empty">—</span>
                         </td>
                     </tr>
@@ -1814,6 +1814,27 @@ h1 {
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     border: 1px solid #e9ecef;
     overflow: hidden;
+}
+
+.finale-card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.spoon-card.finale-card-link { color: #efebe9; }
+.finale-card-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+.history-cell-link {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+.history-cell-link:hover .history-winner {
+    text-decoration: underline;
 }
 
 .spaceship-card {

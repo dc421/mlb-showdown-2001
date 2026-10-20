@@ -23,6 +23,13 @@ const iHaveRolled = computed(() => authStore.user?.userId in diceRolls.value);
 const bothPlayersHaveRolled = computed(() => participants.value.length > 0 && Object.keys(diceRolls.value).length === participants.value.length);
 const isHomeTeam = computed(() => authStore.user?.userId === homeTeamUserId.value);
 const setupComplete = computed(() => homeTeamUserId.value !== null);
+// 'roll' (regular season), 'seed' (Spaceship/Spoon/Classic: higher seed is home), or 'choose'.
+const homeRule = computed(() => gameStore.setupState?.homeRule || 'choose');
+const subtitle = computed(() => {
+  if (homeRule.value === 'seed') return 'The higher seed is the home team.';
+  if (homeRule.value === 'roll') return 'Both players roll. The high roll is the home team.';
+  return 'Declare the home team, or roll. The high roll is the home team.';
+});
 
 
 
@@ -94,6 +101,12 @@ onUnmounted(() => {
   socket.off('setup-complete');
 });
 
+// The server assigns a seeded series' home team once both players are in; pick it up when the
+// setup refreshes (e.g. the opponent just joined).
+watch(() => gameStore.setupState?.homeTeamUserId, (id) => {
+  if (id && !homeTeamUserId.value) homeTeamUserId.value = id;
+});
+
 watch(diceRolls, () => {
     if (bothPlayersHaveRolled.value) {
         determineRollWinner();
@@ -111,7 +124,7 @@ watch(useDh, (newValue) => {
 <template>
   <div class="container">
     <h1>Game Setup</h1>
-    <p class="subtitle">The winner of the dice roll will be the home team.</p>
+    <p class="subtitle">{{ subtitle }}</p>
     <div class="panel" v-if="participants.length > 0">
       <div class="participants">
           <div v-for="player in participants" :key="player.user_id" class="participant">
@@ -130,8 +143,9 @@ watch(useDh, (newValue) => {
 
       <div class="setup-section" v-if="participants.length >= 2 && !homeTeamUserId && !bothPlayersHaveRolled">
           <h2>1. Determine Home Team</h2>
-          <p>Have one player declare or have both players roll.</p>
-          <div class="declare-buttons">
+          <p v-if="homeRule === 'choose'">Have one player declare or have both players roll.</p>
+          <p v-else>Regular-season series always roll for home field.</p>
+          <div v-if="homeRule === 'choose'" class="declare-buttons">
               <button @click="declareHomeTeam(participants[0])">{{ participants[0].city }} is Home</button>
               <button @click="declareHomeTeam(participants[1])">{{ participants[1].city }} is Home</button>
           </div>
@@ -147,7 +161,7 @@ watch(useDh, (newValue) => {
       <div class="setup-section" v-if="homeTeamUserId">
         <h2>2. Set DH Rule</h2>
         <div class="result">
-          <strong>Home Team:</strong> {{ participants.find(p => p.user_id === homeTeamUserId)?.city }}
+          <strong>Home Team:</strong> {{ participants.find(p => p.user_id === homeTeamUserId)?.city }}<span v-if="homeRule === 'seed'"> (higher seed)</span>
         </div>
 
         <!-- NEW: Show DH Cards for reference -->

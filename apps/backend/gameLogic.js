@@ -77,6 +77,15 @@ function checkGameOverOrInningChange(newState, events, teamInfo) {
   }
 }
 
+// Ends the game if the home team just took the lead in the bottom of the 9th or later. For run-scoring
+// paths outside applyOutcome/resolveThrow (which check inline). Returns true if this call ended it.
+function markWalkOffIfWon(state) {
+  if (state.gameOver || state.isTopInning || state.inning < 9 || state.homeScore <= state.awayScore) return false;
+  state.gameOver = true;
+  state.winningTeam = 'home';
+  return true;
+}
+
 function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfieldDefense = 0, getSpeedValue, swingRoll = 0, chartHolder = null, teamInfo = {}) {
   const newState = JSON.parse(JSON.stringify(state));
   const scoreKey = newState.isTopInning ? 'awayScore' : 'homeScore';
@@ -764,9 +773,10 @@ function applyOutcome(state, outcome, batter, pitcher, infieldDefense = 0, outfi
 
 // Rank of a chart result by how good it is for the offense (low = good for the pitcher,
 // high = good for the hitter). Used to compare the two cards' charts at a given roll.
+// All outs rank the same, so an out on the pitcher's chart never counts as a backfire.
 const CHART_OUTCOME_RANK = {
-  PU: 0, SO: 1, GB: 2, 'GB?': 2, FB: 3, BB: 4, IBB: 4,
-  '1B': 5, '1B+': 6, '2B': 7, '3B': 8, HR: 9,
+  PU: 0, SO: 0, GB: 0, 'GB?': 0, FB: 0, BB: 1, IBB: 1,
+  '1B': 2, '1B+': 3, '2B': 4, '3B': 5, HR: 6,
 };
 
 function lookupChartOutcome(card, roll) {
@@ -1042,4 +1052,4 @@ function recordStealAttempt(state, runner, success) {
 
 module.exports = { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
   recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
-  recordStealAttempt, toRunnerCard, getPitcherKey };
+  recordStealAttempt, toRunnerCard, getPitcherKey, markWalkOffIfWon };

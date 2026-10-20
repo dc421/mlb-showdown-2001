@@ -991,6 +991,18 @@ const myTransientLineupSlots = computed(() => {
     return gameStore.gameState[teamKey + 'Team']?.transient_lineup_slots || {};
 });
 
+// Mirrors the server's isIllegalMoundEntry: on defense, the pitcher on the mound can only be
+// replaced by a pitcher, so the Replacement Hitter isn't offered for him.
+const isSubbingOutMoundPitcher = computed(() => {
+    const state = gameStore.gameState;
+    const out = gameStore.playerSelectedForSwap;
+    if (!state || !out || !authStore.user) return false;
+    const defensiveTeam = state.isTopInning ? state.homeTeam : state.awayTeam;
+    if (Number(authStore.user.userId) !== Number(defensiveTeam?.userId)) return false;
+    const mound = state.currentAtBat?.pitcher;
+    return !!mound && Number(mound.card_id) === Number(out.card_id);
+});
+
 const isPlayerValidSubTarget = (player) => {
     if (!player) return false;
     if (usedPlayerIds.value.has(player.card_id)) return false;
@@ -1014,11 +1026,9 @@ const opponentUsedPlayerIds = computed(() => {
 });
 
 // Current fatigue for a team's active (on-field) pitcher, mirroring the bullpen
-// indicators: one filled red dot per -1 control penalty, an open dot for buffer used.
-// Counts only innings actually thrown ("banked"): an inning banks the instant the
-// pitcher throws his first pitch of it, so the on-mound pitcher still shows his debuff,
-// while a resting pitcher never shows fatigue for an inning he hasn't committed to.
-// This keeps the dots in sync with the card and with the next-game fatigue carryover.
+// indicators: one filled red dot per -1 control penalty, an open dot when he has lost
+// stamina (carryover fatigue or runs) but no control yet. Counts the innings he's thrown
+// plus the current one, matching the server's getEffectiveControl and the card's control.
 const getActivePitcherFatigue = (pitcher, teamKey) => {
     const result = { penalty: 0, bufferUsed: false };
     if (!pitcher || typeof pitcher.control !== 'number' || pitcher.card_id < 0) return result;
@@ -1031,14 +1041,19 @@ const getActivePitcherFatigue = (pitcher, teamKey) => {
     const stats = pitcherStats[`${ownerUserId}_${pitcher.card_id}`];
     if (!stats) return result;
 
-    const inningsPitchedCount = (stats.innings_pitched || []).length;
+    // Count the current inning too (as the server does), so a reliever who enters already
+    // tired shows his red dot before his first pitch rather than after it.
+    const innings = new Set(stats.innings_pitched || []);
+    innings.add(gameStore.gameState.inning);
+    const inningsPitchedCount = innings.size;
 
     const modifiedIp = pitcher.ip + (stats.fatigue_modifier || 0);
     const fatigueThreshold = modifiedIp - Math.floor((stats.runs || 0) / 3);
 
     if (inningsPitchedCount > fatigueThreshold) {
         result.penalty = inningsPitchedCount - fatigueThreshold;
-    } else if (stats.isBufferUsed) {
+    } else if (fatigueThreshold < pitcher.ip) {
+        // Lost stamina (carryover fatigue or runs) but no control yet.
         result.bufferUsed = true;
     }
     return result;
@@ -1791,12 +1806,19 @@ const bothPlayersSetAction = computed(() => {
     return !!atBatToDisplay.value.batterAction && !!atBatToDisplay.value.pitcherAction;
 });
 
+// Only reveal once the server has resolved the at-bat. The player who acts second
+// optimistically sets their action locally, so bothPlayersSetAction goes true before
+// the result exists; revealing then would show an empty result plus a Next Hitter
+// button. A game-ending request is slow (series progression), so that window was
+// long enough to click Next Hitter on a game the server had already ended.
+const isAtBatReadyToReveal = computed(() => bothPlayersSetAction.value && !!atBatToDisplay.value?.swingRollResult);
+
 // SIMUL: When both players have acted, do a staged reveal:
 // - Pitch result appears immediately (0ms)
 // - Swing result appears after 900ms
 // Re-run after initialization: the initial fetch can load a resolved at-bat
 // while the guard below is still active, including the opponent's previous at-bat.
-watch([bothPlayersSetAction, () => atBatToDisplay.value, initialLoadComplete], ([isRevealing]) => {
+watch([isAtBatReadyToReveal, () => atBatToDisplay.value, initialLoadComplete], ([isRevealing]) => {
   if (!initialLoadComplete.value || !gameStore.gameState) return;
 
   if (revealTimeout) clearTimeout(revealTimeout);
@@ -3202,7 +3224,7 @@ async function handleReauthenticate() {
                       </span>
                       <span @click="selectedCard = p" :class="{'is-used': usedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id), 'name-cell': lineMode === 'card'}">{{ lineMode === 'card' ? cardName(p) : p.displayName }}<template v-if="lineMode !== 'card'"> ({{p.ip}} IP)</template></span>
                       <span v-if="p.fatigueStatus === 'tired' && !usedPlayerIds.has(p.card_id)" class="status-indicators">
-                          <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
+                          <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: ${p.fatigue_modifier}`"></span>
                       </span>
                       <span v-else-if="p.isBufferUsed && !usedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
                       <template v-if="lineMode === 'card'"><span v-for="(c, ci) in pitcherCells(p)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>
@@ -3237,7 +3259,7 @@ async function handleReauthenticate() {
                       </span>
                       <span>Replacement Pitcher</span>
                   </li>
-                  <li class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
+                  <li v-if="!isSubbingOutMoundPitcher" class="lineup-item replacement-player" :class="{'is-sub-in-candidate': isSubModeActive && playerToSubOut}">
                        <span @click.stop="handleSubstitution(REPLACEMENT_HITTER)"
                             class="sub-icon"
                             :class="{ 'visible': isSubModeActive && playerToSubOut && leftPanelData.isMyTeam }">
@@ -3328,7 +3350,7 @@ async function handleReauthenticate() {
                           <span class="sub-icon"></span>
                           <span @click.stop="selectedCard = p" :class="{'is-used': opponentUsedPlayerIds.has(p.card_id), 'is-tired': p.fatigueStatus === 'tired' && !opponentUsedPlayerIds.has(p.card_id), 'name-cell': lineMode === 'card'}">{{ lineMode === 'card' ? cardName(p) : p.displayName }}<template v-if="lineMode !== 'card'"> ({{p.ip}} IP)</template></span>
                           <span v-if="p.fatigueStatus === 'tired' && !opponentUsedPlayerIds.has(p.card_id)" class="status-indicators">
-                              <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: -${p.fatigue_modifier}`"></span>
+                              <span v-for="n in Math.abs(p.fatigue_modifier || 0)" :key="n" class="status-icon tired" :title="`Penalty: ${p.fatigue_modifier}`"></span>
                           </span>
                           <span v-else-if="p.isBufferUsed && !opponentUsedPlayerIds.has(p.card_id)" class="status-icon used" title="Buffer Used"></span>
                           <template v-if="lineMode === 'card'"><span v-for="(c, ci) in pitcherCells(p)" :key="ci" class="stat-col" :class="c.cls"><template v-if="c.lines"><span v-for="(ln, lni) in c.lines" :key="lni" class="fld-line">{{ ln }}</span></template><template v-else>{{ c.t }}</template></span></template>

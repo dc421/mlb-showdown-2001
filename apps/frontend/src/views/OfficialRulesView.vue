@@ -465,10 +465,10 @@
         <li>Pitching in a game adds points - one point per inning, so a long outing costs more than a quick one - plus extra points if he was already tired and gave up runs.</li>
         <li>A game with no work takes one point back off.</li>
         <li>The scheduled travel days, after games two and five, take one point off for everyone.</li>
-        <li>Every reliever has a cushion equal to his IP minus one. As long as his fatigue number stays inside that cushion, he is at full strength (the bullpen view marks this as "buffer used").</li>
-        <li>Once the number goes past the cushion, the overflow comes straight off his IP for the next game. Enough of it and he starts that game already tired - and can end up worse off than the rulebook's "starts at 0."</li>
+        <li>Every point of that number comes off his IP for the next game. A 2 IP reliever who throws one inning starts the next game at 1 IP; after two innings he starts at 0 IP, tired from his first pitch - and a bigger number can leave him worse off than the rulebook's "starts at 0."</li>
+        <li>In the bullpen view, red dots show how much Control he would lose pitching right now. An open circle means he has lost stamina but no Control yet - he'll be at full strength for at least one more inning.</li>
       </ul>
-      <p>The upshot: on this site, bullpen fatigue builds up over a long series and takes a while to shake off, rather than the rulebook's simple "did he pitch yesterday and the day before." Lean on a reliever early in a series and he may be worn down for several games; use him lightly on back-to-back days and he can still be fine.</p>
+      <p>The upshot: on this site, bullpen fatigue builds up over a long series and takes a while to shake off, rather than the rulebook's simple "did he pitch yesterday and the day before." Lean on a reliever early in a series and he may be worn down for several games; even a single inning costs him an inning of stamina the next day.</p>
 
       <h2>8. Filling in for missing players</h2>
       <p>The official expert rules let you patch a thin roster with "emergency" players: an emergency fielder who can play anywhere at +0, and an emergency reliever copied from the cheapest pitcher in the game but with 0 IP and 0 Control. The site does not do either of those.</p>

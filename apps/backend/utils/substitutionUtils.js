@@ -17,4 +17,11 @@ function isDefensivePitchingChange(isOffensiveSub, atBatPitcher, playerOutId, pl
     return replacesActivePitcher || fillsPitcherSlot;
 }
 
-module.exports = { getReturningPlayerPosition, isDefensivePitchingChange };
+// A defensive sub for the pitcher on the mound must bring in a card with a control rating.
+function isIllegalMoundEntry(isOffensiveSub, atBatPitcher, playerOutId, playerInCard) {
+    if (isOffensiveSub || atBatPitcher == null) return false;
+    const replacesActivePitcher = Number(atBatPitcher.card_id) === Number(playerOutId);
+    return replacesActivePitcher && (playerInCard.control === null || playerInCard.control === undefined);
+}
+
+module.exports = { getReturningPlayerPosition, isDefensivePitchingChange, isIllegalMoundEntry };

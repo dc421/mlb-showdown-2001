@@ -1,0 +1,260 @@
+franchise,decade,no_rerolls_action,no_rerolls_player,no_rerolls_season,no_rerolls_war,no_rerolls_expected_total,both_rerolls_action,both_rerolls_player,both_rerolls_season,both_rerolls_war,both_rerolls_expected_total
+Angels,1960s,SP,Dean Chance,1964,9.4,101.1181,SP,Dean Chance,1964,9.4,105.2808
+Angels,1970s,SS,Jim Fregosi,1970,7.7,100.2733,SS,Jim Fregosi,1970,7.7,104.4468
+Angels,1980s,3B,Doug DeCinces,1982,7.6,100.3375,3B,Doug DeCinces,1982,7.6,104.5013
+Angels,1990s,SP,Mark Langston,1993,8.5,100.2181,SP,Mark Langston,1993,8.5,104.3808
+Angels,2000s,OF,Darin Erstad,2000,8.3,100.5611,OF,Darin Erstad,2000,8.3,104.7332
+Angels,2010s,OF,Mike Trout,2012,10.5,102.7611,OF,Mike Trout,2012,10.5,106.9332
+Angels,2020s,OF,Mike Trout,2022,6.1,98.3611,decade reroll,,,,103.0256
+Astros,1960s,SP,Larry Dierker,1969,8.7,100.4181,SP,Larry Dierker,1969,8.7,104.5808
+Astros,1970s,OF,Cesar Cedeno,1972,8.0,100.2611,OF,Cesar Cedeno,1972,8.0,104.4332
+Astros,1980s,SP,Mike Scott,1986,8.4,100.1181,SP,Mike Scott,1986,8.4,104.2808
+Astros,1990s,2B,Craig Biggio,1997,9.4,102.1536,2B,Craig Biggio,1997,9.4,106.2614
+Astros,2000s,1B,Lance Berkman,2008,6.9,99.6924,1B,Lance Berkman,2008,6.9,103.8678
+Astros,2010s,3B,Alex Bregman,2019,8.9,101.6375,3B,Alex Bregman,2019,8.9,105.8013
+Astros,2020s,SS,Carlos Correa,2021,7.3,99.8733,SS,Carlos Correa,2021,7.3,104.0468
+Athletics,1920s,1B,Jimmie Foxx,1929,7.9,100.6924,1B,Jimmie Foxx,1929,7.9,104.8678
+Athletics,1930s,1B,Jimmie Foxx,1932,10.3,103.0924,1B,Jimmie Foxx,1932,10.3,107.2678
+Athletics,1940s,SS,Eddie Joost,1949,7.0,99.5733,SS,Eddie Joost,1949,7.0,103.7468
+Athletics,1950s,SP,Bobby Shantz,1952,8.8,100.5181,SP,Bobby Shantz,1952,8.8,104.6808
+Athletics,1960s,OF,Reggie Jackson,1969,9.3,101.5611,OF,Reggie Jackson,1969,9.3,105.7332
+Athletics,1970s,SP,Vida Blue,1971,9.0,100.7181,SP,Vida Blue,1971,9.0,104.8808
+Athletics,1980s,OF,Rickey Henderson,1980,8.8,101.0611,OF,Rickey Henderson,1980,8.8,105.2332
+Athletics,1990s,OF,Rickey Henderson,1990,9.9,102.1611,OF,Rickey Henderson,1990,9.9,106.3332
+Athletics,2000s,1B,Jason Giambi,2001,9.2,101.9924,1B,Jason Giambi,2001,9.2,106.1678
+Athletics,2010s,SS,Marcus Semien,2019,8.4,100.9733,SS,Marcus Semien,2019,8.4,105.1468
+Athletics,2020s,C,Sean Murphy,2022,4.4,98.5037,decade reroll,,,,103.3788
+Blue Jays,1970s,RP,Pete Vuckovich,1977,2.9,97.5982,franchise reroll,,,,103.6211
+Blue Jays,1980s,RP,Mark Eichhorn,1986,7.3,101.9982,RP,Mark Eichhorn,1986,7.3,106.4887
+Blue Jays,1990s,SP,Roger Clemens,1997,11.9,103.6181,SP,Roger Clemens,1997,11.9,107.7808
+Blue Jays,2000s,1B,Carlos Delgado,2000,7.3,100.0924,1B,Carlos Delgado,2000,7.3,104.2678
+Blue Jays,2010s,OF,Jose Bautista,2011,8.3,100.5611,OF,Jose Bautista,2011,8.3,104.7332
+Blue Jays,2020s,2B,Marcus Semien,2021,7.1,99.8536,2B,Marcus Semien,2021,7.1,103.9614
+Braves,1920s,2B,Rogers Hornsby,1928,8.9,101.6536,2B,Rogers Hornsby,1928,8.9,105.7614
+Braves,1930s,OF,Wally Berger,1933,6.9,99.1611,franchise reroll,,,,103.4098
+Braves,1940s,SP,Warren Spahn,1947,9.5,101.2181,SP,Warren Spahn,1947,9.5,105.3808
+Braves,1950s,OF,Hank Aaron,1959,8.7,100.9611,OF,Hank Aaron,1959,8.7,105.1332
+Braves,1960s,OF,Hank Aaron,1961,9.5,101.7611,OF,Hank Aaron,1961,9.5,105.9332
+Braves,1970s,3B,Darrell Evans,1973,9.0,101.7375,3B,Darrell Evans,1973,9.0,105.9013
+Braves,1980s,OF,Lonnie Smith,1989,8.8,101.0611,OF,Lonnie Smith,1989,8.8,105.2332
+Braves,1990s,SP,Greg Maddux,1995,9.7,101.4181,SP,Greg Maddux,1995,9.7,105.5808
+Braves,2000s,C,Javy Lopez,2003,6.8,100.9037,C,Javy Lopez,2003,6.8,105.1173
+Braves,2010s,RP,Kris Medlen,2012,4.4,99.0982,RP,Kris Medlen,2012,4.4,103.5887
+Braves,2020s,OF,Ronald Acuña Jr.,2023,8.8,101.0611,OF,Ronald Acuña Jr.,2023,8.8,105.2332
+Brewers,1960s,RP,Diego Segui,1969,2.4,97.0982,franchise reroll,,,,103.4059
+Brewers,1970s,3B,Tommy Harper,1970,7.4,100.1375,3B,Tommy Harper,1970,7.4,104.3013
+Brewers,1980s,SS,Robin Yount,1982,10.5,103.0733,SS,Robin Yount,1982,10.5,107.2468
+Brewers,1990s,3B,Jeff Cirillo,1998,6.2,98.9375,franchise reroll,,,,103.3918
+Brewers,2000s,SP,Ben Sheets,2004,7.2,98.9181,franchise reroll,,,,103.3625
+Brewers,2010s,C,Jonathan Lucroy,2014,6.4,100.5037,C,Jonathan Lucroy,2014,6.4,104.7173
+Brewers,2020s,C,William Contreras,2024,5.1,99.2037,C,William Contreras,2024,5.1,103.4173
+Cardinals,1920s,2B,Rogers Hornsby,1924,12.1,104.8536,2B,Rogers Hornsby,1924,12.1,108.9614
+Cardinals,1930s,OF,Joe Medwick,1937,8.4,100.6611,OF,Joe Medwick,1937,8.4,104.8332
+Cardinals,1940s,OF,Stan Musial,1948,11.3,103.5611,OF,Stan Musial,1948,11.3,107.7332
+Cardinals,1950s,OF,Stan Musial,1951,8.8,101.0611,OF,Stan Musial,1951,8.8,105.2332
+Cardinals,1960s,SP,Bob Gibson,1968,11.2,102.9181,SP,Bob Gibson,1968,11.2,107.0808
+Cardinals,1970s,SP,Bob Gibson,1970,8.9,100.6181,SP,Bob Gibson,1970,8.9,104.7808
+Cardinals,1980s,OF,Willie McGee,1985,8.2,100.4611,OF,Willie McGee,1985,8.2,104.6332
+Cardinals,1990s,1B,Mark McGwire,1998,7.5,100.2924,1B,Mark McGwire,1998,7.5,104.4678
+Cardinals,2000s,1B,Albert Pujols,2009,9.7,102.4924,1B,Albert Pujols,2009,9.7,106.6678
+Cardinals,2010s,C,Yadier Molina,2012,7.2,101.3037,C,Yadier Molina,2012,7.2,105.5173
+Cardinals,2020s,3B,Nolan Arenado,2022,7.5,100.2375,3B,Nolan Arenado,2022,7.5,104.4013
+Cubs,1920s,SP,Pete Alexander,1920,12.0,103.7181,SP,Pete Alexander,1920,12.0,107.8808
+Cubs,1930s,2B,Billy Herman,1935,7.2,99.9536,2B,Billy Herman,1935,7.2,104.0614
+Cubs,1940s,3B,Stan Hack,1945,6.5,99.2375,decade reroll,,,,103.5737
+Cubs,1950s,SS,Ernie Banks,1959,10.2,102.7733,SS,Ernie Banks,1959,10.2,106.9468
+Cubs,1960s,3B,Ron Santo,1967,9.8,102.5375,3B,Ron Santo,1967,9.8,106.7013
+Cubs,1970s,SP,Fergie Jenkins,1971,10.1,101.8181,SP,Fergie Jenkins,1971,10.1,105.9808
+Cubs,1980s,2B,Ryne Sandberg,1984,8.5,101.2536,2B,Ryne Sandberg,1984,8.5,105.3614
+Cubs,1990s,SP,Greg Maddux,1992,9.1,100.8181,SP,Greg Maddux,1992,9.1,104.9808
+Cubs,2000s,OF,Sammy Sosa,2001,10.3,102.5611,OF,Sammy Sosa,2001,10.3,106.7332
+Cubs,2010s,3B,Kris Bryant,2016,7.3,100.0375,3B,Kris Bryant,2016,7.3,104.2013
+Cubs,2020s,2B,Nico Hoerner,2025,6.2,98.9536,decade reroll,,,,103.6081
+Diamondbacks,1990s,SP,Randy Johnson,1999,9.1,100.8181,SP,Randy Johnson,1999,9.1,104.9808
+Diamondbacks,2000s,SP,Randy Johnson,2002,10.7,102.4181,SP,Randy Johnson,2002,10.7,106.5808
+Diamondbacks,2010s,1B,Paul Goldschmidt,2015,8.3,101.0924,1B,Paul Goldschmidt,2015,8.3,105.2678
+Diamondbacks,2020s,SS,Geraldo Perdomo,2025,7.1,99.6733,SS,Geraldo Perdomo,2025,7.1,103.8468
+Dodgers,1920s,SP,Dazzy Vance,1924,10.5,102.2181,SP,Dazzy Vance,1924,10.5,106.3808
+Dodgers,1930s,1B,Dolph Camilli,1939,6.4,99.1924,decade reroll,,,,103.8335
+Dodgers,1940s,2B,Jackie Robinson,1949,9.3,102.0536,2B,Jackie Robinson,1949,9.3,106.1614
+Dodgers,1950s,2B,Jackie Robinson,1951,9.7,102.4536,2B,Jackie Robinson,1951,9.7,106.5614
+Dodgers,1960s,SP,Sandy Koufax,1963,10.7,102.4181,SP,Sandy Koufax,1963,10.7,106.5808
+Dodgers,1970s,OF,Jim Wynn,1974,7.7,99.9611,OF,Jim Wynn,1974,7.7,104.1332
+Dodgers,1980s,OF,Pedro Guerrero,1985,8.0,100.2611,OF,Pedro Guerrero,1985,8.0,104.4332
+Dodgers,1990s,C,Mike Piazza,1997,8.7,102.8037,C,Mike Piazza,1997,8.7,107.0173
+Dodgers,2000s,3B,Adrian Beltre,2004,9.6,102.3375,3B,Adrian Beltre,2004,9.6,106.5013
+Dodgers,2010s,OF,Cody Bellinger,2019,8.7,100.9611,OF,Cody Bellinger,2019,8.7,105.1332
+Dodgers,2020s,OF,Shohei Ohtani,2024,9.2,101.4611,OF,Shohei Ohtani,2024,9.2,105.6332
+Giants,1920s,2B,Rogers Hornsby,1927,10.2,102.9536,2B,Rogers Hornsby,1927,10.2,107.0614
+Giants,1930s,3B,Mel Ott,1938,8.8,101.5375,3B,Mel Ott,1938,8.8,105.7013
+Giants,1940s,1B,Johnny Mize,1947,7.5,100.2924,1B,Johnny Mize,1947,7.5,104.4678
+Giants,1950s,OF,Willie Mays,1954,10.5,102.7611,OF,Willie Mays,1954,10.5,106.9332
+Giants,1960s,OF,Willie Mays,1965,11.2,103.4611,OF,Willie Mays,1965,11.2,107.6332
+Giants,1970s,OF,Bobby Bonds,1973,7.8,100.0611,OF,Bobby Bonds,1973,7.8,104.2332
+Giants,1980s,1B,Will Clark,1989,8.6,101.3924,1B,Will Clark,1989,8.6,105.5678
+Giants,1990s,OF,Barry Bonds,1993,9.9,102.1611,OF,Barry Bonds,1993,9.9,106.3332
+Giants,2000s,OF,Barry Bonds,2001,11.9,104.1611,OF,Barry Bonds,2001,11.9,108.3332
+Giants,2010s,C,Buster Posey,2012,7.6,101.7037,C,Buster Posey,2012,7.6,105.9173
+Giants,2020s,3B,Matt Chapman,2024,6.3,99.0375,decade reroll,,,,104.1935
+Guardians,1920s,OF,Tris Speaker,1923,9.1,101.3611,OF,Tris Speaker,1923,9.1,105.5332
+Guardians,1930s,SP,Bob Feller,1939,9.2,100.9181,SP,Bob Feller,1939,9.2,105.0808
+Guardians,1940s,SS,Lou Boudreau,1948,10.4,102.9733,SS,Lou Boudreau,1948,10.4,107.1468
+Guardians,1950s,3B,Al Rosen,1953,10.1,102.8375,3B,Al Rosen,1953,10.1,107.0013
+Guardians,1960s,SP,Luis Tiant,1968,8.5,100.2181,SP,Luis Tiant,1968,8.5,104.3808
+Guardians,1970s,SP,Gaylord Perry,1972,10.8,102.5181,SP,Gaylord Perry,1972,10.8,106.6808
+Guardians,1980s,3B,Toby Harrah,1982,6.6,99.3375,RP,Dan Spillner,1982,4.4,103.5887
+Guardians,1990s,3B,Jim Thome,1996,7.5,100.2375,3B,Jim Thome,1996,7.5,104.4013
+Guardians,2000s,1B,Jim Thome,2002,7.4,100.1924,1B,Jim Thome,2002,7.4,104.3678
+Guardians,2010s,3B,Jose Ramirez,2018,7.6,100.3375,3B,Jose Ramirez,2018,7.6,104.5013
+Guardians,2020s,2B,Andrés Giménez,2022,6.8,99.5536,2B,Andrés Giménez,2022,6.8,103.6614
+Mariners,1970s,RP,Enrique Romo,1977,3.2,97.8982,franchise reroll,,,,103.6268
+Mariners,1980s,RP,Bill Caudill,1982,4.4,99.0982,RP,Bill Caudill,1982,4.4,103.5887
+Mariners,1990s,SS,Alex Rodriguez,1996,9.4,101.9733,SS,Alex Rodriguez,1996,9.4,106.1468
+Mariners,2000s,SS,Alex Rodriguez,2000,10.4,102.9733,SS,Alex Rodriguez,2000,10.4,107.1468
+Mariners,2010s,2B,Robinson Cano,2016,7.3,100.0536,2B,Robinson Cano,2016,7.3,104.1614
+Mariners,2020s,C,Cal Raleigh,2025,7.2,101.3037,C,Cal Raleigh,2025,7.2,105.5173
+Marlins,1990s,SP,Kevin Brown,1996,7.9,99.6181,SP,Kevin Brown,1996,7.9,103.7808
+Marlins,2000s,SS,Hanley Ramirez,2009,7.4,99.9733,SS,Hanley Ramirez,2009,7.4,104.1468
+Marlins,2010s,OF,Giancarlo Stanton,2017,8.1,100.3611,OF,Giancarlo Stanton,2017,8.1,104.5332
+Marlins,2020s,SP,Sandy Alcantara,2022,8.0,99.7181,SP,Sandy Alcantara,2022,8.0,103.8808
+Mets,1960s,SP,Tom Seaver,1969,7.2,98.9181,decade reroll,,,,103.5954
+Mets,1970s,SP,Tom Seaver,1973,10.6,102.3181,SP,Tom Seaver,1973,10.6,106.4808
+Mets,1980s,SP,Dwight Gooden,1985,12.2,103.9181,SP,Dwight Gooden,1985,12.2,108.0808
+Mets,1990s,C,Mike Piazza,1998,6.3,100.4037,C,Mike Piazza,1998,6.3,104.6173
+Mets,2000s,3B,David Wright,2007,8.3,101.0375,3B,David Wright,2007,8.3,105.2013
+Mets,2010s,SP,Jacob deGrom,2018,9.4,101.1181,SP,Jacob deGrom,2018,9.4,105.2808
+Mets,2020s,SS,Francisco Lindor,2024,7.3,99.8733,SS,Francisco Lindor,2024,7.3,104.0468
+Nationals,1960s,OF,Rusty Staub,1969,6.2,98.4611,franchise reroll,,,,103.3732
+Nationals,1970s,C,Gary Carter,1979,6.0,100.1037,C,Gary Carter,1979,6.0,104.3173
+Nationals,1980s,C,Gary Carter,1982,8.6,102.7037,C,Gary Carter,1982,8.6,106.9173
+Nationals,1990s,SP,Pedro Martinez,1997,9.0,100.7181,SP,Pedro Martinez,1997,9.0,104.8808
+Nationals,2000s,3B,Ryan Zimmerman,2009,7.3,100.0375,3B,Ryan Zimmerman,2009,7.3,104.2013
+Nationals,2010s,OF,Bryce Harper,2015,9.7,101.9611,OF,Bryce Harper,2015,9.7,106.1332
+Nationals,2020s,OF,Juan Soto,2021,7.3,99.5611,OF,Juan Soto,2021,7.3,103.7332
+Orioles,1920s,1B,George Sisler,1920,9.8,102.5924,1B,George Sisler,1920,9.8,106.7678
+Orioles,1930s,RP,Ivy Andrews,1935,6.4,101.0982,RP,Ivy Andrews,1935,6.4,105.5887
+Orioles,1940s,SP,Nels Potter,1945,7.2,98.9181,decade reroll,,,,103.467
+Orioles,1950s,SP,Hoyt Wilhelm,1959,7.6,99.3181,franchise reroll,,,,103.756
+Orioles,1960s,3B,Brooks Robinson,1968,8.4,101.1375,3B,Brooks Robinson,1968,8.4,105.3013
+Orioles,1970s,2B,Bobby Grich,1973,8.3,101.0536,2B,Bobby Grich,1973,8.3,105.1614
+Orioles,1980s,SS,Cal Ripken,1984,10.0,102.5733,SS,Cal Ripken,1984,10.0,106.7468
+Orioles,1990s,SS,Cal Ripken,1991,11.5,104.0733,SS,Cal Ripken,1991,11.5,108.2468
+Orioles,2000s,2B,Brian Roberts,2005,7.3,100.0536,2B,Brian Roberts,2005,7.3,104.1614
+Orioles,2010s,3B,Manny Machado,2016,7.4,100.1375,3B,Manny Machado,2016,7.4,104.3013
+Orioles,2020s,SS,Gunnar Henderson,2024,8.5,101.0733,SS,Gunnar Henderson,2024,8.5,105.2468
+Padres,1960s,RP,Frank Reberger,1969,1.0,95.6982,franchise reroll,,,,103.4138
+Padres,1970s,OF,Dave Winfield,1979,8.3,100.5611,OF,Dave Winfield,1979,8.3,104.7332
+Padres,1980s,OF,Tony Gwynn,1987,8.6,100.8611,OF,Tony Gwynn,1987,8.6,105.0332
+Padres,1990s,3B,Ken Caminiti,1996,7.6,100.3375,3B,Ken Caminiti,1996,7.6,104.5013
+Padres,2000s,1B,Adrian Gonzalez,2009,6.4,99.1924,1B,Adrian Gonzalez,2009,6.4,103.3678
+Padres,2010s,3B,Chase Headley,2012,6.4,99.1375,3B,Chase Headley,2012,6.4,103.3013
+Padres,2020s,3B,Manny Machado,2022,6.9,99.6375,3B,Manny Machado,2022,6.9,103.8013
+Phillies,1920s,SP,Hal Carlson,1926,8.3,100.0181,franchise reroll,,,,104.4285
+Phillies,1930s,SP,Curt Davis,1934,8.6,100.3181,SP,Curt Davis,1934,8.6,104.4808
+Phillies,1940s,OF,Harry Walker,1947,6.4,98.6611,decade reroll,,,,103.564
+Phillies,1950s,SP,Robin Roberts,1953,9.8,101.5181,SP,Robin Roberts,1953,9.8,105.6808
+Phillies,1960s,3B,Dick Allen,1964,8.8,101.5375,3B,Dick Allen,1964,8.8,105.7013
+Phillies,1970s,SP,Steve Carlton,1972,12.1,103.8181,SP,Steve Carlton,1972,12.1,107.9808
+Phillies,1980s,SP,Steve Carlton,1980,10.2,101.9181,SP,Steve Carlton,1980,10.2,106.0808
+Phillies,1990s,OF,Lenny Dykstra,1990,8.9,101.1611,OF,Lenny Dykstra,1990,8.9,105.3332
+Phillies,2000s,2B,Chase Utley,2008,9.0,101.7536,2B,Chase Utley,2008,9.0,105.8614
+Phillies,2010s,SP,Aaron Nola,2018,9.7,101.4181,SP,Aaron Nola,2018,9.7,105.5808
+Phillies,2020s,C,J.T. Realmuto,2022,6.6,100.7037,C,J.T. Realmuto,2022,6.6,104.9173
+Pirates,1920s,OF,Paul Waner,1927,7.1,99.3611,franchise reroll,,,,104.4727
+Pirates,1930s,SS,Arky Vaughan,1935,9.7,102.2733,SS,Arky Vaughan,1935,9.7,106.4468
+Pirates,1940s,OF,Ralph Kiner,1947,8.1,100.3611,OF,Ralph Kiner,1947,8.1,104.5332
+Pirates,1950s,RP,Bob Friend,1955,6.0,100.6982,RP,Bob Friend,1955,6.0,105.1887
+Pirates,1960s,OF,Roberto Clemente,1967,8.9,101.1611,OF,Roberto Clemente,1967,8.9,105.3332
+Pirates,1970s,RP,Rich Gossage,1977,6.0,100.6982,RP,Rich Gossage,1977,6.0,105.1887
+Pirates,1980s,OF,Barry Bonds,1989,8.0,100.2611,OF,Barry Bonds,1989,8.0,104.4332
+Pirates,1990s,OF,Barry Bonds,1990,9.7,101.9611,OF,Barry Bonds,1990,9.7,106.1332
+Pirates,2000s,C,Jason Kendall,2000,4.7,98.8037,franchise reroll,,,,103.3663
+Pirates,2010s,OF,Andrew McCutchen,2013,7.8,100.0611,OF,Andrew McCutchen,2013,7.8,104.2332
+Pirates,2020s,SP,Paul Skenes,2025,8.0,99.7181,SP,Paul Skenes,2025,8.0,103.8808
+Rangers,1970s,RP,Jim Kern,1979,6.1,100.7982,RP,Jim Kern,1979,6.1,105.2887
+Rangers,1980s,3B,Buddy Bell,1980,6.5,99.2375,3B,Buddy Bell,1980,6.5,103.4013
+Rangers,1990s,C,Ivan Rodriguez,1999,6.6,100.7037,C,Ivan Rodriguez,1999,6.6,104.9173
+Rangers,2000s,SS,Alex Rodriguez,2002,8.8,101.3733,SS,Alex Rodriguez,2002,8.8,105.5468
+Rangers,2010s,OF,Josh Hamilton,2010,8.7,100.9611,OF,Josh Hamilton,2010,8.7,105.1332
+Rangers,2020s,2B,Marcus Semien,2023,7.0,99.7536,2B,Marcus Semien,2023,7.0,103.8614
+Rays,1990s,RP,Roberto Hernandez,1999,2.7,97.3982,franchise reroll,,,,103.4282
+Rays,2000s,2B,Ben Zobrist,2009,8.6,101.3536,2B,Ben Zobrist,2009,8.6,105.4614
+Rays,2010s,3B,Evan Longoria,2010,8.2,100.9375,3B,Evan Longoria,2010,8.2,105.1013
+Rays,2020s,C,Mike Zunino,2021,3.9,98.0037,decade reroll,,,,102.5751
+Red Sox,1920s,SP,Howard Ehmke,1924,8.3,100.0181,decade reroll,,,,104.6588
+Red Sox,1930s,SP,Lefty Grove,1936,11.2,102.9181,SP,Lefty Grove,1936,11.2,107.0808
+Red Sox,1940s,OF,Ted Williams,1946,10.6,102.8611,OF,Ted Williams,1946,10.6,107.0332
+Red Sox,1950s,OF,Ted Williams,1957,9.7,101.9611,OF,Ted Williams,1957,9.7,106.1332
+Red Sox,1960s,OF,Carl Yastrzemski,1967,12.5,104.7611,OF,Carl Yastrzemski,1967,12.5,108.9332
+Red Sox,1970s,1B,Carl Yastrzemski,1970,9.5,102.2924,1B,Carl Yastrzemski,1970,9.5,106.4678
+Red Sox,1980s,3B,Wade Boggs,1985,9.1,101.8375,3B,Wade Boggs,1985,9.1,106.0013
+Red Sox,1990s,SP,Roger Clemens,1990,10.4,102.1181,SP,Roger Clemens,1990,10.4,106.2808
+Red Sox,2000s,SP,Pedro Martinez,2000,11.7,103.4181,SP,Pedro Martinez,2000,11.7,107.5808
+Red Sox,2010s,OF,Mookie Betts,2018,10.7,102.9611,OF,Mookie Betts,2018,10.7,107.1332
+Red Sox,2020s,OF,Jarren Duran,2024,7.7,99.9611,decade reroll,,,,104.6653
+Reds,1920s,SP,Dolf Luque,1923,10.7,102.4181,SP,Dolf Luque,1923,10.7,106.5808
+Reds,1930s,SP,Bucky Walters,1939,8.2,99.9181,SP,Bucky Walters,1939,8.2,104.0808
+Reds,1940s,SP,Ewell Blackwell,1947,9.4,101.1181,SP,Ewell Blackwell,1947,9.4,105.2808
+Reds,1950s,1B,Ted Kluszewski,1954,7.8,100.5924,1B,Ted Kluszewski,1954,7.8,104.7678
+Reds,1960s,OF,Frank Robinson,1962,8.7,100.9611,RP,Ted Abernathy,1967,6.2,105.3887
+Reds,1970s,2B,Joe Morgan,1975,11.0,103.7536,2B,Joe Morgan,1975,11.0,107.8614
+Reds,1980s,OF,Eric Davis,1987,7.9,100.1611,OF,Eric Davis,1987,7.9,104.3332
+Reds,1990s,SP,Jose Rijo,1993,9.2,100.9181,SP,Jose Rijo,1993,9.2,105.0808
+Reds,2000s,SP,Bronson Arroyo,2006,6.8,98.5181,franchise reroll,,,,103.3707
+Reds,2010s,1B,Joey Votto,2017,7.9,100.6924,1B,Joey Votto,2017,7.9,104.8678
+Reds,2020s,RP,Nick Martinez,2024,4.0,98.6982,RP,Nick Martinez,2024,4.0,103.1887
+Rockies,1990s,OF,Larry Walker,1997,9.8,102.0611,OF,Larry Walker,1997,9.8,106.2332
+Rockies,2000s,1B,Todd Helton,2000,8.9,101.6924,1B,Todd Helton,2000,8.9,105.8678
+Rockies,2010s,SP,Kyle Freeland,2018,7.8,99.5181,SP,Kyle Freeland,2018,7.8,103.6808
+Rockies,2020s,RP,Daniel Bard,2022,3.7,98.3982,decade reroll,,,,103.2387
+Royals,1960s,RP,Moe Drabowsky,1969,3.0,97.6982,decade reroll,,,,103.6525
+Royals,1970s,C,Darrell Porter,1979,7.6,101.7037,C,Darrell Porter,1979,7.6,105.9173
+Royals,1980s,3B,George Brett,1980,9.4,102.1375,3B,George Brett,1980,9.4,106.3013
+Royals,1990s,SP,Kevin Appier,1993,9.3,101.0181,SP,Kevin Appier,1993,9.3,105.1808
+Royals,2000s,SP,Zack Greinke,2009,10.4,102.1181,SP,Zack Greinke,2009,10.4,106.2808
+Royals,2010s,OF,Alex Gordon,2011,7.3,99.5611,OF,Alex Gordon,2011,7.3,103.7332
+Royals,2020s,SS,Bobby Witt Jr.,2024,9.9,102.4733,SS,Bobby Witt Jr.,2024,9.9,106.6468
+Tigers,1920s,OF,Harry Heilmann,1923,9.3,101.5611,OF,Harry Heilmann,1923,9.3,105.7332
+Tigers,1930s,2B,Charlie Gehringer,1934,8.9,101.6536,2B,Charlie Gehringer,1934,8.9,105.7614
+Tigers,1940s,SP,Hal Newhouser,1945,11.3,103.0181,SP,Hal Newhouser,1945,11.3,107.1808
+Tigers,1950s,OF,Al Kaline,1955,8.3,100.5611,OF,Al Kaline,1955,8.3,104.7332
+Tigers,1960s,1B,Norm Cash,1961,9.2,101.9924,1B,Norm Cash,1961,9.2,106.1678
+Tigers,1970s,RP,John Hiller,1973,7.9,102.5982,RP,John Hiller,1973,7.9,107.0887
+Tigers,1980s,SS,Alan Trammell,1987,8.2,100.7733,SS,Alan Trammell,1987,8.2,104.9468
+Tigers,1990s,C,Mickey Tettleton,1991,5.6,99.7037,C,Mickey Tettleton,1991,5.6,103.9173
+Tigers,2000s,OF,Curtis Granderson,2007,7.6,99.8611,OF,Curtis Granderson,2007,7.6,104.0332
+Tigers,2010s,1B,Miguel Cabrera,2011,7.6,100.3924,1B,Miguel Cabrera,2011,7.6,104.5678
+Tigers,2020s,SP,Tarik Skubal,2024,6.4,98.1181,decade reroll,,,,103.3753
+Twins,1920s,OF,Goose Goslin,1928,7.5,99.7611,franchise reroll,,,,104.446
+Twins,1930s,SS,Joe Cronin,1930,8.5,101.0733,SS,Joe Cronin,1930,8.5,105.2468
+Twins,1940s,SS,Cecil Travis,1941,6.5,99.0733,franchise reroll,,,,103.3298
+Twins,1950s,SP,Camilo Pascual,1959,7.8,99.5181,RP,Dick Hyde,1958,4.8,103.9887
+Twins,1960s,SS,Zoilo Versalles,1965,7.2,99.7733,SS,Zoilo Versalles,1965,7.2,103.9468
+Twins,1970s,1B,Rod Carew,1977,9.7,102.4924,1B,Rod Carew,1977,9.7,106.6678
+Twins,1980s,RP,Doug Corbett,1980,5.7,100.3982,RP,Doug Corbett,1980,5.7,104.8887
+Twins,1990s,2B,Chuck Knoblauch,1996,8.7,101.4536,2B,Chuck Knoblauch,1996,8.7,105.5614
+Twins,2000s,C,Joe Mauer,2009,7.8,101.9037,C,Joe Mauer,2009,7.8,106.1173
+Twins,2010s,C,Joe Mauer,2010,5.9,100.0037,C,Joe Mauer,2010,5.9,104.2173
+Twins,2020s,RP,Jhoan Duran,2025,3.1,97.7982,decade reroll,,,,102.7546
+White Sox,1920s,SP,Red Faber,1921,11.4,103.1181,SP,Red Faber,1921,11.4,107.2808
+White Sox,1930s,SS,Luke Appling,1936,7.1,99.6733,SS,Luke Appling,1936,7.1,103.8468
+White Sox,1940s,SP,Thornton Lee,1941,8.6,100.3181,SP,Thornton Lee,1941,8.6,104.4808
+White Sox,1950s,2B,Nellie Fox,1957,7.9,100.6536,2B,Nellie Fox,1957,7.9,104.7614
+White Sox,1960s,SS,Ron Hansen,1964,7.7,100.2733,RP,Wilbur Wood,1968,5.4,104.5887
+White Sox,1970s,SP,Wilbur Wood,1971,11.8,103.5181,SP,Wilbur Wood,1971,11.8,107.6808
+White Sox,1980s,RP,Bob James,1985,4.3,98.9982,RP,Bob James,1985,4.3,103.4887
+White Sox,1990s,1B,Frank Thomas,1997,7.3,100.0924,1B,Frank Thomas,1997,7.3,104.2678
+White Sox,2000s,SP,Esteban Loaiza,2003,7.2,98.9181,franchise reroll,,,,103.3625
+White Sox,2010s,OF,Adam Eaton,2016,6.4,98.6611,franchise reroll,,,,102.9791
+White Sox,2020s,SP,Dylan Cease,2022,6.4,98.1181,decade reroll,,,,102.594
+Yankees,1920s,OF,Babe Ruth,1923,14.1,106.3611,OF,Babe Ruth,1923,14.1,110.5332
+Yankees,1930s,OF,Babe Ruth,1931,10.6,102.8611,OF,Babe Ruth,1931,10.6,107.0332
+Yankees,1940s,OF,Joe DiMaggio,1941,9.3,101.5611,OF,Joe DiMaggio,1941,9.3,105.7332
+Yankees,1950s,OF,Mickey Mantle,1956,11.3,103.5611,OF,Mickey Mantle,1956,11.3,107.7332
+Yankees,1960s,OF,Mickey Mantle,1961,10.5,102.7611,OF,Mickey Mantle,1961,10.5,106.9332
+Yankees,1970s,SP,Ron Guidry,1978,9.6,101.3181,C,Thurman Munson,1973,7.2,105.5173
+Yankees,1980s,OF,Rickey Henderson,1985,9.9,102.1611,OF,Rickey Henderson,1985,9.9,106.3332
+Yankees,1990s,SS,Derek Jeter,1999,8.0,100.5733,decade reroll,,,,104.8585
+Yankees,2000s,3B,Alex Rodriguez,2005,9.4,102.1375,3B,Alex Rodriguez,2005,9.4,106.3013
+Yankees,2010s,2B,Robinson Cano,2012,8.4,101.1536,2B,Robinson Cano,2012,8.4,105.2614
+Yankees,2020s,OF,Aaron Judge,2024,11.0,103.2611,OF,Aaron Judge,2024,11.0,107.4332

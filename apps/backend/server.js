@@ -12,7 +12,7 @@ const jwt = require('jsonwebtoken');
 const authenticateToken = require('./middleware/authenticateToken');
 const { applyOutcome, resolveThrow, calculateStealResult, appendScoreToLog,
   recordOutsForPitcher, recordBatterFaced, checkGameOverOrInningChange, recordRunForPitcher,
-  recordStealAttempt, toRunnerCard } = require('./gameLogic');
+  recordStealAttempt, toRunnerCard, markWalkOffIfWon } = require('./gameLogic');
 const { pool } = require('./db');
 const { startDraftMonitor } = require('./jobs/draftMonitor');
 const { startPhantomMonitor } = require('./jobs/phantomMonitor');
@@ -21,10 +21,11 @@ const { verifyConnection } = require('./services/emailService');
 const { checkSeasonStarted, maybeRolloverSeason } = require('./services/seasonRolloverService');
 const { matchesFranchise, getMappedIds, getFranchiseAliases } = require('./utils/franchiseUtils');
 const { mapSeasonToPointSet } = require('./utils/seasonUtils');
-const { resolveSeriesResultUpdate, seriesTypeForRound } = require('./utils/seriesUtils');
+const { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty } = require('./utils/seriesUtils');
 const { schedulePlayoffsIfClinched } = require('./services/playoffSchedulingService');
+const { resolveHomeField } = require('./services/homeFieldService');
 const { computeLinescore, computePitchingDecisions, computeHomeRuns, normalizeKey, cardIdOf } = require('./utils/gameSummary');
-const { getReturningPlayerPosition, isDefensivePitchingChange } = require('./utils/substitutionUtils');
+const { getReturningPlayerPosition, isDefensivePitchingChange, isIllegalMoundEntry } = require('./utils/substitutionUtils');
 
 function commitTransientPlayerIds(state) {
     for (const teamKey of ['homeTeam', 'awayTeam']) {
@@ -335,7 +336,13 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
                 });
             }
 
-            // 4. If no same-rule game, find the most recent game regardless of rule
+            // 4. No same-rule game earlier in this series: prefer the team's most
+            //    recent same-rule lineup from a previous series (roster unchanged)
+            //    over adapting an opposite-rule lineup from this series.
+            const crossSeriesLineup = await getCrossSeriesSuggestedLineup(gameId, userId, use_dh, dbClient);
+            if (crossSeriesLineup) return crossSeriesLineup;
+
+            // 5. Otherwise adapt the most recent in-series game regardless of rule
             const anyGameQuery = `
                 SELECT COALESCE(gp.starting_lineup, gp.lineup) as lineup, g.use_dh as prev_use_dh
                 FROM game_participants gp
@@ -353,7 +360,7 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
                 const { lineup, prev_use_dh } = anyGameResult.rows[0];
                 let battingOrder = lineup.battingOrder;
 
-                // 5. Adapt the lineup
+                // Adapt the lineup
                 if (prev_use_dh && !use_dh) {
                     // Previous: DH (YES) -> Current: DH (NO)
                     // Need to remove 'DH' from current position and add 'P' at the bottom (9th spot)
@@ -389,7 +396,7 @@ async function getSuggestedLineup(gameId, userId, dbClient) {
             }
         }
 
-        // 6. CROSS-SERIES FALLBACK (e.g. the first game of a new series): if the
+        // CROSS-SERIES FALLBACK (e.g. the first game of a new series): if the
         //    team's roster is unchanged since their previous game, pre-populate
         //    with their most recently-used lineup of the current DH rule.
         return await getCrossSeriesSuggestedLineup(gameId, userId, use_dh, dbClient);
@@ -843,17 +850,13 @@ async function initializePitcherFatigue(gameId, client) {
     allRelievers.forEach(reliever => {
         const pKey = `${reliever.owner_user_id}_${reliever.card_id}`;
         const score = pitcherFatigueScore[pKey] || 0;
-        const allowedBuffer = Math.max(0, reliever.ip - 1);
+        const penalty = relieverCarryoverPenalty(score);
 
-        const penalty = Math.max(0, score - allowedBuffer);
-        const isBufferUsed = (score > 0 && penalty === 0);
-
-        if (penalty > 0 || isBufferUsed) {
+        if (penalty > 0) {
             finalPitcherStats[pKey] = {
                 runs: 0,
                 innings_pitched: [],
-                fatigue_modifier: -penalty,
-                isBufferUsed: isBufferUsed
+                fatigue_modifier: -penalty
             };
 
             // FIX: Removed the backward-compat alias that wrote to plain card_id.
@@ -1439,13 +1442,15 @@ app.post('/api/my-roster', authenticateToken, async (req, res) => {
             const state = draftStateRes.rows[0];
             const teamRes = await client.query('SELECT team_id FROM teams WHERE user_id = $1', [userId]);
 
-            if (teamRes.rows.length > 0 && teamRes.rows[0].team_id === state.active_team_id) {
-                // It is this user's turn. Log the changes.
+            const isAddDropRound = state.current_round === 4 || state.current_round === 5;
+
+            if (rosterType === 'league' && isAddDropRound && teamRes.rows.length > 0 && teamRes.rows[0].team_id === state.active_team_id) {
+                // It is this user's turn in an Add/Drop round. Log the changes.
                 const newCardIds = cards.map(c => c.card_id);
                 const added = newCardIds.filter(id => !oldCards.includes(id));
                 const dropped = oldCards.filter(id => !newCardIds.includes(id));
 
-                const roundName = state.current_round === 4 ? "Add/Drop 1" : (state.current_round === 5 ? "Add/Drop 2" : `Round ${state.current_round}`);
+                const roundName = state.current_round === 4 ? "Add/Drop 1" : "Add/Drop 2";
 
                 for (const id of added) {
                     await client.query(
@@ -1860,6 +1865,28 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
         return res.status(400).json({ message: pitcherValidationResult.message });
     }
 
+    let playerInCard;
+    if (playerInId === 'replacement_hitter') {
+        playerInCard = REPLACEMENT_HITTER_CARD;
+    } else if (playerInId === 'replacement_pitcher') {
+        playerInCard = REPLACEMENT_PITCHER_CARD;
+    } else {
+        const playerInResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerInId]);
+        playerInCard = playerInResult.rows[0];
+    }
+    if (!playerInCard) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Incoming player not found.' });
+    }
+
+    // Only a pitcher (or the Replacement Pitcher) may take the mound. A hitter card has no
+    // control and no IP, so on the mound it would pitch at control 0, never tire, and win
+    // every advantage with an all-out chart.
+    if (isIllegalMoundEntry(isOffensiveSub, newState.currentAtBat.pitcher, playerOutId, playerInCard)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Only a pitcher can replace the pitcher on the mound.' });
+    }
+
     const teamUsedPlayerIds = newState[teamKey].used_player_ids || [];
     if (playerInIdInt > 0 && teamUsedPlayerIds.includes(playerInIdInt)) {
         return res.status(400).json({ message: 'This player has already been in the game and cannot re-enter.' });
@@ -1907,16 +1934,6 @@ const stateResult = await client.query('SELECT * FROM game_states WHERE game_id 
 
 
     let logMessage = '';
-    let playerInCard;
-
-    if (playerInId === 'replacement_hitter') {
-        playerInCard = REPLACEMENT_HITTER_CARD;
-    } else if (playerInId === 'replacement_pitcher') {
-        playerInCard = REPLACEMENT_PITCHER_CARD;
-    } else {
-        const playerInResult = await pool.query('SELECT * FROM cards_player WHERE card_id = $1', [playerInId]);
-        playerInCard = playerInResult.rows[0];
-    }
 
     // Get the correct user ID for the team being substituted
     const teamUserId = newState[teamKey].userId;
@@ -3731,12 +3748,31 @@ app.post('/api/games', authenticateToken, async (req, res) => {
 // SET UP GAME DETAILS (HOME TEAM, DH RULE)
 app.post('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
-  const { homeTeamUserId, useDh } = req.body;
+  const { useDh } = req.body;
+  let { homeTeamUserId } = req.body;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     console.log(`3. Backend: Received request for /api/games/${gameId}/setup.`);
+
+    // Enforce the home-field rule: seeded series go to the higher seed; regular-season series to
+    // the high roll.
+    const homeField = await resolveHomeField(gameId, client);
+    if (homeField.rule === 'seed' && homeField.seededHomeUserId) {
+      homeTeamUserId = homeField.seededHomeUserId;
+    } else if (homeField.rule === 'roll') {
+      const rollsRes = await client.query('SELECT setup_rolls FROM games WHERE game_id = $1', [gameId]);
+      const rolls = rollsRes.rows[0]?.setup_rolls || {};
+      const ids = Object.keys(rolls);
+      const winner = ids.length === 2 && rolls[ids[0]] !== rolls[ids[1]]
+        ? (rolls[ids[0]] > rolls[ids[1]] ? ids[0] : ids[1])
+        : null;
+      if (!winner || Number(winner) !== Number(homeTeamUserId)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Regular-season home field is decided by the dice roll.' });
+      }
+    }
 
     // 1. Update the main game record
     await client.query(
@@ -3789,6 +3825,15 @@ app.post('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
 app.get('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
   const { gameId } = req.params;
   try {
+    // 0. Seeded series: the higher seed is home, assigned as soon as both teams are in.
+    const homeField = await resolveHomeField(gameId);
+    if (homeField.rule === 'seed' && homeField.seededHomeUserId) {
+      await pool.query(
+        `UPDATE games SET home_team_user_id = $1 WHERE game_id = $2 AND home_team_user_id IS NULL AND status = 'pending'`,
+        [homeField.seededHomeUserId, gameId]
+      );
+    }
+
     // 1. Get game info, including the declared home team
     const gameQuery = await pool.query(
       'SELECT setup_rolls, home_team_user_id, use_dh, status FROM games WHERE game_id = $1',
@@ -3833,6 +3878,7 @@ app.get('/api/games/:gameId/setup', authenticateToken, async (req, res) => {
         homeTeamUserId: gameQuery.rows[0]?.home_team_user_id || null,
         useDh: gameQuery.rows[0]?.use_dh,
         status: gameQuery.rows[0]?.status,
+        homeRule: homeField.rule,
         participants: participants
     });
 
@@ -3850,6 +3896,12 @@ app.post('/api/games/:gameId/roll', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const homeField = await resolveHomeField(gameId, client);
+    if (homeField.rule === 'seed') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'The higher seed is the home team for this series.' });
+    }
 
     const gameQuery = await client.query('SELECT setup_rolls FROM games WHERE game_id = $1', [gameId]);
     let rolls = gameQuery.rows[0].setup_rolls || {};
@@ -3879,6 +3931,10 @@ app.post('/api/games/:gameId/declare-home', authenticateToken, async (req, res) 
   const { gameId } = req.params;
   const { homeTeamUserId } = req.body;
   try {
+    const homeField = await resolveHomeField(gameId);
+    if (homeField.rule !== 'choose') {
+      return res.status(400).json({ message: 'The home team for this series cannot be declared.' });
+    }
     // THIS IS THE FIX: Save the choice to the database to make it persistent.
     await pool.query(
       `UPDATE games SET home_team_user_id = $1 WHERE game_id = $2`,
@@ -4114,20 +4170,14 @@ async function getAndProcessGameData(gameId, dbClient) {
 
                 if (stats) {
                     if (stats.pitchedYesterday) player.pitchedYesterday = true;
-                    if (stats.isBufferUsed) player.isBufferUsed = true;
 
-                    // Calculate total penalty (incorporating pre-game and in-game).
-                    // Bullpen pitchers are resting, so bank only innings actually thrown
-                    // (no current-inning projection) — they shouldn't show fatigue for an
-                    // inning they haven't committed to.
-                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning, teamUserId, false);
-                    const totalPenalty = Math.max(0, player.control - effectiveControl);
-
-                    // The stored fatigue_modifier is the pre-game state.
-                    // We want to show the WORST case of pre-game vs current calculated penalty.
-                    // (Usually getEffectiveControl covers it, but edge cases where it returns 0 for tired pitchers exist).
-                    const basePenalty = Math.abs(stats.fatigue_modifier || 0);
-                    const finalPenalty = Math.max(totalPenalty, basePenalty);
+                    // Red dots = the control he'd lose pitching the current inning (the inning he'd
+                    // enter in, or the one he's in if he's on the mound). The open "buffer used"
+                    // circle = he has lost stamina (carryover fatigue or runs) but no control yet.
+                    const effectiveControl = getEffectiveControl(player, pitcherStats, inning, teamUserId);
+                    const finalPenalty = Math.max(0, player.control - effectiveControl);
+                    const fatigueThreshold = player.ip + (stats.fatigue_modifier || 0) - Math.floor((stats.runs || 0) / 3);
+                    if (finalPenalty === 0 && fatigueThreshold < player.ip) player.isBufferUsed = true;
 
                     if (finalPenalty > 0) {
                         player.fatigueStatus = 'tired';
@@ -4626,6 +4676,15 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
     const isHomePlayer = Number(userId) === Number(newState.homeTeam.userId);
 
+    // A finished game has no next hitter. Advancing would move the final play into
+    // lastCompletedAtBat and start a fresh at-bat, hiding the result from the clicker.
+    if (originalState.gameOver) {
+        await client.query('ROLLBACK');
+        console.warn(`[next-hitter] ignored for completed game ${gameId}`);
+        const gameData = await getAndProcessGameData(gameId, client);
+        return res.status(200).json(gameData);
+    }
+
     // --- GUARD CLAUSE: Prevent premature advancement ---
     // Ensure the current play is actually finished before allowing the state to advance.
     const isBetweenInnings = originalState.isBetweenHalfInningsAway || originalState.isBetweenHalfInningsHome;
@@ -4894,6 +4953,7 @@ app.post('/api/games/:gameId/resolve-infield-in-defense-choice', authenticateTok
                 newState.runnersScored.push(toRunnerCard(runnerOnThird));
                 recordRunForPitcher(newState, runnerOnThird, newState.currentAtBat.pitcher);
                 events.push(`${runnerOnThird.name} is SENT HOME... SAFE! ${batter.displayName} reaches on a fielder's choice.`);
+                if (markWalkOffIfWon(newState)) events.push('WALK-OFF!');
             } else {
                 recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
                 events.push(`${runnerOnThird.name} is THROWN OUT at the plate! ${batter.displayName} reaches on a fielder's choice.`);
@@ -4912,12 +4972,16 @@ app.post('/api/games/:gameId/resolve-infield-in-defense-choice', authenticateTok
             events.push(`${batter.displayName} grounds out to first.`);
             recordOutsForPitcher(newState, newState.currentAtBat.pitcher, 1);
 
-            // Runner from third scores
-            newState[scoreKey]++;
-            if (!newState.runnersScored) newState.runnersScored = [];
-            newState.runnersScored.push(toRunnerCard(runnerOnThird));
-            recordRunForPitcher(newState, runnerOnThird, newState.currentAtBat.pitcher);
-            events.push(`${runnerOnThird.name} scores on the play.`);
+            // Runner from third scores — unless the out at first was the third out (possible when a
+            // caught stealing after the infield came in left two out), which ends the inning first.
+            if (newState.outs < 3) {
+                newState[scoreKey]++;
+                if (!newState.runnersScored) newState.runnersScored = [];
+                newState.runnersScored.push(toRunnerCard(runnerOnThird));
+                recordRunForPitcher(newState, runnerOnThird, newState.currentAtBat.pitcher);
+                events.push(`${runnerOnThird.name} scores on the play.`);
+                if (markWalkOffIfWon(newState)) events.push('WALK-OFF!');
+            }
             newState.bases.third = null;
 
             if (newState.outs < 3) {
@@ -5012,6 +5076,10 @@ app.post('/api/games/:gameId/declare-home', authenticateToken, async (req, res) 
   console.log(`2. BACKEND: Received request to declare home team for game ${gameId}.`);
   
   try {
+    const homeField = await resolveHomeField(gameId);
+    if (homeField.rule !== 'choose') {
+      return res.status(400).json({ message: 'The home team for this series cannot be declared.' });
+    }
     await pool.query(
       `UPDATE games SET home_team_user_id = $1 WHERE game_id = $2`,
       [homeTeamUserId, gameId]
@@ -5732,6 +5800,9 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
             }
         }
 
+        // Either run above (uncontested or safe at home) can win it in the bottom of the 9th+.
+        const walkOff = markWalkOffIfWon(newState);
+
         // 4. Finalize state updates.
         newState.bases = finalBases;
         newState.currentPlay = null;
@@ -5761,6 +5832,7 @@ await client.query('SELECT game_id FROM games WHERE game_id = $1 FOR UPDATE', [g
 
         // Sort events to be more logical: lead runner first.
         allEvents.sort((a, b) => a.includes('3rd') ? -1 : 1);
+        if (walkOff) allEvents.push('WALK-OFF!');
         let combinedLogMessage = initialEvent ? `${initialEvent} ${allEvents.join(' ')}` : allEvents.join(' ');
         if (newState.outs > originalOuts || isTagUp) {
             combinedLogMessage += ` <strong>Outs: ${newState.outs}</strong>`;

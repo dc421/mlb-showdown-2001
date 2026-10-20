@@ -551,7 +551,9 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
 
 
     // Condition 1: The outcome is actively being hidden from the user (pre-reveal).
-    if (isOutcomeHidden.value && !isStealResultVisible.value) {
+    // If that outcome hasn't been logged yet, the last event is an earlier play the
+    // user has already seen, so there's nothing to hide.
+    if (isOutcomeHidden.value && !isStealResultVisible.value && !isHiddenOutcomeUnlogged.value) {
 
       const currentPlayType = gameState.value?.currentPlay?.type;
       if (['ADVANCE', 'TAG_UP', 'INFIELD_IN_CHOICE'].includes(currentPlayType)) {
@@ -677,6 +679,21 @@ if (gameState.value?.pendingStealAttempt && !gameState.value?.lastStealResult &&
     } else {
         return gameState.value.awayPlayerReadyForNext;
     }
+  });
+
+  // True while the outcome being hidden is the current at-bat and the server hasn't
+  // resolved it yet (actions are in, but no swing result). Nothing for it has been
+  // logged, so trimming the latest event/PA would hide an already-seen earlier play
+  // and make the linescore and box score flash backward until the result arrives.
+  const isHiddenOutcomeUnlogged = computed(() => {
+    const state = gameState.value;
+    const atBat = state?.currentAtBat;
+    if (!atBat) return false;
+    // Lagging behind the opponent: the hidden outcome is a resolved, logged at-bat.
+    if (opponentReadyForNext.value && !amIReadyForNext.value) return false;
+    if (state.pendingStealAttempt || state.doublePlayDetails || state.currentPlay) return false;
+    if (atBat.pitcherAction === 'intentional_walk') return false;
+    return !atBat.swingRollResult;
   });
 
   const isBetweenHalfInnings = computed(() => {
@@ -1069,7 +1086,7 @@ if (gameState.value?.inningEndedOnCaughtStealing &&
   const boxScore = computed(() => {
     const state = gameState.value;
     if (!state || !Array.isArray(state.atBatLog) || state.atBatLog.length === 0) return null;
-    return buildBoxScore(state, lineups.value, rosters.value, teams.value, { hideLastPA: isOutcomeHidden.value });
+    return buildBoxScore(state, lineups.value, rosters.value, teams.value, { hideLastPA: isOutcomeHidden.value && !isHiddenOutcomeUnlogged.value });
   });
 
   return {

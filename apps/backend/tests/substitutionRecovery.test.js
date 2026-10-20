@@ -60,6 +60,8 @@ function createGame() {
     const client = { query, release: jest.fn() };
     const sandbox = {
         ...substitutionUtils,
+        REPLACEMENT_HITTER_CARD: { card_id: -1, name: 'Replacement Hitter', control: null, fielding_ratings: {} },
+        REPLACEMENT_PITCHER_CARD: { card_id: -2, name: 'Replacement Pitcher', control: -1, ip: 1, fielding_ratings: {} },
         pool: { connect: async () => client, query },
         app: { post: (url, auth, fn) => { handler = fn; } },
         authenticateToken: () => {},
@@ -156,4 +158,19 @@ test('older state without saved positions uses the requested position', async ()
     delete game.state.awayTeam.transient_lineup_positions;
     expect((await game.sub(292, 490, '3B', 0)).statusCode).toBe(200);
     expect(game.state.awaiting_lineup_change).toBe(false);
+});
+
+test('a hitter cannot replace the pitcher on the mound', async () => {
+    for (const playerInId of ['replacement_hitter', 292]) {
+        const game = createGame();
+        expect((await game.sub(playerInId, 422, 'P', 1)).statusCode).toBe(400);
+        expect(game.state.currentAtBat.pitcher.card_id).toBe(422);
+        expect(game.participant.lineup.battingOrder[1]).toEqual({ card_id: 422, position: 'P' });
+    }
+});
+
+test('the Replacement Pitcher can relieve the pitcher on the mound', async () => {
+    const game = createGame();
+    expect((await game.sub('replacement_pitcher', 422, 'P', 1)).statusCode).toBe(200);
+    expect(game.state.currentAtBat.pitcher.card_id).toBe(-2);
 });

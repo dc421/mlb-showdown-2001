@@ -1,0 +1,2073 @@
+grade,franchise,decade,player,season,position,war,baseline_war,surplus_war,source_team
+A,Angels,1960s,Jim Fregosi,1964,SS,7.9,4.840927,3.059073,Angels
+B,Angels,1960s,Dean Chance,1964,SP,9.4,7.261004,2.138996,Angels
+C,Angels,1960s,Bob Lee,1964,RP,4.3,3.751737,0.548263,Angels
+C,Angels,1960s,Don Mincher,1967,1B,4.4,5.011969,-0.611969,Angels
+D,Angels,1960s,Billy Moran,1962,2B,3.3,4.773745,-1.473745,Angels
+D,Angels,1960s,Earl Averill,1961,C,2.1,3.904247,-1.804247,Angels
+D,Angels,1960s,Albie Pearson,1963,OF,4.6,6.851737,-2.251737,Angels
+D,Angels,1960s,Paul Schaal,1966,3B,2.3,5.071042,-2.771042,Angels
+B,Angels,1970s,Jim Fregosi,1970,SS,7.7,4.840927,2.859073,Angels
+B,Angels,1970s,Brian Downing,1979,C,5.3,3.904247,1.395753,Angels
+B,Angels,1970s,Bobby Grich,1979,2B,6.0,4.773745,1.226255,Angels
+B,Angels,1970s,Frank Tanana,1977,SP,8.3,7.261004,1.038996,Angels
+D,Angels,1970s,Ken McMullen,1971,3B,3.9,5.071042,-1.171042,Angels
+D,Angels,1970s,Paul Hartzell,1976,RP,2.3,3.751737,-1.451737,Angels
+D,Angels,1970s,Frank Robinson,1974,1B,3.3,5.011969,-1.711969,Angels
+D,Angels,1970s,Bobby Bonds,1977,OF,5.1,6.851737,-1.751737,Angels
+B,Angels,1980s,Doug DeCinces,1982,3B,7.6,5.071042,2.528958,Angels
+C,Angels,1980s,Bobby Grich,1981,2B,5.5,4.773745,0.726255,Angels
+C,Angels,1980s,Donnie Moore,1985,RP,3.6,3.751737,-0.151737,Angels
+C,Angels,1980s,Rod Carew,1982,1B,4.7,5.011969,-0.311969,Angels
+C,Angels,1980s,Rick Burleson,1981,SS,4.3,4.840927,-0.540927,Angels
+C,Angels,1980s,Bob Boone,1982,C,3.3,3.904247,-0.604247,Angels
+D,Angels,1980s,Mike Witt,1986,SP,6.1,7.261004,-1.161004,Angels
+D,Angels,1980s,Brian Downing,1982,OF,5.5,6.851737,-1.351737,Angels
+B,Angels,1990s,Mark Langston,1993,SP,8.5,7.261004,1.238996,Angels
+C,Angels,1990s,Lance Parrish,1990,C,4.5,3.904247,0.595753,Angels
+C,Angels,1990s,Bryan Harvey,1991,RP,3.4,3.751737,-0.351737,Angels
+C,Angels,1990s,Tim Salmon,1995,OF,6.2,6.851737,-0.651737,Angels
+D,Angels,1990s,Tony Phillips,1995,3B,4.0,5.071042,-1.071042,Angels
+D,Angels,1990s,Wally Joyner,1991,1B,3.8,5.011969,-1.211969,Angels
+D,Angels,1990s,Luis Alicea,1997,2B,2.8,4.773745,-1.973745,Angels
+D,Angels,1990s,Gary Disarcina,1995,SS,2.8,4.840927,-2.040927,Angels
+B,Angels,2000s,Troy Glaus,2000,3B,7.8,5.071042,2.728958,Angels
+B,Angels,2000s,Darin Erstad,2000,OF,8.3,6.851737,1.448263,Angels
+C,Angels,2000s,David Eckstein,2002,SS,4.9,4.840927,0.059073,Angels
+C,Angels,2000s,Francisco Rodriguez,2006,RP,3.7,3.751737,-0.051737,Angels
+C,Angels,2000s,Adam Kennedy,2002,2B,4.0,4.773745,-0.773745,Angels
+D,Angels,2000s,Kendrys Morales,2009,1B,4.0,5.011969,-1.011969,Angels
+D,Angels,2000s,John Lackey,2007,SP,6.2,7.261004,-1.061004,Angels
+D,Angels,2000s,Mike Napoli,2009,C,2.6,3.904247,-1.304247,Angels
+A,Angels,2010s,Mike Trout,2012,OF,10.5,6.851737,3.648263,Angels
+B,Angels,2010s,Andrelton Simmons,2017,SS,6.4,4.840927,1.559073,Angels
+C,Angels,2010s,Howie Kendrick,2014,2B,5.3,4.773745,0.526255,Angels
+C,Angels,2010s,Albert Pujols,2012,1B,4.8,5.011969,-0.211969,Angels
+C,Angels,2010s,Jered Weaver,2011,SP,6.9,7.261004,-0.361004,Angels
+C,Angels,2010s,Hansel Robles,2019,RP,2.8,3.751737,-0.951737,Angels
+D,Angels,2010s,Martin Maldonado,2017,C,2.4,3.904247,-1.504247,Angels
+D,Angels,2010s,Alberto Callaspo,2011,3B,3.5,5.071042,-1.571042,Angels
+C,Angels,2020s,Zach Neto,2025,SS,5.3,4.840927,0.459073,Angels
+C,Angels,2020s,Mike Trout,2022,OF,6.1,6.851737,-0.751737,Angels
+C,Angels,2020s,Raisel Iglesias,2021,RP,2.8,3.751737,-0.951737,Angels
+D,Angels,2020s,Shohei Ohtani,2022,SP,6.2,7.261004,-1.061004,Angels
+D,Angels,2020s,Logan O'Hoppe,2024,C,2.4,3.904247,-1.504247,Angels
+D,Angels,2020s,Jared Walsh,2021,1B,2.6,5.011969,-2.411969,Angels
+D,Angels,2020s,Brandon Drury,2023,2B,2.3,4.773745,-2.473745,Angels
+D,Angels,2020s,Anthony Rendon,2020,3B,2.2,5.071042,-2.871042,Angels
+B,Astros,1960s,Larry Dierker,1969,SP,8.7,7.261004,1.438996,Astros
+C,Astros,1960s,Hal Woodeshick,1963,RP,4.6,3.751737,0.848263,Astros
+C,Astros,1960s,Joe Morgan,1965,2B,5.6,4.773745,0.826255,Astros
+C,Astros,1960s,Jim Wynn,1965,OF,7.4,6.851737,0.548263,Astros
+D,Astros,1960s,John Bateman,1966,C,2.5,3.904247,-1.404247,Astros
+D,Astros,1960s,Rusty Staub,1968,1B,3.3,5.011969,-1.711969,Astros
+D,Astros,1960s,Denis Menke,1969,SS,2.6,4.840927,-2.240927,Astros
+D,Astros,1960s,Bob Aspromonte,1964,3B,2.7,5.071042,-2.371042,Astros
+B,Astros,1970s,Cesar Cedeno,1972,OF,8.0,6.851737,1.148263,Astros
+C,Astros,1970s,Joe Morgan,1971,2B,5.7,4.773745,0.926255,Astros
+C,Astros,1970s,Joe Ferguson,1977,C,4.7,3.904247,0.795753,Astros
+C,Astros,1970s,Bob Watson,1977,1B,4.8,5.011969,-0.211969,Astros
+C,Astros,1970s,Joe Sambito,1979,RP,3.2,3.751737,-0.551737,Astros
+D,Astros,1970s,Denis Menke,1970,SS,3.7,4.840927,-1.140927,Astros
+D,Astros,1970s,Don Wilson,1971,SP,6.1,7.261004,-1.161004,Astros
+D,Astros,1970s,Doug Rader,1970,3B,3.5,5.071042,-1.571042,Astros
+B,Astros,1980s,Dickie Thon,1983,SS,7.4,4.840927,2.559073,Astros
+B,Astros,1980s,Mike Scott,1986,SP,8.4,7.261004,1.138996,Astros
+C,Astros,1980s,Bill Doran,1985,2B,5.2,4.773745,0.426255,Astros
+C,Astros,1980s,Ken Caminiti,1989,3B,4.9,5.071042,-0.171042,Astros
+C,Astros,1980s,Glenn Davis,1989,1B,4.6,5.011969,-0.411969,Astros
+C,Astros,1980s,Jose Cruz,1983,OF,6.0,6.851737,-0.851737,Astros
+C,Astros,1980s,Bill Dawley,1984,RP,2.9,3.751737,-0.851737,Astros
+D,Astros,1980s,Craig Biggio,1989,C,2.7,3.904247,-1.204247,Astros
+A,Astros,1990s,Craig Biggio,1997,2B,9.4,4.773745,4.626255,Astros
+A,Astros,1990s,Jeff Bagwell,1994,1B,8.2,5.011969,3.188031,Astros
+B,Astros,1990s,Danny Darwin,1990,RP,5.3,3.751737,1.548263,Astros
+C,Astros,1990s,Craig Biggio,1991,C,4.4,3.904247,0.495753,Astros
+C,Astros,1990s,Moises Alou,1998,OF,6.5,6.851737,-0.351737,Astros
+C,Astros,1990s,Mike Hampton,1999,SP,6.7,7.261004,-0.561004,Astros
+C,Astros,1990s,Bill Spiers,1997,3B,4.4,5.071042,-0.671042,Astros
+D,Astros,1990s,Andujar Cedeno,1993,SS,2.7,4.840927,-2.140927,Astros
+B,Astros,2000s,Lance Berkman,2008,1B,6.9,5.011969,1.888031,Astros
+B,Astros,2000s,Morgan Ensberg,2005,3B,6.2,5.071042,1.128958,Astros
+C,Astros,2000s,Roger Clemens,2005,SP,7.8,7.261004,0.538996,Astros
+C,Astros,2000s,Octavio Dotel,2002,RP,4.2,3.751737,0.448263,Astros
+C,Astros,2000s,Carlos Beltran,2004,OF,6.8,6.851737,-0.051737,Astros
+C,Astros,2000s,Jeff Kent,2004,2B,3.9,4.773745,-0.873745,Astros
+D,Astros,2000s,Mitch Meluskey,2000,C,2.1,3.904247,-1.804247,Astros
+D,Astros,2000s,Adam Everett,2004,SS,2.9,4.840927,-1.940927,Astros
+A,Astros,2010s,Alex Bregman,2019,3B,8.9,5.071042,3.828958,Astros
+A,Astros,2010s,Jose Altuve,2017,2B,8.1,4.773745,3.326255,Astros
+B,Astros,2010s,Carlos Correa,2016,SS,7.0,4.840927,2.159073,Astros
+C,Astros,2010s,Justin Verlander,2019,SP,7.4,7.261004,0.138996,Astros
+C,Astros,2010s,Jason Castro,2013,C,4.0,3.904247,0.095753,Astros
+C,Astros,2010s,George Springer,2019,OF,6.3,6.851737,-0.551737,Astros
+C,Astros,2010s,Chris Devenski,2016,RP,2.8,3.751737,-0.951737,Astros
+D,Astros,2010s,Yuli Gurriel,2019,1B,3.9,5.011969,-1.111969,Astros
+B,Astros,2020s,Carlos Correa,2021,SS,7.3,4.840927,2.459073,Astros
+B,Astros,2020s,Jose Altuve,2022,2B,6.0,4.773745,1.226255,Astros
+C,Astros,2020s,Alex Bregman,2022,3B,4.9,5.071042,-0.171042,Astros
+C,Astros,2020s,Yordan Alvarez,2022,OF,6.6,6.851737,-0.251737,Astros
+C,Astros,2020s,Yainer Diaz,2024,C,3.1,3.904247,-0.804247,Astros
+D,Astros,2020s,Héctor Neris,2023,RP,2.6,3.751737,-1.151737,Astros
+D,Astros,2020s,Hunter Brown,2025,SP,5.9,7.261004,-1.361004,Astros
+D,Astros,2020s,Yuli Gurriel,2021,1B,3.5,5.011969,-1.511969,Astros
+B,Athletics,1920s,Jimmie Foxx,1929,1B,7.9,5.011969,2.888031,Athletics
+B,Athletics,1920s,Eddie Rommel,1920,RP,5.4,3.751737,1.648263,Athletics
+B,Athletics,1920s,Al Simmons,1929,OF,7.9,6.851737,1.048263,Athletics
+C,Athletics,1920s,Mickey Cochrane,1929,C,4.2,3.904247,0.295753,Athletics
+C,Athletics,1920s,Eddie Rommel,1922,SP,7.5,7.261004,0.238996,Athletics
+C,Athletics,1920s,Max Bishop,1928,2B,5.0,4.773745,0.226255,Athletics
+C,Athletics,1920s,Jimmie Foxx,1928,3B,4.9,5.071042,-0.171042,Athletics
+C,Athletics,1920s,Jimmy Dykes,1929,SS,4.0,4.840927,-0.840927,Athletics
+S,Athletics,1930s,Jimmie Foxx,1932,1B,10.3,5.011969,5.288031,Athletics
+A,Athletics,1930s,Lefty Grove,1930,SP,10.4,7.261004,3.138996,Athletics
+B,Athletics,1930s,Mickey Cochrane,1933,C,6.2,3.904247,2.295753,Athletics
+B,Athletics,1930s,Max Bishop,1931,2B,6.1,4.773745,1.326255,Athletics
+C,Athletics,1930s,Al Simmons,1930,OF,7.8,6.851737,0.948263,Athletics
+C,Athletics,1930s,Pinky Higgins,1934,3B,4.1,5.071042,-0.971042,Athletics
+D,Athletics,1930s,Eddie Rommel,1931,RP,2.5,3.751737,-1.251737,Athletics
+D,Athletics,1930s,Eric McNair,1932,SS,2.6,4.840927,-2.240927,Athletics
+B,Athletics,1940s,Eddie Joost,1949,SS,7.0,4.840927,2.159073,Athletics
+C,Athletics,1940s,Joe Berry,1944,RP,3.7,3.751737,-0.051737,Athletics
+C,Athletics,1940s,Frankie Hayes,1940,C,3.2,3.904247,-0.704247,Athletics
+C,Athletics,1940s,Ferris Fain,1947,1B,4.1,5.011969,-0.911969,Athletics
+D,Athletics,1940s,Benny McCoy,1941,2B,3.2,4.773745,-1.573745,Athletics
+D,Athletics,1940s,Hank Majeski,1948,3B,3.4,5.071042,-1.671042,Athletics
+D,Athletics,1940s,Sam Chapman,1941,OF,4.9,6.851737,-1.951737,Athletics
+D,Athletics,1940s,Johnny Babich,1940,SP,4.8,7.261004,-2.461004,Athletics
+B,Athletics,1950s,Bobby Shantz,1952,SP,8.8,7.261004,1.538996,Athletics
+B,Athletics,1950s,Eddie Joost,1951,SS,6.1,4.840927,1.259073,Athletics
+C,Athletics,1950s,Ferris Fain,1952,1B,4.9,5.011969,-0.111969,Athletics
+C,Athletics,1950s,Bob Cerv,1958,OF,6.3,6.851737,-0.551737,Athletics
+C,Athletics,1950s,Virgil Trucks,1957,RP,2.9,3.751737,-0.851737,Athletics
+D,Athletics,1950s,Hector Lopez,1958,2B,2.6,4.773745,-2.173745,Athletics
+D,Athletics,1950s,Joe Astroth,1953,C,1.7,3.904247,-2.204247,Athletics
+D,Athletics,1950s,Jim Finigan,1954,3B,2.8,5.071042,-2.271042,Athletics
+A,Athletics,1960s,Sal Bando,1969,3B,8.3,5.071042,3.228958,Athletics
+B,Athletics,1960s,Reggie Jackson,1969,OF,9.3,6.851737,2.448263,Athletics
+B,Athletics,1960s,Bert Campaneris,1968,SS,6.3,4.840927,1.459073,Athletics
+C,Athletics,1960s,Jack Aker,1966,RP,4.6,3.751737,0.848263,Athletics
+C,Athletics,1960s,Norm Siebern,1962,1B,5.3,5.011969,0.288031,Athletics
+C,Athletics,1960s,Dick Green,1969,2B,4.5,4.773745,-0.273745,Athletics
+D,Athletics,1960s,Ray Herbert,1960,SP,5.8,7.261004,-1.461004,Athletics
+D,Athletics,1960s,Billy Bryan,1965,C,1.5,3.904247,-2.404247,Athletics
+B,Athletics,1970s,Vida Blue,1971,SP,9.0,7.261004,1.738996,Athletics
+B,Athletics,1970s,Gene Tenace,1975,C,5.4,3.904247,1.495753,Athletics
+B,Athletics,1970s,Sal Bando,1973,3B,6.5,5.071042,1.428958,Athletics
+C,Athletics,1970s,Reggie Jackson,1973,OF,7.8,6.851737,0.948263,Athletics
+C,Athletics,1970s,Bert Campaneris,1970,SS,5.7,4.840927,0.859073,Athletics
+C,Athletics,1970s,Mike Epstein,1972,1B,5.1,5.011969,0.088031,Athletics
+C,Athletics,1970s,Rollie Fingers,1976,RP,3.8,3.751737,0.048263,Athletics
+D,Athletics,1970s,Phil Garner,1976,2B,2.8,4.773745,-1.973745,Athletics
+B,Athletics,1980s,Rickey Henderson,1980,OF,8.8,6.851737,1.948263,Athletics
+C,Athletics,1980s,Mark McGwire,1987,1B,5.1,5.011969,0.088031,Athletics
+C,Athletics,1980s,Carney Lansford,1987,3B,4.9,5.071042,-0.171042,Athletics
+C,Athletics,1980s,Terry Steinbach,1987,C,3.4,3.904247,-0.504247,Athletics
+C,Athletics,1980s,Tony Phillips,1986,2B,4.2,4.773745,-0.573745,Athletics
+C,Athletics,1980s,Dennis Eckersley,1987,RP,3.0,3.751737,-0.751737,Athletics
+D,Athletics,1980s,Mike Norris,1980,SP,5.9,7.261004,-1.361004,Athletics
+D,Athletics,1980s,Alfredo Griffin,1986,SS,2.9,4.840927,-1.940927,Athletics
+A,Athletics,1990s,Rickey Henderson,1990,OF,9.9,6.851737,3.048263,Athletics
+B,Athletics,1990s,Mark McGwire,1992,1B,6.5,5.011969,1.488031,Athletics
+C,Athletics,1990s,Scott Brosius,1996,3B,5.6,5.071042,0.528958,Athletics
+C,Athletics,1990s,Kenny Rogers,1998,SP,7.5,7.261004,0.238996,Athletics
+C,Athletics,1990s,Terry Steinbach,1992,C,4.0,3.904247,0.095753,Athletics
+C,Athletics,1990s,Dennis Eckersley,1990,RP,3.3,3.751737,-0.451737,Athletics
+C,Athletics,1990s,Mike Bordick,1992,2B,4.1,4.773745,-0.673745,Athletics
+C,Athletics,1990s,Walt Weiss,1990,SS,3.9,4.840927,-0.940927,Athletics
+A,Athletics,2000s,Jason Giambi,2001,1B,9.2,5.011969,4.188031,Athletics
+C,Athletics,2000s,Eric Chavez,2001,3B,5.8,5.071042,0.728958,Athletics
+C,Athletics,2000s,Miguel Tejada,2002,SS,5.1,4.840927,0.259073,Athletics
+C,Athletics,2000s,Tim Hudson,2003,SP,7.4,7.261004,0.138996,Athletics
+C,Athletics,2000s,Andrew Bailey,2009,RP,3.7,3.751737,-0.051737,Athletics
+C,Athletics,2000s,Mark Ellis,2007,2B,4.6,4.773745,-0.173745,Athletics
+C,Athletics,2000s,Kurt Suzuki,2008,C,3.6,3.904247,-0.304247,Athletics
+D,Athletics,2000s,Mark Kotsay,2004,OF,4.3,6.851737,-2.551737,Athletics
+A,Athletics,2010s,Marcus Semien,2019,SS,8.4,4.840927,3.559073,Athletics
+B,Athletics,2010s,Matt Chapman,2018,3B,7.4,5.071042,2.328958,Athletics
+C,Athletics,2010s,Blake Treinen,2018,RP,4.4,3.751737,0.648263,Athletics
+C,Athletics,2010s,Daric Barton,2010,1B,5.3,5.011969,0.288031,Athletics
+C,Athletics,2010s,Jed Lowrie,2018,2B,4.5,4.773745,-0.273745,Athletics
+D,Athletics,2010s,Derek Norris,2014,C,2.7,3.904247,-1.204247,Athletics
+D,Athletics,2010s,Bartolo Colon,2013,SP,5.6,7.261004,-1.661004,Athletics
+D,Athletics,2010s,Josh Reddick,2012,OF,4.1,6.851737,-2.751737,Athletics
+C,Athletics,2020s,Sean Murphy,2022,C,4.4,3.904247,0.495753,Athletics
+C,Athletics,2020s,Matt Olson,2021,1B,5.5,5.011969,0.488031,Athletics
+D,Athletics,2020s,Mason Miller,2024,RP,2.5,3.751737,-1.251737,Athletics
+D,Athletics,2020s,Brent Rooker,2024,OF,5.3,6.851737,-1.551737,Athletics
+D,Athletics,2020s,Matt Chapman,2021,3B,3.4,5.071042,-1.671042,Athletics
+D,Athletics,2020s,Tony Kemp,2021,2B,3.1,4.773745,-1.673745,Athletics
+D,Athletics,2020s,Jacob Wilson,2025,SS,2.6,4.840927,-2.240927,Athletics
+F,Athletics,2020s,Chris Bassitt,2021,SP,4.0,7.261004,-3.261004,Athletics
+C,Blue Jays,1970s,Pete Vuckovich,1977,RP,2.9,3.751737,-0.851737,Blue Jays
+D,Blue Jays,1970s,Alan Ashby,1978,C,1.6,3.904247,-2.304247,Blue Jays
+D,Blue Jays,1970s,Roy Howell,1977,3B,2.7,5.071042,-2.371042,Blue Jays
+D,Blue Jays,1970s,Alfredo Griffin,1979,SS,2.4,4.840927,-2.440927,Blue Jays
+D,Blue Jays,1970s,Ron Fairly,1977,1B,2.2,5.011969,-2.811969,Blue Jays
+F,Blue Jays,1970s,Jerry Garvin,1977,SP,3.6,7.261004,-3.661004,Blue Jays
+F,Blue Jays,1970s,Otto Velez,1979,OF,2.7,6.851737,-4.151737,Blue Jays
+F,Blue Jays,1970s,Steve Staggs,1977,2B,-0.1,4.773745,-4.873745,Blue Jays
+A,Blue Jays,1980s,Mark Eichhorn,1986,RP,7.3,3.751737,3.548263,Blue Jays
+B,Blue Jays,1980s,Fred McGriff,1989,1B,6.5,5.011969,1.488031,Blue Jays
+C,Blue Jays,1980s,Jesse Barfield,1986,OF,7.6,6.851737,0.748263,Blue Jays
+C,Blue Jays,1980s,Dave Stieb,1984,SP,7.9,7.261004,0.638996,Blue Jays
+C,Blue Jays,1980s,Kelly Gruber,1988,3B,5.2,5.071042,0.128958,Blue Jays
+C,Blue Jays,1980s,Tony Fernandez,1987,SS,4.9,4.840927,0.059073,Blue Jays
+C,Blue Jays,1980s,Ernie Whitt,1983,C,3.5,3.904247,-0.404247,Blue Jays
+C,Blue Jays,1980s,Damaso Garcia,1982,2B,4.2,4.773745,-0.573745,Blue Jays
+A,Blue Jays,1990s,Roger Clemens,1997,SP,11.9,7.261004,4.638996,Blue Jays
+B,Blue Jays,1990s,John Olerud,1993,1B,7.8,5.011969,2.788031,Blue Jays
+B,Blue Jays,1990s,Roberto Alomar,1992,2B,6.6,4.773745,1.826255,Blue Jays
+C,Blue Jays,1990s,Tony Fernandez,1990,SS,4.7,4.840927,-0.140927,Blue Jays
+C,Blue Jays,1990s,Devon White,1991,OF,6.4,6.851737,-0.451737,Blue Jays
+C,Blue Jays,1990s,Paul Quantrill,1997,RP,3.2,3.751737,-0.551737,Blue Jays
+C,Blue Jays,1990s,Pat Borders,1990,C,3.2,3.904247,-0.704247,Blue Jays
+C,Blue Jays,1990s,Kelly Gruber,1990,3B,4.2,5.071042,-0.871042,Blue Jays
+B,Blue Jays,2000s,Carlos Delgado,2000,1B,7.3,5.011969,2.288031,Blue Jays
+C,Blue Jays,2000s,Roy Halladay,2003,SP,8.1,7.261004,0.838996,Blue Jays
+C,Blue Jays,2000s,Scott Rolen,2009,3B,5.2,5.071042,0.128958,Blue Jays
+C,Blue Jays,2000s,Aaron Hill,2009,2B,4.9,4.773745,0.126255,Blue Jays
+C,Blue Jays,2000s,Marco Scutaro,2009,SS,4.8,4.840927,-0.040927,Blue Jays
+C,Blue Jays,2000s,B. J. Ryan,2006,RP,3.6,3.751737,-0.151737,Blue Jays
+C,Blue Jays,2000s,Vernon Wells,2006,OF,6.0,6.851737,-0.851737,Blue Jays
+D,Blue Jays,2000s,Gregg Zaun,2005,C,2.8,3.904247,-1.104247,Blue Jays
+B,Blue Jays,2010s,Josh Donaldson,2015,3B,7.4,5.071042,2.328958,Blue Jays
+B,Blue Jays,2010s,Jose Bautista,2011,OF,8.3,6.851737,1.448263,Blue Jays
+C,Blue Jays,2010s,Russell Martin,2015,C,3.7,3.904247,-0.204247,Blue Jays
+C,Blue Jays,2010s,Edwin Encarnacion,2012,1B,4.8,5.011969,-0.211969,Blue Jays
+C,Blue Jays,2010s,Yunel Escobar,2011,SS,4.2,4.840927,-0.640927,Blue Jays
+C,Blue Jays,2010s,Ricky Romero,2011,SP,6.4,7.261004,-0.861004,Blue Jays
+D,Blue Jays,2010s,Ken Giles,2019,RP,2.3,3.751737,-1.451737,Blue Jays
+D,Blue Jays,2010s,Cavan Biggio,2019,2B,2.8,4.773745,-1.973745,Blue Jays
+B,Blue Jays,2020s,Marcus Semien,2021,2B,7.1,4.773745,2.326255,Blue Jays
+B,Blue Jays,2020s,Vladimir Guerrero Jr.,2021,1B,6.4,5.011969,1.388031,Blue Jays
+C,Blue Jays,2020s,Bo Bichette,2021,SS,5.4,4.840927,0.559073,Blue Jays
+C,Blue Jays,2020s,Alejandro Kirk,2022,C,4.2,3.904247,0.295753,Blue Jays
+C,Blue Jays,2020s,Robbie Ray,2021,SP,6.9,7.261004,-0.361004,Blue Jays
+C,Blue Jays,2020s,Ernie Clement,2025,3B,4.3,5.071042,-0.771042,Blue Jays
+C,Blue Jays,2020s,Jordan Romano,2022,RP,2.9,3.751737,-0.851737,Blue Jays
+D,Blue Jays,2020s,George Springer,2025,OF,4.8,6.851737,-2.051737,Blue Jays
+A,Braves,1920s,Rogers Hornsby,1928,2B,8.9,4.773745,4.126255,Braves
+C,Braves,1920s,Dave Bancroft,1925,SS,5.2,4.840927,0.359073,Braves
+D,Braves,1920s,Johnny Cooney,1923,RP,2.3,3.751737,-1.451737,Braves
+D,Braves,1920s,Tony Boeckel,1921,3B,3.4,5.071042,-1.671042,Braves
+D,Braves,1920s,Mickey O'Neil,1920,C,2.2,3.904247,-1.704247,Braves
+D,Braves,1920s,Jesse Barnes,1924,SP,5.5,7.261004,-1.761004,Braves
+D,Braves,1920s,Dick Burrus,1925,1B,2.7,5.011969,-2.311969,Braves
+D,Braves,1920s,Walton Cruise,1921,OF,4.0,6.851737,-2.851737,Braves
+C,Braves,1930s,Tony Cuccinello,1936,2B,5.6,4.773745,0.826255,Braves
+C,Braves,1930s,Wally Berger,1933,OF,6.9,6.851737,0.048263,Braves
+C,Braves,1930s,Ben Cantwell,1932,RP,3.0,3.751737,-0.751737,Braves
+D,Braves,1930s,Billy Urbanski,1934,SS,3.7,4.840927,-1.140927,Braves
+D,Braves,1930s,Buck Jordan,1936,1B,3.5,5.011969,-1.511969,Braves
+D,Braves,1930s,Danny MacFayden,1936,SP,5.7,7.261004,-1.561004,Braves
+D,Braves,1930s,Al Lopez,1939,C,1.6,3.904247,-2.304247,Braves
+D,Braves,1930s,Pinky Whitney,1933,3B,2.2,5.071042,-2.871042,Braves
+B,Braves,1940s,Warren Spahn,1947,SP,9.5,7.261004,2.238996,Braves
+B,Braves,1940s,Tommy Holmes,1945,OF,8.3,6.851737,1.448263,Braves
+B,Braves,1940s,Bob Elliott,1948,3B,6.5,5.071042,1.428958,Braves
+C,Braves,1940s,Phil Masi,1947,C,3.6,3.904247,-0.304247,Braves
+C,Braves,1940s,Eddie Miller,1940,SS,4.5,4.840927,-0.340927,Braves
+C,Braves,1940s,Eddie Stanky,1949,2B,4.2,4.773745,-0.573745,Braves
+C,Braves,1940s,Nels Potter,1948,RP,3.0,3.751737,-0.751737,Braves
+C,Braves,1940s,Johnny Hopp,1946,1B,4.1,5.011969,-0.911969,Braves
+A,Braves,1950s,Eddie Mathews,1959,3B,8.2,5.071042,3.128958,Braves
+B,Braves,1950s,Hank Aaron,1959,OF,8.7,6.851737,1.848263,Braves
+B,Braves,1950s,Warren Spahn,1953,SP,8.8,7.261004,1.538996,Braves
+B,Braves,1950s,Johnny Logan,1955,SS,5.9,4.840927,1.059073,Braves
+C,Braves,1950s,Earl Torgeson,1950,1B,5.7,5.011969,0.688031,Braves
+C,Braves,1950s,Del Crandall,1958,C,4.5,3.904247,0.595753,Braves
+C,Braves,1950s,Dave Jolly,1954,RP,3.7,3.751737,-0.051737,Braves
+D,Braves,1950s,Red Schoendienst,1957,2B,3.6,4.773745,-1.173745,Braves
+B,Braves,1960s,Eddie Mathews,1963,3B,8.0,5.071042,2.928958,Braves
+B,Braves,1960s,Joe Torre,1966,C,6.6,3.904247,2.695753,Braves
+B,Braves,1960s,Hank Aaron,1961,OF,9.5,6.851737,2.648263,Braves
+B,Braves,1960s,Denis Menke,1964,SS,6.4,4.840927,1.559073,Braves
+B,Braves,1960s,Felipe Alou,1966,1B,6.2,5.011969,1.188031,Braves
+B,Braves,1960s,Phil Niekro,1967,RP,4.9,3.751737,1.148263,Braves
+C,Braves,1960s,Frank Bolling,1961,2B,3.9,4.773745,-0.873745,Braves
+D,Braves,1960s,Phil Niekro,1969,SP,6.0,7.261004,-1.261004,Braves
+A,Braves,1970s,Darrell Evans,1973,3B,9.0,5.071042,3.928958,Braves
+B,Braves,1970s,Phil Niekro,1978,SP,10.0,7.261004,2.738996,Braves
+B,Braves,1970s,Hank Aaron,1971,1B,7.2,5.011969,2.188031,Braves
+C,Braves,1970s,Davey Johnson,1973,2B,4.8,4.773745,0.026255,Braves
+C,Braves,1970s,Dave Campbell,1977,RP,3.7,3.751737,-0.051737,Braves
+C,Braves,1970s,Rico Carty,1970,OF,6.3,6.851737,-0.551737,Braves
+C,Braves,1970s,Earl Williams,1971,C,3.1,3.904247,-0.804247,Braves
+F,Braves,1970s,Marty Perez,1973,SS,1.1,4.840927,-3.740927,Braves
+B,Braves,1980s,Lonnie Smith,1989,OF,8.8,6.851737,1.948263,Braves
+C,Braves,1980s,Steve Bedrosian,1982,RP,4.2,3.751737,0.448263,Braves
+D,Braves,1980s,Bob Horner,1980,3B,3.9,5.071042,-1.171042,Braves
+D,Braves,1980s,Bruce Benedict,1983,C,2.6,3.904247,-1.304247,Braves
+D,Braves,1980s,Glenn Hubbard,1985,2B,2.8,4.773745,-1.973745,Braves
+D,Braves,1980s,Craig McMurtry,1983,SP,5.2,7.261004,-2.061004,Braves
+D,Braves,1980s,Rafael Ramirez,1982,SS,2.7,4.840927,-2.140927,Braves
+D,Braves,1980s,Chris Chambliss,1982,1B,2.8,5.011969,-2.211969,Braves
+B,Braves,1990s,Greg Maddux,1995,SP,9.7,7.261004,2.438996,Braves
+B,Braves,1990s,Chipper Jones,1998,3B,7.1,5.071042,2.028958,Braves
+C,Braves,1990s,Jeff Blauser,1993,SS,5.6,4.840927,0.759073,Braves
+C,Braves,1990s,Andruw Jones,1998,OF,7.4,6.851737,0.548263,Braves
+C,Braves,1990s,Andres Galarraga,1998,1B,5.0,5.011969,-0.011969,Braves
+C,Braves,1990s,Javy Lopez,1997,C,3.5,3.904247,-0.404247,Braves
+D,Braves,1990s,Greg McMichael,1993,RP,2.6,3.751737,-1.151737,Braves
+D,Braves,1990s,Mark Lemke,1993,2B,2.2,4.773745,-2.573745,Braves
+A,Braves,2000s,Marcus Giles,2003,2B,7.9,4.773745,3.126255,Braves
+B,Braves,2000s,Javy Lopez,2003,C,6.8,3.904247,2.895753,Braves
+B,Braves,2000s,Chipper Jones,2007,3B,7.6,5.071042,2.528958,Braves
+B,Braves,2000s,J. D. Drew,2004,OF,8.4,6.851737,1.548263,Braves
+C,Braves,2000s,Rafael Furcal,2005,SS,5.5,4.840927,0.659073,Braves
+C,Braves,2000s,Jorge Sosa,2005,RP,3.5,3.751737,-0.251737,Braves
+C,Braves,2000s,Greg Maddux,2000,SP,6.5,7.261004,-0.761004,Braves
+D,Braves,2000s,Mark Teixeira,2008,1B,3.6,5.011969,-1.411969,Braves
+B,Braves,2010s,Freddie Freeman,2016,1B,6.3,5.011969,1.288031,Braves
+C,Braves,2010s,Kris Medlen,2012,RP,4.4,3.751737,0.648263,Braves
+C,Braves,2010s,Josh Donaldson,2019,3B,5.3,5.071042,0.228958,Braves
+C,Braves,2010s,Andrelton Simmons,2013,SS,4.7,4.840927,-0.140927,Braves
+C,Braves,2010s,Brian McCann,2010,C,3.6,3.904247,-0.304247,Braves
+C,Braves,2010s,Martin Prado,2010,2B,4.4,4.773745,-0.373745,Braves
+D,Braves,2010s,Jason Heyward,2010,OF,5.6,6.851737,-1.251737,Braves
+D,Braves,2010s,Mike Soroka,2019,SP,6.0,7.261004,-1.261004,Braves
+B,Braves,2020s,Matt Olson,2023,1B,7.1,5.011969,2.088031,Braves
+B,Braves,2020s,Ronald Acuña Jr.,2023,OF,8.8,6.851737,1.948263,Braves
+B,Braves,2020s,Dansby Swanson,2022,SS,6.1,4.840927,1.259073,Braves
+B,Braves,2020s,Austin Riley,2022,3B,6.2,5.071042,1.128958,Braves
+C,Braves,2020s,Sean Murphy,2023,C,4.5,3.904247,0.595753,Braves
+C,Braves,2020s,Ozzie Albies,2023,2B,4.5,4.773745,-0.273745,Braves
+C,Braves,2020s,Raisel Iglesias,2024,RP,2.9,3.751737,-0.851737,Braves
+D,Braves,2020s,Chris Sale,2024,SP,6.2,7.261004,-1.061004,Braves
+D,Brewers,1960s,Diego Segui,1969,RP,2.4,3.751737,-1.351737,Brewers
+D,Brewers,1960s,Don Mincher,1969,1B,2.5,5.011969,-2.511969,Brewers
+D,Brewers,1960s,Jerry McNertney,1969,C,1.3,3.904247,-2.604247,Brewers
+F,Brewers,1960s,Mike Hegan,1969,OF,2.9,6.851737,-3.951737,Brewers
+F,Brewers,1960s,Tommy Harper,1969,2B,0.4,4.773745,-4.373745,Brewers
+F,Brewers,1960s,Ron Clark,1969,SS,0.0,4.840927,-4.840927,Pilots
+F,Brewers,1960s,Rich Rollins,1969,3B,0.1,5.071042,-4.971042,Brewers
+F,Brewers,1960s,Gene Brabender,1969,SP,1.3,7.261004,-5.961004,Brewers
+B,Brewers,1970s,Tommy Harper,1970,3B,7.4,5.071042,2.328958,Brewers
+B,Brewers,1970s,George Scott,1973,1B,6.4,5.011969,1.388031,Brewers
+B,Brewers,1970s,Tom Murphy,1974,RP,5.1,3.751737,1.348263,Brewers
+C,Brewers,1970s,Mike Caldwell,1978,SP,8.2,7.261004,0.938996,Brewers
+C,Brewers,1970s,Paul Molitor,1979,2B,5.4,4.773745,0.626255,Brewers
+C,Brewers,1970s,Robin Yount,1978,SS,5.0,4.840927,0.159073,Brewers
+C,Brewers,1970s,Darrell Porter,1975,C,3.7,3.904247,-0.204247,Brewers
+D,Brewers,1970s,Sixto Lezcano,1979,OF,5.4,6.851737,-1.451737,Brewers
+S,Brewers,1980s,Robin Yount,1982,SS,10.5,4.840927,5.659073,Brewers
+B,Brewers,1980s,Teddy Higuera,1986,SP,9.4,7.261004,2.138996,Brewers
+B,Brewers,1980s,Cecil Cooper,1980,1B,6.8,5.011969,1.788031,Brewers
+C,Brewers,1980s,Paul Molitor,1987,3B,6.0,5.071042,0.928958,Brewers
+C,Brewers,1980s,Rollie Fingers,1981,RP,4.2,3.751737,0.448263,Brewers
+C,Brewers,1980s,Ted Simmons,1983,C,3.9,3.904247,-0.004247,Brewers
+C,Brewers,1980s,Ben Oglivie,1980,OF,6.5,6.851737,-0.351737,Brewers
+C,Brewers,1980s,Jim Gantner,1983,2B,3.9,4.773745,-0.873745,Brewers
+B,Brewers,1990s,Jeff Cirillo,1998,3B,6.2,5.071042,1.128958,Brewers
+C,Brewers,1990s,Paul Molitor,1991,1B,5.3,5.011969,0.288031,Brewers
+C,Brewers,1990s,Willie Randolph,1991,2B,4.1,4.773745,-0.673745,Brewers
+C,Brewers,1990s,Doug Jones,1997,RP,3.0,3.751737,-0.751737,Brewers
+C,Brewers,1990s,Jose Valentin,1996,SS,4.0,4.840927,-0.840927,Brewers
+D,Brewers,1990s,Greg Vaughn,1993,OF,5.8,6.851737,-1.051737,Brewers
+D,Brewers,1990s,Dave Nilsson,1999,C,2.8,3.904247,-1.104247,Brewers
+D,Brewers,1990s,Ben McDonald,1996,SP,5.3,7.261004,-1.961004,Brewers
+B,Brewers,2000s,Prince Fielder,2009,1B,6.1,5.011969,1.088031,Brewers
+C,Brewers,2000s,Bill Hall,2006,SS,5.4,4.840927,0.559073,Brewers
+C,Brewers,2000s,Ben Sheets,2004,SP,7.2,7.261004,-0.061004,Brewers
+C,Brewers,2000s,Ryan Braun,2009,OF,6.2,6.851737,-0.651737,Brewers
+C,Brewers,2000s,Derrick Turnbow,2005,RP,2.9,3.751737,-0.851737,Brewers
+D,Brewers,2000s,Ronnie Belliard,2001,2B,3.3,4.773745,-1.473745,Brewers
+D,Brewers,2000s,Jason Kendall,2008,C,2.3,3.904247,-1.604247,Brewers
+F,Brewers,2000s,Ryan Braun,2007,3B,2.0,5.071042,-3.071042,Brewers
+B,Brewers,2010s,Jonathan Lucroy,2014,C,6.4,3.904247,2.495753,Brewers
+C,Brewers,2010s,Ryan Braun,2011,OF,7.7,6.851737,0.848263,Brewers
+C,Brewers,2010s,Aramis Ramirez,2012,3B,5.5,5.071042,0.428958,Brewers
+C,Brewers,2010s,Rickie Weeks,2010,2B,4.8,4.773745,0.026255,Brewers
+C,Brewers,2010s,Corey Knebel,2017,RP,3.7,3.751737,-0.051737,Brewers
+C,Brewers,2010s,Prince Fielder,2011,1B,4.6,5.011969,-0.411969,Brewers
+C,Brewers,2010s,Jean Segura,2013,SS,4.0,4.840927,-0.840927,Brewers
+F,Brewers,2010s,Chase Anderson,2017,SP,4.2,7.261004,-3.061004,Brewers
+B,Brewers,2020s,William Contreras,2024,C,5.1,3.904247,1.195753,Brewers
+C,Brewers,2020s,Brice Turang,2025,2B,5.5,4.773745,0.726255,Brewers
+C,Brewers,2020s,Willy Adames,2022,SS,4.3,4.840927,-0.540927,Brewers
+C,Brewers,2020s,Josh Hader,2021,RP,3.2,3.751737,-0.551737,Brewers
+D,Brewers,2020s,Freddy Peralta,2025,SP,5.5,7.261004,-1.761004,Brewers
+D,Brewers,2020s,Joey Ortiz,2024,3B,2.9,5.071042,-2.171042,Brewers
+D,Brewers,2020s,Carlos Santana,2023,1B,2.1,5.011969,-2.911969,Brewers
+F,Brewers,2020s,Jackson Chourio,2024,OF,3.8,6.851737,-3.051737,Brewers
+S,Cardinals,1920s,Rogers Hornsby,1924,2B,12.1,4.773745,7.326255,Cardinals
+C,Cardinals,1920s,Jim Bottomley,1925,1B,5.7,5.011969,0.688031,Cardinals
+C,Cardinals,1920s,Bob O'Farrell,1926,C,3.7,3.904247,-0.204247,Cardinals
+C,Cardinals,1920s,Syl Johnson,1929,RP,3.4,3.751737,-0.351737,Cardinals
+C,Cardinals,1920s,Les Bell,1926,3B,4.6,5.071042,-0.471042,Cardinals
+D,Cardinals,1920s,Pete Alexander,1927,SP,6.2,7.261004,-1.061004,Cardinals
+D,Cardinals,1920s,Chick Hafey,1928,OF,5.3,6.851737,-1.551737,Cardinals
+D,Cardinals,1920s,Doc Lavan,1920,SS,2.8,4.840927,-2.040927,Cardinals
+B,Cardinals,1930s,Johnny Mize,1939,1B,7.4,5.011969,2.388031,Cardinals
+B,Cardinals,1930s,Dizzy Dean,1934,SP,8.9,7.261004,1.638996,Cardinals
+B,Cardinals,1930s,Joe Medwick,1937,OF,8.4,6.851737,1.548263,Cardinals
+B,Cardinals,1930s,Bob Bowman,1939,RP,5.2,3.751737,1.448263,Cardinals
+C,Cardinals,1930s,Pepper Martin,1933,3B,5.9,5.071042,0.828958,Cardinals
+C,Cardinals,1930s,Frankie Frisch,1930,2B,4.8,4.773745,0.026255,Cardinals
+D,Cardinals,1930s,Bill DeLancey,1934,C,2.9,3.904247,-1.004247,Cardinals
+D,Cardinals,1930s,Charlie Gelbert,1931,SS,3.8,4.840927,-1.040927,Cardinals
+A,Cardinals,1940s,Stan Musial,1948,OF,11.3,6.851737,4.448263,Cardinals
+A,Cardinals,1940s,Stan Musial,1946,1B,9.3,5.011969,4.288031,Cardinals
+B,Cardinals,1940s,Lou Klein,1943,2B,6.3,4.773745,1.526255,Cardinals
+B,Cardinals,1940s,Harry Brecheen,1948,SP,8.7,7.261004,1.438996,Cardinals
+C,Cardinals,1940s,Ted Wilks,1948,RP,4.7,3.751737,0.948263,Cardinals
+C,Cardinals,1940s,Whitey Kurowski,1947,3B,5.9,5.071042,0.828958,Cardinals
+C,Cardinals,1940s,Marty Marion,1942,SS,4.8,4.840927,-0.040927,Cardinals
+C,Cardinals,1940s,Walker Cooper,1944,C,3.5,3.904247,-0.404247,Cardinals
+B,Cardinals,1950s,Ken Boyer,1959,3B,7.4,5.071042,2.328958,Cardinals
+B,Cardinals,1950s,Solly Hemus,1952,SS,6.9,4.840927,2.059073,Cardinals
+B,Cardinals,1950s,Stan Musial,1951,OF,8.8,6.851737,1.948263,Cardinals
+B,Cardinals,1950s,Red Schoendienst,1953,2B,6.3,4.773745,1.526255,Cardinals
+B,Cardinals,1950s,Stan Musial,1955,1B,6.2,5.011969,1.188031,Cardinals
+C,Cardinals,1950s,Larry Jackson,1959,SP,7.3,7.261004,0.038996,Cardinals
+C,Cardinals,1950s,Larry Jackson,1958,RP,3.1,3.751737,-0.651737,Cardinals
+D,Cardinals,1950s,Del Rice,1952,C,2.3,3.904247,-1.604247,Cardinals
+A,Cardinals,1960s,Bob Gibson,1968,SP,11.2,7.261004,3.938996,Cardinals
+A,Cardinals,1960s,Ernie Broglio,1960,RP,7.1,3.751737,3.348263,Cardinals
+B,Cardinals,1960s,Ken Boyer,1961,3B,8.0,5.071042,2.928958,Cardinals
+B,Cardinals,1960s,Dick Groat,1963,SS,7.1,4.840927,2.259073,Cardinals
+B,Cardinals,1960s,Tim McCarver,1967,C,5.9,3.904247,1.995753,Cardinals
+B,Cardinals,1960s,Orlando Cepeda,1967,1B,6.8,5.011969,1.788031,Cardinals
+D,Cardinals,1960s,Lou Brock,1968,OF,5.6,6.851737,-1.251737,Cardinals
+D,Cardinals,1960s,Julian Javier,1969,2B,2.9,4.773745,-1.873745,Cardinals
+B,Cardinals,1970s,Keith Hernandez,1979,1B,7.6,5.011969,2.588031,Cardinals
+B,Cardinals,1970s,Joe Torre,1970,C,5.8,3.904247,1.895753,Cardinals
+B,Cardinals,1970s,Bob Gibson,1970,SP,8.9,7.261004,1.638996,Cardinals
+B,Cardinals,1970s,Joe Torre,1971,3B,6.4,5.071042,1.328958,Cardinals
+C,Cardinals,1970s,Al Hrabosky,1975,RP,3.9,3.751737,0.148263,Cardinals
+C,Cardinals,1970s,Garry Templeton,1979,SS,4.4,4.840927,-0.440927,Cardinals
+C,Cardinals,1970s,Ted Sizemore,1973,2B,4.1,4.773745,-0.673745,Cardinals
+D,Cardinals,1970s,Reggie Smith,1974,OF,5.8,6.851737,-1.051737,Cardinals
+B,Cardinals,1980s,Ozzie Smith,1989,SS,7.3,4.840927,2.459073,Cardinals
+B,Cardinals,1980s,Keith Hernandez,1980,1B,6.7,5.011969,1.688031,Cardinals
+B,Cardinals,1980s,Willie McGee,1985,OF,8.2,6.851737,1.348263,Cardinals
+B,Cardinals,1980s,Ted Simmons,1980,C,5.2,3.904247,1.295753,Cardinals
+C,Cardinals,1980s,John Tudor,1985,SP,8.1,7.261004,0.838996,Cardinals
+C,Cardinals,1980s,Bruce Sutter,1984,RP,4.5,3.751737,0.748263,Cardinals
+C,Cardinals,1980s,Jose Oquendo,1989,2B,5.5,4.773745,0.726255,Cardinals
+C,Cardinals,1980s,Terry Pendleton,1989,3B,4.4,5.071042,-0.671042,Cardinals
+B,Cardinals,1990s,Mark McGwire,1998,1B,7.5,5.011969,2.488031,Cardinals
+C,Cardinals,1990s,Ozzie Smith,1991,SS,5.1,4.840927,0.259073,Cardinals
+C,Cardinals,1990s,Brian Jordan,1998,OF,7.0,6.851737,0.148263,Cardinals
+C,Cardinals,1990s,Tom Pagnozzi,1991,C,3.2,3.904247,-0.704247,Cardinals
+C,Cardinals,1990s,Juan Acevedo,1998,RP,3.0,3.751737,-0.751737,Cardinals
+C,Cardinals,1990s,Delino DeShields,1997,2B,4.0,4.773745,-0.773745,Cardinals
+C,Cardinals,1990s,Bob Tewksbury,1992,SP,6.4,7.261004,-0.861004,Cardinals
+D,Cardinals,1990s,Fernando Tatis,1999,3B,3.1,5.071042,-1.971042,Cardinals
+A,Cardinals,2000s,Albert Pujols,2009,1B,9.7,5.011969,4.688031,Cardinals
+A,Cardinals,2000s,Scott Rolen,2004,3B,9.2,5.071042,4.128958,Cardinals
+B,Cardinals,2000s,Albert Pujols,2003,OF,8.7,6.851737,1.848263,Cardinals
+B,Cardinals,2000s,Edgar Renteria,2003,SS,5.9,4.840927,1.059073,Cardinals
+C,Cardinals,2000s,Yadier Molina,2009,C,3.2,3.904247,-0.704247,Cardinals
+C,Cardinals,2000s,Chris Carpenter,2009,SP,6.5,7.261004,-0.761004,Cardinals
+D,Cardinals,2000s,Steve Kline,2001,RP,2.7,3.751737,-1.051737,Cardinals
+D,Cardinals,2000s,Mark Grudzielanek,2005,2B,3.5,4.773745,-1.273745,Cardinals
+A,Cardinals,2010s,Yadier Molina,2012,C,7.2,3.904247,3.295753,Cardinals
+B,Cardinals,2010s,Albert Pujols,2010,1B,7.5,5.011969,2.488031,Cardinals
+B,Cardinals,2010s,Matt Carpenter,2013,2B,6.6,4.773745,1.826255,Cardinals
+C,Cardinals,2010s,Jhonny Peralta,2014,SS,5.2,4.840927,0.359073,Cardinals
+C,Cardinals,2010s,Matt Carpenter,2015,3B,4.8,5.071042,-0.271042,Cardinals
+C,Cardinals,2010s,Jason Heyward,2015,OF,6.3,6.851737,-0.551737,Cardinals
+C,Cardinals,2010s,Joe Kelly,2013,RP,2.9,3.751737,-0.851737,Cardinals
+C,Cardinals,2010s,Adam Wainwright,2013,SP,6.3,7.261004,-0.961004,Cardinals
+B,Cardinals,2020s,Nolan Arenado,2022,3B,7.5,5.071042,2.428958,Cardinals
+B,Cardinals,2020s,Paul Goldschmidt,2022,1B,7.2,5.011969,2.188031,Cardinals
+C,Cardinals,2020s,Tommy Edman,2022,2B,5.7,4.773745,0.926255,Cardinals
+C,Cardinals,2020s,Masyn Winn,2024,SS,4.3,4.840927,-0.540927,Cardinals
+C,Cardinals,2020s,Ryan Helsley,2024,RP,2.9,3.751737,-0.851737,Cardinals
+C,Cardinals,2020s,Willson Contreras,2023,C,3.0,3.904247,-0.904247,Cardinals
+C,Cardinals,2020s,Tyler O'Neill,2021,OF,5.9,6.851737,-0.951737,Cardinals
+D,Cardinals,2020s,Erick Fedde,2024,SP,5.6,7.261004,-1.661004,Cardinals
+S,Cubs,1920s,Rogers Hornsby,1929,2B,10.6,4.773745,5.826255,Cubs
+A,Cubs,1920s,Pete Alexander,1920,SP,12.0,7.261004,4.738996,Cubs
+B,Cubs,1920s,Bob O'Farrell,1922,C,5.2,3.904247,1.295753,Cubs
+C,Cubs,1920s,Ray Grimes,1922,1B,5.8,5.011969,0.788031,Cubs
+C,Cubs,1920s,Charlie Hollocher,1922,SS,5.0,4.840927,0.159073,Cubs
+C,Cubs,1920s,Vic Keen,1923,RP,3.3,3.751737,-0.451737,Cubs
+C,Cubs,1920s,Hack Wilson,1927,OF,6.3,6.851737,-0.551737,Cubs
+D,Cubs,1920s,Bernie Friberg,1923,3B,4.0,5.071042,-1.071042,Cubs
+B,Cubs,1930s,Billy Herman,1935,2B,7.2,4.773745,2.426255,Cubs
+B,Cubs,1930s,Gabby Hartnett,1930,C,5.4,3.904247,1.495753,Cubs
+C,Cubs,1930s,Bill Lee,1938,SP,8.0,7.261004,0.738996,Cubs
+C,Cubs,1930s,Woody English,1930,3B,5.8,5.071042,0.728958,Cubs
+C,Cubs,1930s,Woody English,1931,SS,5.5,4.840927,0.659073,Cubs
+C,Cubs,1930s,Hack Wilson,1930,OF,7.4,6.851737,0.548263,Cubs
+C,Cubs,1930s,Charlie Root,1937,RP,3.3,3.751737,-0.451737,Cubs
+D,Cubs,1930s,Charlie Grimm,1931,1B,3.4,5.011969,-1.611969,Cubs
+B,Cubs,1940s,Stan Hack,1945,3B,6.5,5.071042,1.428958,Cubs
+B,Cubs,1940s,Phil Cavarretta,1945,1B,6.2,5.011969,1.188031,Cubs
+C,Cubs,1940s,Bill Nicholson,1943,OF,6.7,6.851737,-0.151737,Cubs
+C,Cubs,1940s,Claude Passeau,1940,SP,6.9,7.261004,-0.361004,Cubs
+C,Cubs,1940s,Don Johnson,1945,2B,3.9,4.773745,-0.873745,Cubs
+D,Cubs,1940s,Hank Wyse,1943,RP,2.7,3.751737,-1.051737,Cubs
+D,Cubs,1940s,Clyde McCullough,1942,C,2.4,3.904247,-1.504247,Cubs
+D,Cubs,1940s,Lennie Merullo,1942,SS,2.1,4.840927,-2.740927,Cubs
+S,Cubs,1950s,Ernie Banks,1959,SS,10.2,4.840927,5.359073,Cubs
+C,Cubs,1950s,Bill Henry,1959,RP,4.4,3.751737,0.648263,Cubs
+C,Cubs,1950s,Andy Pafko,1950,OF,6.3,6.851737,-0.551737,Cubs
+D,Cubs,1950s,Warren Hacker,1952,SP,6.2,7.261004,-1.061004,Cubs
+D,Cubs,1950s,Gene Baker,1955,2B,2.6,4.773745,-2.173745,Cubs
+D,Cubs,1950s,Dale Long,1957,1B,2.8,5.011969,-2.211969,Cubs
+D,Cubs,1950s,Randy Jackson,1951,3B,2.8,5.071042,-2.271042,Cubs
+D,Cubs,1950s,Toby Atwell,1952,C,1.5,3.904247,-2.404247,Cubs
+A,Cubs,1960s,Ron Santo,1967,3B,9.8,5.071042,4.728958,Cubs
+A,Cubs,1960s,Ernie Banks,1960,SS,7.9,4.840927,3.059073,Cubs
+B,Cubs,1960s,Dick Ellsworth,1963,SP,10.2,7.261004,2.938996,Cubs
+C,Cubs,1960s,Billy Williams,1965,OF,7.7,6.851737,0.848263,Cubs
+C,Cubs,1960s,Glenn Beckert,1968,2B,4.8,4.773745,0.026255,Cubs
+C,Cubs,1960s,Randy Hundley,1967,C,3.9,3.904247,-0.004247,Cubs
+C,Cubs,1960s,Fergie Jenkins,1966,RP,3.3,3.751737,-0.451737,Cubs
+D,Cubs,1960s,Ernie Banks,1968,1B,3.5,5.011969,-1.511969,Cubs
+B,Cubs,1970s,Fergie Jenkins,1971,SP,10.1,7.261004,2.838996,Cubs
+B,Cubs,1970s,Bruce Sutter,1977,RP,6.5,3.751737,2.748263,Cubs
+C,Cubs,1970s,Ron Santo,1972,3B,4.9,5.071042,-0.171042,Cubs
+C,Cubs,1970s,Billy Williams,1970,OF,6.6,6.851737,-0.251737,Cubs
+D,Cubs,1970s,Ivan de Jesus,1978,SS,3.7,4.840927,-1.140927,Cubs
+D,Cubs,1970s,Glenn Beckert,1971,2B,3.2,4.773745,-1.573745,Cubs
+D,Cubs,1970s,Barry Foote,1979,C,2.1,3.904247,-1.804247,Cubs
+D,Cubs,1970s,Andre Thornton,1975,1B,3.1,5.011969,-1.911969,Cubs
+A,Cubs,1980s,Ryne Sandberg,1984,2B,8.5,4.773745,3.726255,Cubs
+B,Cubs,1980s,Lee Smith,1983,RP,4.8,3.751737,1.048263,Cubs
+C,Cubs,1980s,Jody Davis,1986,C,4.1,3.904247,0.195753,Cubs
+D,Cubs,1980s,Mark Grace,1989,1B,3.9,5.011969,-1.111969,Cubs
+D,Cubs,1980s,Rick Sutcliffe,1987,SP,6.0,7.261004,-1.261004,Cubs
+D,Cubs,1980s,Ryne Sandberg,1982,3B,3.2,5.071042,-1.871042,Cubs
+D,Cubs,1980s,Andre Dawson,1988,OF,4.9,6.851737,-1.951737,Cubs
+D,Cubs,1980s,Larry Bowa,1983,SS,2.3,4.840927,-2.540927,Cubs
+A,Cubs,1990s,Ryne Sandberg,1992,2B,7.8,4.773745,3.026255,Cubs
+B,Cubs,1990s,Rick Wilkins,1993,C,6.6,3.904247,2.695753,Cubs
+B,Cubs,1990s,Greg Maddux,1992,SP,9.1,7.261004,1.838996,Cubs
+C,Cubs,1990s,Paul Assenmacher,1990,RP,3.7,3.751737,-0.051737,Cubs
+C,Cubs,1990s,Mark Grace,1995,1B,4.9,5.011969,-0.111969,Cubs
+C,Cubs,1990s,Sammy Sosa,1998,OF,6.5,6.851737,-0.351737,Cubs
+D,Cubs,1990s,Steve Buechele,1993,3B,3.5,5.071042,-1.571042,Cubs
+D,Cubs,1990s,Jose Vizcaino,1993,SS,2.2,4.840927,-2.640927,Cubs
+A,Cubs,2000s,Sammy Sosa,2001,OF,10.3,6.851737,3.448263,Cubs
+B,Cubs,2000s,Derrek Lee,2005,1B,7.7,5.011969,2.688031,Cubs
+C,Cubs,2000s,Mark Prior,2003,SP,7.4,7.261004,0.138996,Cubs
+C,Cubs,2000s,Aramis Ramirez,2007,3B,5.0,5.071042,-0.071042,Cubs
+C,Cubs,2000s,Carlos Marmol,2007,RP,3.0,3.751737,-0.751737,Cubs
+C,Cubs,2000s,Geovany Soto,2008,C,3.0,3.904247,-0.904247,Cubs
+D,Cubs,2000s,Mark Bellhorn,2002,2B,3.6,4.773745,-1.173745,Cubs
+D,Cubs,2000s,Ryan Theriot,2008,SS,2.6,4.840927,-2.240927,Cubs
+B,Cubs,2010s,Kris Bryant,2016,3B,7.3,5.071042,2.228958,Cubs
+B,Cubs,2010s,Javier Baez,2018,2B,6.3,4.773745,1.526255,Cubs
+B,Cubs,2010s,Javier Baez,2019,SS,6.1,4.840927,1.259073,Cubs
+B,Cubs,2010s,Jake Arrieta,2015,SP,8.3,7.261004,1.038996,Cubs
+C,Cubs,2010s,Anthony Rizzo,2015,1B,5.8,5.011969,0.788031,Cubs
+C,Cubs,2010s,Geovany Soto,2010,C,3.5,3.904247,-0.404247,Cubs
+D,Cubs,2010s,Carlos Marmol,2010,RP,2.7,3.751737,-1.051737,Cubs
+D,Cubs,2010s,Dexter Fowler,2016,OF,4.1,6.851737,-2.751737,Cubs
+B,Cubs,2020s,Nico Hoerner,2025,2B,6.2,4.773745,1.426255,Cubs
+C,Cubs,2020s,Dansby Swanson,2023,SS,5.0,4.840927,0.159073,Cubs
+C,Cubs,2020s,Willson Contreras,2022,C,3.6,3.904247,-0.304247,Cubs
+C,Cubs,2020s,Michael Busch,2025,1B,4.5,5.011969,-0.511969,Cubs
+C,Cubs,2020s,Pete Crow-Armstrong,2025,OF,5.9,6.851737,-0.951737,Cubs
+D,Cubs,2020s,Javier Assad,2023,RP,2.1,3.751737,-1.651737,Cubs
+D,Cubs,2020s,Isaac Paredes,2024,3B,3.1,5.071042,-1.971042,Cubs
+F,Cubs,2020s,Justin Steele,2023,SP,3.1,7.261004,-4.161004,Cubs
+B,Diamondbacks,1990s,Randy Johnson,1999,SP,9.1,7.261004,1.838996,Diamondbacks
+C,Diamondbacks,1990s,Jay Bell,1999,2B,4.8,4.773745,0.026255,Diamondbacks
+C,Diamondbacks,1990s,Luis Gonzalez,1999,OF,6.4,6.851737,-0.451737,Diamondbacks
+D,Diamondbacks,1990s,Matt Williams,1999,3B,4.0,5.071042,-1.071042,Diamondbacks
+D,Diamondbacks,1990s,Jay Bell,1998,SS,3.6,4.840927,-1.240927,Diamondbacks
+D,Diamondbacks,1990s,Greg Swindell,1999,RP,1.9,3.751737,-1.851737,Diamondbacks
+D,Diamondbacks,1990s,Kelly Stinnett,1998,C,1.9,3.904247,-2.004247,Diamondbacks
+F,Diamondbacks,1990s,Travis Lee,1998,1B,1.0,5.011969,-4.011969,Diamondbacks
+A,Diamondbacks,2000s,Randy Johnson,2002,SP,10.7,7.261004,3.438996,Diamondbacks
+B,Diamondbacks,2000s,Luis Gonzalez,2001,OF,7.9,6.851737,1.048263,Diamondbacks
+C,Diamondbacks,2000s,Byung-Hyun Kim,2002,RP,4.0,3.751737,0.248263,Diamondbacks
+C,Diamondbacks,2000s,Miguel Montero,2009,C,4.0,3.904247,0.095753,Diamondbacks
+C,Diamondbacks,2000s,Craig Counsell,2005,2B,4.2,4.773745,-0.573745,Diamondbacks
+D,Diamondbacks,2000s,Chad Tracy,2005,1B,3.8,5.011969,-1.211969,Diamondbacks
+D,Diamondbacks,2000s,Troy Glaus,2005,3B,3.4,5.071042,-1.671042,Diamondbacks
+D,Diamondbacks,2000s,Stephen Drew,2008,SS,2.5,4.840927,-2.340927,Diamondbacks
+A,Diamondbacks,2010s,Paul Goldschmidt,2015,1B,8.3,5.011969,3.288031,Diamondbacks
+B,Diamondbacks,2010s,Jean Segura,2016,2B,6.3,4.773745,1.526255,Diamondbacks
+B,Diamondbacks,2010s,Miguel Montero,2011,C,5.1,3.904247,1.195753,Diamondbacks
+C,Diamondbacks,2010s,AJ Pollock,2015,OF,6.8,6.851737,-0.051737,Diamondbacks
+C,Diamondbacks,2010s,Archie Bradley,2017,RP,3.5,3.751737,-0.251737,Diamondbacks
+C,Diamondbacks,2010s,Stephen Drew,2010,SS,4.4,4.840927,-0.440927,Diamondbacks
+D,Diamondbacks,2010s,Zack Greinke,2017,SP,5.8,7.261004,-1.461004,Diamondbacks
+D,Diamondbacks,2010s,Jake Lamb,2016,3B,3.3,5.071042,-1.771042,Diamondbacks
+B,Diamondbacks,2020s,Geraldo Perdomo,2025,SS,7.1,4.840927,2.259073,Diamondbacks
+B,Diamondbacks,2020s,Ketel Marte,2024,2B,6.5,4.773745,1.726255,Diamondbacks
+C,Diamondbacks,2020s,Christian Walker,2022,1B,4.5,5.011969,-0.511969,Diamondbacks
+C,Diamondbacks,2020s,Gabriel Moreno,2023,C,3.3,3.904247,-0.604247,Diamondbacks
+D,Diamondbacks,2020s,Corbin Carroll,2025,OF,5.8,6.851737,-1.051737,Diamondbacks
+D,Diamondbacks,2020s,Eugenio Suarez,2025,3B,3.6,5.071042,-1.471042,Diamondbacks
+D,Diamondbacks,2020s,Justin Martinez,2024,RP,1.9,3.751737,-1.851737,Diamondbacks
+D,Diamondbacks,2020s,Zac Gallen,2022,SP,5.3,7.261004,-1.961004,Diamondbacks
+A,Dodgers,1920s,Dazzy Vance,1924,SP,10.5,7.261004,3.238996,Dodgers
+B,Dodgers,1920s,Jack Fournier,1924,1B,6.4,5.011969,1.388031,Dodgers
+C,Dodgers,1920s,Watty Clark,1928,RP,4.6,3.751737,0.848263,Dodgers
+C,Dodgers,1920s,Andy High,1924,2B,4.9,4.773745,0.126255,Dodgers
+C,Dodgers,1920s,Zack Wheat,1924,OF,6.7,6.851737,-0.151737,Dodgers
+D,Dodgers,1920s,Jimmy Johnston,1921,3B,3.8,5.071042,-1.271042,Dodgers
+D,Dodgers,1920s,Zack Taylor,1924,C,1.2,3.904247,-2.704247,Dodgers
+F,Dodgers,1920s,Johnny Butler,1926,SS,1.6,4.840927,-3.240927,Dodgers
+B,Dodgers,1930s,Dolph Camilli,1939,1B,6.4,5.011969,1.388031,Dodgers
+C,Dodgers,1930s,Glenn Wright,1930,SS,5.5,4.840927,0.659073,Dodgers
+C,Dodgers,1930s,Babe Herman,1930,OF,6.9,6.851737,0.048263,Dodgers
+C,Dodgers,1930s,Dazzy Vance,1930,SP,7.3,7.261004,0.038996,Dodgers
+C,Dodgers,1930s,Tot Pressnell,1938,RP,3.3,3.751737,-0.451737,Dodgers
+C,Dodgers,1930s,Babe Phelps,1936,C,3.3,3.904247,-0.604247,Dodgers
+D,Dodgers,1930s,Cookie Lavagetto,1939,3B,3.8,5.071042,-1.271042,Dodgers
+D,Dodgers,1930s,Tony Cuccinello,1932,2B,3.5,4.773745,-1.273745,Dodgers
+A,Dodgers,1940s,Jackie Robinson,1949,2B,9.3,4.773745,4.526255,Dodgers
+B,Dodgers,1940s,Pee Wee Reese,1949,SS,7.4,4.840927,2.559073,Dodgers
+B,Dodgers,1940s,Dolph Camilli,1941,1B,6.8,5.011969,1.788031,Dodgers
+B,Dodgers,1940s,Pete Reiser,1941,OF,8.0,6.851737,1.148263,Dodgers
+C,Dodgers,1940s,Roy Campanella,1949,C,4.5,3.904247,0.595753,Dodgers
+C,Dodgers,1940s,Larry French,1942,RP,4.1,3.751737,0.348263,Dodgers
+C,Dodgers,1940s,Ralph Branca,1947,SP,6.9,7.261004,-0.361004,Dodgers
+D,Dodgers,1940s,Cookie Lavagetto,1941,3B,2.9,5.071042,-2.171042,Dodgers
+A,Dodgers,1950s,Jackie Robinson,1951,2B,9.7,4.773745,4.926255,Dodgers
+B,Dodgers,1950s,Roy Campanella,1951,C,6.9,3.904247,2.995753,Dodgers
+B,Dodgers,1950s,Duke Snider,1953,OF,9.1,6.851737,2.248263,Dodgers
+B,Dodgers,1950s,Pee Wee Reese,1954,SS,6.2,4.840927,1.359073,Dodgers
+B,Dodgers,1950s,Gil Hodges,1954,1B,6.1,5.011969,1.088031,Dodgers
+C,Dodgers,1950s,Joe Black,1952,RP,4.3,3.751737,0.548263,Dodgers
+C,Dodgers,1950s,Jackie Robinson,1956,3B,4.5,5.071042,-0.571042,Dodgers
+D,Dodgers,1950s,Don Drysdale,1957,SP,6.0,7.261004,-1.261004,Dodgers
+A,Dodgers,1960s,Sandy Koufax,1963,SP,10.7,7.261004,3.438996,Dodgers
+B,Dodgers,1960s,Willie Davis,1964,OF,8.3,6.851737,1.448263,Dodgers
+B,Dodgers,1960s,Phil Regan,1966,RP,4.9,3.751737,1.148263,Dodgers
+C,Dodgers,1960s,Tom Haller,1968,C,4.8,3.904247,0.895753,Dodgers
+C,Dodgers,1960s,Maury Wills,1962,SS,5.7,4.840927,0.859073,Dodgers
+C,Dodgers,1960s,Jim Lefebvre,1966,2B,5.2,4.773745,0.426255,Dodgers
+D,Dodgers,1960s,Jim Gilliam,1960,3B,3.9,5.071042,-1.171042,Dodgers
+D,Dodgers,1960s,Wes Parker,1969,1B,3.4,5.011969,-1.611969,Dodgers
+B,Dodgers,1970s,Ron Cey,1975,3B,6.7,5.071042,1.628958,Dodgers
+B,Dodgers,1970s,Joe Ferguson,1973,C,5.0,3.904247,1.095753,Dodgers
+C,Dodgers,1970s,Jim Wynn,1974,OF,7.7,6.851737,0.848263,Dodgers
+C,Dodgers,1970s,Davey Lopes,1975,2B,5.2,4.773745,0.426255,Dodgers
+C,Dodgers,1970s,Wes Parker,1970,1B,5.2,5.011969,0.188031,Dodgers
+C,Dodgers,1970s,Jim Brewer,1972,RP,3.5,3.751737,-0.251737,Dodgers
+C,Dodgers,1970s,Don Sutton,1972,SP,6.6,7.261004,-0.661004,Dodgers
+D,Dodgers,1970s,Bill Russell,1974,SS,3.0,4.840927,-1.840927,Dodgers
+B,Dodgers,1980s,Mike Scioscia,1985,C,5.5,3.904247,1.595753,Dodgers
+B,Dodgers,1980s,Pedro Guerrero,1985,OF,8.0,6.851737,1.148263,Dodgers
+C,Dodgers,1980s,Orel Hershiser,1984,RP,4.3,3.751737,0.548263,Dodgers
+C,Dodgers,1980s,Pedro Guerrero,1983,3B,5.5,5.071042,0.428958,Dodgers
+C,Dodgers,1980s,Orel Hershiser,1988,SP,7.2,7.261004,-0.061004,Dodgers
+C,Dodgers,1980s,Steve Sax,1986,2B,4.7,4.773745,-0.073745,Dodgers
+C,Dodgers,1980s,Bill Russell,1982,SS,4.5,4.840927,-0.340927,Dodgers
+D,Dodgers,1980s,Steve Garvey,1980,1B,3.1,5.011969,-1.911969,Dodgers
+A,Dodgers,1990s,Mike Piazza,1997,C,8.7,3.904247,4.795753,Dodgers
+C,Dodgers,1990s,Eddie Murray,1990,1B,5.2,5.011969,0.188031,Dodgers
+C,Dodgers,1990s,Pedro Martinez,1993,RP,3.0,3.751737,-0.751737,Dodgers
+D,Dodgers,1990s,Kevin Brown,1999,SP,6.2,7.261004,-1.061004,Dodgers
+D,Dodgers,1990s,Mark Grudzielanek,1999,SS,3.7,4.840927,-1.140927,Dodgers
+D,Dodgers,1990s,Raul Mondesi,1997,OF,5.7,6.851737,-1.151737,Dodgers
+D,Dodgers,1990s,Adrian Beltre,1999,3B,3.9,5.071042,-1.171042,Dodgers
+D,Dodgers,1990s,Delino DeShields,1995,2B,2.9,4.773745,-1.873745,Dodgers
+A,Dodgers,2000s,Adrian Beltre,2004,3B,9.6,5.071042,4.528958,Dodgers
+B,Dodgers,2000s,Russell Martin,2008,C,5.6,3.904247,1.695753,Dodgers
+C,Dodgers,2000s,Shawn Green,2001,OF,7.0,6.851737,0.148263,Dodgers
+C,Dodgers,2000s,Eric Gagne,2003,RP,3.7,3.751737,-0.051737,Dodgers
+C,Dodgers,2000s,Kevin Brown,2000,SP,7.0,7.261004,-0.261004,Dodgers
+C,Dodgers,2000s,Rafael Furcal,2006,SS,4.1,4.840927,-0.740927,Dodgers
+C,Dodgers,2000s,Jeff Kent,2005,2B,3.8,4.773745,-0.973745,Dodgers
+D,Dodgers,2000s,Nomar Garciaparra,2006,1B,2.5,5.011969,-2.511969,Dodgers
+B,Dodgers,2010s,Cody Bellinger,2019,OF,8.7,6.851737,1.848263,Dodgers
+B,Dodgers,2010s,Zack Greinke,2015,SP,8.9,7.261004,1.638996,Dodgers
+C,Dodgers,2010s,Yasmani Grandal,2016,C,4.6,3.904247,0.695753,Dodgers
+C,Dodgers,2010s,Justin Turner,2017,3B,5.7,5.071042,0.628958,Dodgers
+C,Dodgers,2010s,Hanley Ramirez,2013,SS,5.2,4.840927,0.359073,Dodgers
+C,Dodgers,2010s,Max Muncy,2019,2B,4.8,4.773745,0.026255,Dodgers
+C,Dodgers,2010s,Cody Bellinger,2018,1B,4.5,5.011969,-0.511969,Dodgers
+C,Dodgers,2010s,Hung-Chih Kuo,2010,RP,3.2,3.751737,-0.551737,Dodgers
+B,Dodgers,2020s,Shohei Ohtani,2024,OF,9.2,6.851737,2.348263,Dodgers
+B,Dodgers,2020s,Freddie Freeman,2023,1B,7.3,5.011969,2.288031,Dodgers
+C,Dodgers,2020s,Trea Turner,2022,SS,5.8,4.840927,0.959073,Dodgers
+C,Dodgers,2020s,Will Smith,2022,C,4.4,3.904247,0.495753,Dodgers
+C,Dodgers,2020s,Walker Buehler,2021,SP,7.1,7.261004,-0.161004,Dodgers
+D,Dodgers,2020s,Evan Phillips,2022,RP,2.6,3.751737,-1.151737,Dodgers
+D,Dodgers,2020s,Justin Turner,2021,3B,3.7,5.071042,-1.371042,Dodgers
+D,Dodgers,2020s,Gavin Lux,2022,2B,2.7,4.773745,-2.073745,Dodgers
+S,Giants,1920s,Rogers Hornsby,1927,2B,10.2,4.773745,5.426255,Giants
+B,Giants,1920s,Dave Bancroft,1921,SS,7.5,4.840927,2.659073,Giants
+B,Giants,1920s,Frankie Frisch,1921,3B,7.0,5.071042,1.928958,Giants
+C,Giants,1920s,Mel Ott,1929,OF,7.2,6.851737,0.348263,Giants
+C,Giants,1920s,Bill Terry,1927,1B,5.2,5.011969,0.188031,Giants
+C,Giants,1920s,Larry Benton,1928,SP,7.0,7.261004,-0.261004,Giants
+C,Giants,1920s,Shanty Hogan,1928,C,3.5,3.904247,-0.404247,Giants
+C,Giants,1920s,Freddie Fitzsimmons,1925,RP,2.8,3.751737,-0.951737,Giants
+A,Giants,1930s,Mel Ott,1938,3B,8.8,5.071042,3.728958,Giants
+B,Giants,1930s,Bill Terry,1930,1B,7.9,5.011969,2.888031,Giants
+B,Giants,1930s,Carl Hubbell,1936,SP,9.7,7.261004,2.438996,Giants
+B,Giants,1930s,Dick Bartell,1937,SS,6.6,4.840927,1.759073,Giants
+B,Giants,1930s,Mel Ott,1932,OF,8.3,6.851737,1.448263,Giants
+C,Giants,1930s,Harry Danning,1939,C,4.1,3.904247,0.195753,Giants
+D,Giants,1930s,Jumbo Brown,1938,RP,2.6,3.751737,-1.151737,Giants
+D,Giants,1930s,Hughie Critz,1933,2B,3.5,4.773745,-1.273745,Giants
+B,Giants,1940s,Johnny Mize,1947,1B,7.5,5.011969,2.488031,Giants
+C,Giants,1940s,Walker Cooper,1947,C,4.9,3.904247,0.995753,Giants
+C,Giants,1940s,Sid Gordon,1948,3B,5.6,5.071042,0.528958,Giants
+C,Giants,1940s,Mel Ott,1942,OF,7.1,6.851737,0.248263,Giants
+C,Giants,1940s,Sheldon Jones,1948,RP,3.5,3.751737,-0.251737,Giants
+C,Giants,1940s,Billy Jurges,1941,SS,3.9,4.840927,-0.940927,Giants
+D,Giants,1940s,Dave Koslo,1949,SP,6.1,7.261004,-1.161004,Giants
+D,Giants,1940s,Buddy Blattner,1946,2B,3.0,4.773745,-1.773745,Giants
+A,Giants,1950s,Willie Mays,1954,OF,10.5,6.851737,3.648263,Giants
+A,Giants,1950s,Eddie Stanky,1950,2B,8.2,4.773745,3.426255,Giants
+B,Giants,1950s,Stu Miller,1958,RP,4.9,3.751737,1.148263,Giants
+C,Giants,1950s,Al Dark,1951,SS,5.8,4.840927,0.959073,Giants
+C,Giants,1950s,Johnny Antonelli,1954,SP,7.5,7.261004,0.238996,Giants
+C,Giants,1950s,Wes Westrum,1950,C,4.1,3.904247,0.195753,Giants
+C,Giants,1950s,Hank Thompson,1950,3B,5.0,5.071042,-0.071042,Giants
+D,Giants,1950s,Orlando Cepeda,1959,1B,3.8,5.011969,-1.211969,Giants
+A,Giants,1960s,Willie Mays,1965,OF,11.2,6.851737,4.348263,Giants
+A,Giants,1960s,Willie McCovey,1969,1B,8.1,5.011969,3.088031,Giants
+A,Giants,1960s,Juan Marichal,1965,SP,10.3,7.261004,3.038996,Giants
+B,Giants,1960s,Gaylord Perry,1964,RP,5.4,3.751737,1.648263,Giants
+B,Giants,1960s,Jim Ray Hart,1966,3B,6.3,5.071042,1.228958,Giants
+C,Giants,1960s,Tom Haller,1967,C,3.9,3.904247,-0.004247,Giants
+C,Giants,1960s,Ron Hunt,1968,2B,4.1,4.773745,-0.673745,Giants
+D,Giants,1960s,Jose Pagan,1962,SS,2.3,4.840927,-2.540927,Giants
+B,Giants,1970s,Willie McCovey,1970,1B,6.6,5.011969,1.588031,Giants
+B,Giants,1970s,Chris Speier,1972,SS,6.0,4.840927,1.159073,Giants
+C,Giants,1970s,Bobby Bonds,1973,OF,7.8,6.851737,0.948263,Giants
+C,Giants,1970s,Dick Dietz,1970,C,4.8,3.904247,0.895753,Giants
+C,Giants,1970s,Gaylord Perry,1970,SP,7.6,7.261004,0.338996,Giants
+C,Giants,1970s,Gary Lavelle,1977,RP,4.0,3.751737,0.248263,Giants
+C,Giants,1970s,Bill Madlock,1978,2B,4.6,4.773745,-0.173745,Giants
+D,Giants,1970s,Darrell Evans,1978,3B,3.8,5.071042,-1.271042,Giants
+A,Giants,1980s,Will Clark,1989,1B,8.6,5.011969,3.588031,Giants
+B,Giants,1980s,Greg Minton,1982,RP,5.4,3.751737,1.648263,Giants
+C,Giants,1980s,Robby Thompson,1989,2B,5.7,4.773745,0.926255,Giants
+C,Giants,1980s,Kevin Mitchell,1989,OF,6.9,6.851737,0.048263,Giants
+C,Giants,1980s,Bob Brenly,1984,C,3.8,3.904247,-0.104247,Giants
+D,Giants,1980s,Darrell Evans,1980,3B,4.0,5.071042,-1.071042,Giants
+D,Giants,1980s,Jose Uribe,1987,SS,2.9,4.840927,-1.940927,Giants
+D,Giants,1980s,Vida Blue,1980,SP,5.0,7.261004,-2.261004,Giants
+A,Giants,1990s,Barry Bonds,1993,OF,9.9,6.851737,3.048263,Giants
+B,Giants,1990s,Robby Thompson,1993,2B,6.2,4.773745,1.426255,Giants
+C,Giants,1990s,Matt Williams,1993,3B,5.9,5.071042,0.828958,Giants
+C,Giants,1990s,Will Clark,1991,1B,5.2,5.011969,0.188031,Giants
+C,Giants,1990s,Jeff Brantley,1990,RP,3.6,3.751737,-0.151737,Giants
+C,Giants,1990s,Kirt Manwaring,1992,C,3.0,3.904247,-0.904247,Giants
+D,Giants,1990s,Royce Clayton,1994,SS,2.5,4.840927,-2.340927,Giants
+D,Giants,1990s,Bill Swift,1993,SP,4.5,7.261004,-2.761004,Giants
+S,Giants,2000s,Barry Bonds,2001,OF,11.9,6.851737,5.048263,Giants
+B,Giants,2000s,Jeff Kent,2000,2B,7.2,4.773745,2.426255,Giants
+B,Giants,2000s,Rich Aurilia,2001,SS,6.7,4.840927,1.859073,Giants
+C,Giants,2000s,Tim Lincecum,2008,SP,7.8,7.261004,0.538996,Giants
+C,Giants,2000s,Pablo Sandoval,2009,3B,4.8,5.071042,-0.271042,Giants
+C,Giants,2000s,Felix Rodriguez,2001,RP,3.2,3.751737,-0.551737,Giants
+D,Giants,2000s,J. T. Snow,2004,1B,3.6,5.011969,-1.411969,Giants
+D,Giants,2000s,Benito Santiago,2002,C,2.4,3.904247,-1.504247,Giants
+A,Giants,2010s,Buster Posey,2012,C,7.6,3.904247,3.695753,Giants
+C,Giants,2010s,Aubrey Huff,2010,1B,5.7,5.011969,0.688031,Giants
+C,Giants,2010s,Pablo Sandoval,2011,3B,5.7,5.071042,0.628958,Giants
+C,Giants,2010s,Brandon Crawford,2015,SS,5.2,4.840927,0.359073,Giants
+C,Giants,2010s,Brian Wilson,2010,RP,2.8,3.751737,-0.951737,Giants
+D,Giants,2010s,Andres Torres,2010,OF,5.8,6.851737,-1.051737,Giants
+D,Giants,2010s,Joe Panik,2015,2B,3.7,4.773745,-1.073745,Giants
+D,Giants,2010s,Johnny Cueto,2016,SP,5.4,7.261004,-1.861004,Giants
+B,Giants,2020s,Brandon Crawford,2021,SS,6.1,4.840927,1.259073,Giants
+B,Giants,2020s,Matt Chapman,2024,3B,6.3,5.071042,1.228958,Giants
+C,Giants,2020s,Buster Posey,2021,C,3.6,3.904247,-0.304247,Giants
+C,Giants,2020s,Ryan Walker,2024,RP,2.8,3.751737,-0.951737,Giants
+D,Giants,2020s,Logan Webb,2023,SP,5.6,7.261004,-1.661004,Giants
+D,Giants,2020s,Thairo Estrada,2023,2B,3.0,4.773745,-1.773745,Giants
+D,Giants,2020s,Brandon Belt,2021,1B,3.1,5.011969,-1.911969,Giants
+D,Giants,2020s,Rafael Devers,2025,OF,4.3,6.851737,-2.551737,Giants
+B,Guardians,1920s,Joe Sewell,1923,SS,7.5,4.840927,2.659073,Indians
+B,Guardians,1920s,Tris Speaker,1923,OF,9.1,6.851737,2.248263,Indians
+B,Guardians,1920s,Jim Bagby,1920,SP,9.0,7.261004,1.738996,Indians
+C,Guardians,1920s,Steve O'Neill,1920,C,4.5,3.904247,0.595753,Indians
+C,Guardians,1920s,Lew Fonseca,1929,1B,5.3,5.011969,0.288031,Indians
+C,Guardians,1920s,Larry Gardner,1921,3B,4.4,5.071042,-0.671042,Indians
+D,Guardians,1920s,Ken Holloway,1929,RP,2.6,3.751737,-1.151737,Indians
+D,Guardians,1920s,Riggs Stephenson,1924,2B,2.1,4.773745,-2.673745,Indians
+B,Guardians,1930s,Bob Feller,1939,SP,9.2,7.261004,1.938996,Indians
+C,Guardians,1930s,Ed Morgan,1930,1B,5.5,5.011969,0.488031,Indians
+C,Guardians,1930s,Earl Averill,1934,OF,6.8,6.851737,-0.051737,Indians
+C,Guardians,1930s,Odell Hale,1936,3B,4.8,5.071042,-0.271042,Indians
+C,Guardians,1930s,Lloyd Brown,1935,RP,3.4,3.751737,-0.351737,Indians
+C,Guardians,1930s,Johnny Hodapp,1930,2B,4.4,4.773745,-0.373745,Indians
+D,Guardians,1930s,Frankie Pytlak,1937,C,2.9,3.904247,-1.004247,Indians
+D,Guardians,1930s,Lyn Lary,1937,SS,3.6,4.840927,-1.240927,Indians
+S,Guardians,1940s,Lou Boudreau,1948,SS,10.4,4.840927,5.559073,Indians
+B,Guardians,1940s,Bob Feller,1946,SP,10.0,7.261004,2.738996,Indians
+B,Guardians,1940s,Joe Gordon,1947,2B,6.6,4.773745,1.826255,Indians
+B,Guardians,1940s,Ken Keltner,1948,3B,6.6,5.071042,1.528958,Indians
+B,Guardians,1940s,Al Benton,1949,RP,4.8,3.751737,1.048263,Indians
+C,Guardians,1940s,Les Fleming,1942,1B,4.4,5.011969,-0.611969,Indians
+D,Guardians,1940s,Buddy Rosar,1943,C,2.8,3.904247,-1.104247,Indians
+D,Guardians,1940s,Jeff Heath,1941,OF,5.3,6.851737,-1.551737,Indians
+S,Guardians,1950s,Al Rosen,1953,3B,10.1,5.071042,5.028958,Indians
+B,Guardians,1950s,Bobby Avila,1954,2B,7.1,4.773745,2.326255,Indians
+C,Guardians,1950s,Early Wynn,1956,SP,7.8,7.261004,0.538996,Indians
+C,Guardians,1950s,Larry Doby,1952,OF,7.0,6.851737,0.148263,Indians
+C,Guardians,1950s,Hoyt Wilhelm,1958,RP,3.9,3.751737,0.148263,Indians
+D,Guardians,1950s,Woodie Held,1959,SS,3.6,4.840927,-1.240927,Indians
+D,Guardians,1950s,Luke Easter,1952,1B,3.3,5.011969,-1.711969,Indians
+D,Guardians,1950s,Russ Nixon,1958,C,1.6,3.904247,-2.304247,Indians
+B,Guardians,1960s,Luis Tiant,1968,SP,8.5,7.261004,1.238996,Indians
+C,Guardians,1960s,John Romano,1961,C,4.8,3.904247,0.895753,Indians
+C,Guardians,1960s,Luis Tiant,1966,RP,4.1,3.751737,0.348263,Indians
+C,Guardians,1960s,Woodie Held,1961,SS,4.0,4.840927,-0.840927,Indians
+D,Guardians,1960s,Max Alvis,1963,3B,3.7,5.071042,-1.371042,Indians
+D,Guardians,1960s,Woodie Held,1963,2B,2.9,4.773745,-1.873745,Indians
+D,Guardians,1960s,Jim Piersall,1961,OF,4.9,6.851737,-1.951737,Indians
+D,Guardians,1960s,Fred Whitfield,1965,1B,2.4,5.011969,-2.611969,Indians
+A,Guardians,1970s,Gaylord Perry,1972,SP,10.8,7.261004,3.538996,Indians
+B,Guardians,1970s,Graig Nettles,1971,3B,7.5,5.071042,2.428958,Indians
+B,Guardians,1970s,Sid Monge,1979,RP,5.6,3.751737,1.848263,Indians
+C,Guardians,1970s,Ray Fosse,1970,C,4.7,3.904247,0.795753,Indians
+C,Guardians,1970s,Andre Thornton,1978,1B,5.2,5.011969,0.188031,Indians
+D,Guardians,1970s,Frank Duffy,1973,SS,3.0,4.840927,-1.840927,Indians
+D,Guardians,1970s,Jack Brohamer,1974,2B,2.5,4.773745,-2.273745,Indians
+F,Guardians,1970s,Bobby Bonds,1979,OF,3.5,6.851737,-3.351737,Indians
+B,Guardians,1980s,Toby Harrah,1982,3B,6.6,5.071042,1.528958,Indians
+C,Guardians,1980s,Dan Spillner,1982,RP,4.4,3.751737,0.648263,Indians
+C,Guardians,1980s,Bert Blyleven,1984,SP,7.2,7.261004,-0.061004,Indians
+C,Guardians,1980s,Ron Hassey,1980,C,3.7,3.904247,-0.204247,Indians
+C,Guardians,1980s,Jerry Browne,1989,2B,3.8,4.773745,-0.973745,Indians
+D,Guardians,1980s,Julio Franco,1987,SS,3.3,4.840927,-1.540927,Indians
+D,Guardians,1980s,Joe Carter,1986,OF,5.3,6.851737,-1.551737,Indians
+D,Guardians,1980s,Mike Hargrove,1980,1B,3.3,5.011969,-1.711969,Indians
+B,Guardians,1990s,Roberto Alomar,1999,2B,7.4,4.773745,2.626255,Indians
+B,Guardians,1990s,Jim Thome,1996,3B,7.5,5.071042,2.428958,Indians
+B,Guardians,1990s,Omar Vizquel,1999,SS,6.0,4.840927,1.159073,Indians
+C,Guardians,1990s,Kenny Lofton,1993,OF,7.6,6.851737,0.748263,Indians
+C,Guardians,1990s,Jim Thome,1997,1B,5.5,5.011969,0.488031,Indians
+C,Guardians,1990s,Jose Mesa,1995,RP,3.9,3.751737,0.148263,Indians
+C,Guardians,1990s,Sandy Alomar,1997,C,4.0,3.904247,0.095753,Indians
+C,Guardians,1990s,Charles Nagy,1996,SP,6.6,7.261004,-0.661004,Indians
+B,Guardians,2000s,Roberto Alomar,2001,2B,7.3,4.773745,2.526255,Indians
+B,Guardians,2000s,Jim Thome,2002,1B,7.4,5.011969,2.388031,Indians
+C,Guardians,2000s,Victor Martinez,2005,C,4.9,3.904247,0.995753,Indians
+C,Guardians,2000s,Rafael Betancourt,2007,RP,4.3,3.751737,0.548263,Indians
+C,Guardians,2000s,Jhonny Peralta,2005,SS,4.7,4.840927,-0.140927,Indians
+C,Guardians,2000s,Grady Sizemore,2005,OF,6.6,6.851737,-0.251737,Indians
+C,Guardians,2000s,Travis Fryman,2000,3B,4.7,5.071042,-0.371042,Indians
+C,Guardians,2000s,Cliff Lee,2008,SP,6.8,7.261004,-0.461004,Indians
+B,Guardians,2010s,Jose Ramirez,2018,3B,7.6,5.071042,2.528958,Indians
+B,Guardians,2010s,Francisco Lindor,2018,SS,7.3,4.840927,2.459073,Indians
+C,Guardians,2010s,Corey Kluber,2014,SP,8.1,7.261004,0.838996,Indians
+C,Guardians,2010s,Yan Gomes,2014,C,4.5,3.904247,0.595753,Indians
+C,Guardians,2010s,Carlos Carrasco,2014,RP,4.1,3.751737,0.348263,Indians
+C,Guardians,2010s,Jason Kipnis,2013,2B,5.0,4.773745,0.226255,Indians
+C,Guardians,2010s,Michael Brantley,2014,OF,6.7,6.851737,-0.151737,Indians
+C,Guardians,2010s,Carlos Santana,2019,1B,4.7,5.011969,-0.311969,Indians
+B,Guardians,2020s,Andrés Giménez,2022,2B,6.8,4.773745,2.026255,Guardians
+B,Guardians,2020s,Jose Ramirez,2021,3B,6.7,5.071042,1.628958,Indians
+C,Guardians,2020s,Emmanuel Clase,2024,RP,4.4,3.751737,0.648263,Guardians
+D,Guardians,2020s,Amed Rosario,2022,SS,3.6,4.840927,-1.240927,Guardians
+D,Guardians,2020s,Steven Kwan,2022,OF,5.2,6.851737,-1.651737,Guardians
+D,Guardians,2020s,Bo Naylor,2023,C,1.8,3.904247,-2.104247,Guardians
+D,Guardians,2020s,Josh Naylor,2023,1B,2.5,5.011969,-2.511969,Guardians
+F,Guardians,2020s,Triston McKenzie,2022,SP,3.9,7.261004,-3.361004,Guardians
+C,Mariners,1970s,Enrique Romo,1977,RP,3.2,3.751737,-0.551737,Mariners
+C,Mariners,1970s,Bob Stinson,1978,C,3.0,3.904247,-0.904247,Mariners
+D,Mariners,1970s,Bruce Bochte,1979,1B,3.7,5.011969,-1.311969,Mariners
+D,Mariners,1970s,Julio Cruz,1979,2B,3.0,4.773745,-1.773745,Mariners
+D,Mariners,1970s,Mike Parrott,1979,SP,5.2,7.261004,-2.061004,Mariners
+D,Mariners,1970s,Craig Reynolds,1978,SS,2.3,4.840927,-2.540927,Mariners
+D,Mariners,1970s,Leon Roberts,1978,OF,4.2,6.851737,-2.651737,Mariners
+F,Mariners,1970s,Bill Stein,1978,3B,1.0,5.071042,-4.071042,Mariners
+C,Mariners,1980s,Bill Caudill,1982,RP,4.4,3.751737,0.648263,Mariners
+C,Mariners,1980s,Alvin Davis,1984,1B,5.6,5.011969,0.588031,Mariners
+C,Mariners,1980s,Harold Reynolds,1989,2B,4.3,4.773745,-0.473745,Mariners
+C,Mariners,1980s,Mike Moore,1985,SP,6.3,7.261004,-0.961004,Mariners
+D,Mariners,1980s,Dave Valle,1989,C,2.2,3.904247,-1.704247,Mariners
+D,Mariners,1980s,Phil Bradley,1985,OF,4.8,6.851737,-2.051737,Mariners
+D,Mariners,1980s,Jim Presley,1985,3B,2.5,5.071042,-2.571042,Mariners
+D,Mariners,1980s,Spike Owen,1985,SS,2.0,4.840927,-2.840927,Mariners
+A,Mariners,1990s,Alex Rodriguez,1996,SS,9.4,4.840927,4.559073,Mariners
+B,Mariners,1990s,Ken Griffey,1996,OF,9.7,6.851737,2.848263,Mariners
+B,Mariners,1990s,Edgar Martinez,1995,3B,7.1,5.071042,2.028958,Mariners
+B,Mariners,1990s,Edgar Martinez,1996,1B,6.5,5.011969,1.488031,Mariners
+B,Mariners,1990s,Randy Johnson,1995,SP,8.6,7.261004,1.338996,Mariners
+C,Mariners,1990s,Bill Swift,1991,RP,3.7,3.751737,-0.051737,Mariners
+C,Mariners,1990s,Dan Wilson,1997,C,3.6,3.904247,-0.304247,Mariners
+C,Mariners,1990s,Harold Reynolds,1990,2B,4.4,4.773745,-0.373745,Mariners
+S,Mariners,2000s,Alex Rodriguez,2000,SS,10.4,4.840927,5.559073,Mariners
+A,Mariners,2000s,Bret Boone,2001,2B,8.8,4.773745,4.026255,Mariners
+B,Mariners,2000s,Ichiro Suzuki,2004,OF,9.2,6.851737,2.348263,Mariners
+C,Mariners,2000s,Edgar Martinez,2000,1B,5.7,5.011969,0.688031,Mariners
+C,Mariners,2000s,Adrian Beltre,2008,3B,5.6,5.071042,0.528958,Mariners
+C,Mariners,2000s,J. J. Putz,2007,RP,4.0,3.751737,0.248263,Mariners
+D,Mariners,2000s,Kenji Johjima,2006,C,2.7,3.904247,-1.204247,Mariners
+D,Mariners,2000s,Felix Hernandez,2009,SP,5.9,7.261004,-1.361004,Mariners
+B,Mariners,2010s,Robinson Cano,2016,2B,7.3,4.773745,2.526255,Mariners
+B,Mariners,2010s,Kyle Seager,2016,3B,6.4,5.071042,1.328958,Mariners
+C,Mariners,2010s,Mike Zunino,2017,C,3.9,3.904247,-0.004247,Mariners
+C,Mariners,2010s,Felix Hernandez,2010,SP,7.2,7.261004,-0.061004,Mariners
+C,Mariners,2010s,Edwin Diaz,2018,RP,3.1,3.751737,-0.651737,Mariners
+D,Mariners,2010s,Mitch Haniger,2018,OF,5.8,6.851737,-1.051737,Mariners
+D,Mariners,2010s,Jean Segura,2018,SS,3.7,4.840927,-1.140927,Mariners
+F,Mariners,2010s,Kendrys Morales,2013,1B,2.0,5.011969,-3.011969,Mariners
+A,Mariners,2020s,Cal Raleigh,2025,C,7.2,3.904247,3.295753,Mariners
+C,Mariners,2020s,J.P. Crawford,2023,SS,5.1,4.840927,0.259073,Mariners
+C,Mariners,2020s,Julio Rodriguez,2025,OF,6.6,6.851737,-0.251737,Mariners
+C,Mariners,2020s,Eugenio Suárez,2022,3B,4.2,5.071042,-0.871042,Mariners
+D,Mariners,2020s,Drew Steckenrider,2021,RP,2.5,3.751737,-1.251737,Mariners
+D,Mariners,2020s,Ty France,2021,1B,3.7,5.011969,-1.311969,Mariners
+D,Mariners,2020s,José Caballero,2023,2B,2.2,4.773745,-2.573745,Mariners
+D,Mariners,2020s,Bryan Woo,2025,SP,4.3,7.261004,-2.961004,Mariners
+C,Marlins,1990s,Charles Johnson,1997,C,4.6,3.904247,0.695753,Marlins
+C,Marlins,1990s,Kevin Brown,1996,SP,7.9,7.261004,0.638996,Marlins
+C,Marlins,1990s,Bryan Harvey,1993,RP,4.0,3.751737,0.248263,Marlins
+C,Marlins,1990s,Gary Sheffield,1996,OF,5.9,6.851737,-0.951737,Marlins
+D,Marlins,1990s,Edgar Renteria,1996,SS,3.4,4.840927,-1.440927,Marlins
+D,Marlins,1990s,Quilvio Veras,1995,2B,3.0,4.773745,-1.773745,Marlins
+D,Marlins,1990s,Jerry Browne,1994,3B,2.6,5.071042,-2.471042,Marlins
+F,Marlins,1990s,Greg Colbrunn,1995,1B,1.5,5.011969,-3.511969,Marlins
+B,Marlins,2000s,Hanley Ramirez,2009,SS,7.4,4.840927,2.559073,Marlins
+C,Marlins,2000s,Miguel Cabrera,2006,3B,5.8,5.071042,0.728958,Marlins
+C,Marlins,2000s,Ivan Rodriguez,2003,C,4.5,3.904247,0.595753,Marlins
+C,Marlins,2000s,Dontrelle Willis,2005,SP,7.3,7.261004,0.038996,Marlins
+C,Marlins,2000s,Luis Castillo,2003,2B,4.7,4.773745,-0.073745,Marlins
+C,Marlins,2000s,Cliff Floyd,2001,OF,6.6,6.851737,-0.251737,Marlins
+C,Marlins,2000s,Armando Benitez,2004,RP,3.4,3.751737,-0.351737,Marlins
+D,Marlins,2000s,Derrek Lee,2002,1B,3.0,5.011969,-2.011969,Marlins
+B,Marlins,2010s,Giancarlo Stanton,2017,OF,8.1,6.851737,1.248263,Marlins
+C,Marlins,2010s,J. T. Realmuto,2018,C,4.6,3.904247,0.695753,Marlins
+C,Marlins,2010s,Dee Strange-Gordon,2015,2B,4.6,4.773745,-0.173745,Marlins
+C,Marlins,2010s,Josh Johnson,2010,SP,7.0,7.261004,-0.261004,Marlins
+C,Marlins,2010s,Josh Johnson,2011,RP,2.9,3.751737,-0.851737,Marlins
+D,Marlins,2010s,Jose Reyes,2012,SS,3.4,4.840927,-1.440927,Marlins
+D,Marlins,2010s,Martin Prado,2015,3B,3.4,5.071042,-1.671042,Marlins
+D,Marlins,2010s,Gaby Sanchez,2011,1B,2.7,5.011969,-2.311969,Marlins
+C,Marlins,2020s,Sandy Alcantara,2022,SP,8.0,7.261004,0.738996,Marlins
+C,Marlins,2020s,Tanner Scott,2023,RP,3.9,3.751737,0.148263,Marlins
+C,Marlins,2020s,Luis Arraez,2023,2B,3.9,4.773745,-0.873745,Marlins
+D,Marlins,2020s,Otto Lopez,2025,SS,3.6,4.840927,-1.240927,Marlins
+D,Marlins,2020s,Liam Hicks,2025,C,1.3,3.904247,-2.604247,Marlins
+D,Marlins,2020s,Jake Burger,2023,3B,2.3,5.071042,-2.771042,Marlins
+F,Marlins,2020s,Kyle Stowers,2025,OF,3.7,6.851737,-3.151737,Marlins
+F,Marlins,2020s,Jesus Aguilar,2021,1B,1.3,5.011969,-3.711969,Marlins
+C,Mets,1960s,Tom Seaver,1969,SP,7.2,7.261004,-0.061004,Mets
+C,Mets,1960s,Cleon Jones,1969,OF,6.6,6.851737,-0.251737,Mets
+D,Mets,1960s,Jerry Grote,1968,C,2.9,3.904247,-1.004247,Mets
+D,Mets,1960s,Ed Charles,1968,3B,3.9,5.071042,-1.171042,Mets
+D,Mets,1960s,Tug McGraw,1969,RP,2.5,3.751737,-1.251737,Mets
+D,Mets,1960s,Ron Hunt,1964,2B,3.1,4.773745,-1.673745,Mets
+D,Mets,1960s,Bud Harrelson,1969,SS,2.4,4.840927,-2.440927,Mets
+F,Mets,1960s,Frank Thomas,1964,1B,1.1,5.011969,-3.911969,Mets
+A,Mets,1970s,Tom Seaver,1973,SP,10.6,7.261004,3.338996,Mets
+B,Mets,1970s,John Stearns,1978,C,5.4,3.904247,1.495753,Mets
+C,Mets,1970s,Tug McGraw,1972,RP,4.3,3.751737,0.548263,Mets
+C,Mets,1970s,Bud Harrelson,1971,SS,4.2,4.840927,-0.640927,Mets
+C,Mets,1970s,Wayne Garrett,1973,3B,4.2,5.071042,-0.871042,Mets
+D,Mets,1970s,Tommie Agee,1970,OF,5.3,6.851737,-1.551737,Mets
+D,Mets,1970s,Felix Millan,1973,2B,3.1,4.773745,-1.673745,Mets
+D,Mets,1970s,Donn Clendenon,1970,1B,3.0,5.011969,-2.011969,Mets
+A,Mets,1980s,Dwight Gooden,1985,SP,12.2,7.261004,4.938996,Mets
+B,Mets,1980s,Gary Carter,1985,C,6.9,3.904247,2.995753,Mets
+B,Mets,1980s,Howard Johnson,1989,3B,6.9,5.071042,1.828958,Mets
+B,Mets,1980s,Keith Hernandez,1984,1B,6.3,5.011969,1.288031,Mets
+C,Mets,1980s,Jesse Orosco,1983,RP,3.8,3.751737,0.048263,Mets
+C,Mets,1980s,Darryl Strawberry,1987,OF,6.0,6.851737,-0.851737,Mets
+D,Mets,1980s,Tim Teufel,1987,2B,3.3,4.773745,-1.473745,Mets
+D,Mets,1980s,Kevin Elster,1989,SS,2.2,4.840927,-2.640927,Mets
+B,Mets,1990s,John Olerud,1998,1B,7.6,5.011969,2.588031,Mets
+B,Mets,1990s,Mike Piazza,1998,C,6.3,3.904247,2.395753,Mets
+B,Mets,1990s,Robin Ventura,1999,3B,6.7,5.071042,1.628958,Mets
+B,Mets,1990s,Bernard Gilkey,1996,OF,8.1,6.851737,1.248263,Mets
+B,Mets,1990s,Edgardo Alfonzo,1999,2B,6.0,4.773745,1.226255,Mets
+C,Mets,1990s,Armando Benitez,1999,RP,3.3,3.751737,-0.451737,Mets
+C,Mets,1990s,Al Leiter,1998,SP,6.7,7.261004,-0.561004,Mets
+D,Mets,1990s,Rey Ordonez,1999,SS,2.9,4.840927,-1.940927,Mets
+A,Mets,2000s,David Wright,2007,3B,8.3,5.071042,3.228958,Mets
+B,Mets,2000s,Edgardo Alfonzo,2000,2B,6.4,4.773745,1.626255,Mets
+B,Mets,2000s,Carlos Beltran,2006,OF,8.2,6.851737,1.348263,Mets
+B,Mets,2000s,Mike Piazza,2000,C,5.1,3.904247,1.195753,Mets
+C,Mets,2000s,Jose Reyes,2006,SS,5.8,4.840927,0.959073,Mets
+C,Mets,2000s,Johan Santana,2008,SP,7.1,7.261004,-0.161004,Mets
+D,Mets,2000s,Armando Benitez,2000,RP,2.4,3.751737,-1.351737,Mets
+D,Mets,2000s,Carlos Delgado,2006,1B,2.7,5.011969,-2.311969,Mets
+B,Mets,2010s,Jacob deGrom,2018,SP,9.4,7.261004,2.138996,Mets
+B,Mets,2010s,David Wright,2012,3B,7.1,5.071042,2.028958,Mets
+C,Mets,2010s,Jose Reyes,2011,SS,5.2,4.840927,0.359073,Mets
+C,Mets,2010s,Pete Alonso,2019,1B,5.1,5.011969,0.088031,Mets
+C,Mets,2010s,Jeurys Familia,2015,RP,3.0,3.751737,-0.751737,Mets
+D,Mets,2010s,Travis d'Arnaud,2015,C,2.4,3.904247,-1.504247,Mets
+D,Mets,2010s,Curtis Granderson,2015,OF,5.2,6.851737,-1.651737,Mets
+D,Mets,2010s,Daniel Murphy,2013,2B,2.8,4.773745,-1.973745,Mets
+B,Mets,2020s,Francisco Lindor,2024,SS,7.3,4.840927,2.459073,Mets
+C,Mets,2020s,Jeff McNeil,2022,2B,5.7,4.773745,0.926255,Mets
+C,Mets,2020s,Edwin Díaz,2022,RP,3.2,3.751737,-0.551737,Mets
+C,Mets,2020s,Juan Soto,2025,OF,6.1,6.851737,-0.751737,Mets
+C,Mets,2020s,Pete Alonso,2022,1B,4.1,5.011969,-0.911969,Mets
+D,Mets,2020s,Francisco Alvarez,2023,C,2.0,3.904247,-1.904247,Mets
+D,Mets,2020s,Max Scherzer,2022,SP,5.2,7.261004,-2.061004,Mets
+D,Mets,2020s,Mark Vientos,2024,3B,3.0,5.071042,-2.071042,Mets
+C,Nationals,1960s,Rusty Staub,1969,OF,6.2,6.851737,-0.651737,Expos
+D,Nationals,1960s,Gary Waslewski,1969,RP,1.3,3.751737,-2.451737,Expos
+D,Nationals,1960s,Coco Laboy,1969,3B,2.6,5.071042,-2.471042,Expos
+D,Nationals,1960s,Ron Fairly,1969,1B,2.1,5.011969,-2.911969,Expos
+F,Nationals,1960s,Ron Brand,1969,C,0.6,3.904247,-3.304247,Expos
+F,Nationals,1960s,Gary Sutherland,1969,2B,-1.0,4.773745,-5.773745,Expos
+F,Nationals,1960s,Jerry Robertson,1969,SP,1.4,7.261004,-5.861004,Expos
+F,Nationals,1960s,Bobby Wine,1969,SS,-1.4,4.840927,-6.240927,Expos
+B,Nationals,1970s,Gary Carter,1979,C,6.0,3.904247,2.095753,Expos
+C,Nationals,1970s,Mike Marshall,1972,RP,4.0,3.751737,0.248263,Expos
+C,Nationals,1970s,Bob Bailey,1973,3B,5.1,5.071042,0.028958,Expos
+C,Nationals,1970s,Ron Hunt,1971,2B,4.8,4.773745,0.026255,Expos
+C,Nationals,1970s,Mike Jorgensen,1974,1B,4.3,5.011969,-0.711969,Expos
+C,Nationals,1970s,Rusty Staub,1970,OF,6.1,6.851737,-0.751737,Expos
+D,Nationals,1970s,Chris Speier,1978,SS,3.1,4.840927,-1.740927,Expos
+D,Nationals,1970s,Steve Rogers,1973,SP,5.0,7.261004,-2.261004,Expos
+A,Nationals,1980s,Gary Carter,1982,C,8.6,3.904247,4.695753,Expos
+B,Nationals,1980s,Andre Dawson,1982,OF,7.9,6.851737,1.048263,Expos
+C,Nationals,1980s,Andres Galarraga,1988,1B,5.6,5.011969,0.588031,Expos
+C,Nationals,1980s,Tim Burke,1987,RP,4.3,3.751737,0.548263,Expos
+C,Nationals,1980s,Tim Wallach,1985,3B,5.6,5.071042,0.528958,Expos
+C,Nationals,1980s,Steve Rogers,1982,SP,7.7,7.261004,0.438996,Expos
+C,Nationals,1980s,Hubie Brooks,1986,SS,4.4,4.840927,-0.440927,Expos
+C,Nationals,1980s,Vance Law,1985,2B,3.9,4.773745,-0.873745,Expos
+B,Nationals,1990s,Pedro Martinez,1997,SP,9.0,7.261004,1.738996,Expos
+C,Nationals,1990s,Vladimir Guerrero,1998,OF,7.4,6.851737,0.548263,Expos
+C,Nationals,1990s,Jeff Fassero,1993,RP,4.2,3.751737,0.448263,Expos
+C,Nationals,1990s,Delino DeShields,1993,2B,4.2,4.773745,-0.573745,Expos
+D,Nationals,1990s,Tim Wallach,1990,3B,3.9,5.071042,-1.171042,Expos
+D,Nationals,1990s,Mike Fitzgerald,1990,C,2.4,3.904247,-1.504247,Expos
+D,Nationals,1990s,Wil Cordero,1994,SS,2.7,4.840927,-2.140927,Expos
+D,Nationals,1990s,David Segui,1997,1B,2.2,5.011969,-2.811969,Expos
+B,Nationals,2000s,Ryan Zimmerman,2009,3B,7.3,5.071042,2.228958,Nationals
+C,Nationals,2000s,Vladimir Guerrero,2002,OF,7.1,6.851737,0.248263,Expos
+C,Nationals,2000s,Jose Vidro,2002,2B,4.9,4.773745,0.126255,Expos
+C,Nationals,2000s,Brad Wilkerson,2004,1B,5.0,5.011969,-0.011969,Expos
+C,Nationals,2000s,Orlando Cabrera,2003,SS,4.0,4.840927,-0.840927,Expos
+C,Nationals,2000s,Hector Carrasco,2005,RP,2.9,3.751737,-0.851737,Nationals
+C,Nationals,2000s,Livan Hernandez,2003,SP,6.3,7.261004,-0.961004,Expos
+D,Nationals,2000s,Brian Schneider,2004,C,2.8,3.904247,-1.104247,Expos
+B,Nationals,2010s,Bryce Harper,2015,OF,9.7,6.851737,2.848263,Nationals
+B,Nationals,2010s,Anthony Rendon,2019,3B,7.3,5.071042,2.228958,Nationals
+C,Nationals,2010s,Max Scherzer,2018,SP,7.9,7.261004,0.638996,Nationals
+C,Nationals,2010s,Trea Turner,2018,SS,5.0,4.840927,0.159073,Nationals
+C,Nationals,2010s,Daniel Murphy,2016,2B,4.7,4.773745,-0.073745,Nationals
+C,Nationals,2010s,Wilson Ramos,2016,C,3.6,3.904247,-0.304247,Nationals
+C,Nationals,2010s,Tyler Clippard,2011,RP,3.4,3.751737,-0.351737,Nationals
+D,Nationals,2010s,Adam LaRoche,2012,1B,3.8,5.011969,-1.211969,Nationals
+C,Nationals,2020s,Juan Soto,2021,OF,7.3,6.851737,0.448263,Nationals
+D,Nationals,2020s,Max Scherzer,2021,SP,6.1,7.261004,-1.161004,Nationals
+D,Nationals,2020s,CJ Abrams,2025,SS,3.3,4.840927,-1.540927,Nationals
+D,Nationals,2020s,Hunter Harvey,2023,RP,1.9,3.751737,-1.851737,Nationals
+D,Nationals,2020s,Luis García Jr.,2024,2B,2.6,4.773745,-2.173745,Nationals
+D,Nationals,2020s,Keibert Ruiz,2022,C,1.5,3.904247,-2.404247,Nationals
+D,Nationals,2020s,Josh Bell,2021,1B,2.6,5.011969,-2.411969,Nationals
+F,Nationals,2020s,Ildemaro Vargas,2022,3B,1.5,5.071042,-3.571042,Nationals
+A,Orioles,1920s,George Sisler,1920,1B,9.8,5.011969,4.788031,Browns
+B,Orioles,1920s,Ken Williams,1922,OF,8.0,6.851737,1.148263,Browns
+C,Orioles,1920s,Urban Shocker,1921,SP,8.0,7.261004,0.738996,Browns
+C,Orioles,1920s,Marty McManus,1922,2B,4.1,4.773745,-0.673745,Browns
+C,Orioles,1920s,Wally Schang,1926,C,3.1,3.904247,-0.804247,Browns
+C,Orioles,1920s,Ernie Wingard,1926,RP,2.9,3.751737,-0.851737,Browns
+D,Orioles,1920s,Red Kress,1929,SS,3.4,4.840927,-1.440927,Browns
+D,Orioles,1920s,Marty McManus,1926,3B,2.2,5.071042,-2.871042,Browns
+B,Orioles,1930s,Ivy Andrews,1935,RP,6.4,3.751737,2.648263,Browns
+B,Orioles,1930s,Harlond Clift,1937,3B,7.1,5.071042,2.028958,Browns
+C,Orioles,1930s,Bump Hadley,1933,SP,7.4,7.261004,0.138996,Browns
+C,Orioles,1930s,Rick Ferrell,1932,C,3.2,3.904247,-0.704247,Browns
+D,Orioles,1930s,Goose Goslin,1931,OF,5.7,6.851737,-1.151737,Browns
+D,Orioles,1930s,George McQuinn,1939,1B,3.2,5.011969,-1.811969,Browns
+D,Orioles,1930s,Ski Melillo,1931,2B,2.8,4.773745,-1.973745,Browns
+D,Orioles,1930s,Red Kress,1930,SS,2.5,4.840927,-2.340927,Browns
+C,Orioles,1940s,Vern Stephens,1944,SS,5.5,4.840927,0.659073,Browns
+C,Orioles,1940s,Nels Potter,1943,RP,3.9,3.751737,0.148263,Browns
+C,Orioles,1940s,Nels Potter,1945,SP,7.2,7.261004,-0.061004,Browns
+C,Orioles,1940s,Jerry Priddy,1948,2B,4.3,4.773745,-0.473745,Browns
+C,Orioles,1940s,Harlond Clift,1940,3B,4.3,5.071042,-0.771042,Browns
+C,Orioles,1940s,George McQuinn,1941,1B,4.1,5.011969,-0.911969,Browns
+D,Orioles,1940s,Wally Judnich,1942,OF,5.3,6.851737,-1.551737,Browns
+D,Orioles,1940s,Les Moss,1949,C,1.8,3.904247,-2.104247,Browns
+C,Orioles,1950s,Hoyt Wilhelm,1959,SP,7.6,7.261004,0.338996,Orioles
+C,Orioles,1950s,Satchel Paige,1952,RP,3.5,3.751737,-0.251737,Browns
+C,Orioles,1950s,Gus Triandos,1956,C,3.3,3.904247,-0.604247,Orioles
+D,Orioles,1950s,Billy Gardner,1957,2B,3.7,4.773745,-1.073745,Orioles
+D,Orioles,1950s,Bob Boyd,1957,1B,3.2,5.011969,-1.811969,Orioles
+D,Orioles,1950s,Jim Dyck,1952,3B,2.8,5.071042,-2.271042,Browns
+D,Orioles,1950s,Bob Nieman,1956,OF,4.1,6.851737,-2.751737,Orioles
+F,Orioles,1950s,Billy Klaus,1959,SS,1.3,4.840927,-3.540927,Orioles
+A,Orioles,1960s,Brooks Robinson,1968,3B,8.4,5.071042,3.328958,Orioles
+B,Orioles,1960s,Jim Gentile,1961,1B,6.9,5.011969,1.888031,Orioles
+C,Orioles,1960s,Frank Robinson,1966,OF,7.7,6.851737,0.848263,Orioles
+C,Orioles,1960s,Stu Miller,1965,RP,4.2,3.751737,0.448263,Orioles
+C,Orioles,1960s,Luis Aparicio,1964,SS,4.8,4.840927,-0.040927,Orioles
+C,Orioles,1960s,John Orsino,1963,C,3.3,3.904247,-0.604247,Orioles
+D,Orioles,1960s,Davey Johnson,1969,2B,3.5,4.773745,-1.273745,Orioles
+D,Orioles,1960s,Dave McNally,1968,SP,5.9,7.261004,-1.361004,Orioles
+A,Orioles,1970s,Bobby Grich,1973,2B,8.3,4.773745,3.526255,Orioles
+B,Orioles,1970s,Doug DeCinces,1978,3B,6.8,5.071042,1.728958,Orioles
+B,Orioles,1970s,Mark Belanger,1976,SS,6.1,4.840927,1.259073,Orioles
+B,Orioles,1970s,Jim Palmer,1975,SP,8.4,7.261004,1.138996,Orioles
+C,Orioles,1970s,Boog Powell,1970,1B,5.4,5.011969,0.388031,Orioles
+C,Orioles,1970s,Earl Williams,1973,C,3.2,3.904247,-0.704247,Orioles
+C,Orioles,1970s,Paul Blair,1970,OF,5.9,6.851737,-0.951737,Orioles
+D,Orioles,1970s,Bob Reynolds,1973,RP,2.6,3.751737,-1.151737,Orioles
+S,Orioles,1980s,Cal Ripken,1984,SS,10.0,4.840927,5.159073,Orioles
+B,Orioles,1980s,Eddie Murray,1984,1B,7.1,5.011969,2.088031,Orioles
+C,Orioles,1980s,Mickey Tettleton,1989,C,4.4,3.904247,0.495753,Orioles
+C,Orioles,1980s,Sammy Stewart,1981,RP,3.3,3.751737,-0.451737,Orioles
+C,Orioles,1980s,Al Bumbry,1980,OF,6.1,6.851737,-0.751737,Orioles
+D,Orioles,1980s,Doug DeCinces,1980,3B,3.9,5.071042,-1.171042,Orioles
+D,Orioles,1980s,Rich Dauer,1980,2B,2.9,4.773745,-1.873745,Orioles
+D,Orioles,1980s,Scott McGregor,1983,SP,5.3,7.261004,-1.961004,Orioles
+S,Orioles,1990s,Cal Ripken,1991,SS,11.5,4.840927,6.659073,Orioles
+B,Orioles,1990s,Chris Hoiles,1993,C,6.8,3.904247,2.895753,Orioles
+B,Orioles,1990s,Rafael Palmeiro,1998,1B,6.6,5.011969,1.588031,Orioles
+C,Orioles,1990s,Mike Mussina,1992,SP,8.2,7.261004,0.938996,Orioles
+C,Orioles,1990s,Roberto Alomar,1996,2B,5.3,4.773745,0.526255,Orioles
+C,Orioles,1990s,Brady Anderson,1996,OF,6.9,6.851737,0.048263,Orioles
+C,Orioles,1990s,Todd Frohwirth,1991,RP,3.2,3.751737,-0.551737,Orioles
+D,Orioles,1990s,B. J. Surhoff,1996,3B,3.1,5.071042,-1.971042,Orioles
+B,Orioles,2000s,Brian Roberts,2005,2B,7.3,4.773745,2.526255,Orioles
+B,Orioles,2000s,Miguel Tejada,2004,SS,6.7,4.840927,1.859073,Orioles
+C,Orioles,2000s,Javy Lopez,2004,C,4.8,3.904247,0.895753,Orioles
+C,Orioles,2000s,Melvin Mora,2004,3B,5.9,5.071042,0.828958,Orioles
+C,Orioles,2000s,Nick Markakis,2008,OF,7.4,6.851737,0.548263,Orioles
+C,Orioles,2000s,B. J. Ryan,2004,RP,3.4,3.751737,-0.351737,Orioles
+D,Orioles,2000s,Will Clark,2000,1B,4.0,5.011969,-1.011969,Orioles
+D,Orioles,2000s,Mike Mussina,2000,SP,5.7,7.261004,-1.561004,Orioles
+B,Orioles,2010s,Manny Machado,2016,3B,7.4,5.071042,2.328958,Orioles
+B,Orioles,2010s,Chris Davis,2013,1B,7.1,5.011969,2.088031,Orioles
+B,Orioles,2010s,Manny Machado,2018,SS,6.2,4.840927,1.359073,Orioles
+B,Orioles,2010s,Matt Wieters,2011,C,5.1,3.904247,1.195753,Orioles
+C,Orioles,2010s,Jonathan Schoop,2017,2B,5.3,4.773745,0.526255,Orioles
+C,Orioles,2010s,Zack Britton,2016,RP,4.1,3.751737,0.348263,Orioles
+D,Orioles,2010s,Adam Jones,2013,OF,4.8,6.851737,-2.051737,Orioles
+D,Orioles,2010s,Jeremy Guthrie,2010,SP,4.5,7.261004,-2.761004,Orioles
+A,Orioles,2020s,Gunnar Henderson,2024,SS,8.5,4.840927,3.659073,Orioles
+B,Orioles,2020s,Adley Rutschman,2022,C,5.6,3.904247,1.695753,Orioles
+C,Orioles,2020s,Gunnar Henderson,2023,3B,5.4,5.071042,0.328958,Orioles
+C,Orioles,2020s,Félix Bautista,2023,RP,3.0,3.751737,-0.751737,Orioles
+C,Orioles,2020s,Cedric Mullins,2021,OF,6.1,6.851737,-0.751737,Orioles
+D,Orioles,2020s,Trevor Rogers,2025,SP,5.3,7.261004,-1.961004,Orioles
+D,Orioles,2020s,Ryan O'Hearn,2025,1B,2.5,5.011969,-2.511969,Orioles
+F,Orioles,2020s,Jordan Westburg,2023,2B,1.1,4.773745,-3.673745,Orioles
+D,Padres,1960s,Nate Colbert,1969,1B,2.5,5.011969,-2.511969,Padres
+D,Padres,1960s,Frank Reberger,1969,RP,1.0,3.751737,-2.751737,Padres
+F,Padres,1960s,Chris Cannizzaro,1969,C,0.4,3.904247,-3.504247,Padres
+F,Padres,1960s,Ed Spiezio,1969,3B,0.7,5.071042,-4.371042,Padres
+F,Padres,1960s,Ollie Brown,1969,OF,2.4,6.851737,-4.451737,Padres
+F,Padres,1960s,John Sipin,1969,2B,0.3,4.773745,-4.473745,Padres
+F,Padres,1960s,Joe Niekro,1969,SP,2.6,7.261004,-4.661004,Padres
+F,Padres,1960s,Roberto Pena,1969,SS,-0.3,4.840927,-5.140927,Padres
+B,Padres,1970s,Gene Tenace,1979,C,5.7,3.904247,1.795753,Padres
+B,Padres,1970s,Dave Winfield,1979,OF,8.3,6.851737,1.448263,Padres
+C,Padres,1970s,Dave Roberts,1971,SP,7.5,7.261004,0.238996,Padres
+C,Padres,1970s,Nate Colbert,1972,1B,5.2,5.011969,0.188031,Padres
+C,Padres,1970s,Dave Roberts,1970,RP,3.0,3.751737,-0.751737,Padres
+D,Padres,1970s,Ozzie Smith,1978,SS,3.3,4.840927,-1.540927,Padres
+D,Padres,1970s,Doug Rader,1976,3B,3.4,5.071042,-1.671042,Padres
+F,Padres,1970s,Derrel Thomas,1974,2B,0.9,4.773745,-3.873745,Padres
+B,Padres,1980s,Tony Gwynn,1987,OF,8.6,6.851737,1.748263,Padres
+C,Padres,1980s,Terry Kennedy,1982,C,4.6,3.904247,0.695753,Padres
+C,Padres,1980s,Mark Davis,1989,RP,4.4,3.751737,0.648263,Padres
+C,Padres,1980s,Randy Ready,1987,3B,5.6,5.071042,0.528958,Padres
+C,Padres,1980s,Ozzie Smith,1980,SS,5.1,4.840927,0.259073,Padres
+C,Padres,1980s,Roberto Alomar,1989,2B,4.5,4.773745,-0.273745,Padres
+C,Padres,1980s,Bruce Hurst,1989,SP,6.5,7.261004,-0.761004,Padres
+D,Padres,1980s,Jack Clark,1989,1B,4.0,5.011969,-1.011969,Padres
+B,Padres,1990s,Ken Caminiti,1996,3B,7.6,5.071042,2.528958,Padres
+B,Padres,1990s,Kevin Brown,1998,SP,8.6,7.261004,1.338996,Padres
+C,Padres,1990s,Trevor Hoffman,1998,RP,4.1,3.751737,0.348263,Padres
+C,Padres,1990s,Fred McGriff,1992,1B,5.3,5.011969,0.288031,Padres
+C,Padres,1990s,Greg Vaughn,1998,OF,6.1,6.851737,-0.751737,Padres
+C,Padres,1990s,Brad Ausmus,1995,C,3.0,3.904247,-0.904247,Padres
+D,Padres,1990s,Roberto Alomar,1990,2B,3.4,4.773745,-1.373745,Padres
+D,Padres,1990s,Tony Fernandez,1991,SS,2.3,4.840927,-2.540927,Padres
+B,Padres,2000s,Adrian Gonzalez,2009,1B,6.4,5.011969,1.388031,Padres
+B,Padres,2000s,Mark Loretta,2004,2B,5.9,4.773745,1.126255,Padres
+C,Padres,2000s,Phil Nevin,2001,3B,5.7,5.071042,0.628958,Padres
+C,Padres,2000s,Heath Bell,2007,RP,3.3,3.751737,-0.451737,Padres
+C,Padres,2000s,Ramon Hernandez,2004,C,3.1,3.904247,-0.804247,Padres
+D,Padres,2000s,Jake Peavy,2007,SP,6.2,7.261004,-1.061004,Padres
+D,Padres,2000s,Khalil Greene,2004,SS,3.2,4.840927,-1.640927,Padres
+D,Padres,2000s,Brian Giles,2005,OF,4.9,6.851737,-1.951737,Padres
+B,Padres,2010s,Chase Headley,2012,3B,6.4,5.071042,1.328958,Padres
+C,Padres,2010s,Rene Rivera,2014,C,3.8,3.904247,-0.104247,Padres
+C,Padres,2010s,Adrian Gonzalez,2010,1B,4.4,5.011969,-0.611969,Padres
+C,Padres,2010s,Kirby Yates,2019,RP,3.0,3.751737,-0.751737,Padres
+D,Padres,2010s,Fernando Tatis,2019,SS,3.5,4.840927,-1.340927,Padres
+D,Padres,2010s,Ryan Schimpf,2016,2B,2.5,4.773745,-2.273745,Padres
+D,Padres,2010s,Cameron Maybin,2011,OF,4.4,6.851737,-2.451737,Padres
+F,Padres,2010s,Tyson Ross,2015,SP,3.3,7.261004,-3.961004,Padres
+B,Padres,2020s,Fernando Tatis,2021,SS,6.7,4.840927,1.859073,Padres
+B,Padres,2020s,Manny Machado,2022,3B,6.9,5.071042,1.828958,Padres
+C,Padres,2020s,Tanner Scott,2024,RP,3.9,3.751737,0.148263,Padres
+C,Padres,2020s,Ha-Seong Kim,2023,2B,4.8,4.773745,0.026255,Padres
+C,Padres,2020s,Fernando Tatis Jr.,2025,OF,6.1,6.851737,-0.751737,Padres
+C,Padres,2020s,Blake Snell,2023,SP,6.5,7.261004,-0.761004,Padres
+D,Padres,2020s,Gary Sánchez,2023,C,1.9,3.904247,-2.004247,Padres
+D,Padres,2020s,Brandon Drury,2022,1B,2.9,5.011969,-2.111969,Padres
+B,Phillies,1920s,Hal Carlson,1926,SP,8.3,7.261004,1.038996,Phillies
+C,Phillies,1920s,Lefty O'Doul,1929,OF,7.4,6.851737,0.548263,Phillies
+C,Phillies,1920s,Huck Betts,1924,RP,2.8,3.751737,-0.951737,Phillies
+D,Phillies,1920s,Butch Henline,1922,C,2.9,3.904247,-1.004247,Phillies
+D,Phillies,1920s,Pinky Whitney,1929,3B,3.8,5.071042,-1.271042,Phillies
+D,Phillies,1920s,Art Fletcher,1920,SS,3.2,4.840927,-1.640927,Phillies
+D,Phillies,1920s,Don Hurst,1929,1B,2.6,5.011969,-2.411969,Phillies
+D,Phillies,1920s,Cotton Tierney,1923,2B,2.3,4.773745,-2.473745,Phillies
+B,Phillies,1930s,Syl Johnson,1935,RP,5.2,3.751737,1.448263,Phillies
+B,Phillies,1930s,Curt Davis,1934,SP,8.6,7.261004,1.338996,Phillies
+B,Phillies,1930s,Chuck Klein,1933,OF,8.0,6.851737,1.148263,Phillies
+C,Phillies,1930s,Dolph Camilli,1936,1B,6.0,5.011969,0.988031,Phillies
+C,Phillies,1930s,Spud Davis,1932,C,4.0,3.904247,0.095753,Phillies
+C,Phillies,1930s,Dick Bartell,1932,SS,4.3,4.840927,-0.540927,Phillies
+D,Phillies,1930s,Pinky Whitney,1937,3B,2.9,5.071042,-2.171042,Phillies
+F,Phillies,1930s,Heinie Mueller,1939,2B,0.9,4.773745,-3.873745,Phillies
+C,Phillies,1940s,Andy Karl,1945,RP,3.6,3.751737,-0.151737,Phillies
+C,Phillies,1940s,Andy Seminick,1949,C,3.6,3.904247,-0.304247,Phillies
+C,Phillies,1940s,Harry Walker,1947,OF,6.4,6.851737,-0.451737,Phillies
+C,Phillies,1940s,Dutch Leonard,1947,SP,6.7,7.261004,-0.561004,Phillies
+D,Phillies,1940s,Nick Etten,1941,1B,3.4,5.011969,-1.611969,Phillies
+D,Phillies,1940s,Pinky May,1940,3B,3.1,5.071042,-1.971042,Phillies
+D,Phillies,1940s,Danny Murtaugh,1943,2B,2.2,4.773745,-2.573745,Phillies
+F,Phillies,1940s,Granny Hamner,1949,SS,1.6,4.840927,-3.240927,Phillies
+B,Phillies,1950s,Robin Roberts,1953,SP,9.8,7.261004,2.538996,Phillies
+C,Phillies,1950s,Jim Konstanty,1950,RP,4.7,3.751737,0.948263,Phillies
+C,Phillies,1950s,Andy Seminick,1950,C,4.5,3.904247,0.595753,Phillies
+C,Phillies,1950s,Richie Ashburn,1954,OF,7.1,6.851737,0.248263,Phillies
+C,Phillies,1950s,Granny Hamner,1954,2B,4.2,4.773745,-0.573745,Phillies
+C,Phillies,1950s,Granny Hamner,1952,SS,4.2,4.840927,-0.640927,Phillies
+C,Phillies,1950s,Ed Bouchee,1957,1B,4.3,5.011969,-0.711969,Phillies
+C,Phillies,1950s,Willie Jones,1951,3B,4.3,5.071042,-0.771042,Phillies
+A,Phillies,1960s,Dick Allen,1964,3B,8.8,5.071042,3.728958,Phillies
+B,Phillies,1960s,Jim Bunning,1966,SP,9.0,7.261004,1.738996,Phillies
+B,Phillies,1960s,Johnny Callison,1963,OF,8.1,6.851737,1.248263,Phillies
+C,Phillies,1960s,Clay Dalrymple,1962,C,3.8,3.904247,-0.104247,Phillies
+C,Phillies,1960s,Bill White,1966,1B,4.8,5.011969,-0.211969,Phillies
+C,Phillies,1960s,Tony Taylor,1963,2B,4.5,4.773745,-0.273745,Phillies
+C,Phillies,1960s,Turk Farrell,1960,RP,3.0,3.751737,-0.751737,Phillies
+D,Phillies,1960s,Dick Groat,1966,SS,2.5,4.840927,-2.340927,Phillies
+A,Phillies,1970s,Steve Carlton,1972,SP,12.1,7.261004,4.838996,Phillies
+A,Phillies,1970s,Mike Schmidt,1974,3B,9.7,5.071042,4.628958,Phillies
+B,Phillies,1970s,Dick Selma,1970,RP,5.2,3.751737,1.448263,Phillies
+C,Phillies,1970s,Larry Bowa,1978,SS,5.2,4.840927,0.359073,Phillies
+C,Phillies,1970s,Dave Cash,1975,2B,4.8,4.773745,0.026255,Phillies
+C,Phillies,1970s,Bob Boone,1978,C,3.7,3.904247,-0.204247,Phillies
+C,Phillies,1970s,Garry Maddox,1976,OF,6.3,6.851737,-0.551737,Phillies
+D,Phillies,1970s,Deron Johnson,1971,1B,3.5,5.011969,-1.511969,Phillies
+A,Phillies,1980s,Mike Schmidt,1980,3B,8.9,5.071042,3.828958,Phillies
+B,Phillies,1980s,Steve Carlton,1980,SP,10.2,7.261004,2.938996,Phillies
+C,Phillies,1980s,Tug McGraw,1980,RP,4.6,3.751737,0.848263,Phillies
+C,Phillies,1980s,Mike Schmidt,1985,1B,5.0,5.011969,-0.011969,Phillies
+C,Phillies,1980s,Bo Diaz,1982,C,3.8,3.904247,-0.104247,Phillies
+C,Phillies,1980s,Juan Samuel,1987,2B,3.8,4.773745,-0.973745,Phillies
+D,Phillies,1980s,Von Hayes,1989,OF,5.0,6.851737,-1.851737,Phillies
+D,Phillies,1980s,Dickie Thon,1989,SS,2.2,4.840927,-2.640927,Phillies
+B,Phillies,1990s,Darren Daulton,1992,C,6.9,3.904247,2.995753,Phillies
+B,Phillies,1990s,Lenny Dykstra,1990,OF,8.9,6.851737,2.048263,Phillies
+B,Phillies,1990s,Scott Rolen,1998,3B,6.7,5.071042,1.628958,Phillies
+C,Phillies,1990s,John Kruk,1991,1B,4.8,5.011969,-0.211969,Phillies
+C,Phillies,1990s,Ricky Bottalico,1995,RP,3.0,3.751737,-0.751737,Phillies
+C,Phillies,1990s,Curt Schilling,1997,SP,6.3,7.261004,-0.961004,Phillies
+D,Phillies,1990s,Mickey Morandini,1995,2B,2.5,4.773745,-2.273745,Phillies
+F,Phillies,1990s,Dickie Thon,1990,SS,1.6,4.840927,-3.240927,Phillies
+A,Phillies,2000s,Chase Utley,2008,2B,9.0,4.773745,4.226255,Phillies
+B,Phillies,2000s,Jimmy Rollins,2007,SS,6.3,4.840927,1.459073,Phillies
+B,Phillies,2000s,Scott Rolen,2002,3B,6.4,5.071042,1.328958,Phillies
+C,Phillies,2000s,Ryan Howard,2006,1B,5.6,5.011969,0.588031,Phillies
+C,Phillies,2000s,Bobby Abreu,2000,OF,6.5,6.851737,-0.351737,Phillies
+C,Phillies,2000s,Mike Lieberthal,2003,C,3.0,3.904247,-0.904247,Phillies
+D,Phillies,2000s,Billy Wagner,2005,RP,2.7,3.751737,-1.051737,Phillies
+D,Phillies,2000s,Curt Schilling,2000,SP,5.2,7.261004,-2.061004,Phillies
+B,Phillies,2010s,Aaron Nola,2018,SP,9.7,7.261004,2.438996,Phillies
+B,Phillies,2010s,J. T. Realmuto,2019,C,5.2,3.904247,1.295753,Phillies
+B,Phillies,2010s,Chase Utley,2010,2B,5.8,4.773745,1.026255,Phillies
+C,Phillies,2010s,Jimmy Rollins,2014,SS,4.0,4.840927,-0.840927,Phillies
+C,Phillies,2010s,Jonathan Papelbon,2014,RP,2.8,3.751737,-0.951737,Phillies
+D,Phillies,2010s,Shane Victorino,2011,OF,5.6,6.851737,-1.251737,Phillies
+D,Phillies,2010s,Placido Polanco,2010,3B,3.4,5.071042,-1.671042,Phillies
+D,Phillies,2010s,Carlos Santana,2018,1B,2.2,5.011969,-2.811969,Phillies
+B,Phillies,2020s,J.T. Realmuto,2022,C,6.6,3.904247,2.695753,Phillies
+B,Phillies,2020s,Ranger Suarez,2021,RP,5.6,3.751737,1.848263,Phillies
+C,Phillies,2020s,Cristopher Sanchez,2025,SP,8.1,7.261004,0.838996,Phillies
+C,Phillies,2020s,Trea Turner,2025,SS,5.4,4.840927,0.559073,Phillies
+C,Phillies,2020s,Bryce Harper,2024,1B,5.0,5.011969,-0.011969,Phillies
+C,Phillies,2020s,Bryson Stott,2023,2B,4.3,4.773745,-0.473745,Phillies
+C,Phillies,2020s,Bryce Harper,2021,OF,5.9,6.851737,-0.951737,Phillies
+D,Phillies,2020s,Alec Bohm,2024,3B,3.2,5.071042,-1.871042,Phillies
+C,Pirates,1920s,Glenn Wright,1924,SS,5.6,4.840927,0.759073,Pirates
+C,Pirates,1920s,Paul Waner,1927,OF,7.1,6.851737,0.248263,Pirates
+C,Pirates,1920s,Ray Kremer,1927,SP,7.0,7.261004,-0.261004,Pirates
+C,Pirates,1920s,Pie Traynor,1923,3B,4.6,5.071042,-0.471042,Pirates
+C,Pirates,1920s,George Grantham,1927,2B,4.0,4.773745,-0.773745,Pirates
+D,Pirates,1920s,Joe Dawson,1928,RP,2.5,3.751737,-1.251737,Pirates
+D,Pirates,1920s,Earl Smith,1926,C,2.5,3.904247,-1.404247,Pirates
+D,Pirates,1920s,George Grantham,1928,1B,3.3,5.011969,-1.711969,Pirates
+A,Pirates,1930s,Arky Vaughan,1935,SS,9.7,4.840927,4.859073,Pirates
+B,Pirates,1930s,Waite Hoyt,1934,RP,5.0,3.751737,1.248263,Pirates
+C,Pirates,1930s,Gus Suhr,1936,1B,5.3,5.011969,0.288031,Pirates
+C,Pirates,1930s,Paul Waner,1936,OF,7.1,6.851737,0.248263,Pirates
+C,Pirates,1930s,Cy Blanton,1935,SP,7.2,7.261004,-0.061004,Pirates
+C,Pirates,1930s,Pep Young,1938,2B,4.1,4.773745,-0.673745,Pirates
+C,Pirates,1930s,Pie Traynor,1930,3B,4.2,5.071042,-0.871042,Pirates
+D,Pirates,1930s,Al Todd,1937,C,2.3,3.904247,-1.604247,Pirates
+B,Pirates,1940s,Arky Vaughan,1940,SS,6.9,4.840927,2.059073,Pirates
+B,Pirates,1940s,Ralph Kiner,1947,OF,8.1,6.851737,1.248263,Pirates
+B,Pirates,1940s,Murry Dickson,1949,RP,4.8,3.751737,1.048263,Pirates
+C,Pirates,1940s,Elbie Fletcher,1941,1B,5.7,5.011969,0.688031,Pirates
+C,Pirates,1940s,Preacher Roe,1945,SP,7.3,7.261004,0.038996,Pirates
+C,Pirates,1940s,Bob Elliott,1943,3B,4.7,5.071042,-0.371042,Pirates
+C,Pirates,1940s,Bill Salkeld,1945,C,3.5,3.904247,-0.404247,Pirates
+D,Pirates,1940s,Danny Murtaugh,1948,2B,3.2,4.773745,-1.573745,Pirates
+B,Pirates,1950s,Bob Friend,1955,RP,6.0,3.751737,2.248263,Pirates
+B,Pirates,1950s,Ralph Kiner,1951,OF,8.0,6.851737,1.148263,Pirates
+C,Pirates,1950s,Bill Mazeroski,1958,2B,4.6,4.773745,-0.173745,Pirates
+C,Pirates,1950s,Dick Groat,1957,SS,4.4,4.840927,-0.440927,Pirates
+C,Pirates,1950s,Vern Law,1959,SP,6.5,7.261004,-0.761004,Pirates
+D,Pirates,1950s,Smoky Burgess,1959,C,2.9,3.904247,-1.004247,Pirates
+D,Pirates,1950s,Don Hoak,1959,3B,3.4,5.071042,-1.671042,Pirates
+D,Pirates,1950s,Dale Long,1955,1B,2.4,5.011969,-2.611969,Pirates
+B,Pirates,1960s,Roberto Clemente,1967,OF,8.9,6.851737,2.048263,Pirates
+B,Pirates,1960s,Dick Groat,1960,SS,6.1,4.840927,1.259073,Pirates
+C,Pirates,1960s,Roy Face,1962,RP,4.0,3.751737,0.248263,Pirates
+C,Pirates,1960s,Don Hoak,1960,3B,5.2,5.071042,0.128958,Pirates
+C,Pirates,1960s,Jim Pagliaroni,1964,C,3.4,3.904247,-0.504247,Pirates
+C,Pirates,1960s,Bill Mazeroski,1963,2B,4.0,4.773745,-0.773745,Pirates
+D,Pirates,1960s,Donn Clendenon,1966,1B,3.8,5.011969,-1.211969,Pirates
+D,Pirates,1960s,Bob Friend,1962,SP,5.8,7.261004,-1.461004,Pirates
+B,Pirates,1970s,Rich Gossage,1977,RP,6.0,3.751737,2.248263,Pirates
+B,Pirates,1970s,Manny Sanguillen,1971,C,5.0,3.904247,1.095753,Pirates
+B,Pirates,1970s,Willie Stargell,1971,OF,7.9,6.851737,1.048263,Pirates
+C,Pirates,1970s,Richie Hebner,1972,3B,5.5,5.071042,0.428958,Pirates
+C,Pirates,1970s,John Candelaria,1977,SP,7.4,7.261004,0.138996,Pirates
+C,Pirates,1970s,Rennie Stennett,1975,2B,4.8,4.773745,0.026255,Pirates
+C,Pirates,1970s,Bob Robertson,1970,1B,4.2,5.011969,-0.811969,Pirates
+D,Pirates,1970s,Frank Taveras,1976,SS,2.6,4.840927,-2.240927,Pirates
+B,Pirates,1980s,Tony Pena,1984,C,5.5,3.904247,1.595753,Pirates
+B,Pirates,1980s,Barry Bonds,1989,OF,8.0,6.851737,1.148263,Pirates
+C,Pirates,1980s,Bill Madlock,1982,3B,5.8,5.071042,0.728958,Pirates
+C,Pirates,1980s,Kent Tekulve,1983,RP,3.8,3.751737,0.048263,Pirates
+C,Pirates,1980s,Johnny Ray,1983,2B,4.8,4.773745,0.026255,Pirates
+C,Pirates,1980s,Jason Thompson,1982,1B,5.0,5.011969,-0.011969,Pirates
+C,Pirates,1980s,Rick Rhoden,1986,SP,6.6,7.261004,-0.661004,Pirates
+D,Pirates,1980s,Dale Berra,1982,SS,3.1,4.840927,-1.740927,Pirates
+B,Pirates,1990s,Barry Bonds,1990,OF,9.7,6.851737,2.848263,Pirates
+B,Pirates,1990s,Jason Kendall,1998,C,5.7,3.904247,1.795753,Pirates
+B,Pirates,1990s,Jay Bell,1993,SS,6.4,4.840927,1.559073,Pirates
+C,Pirates,1990s,Kevin Young,1999,1B,5.4,5.011969,0.388031,Pirates
+D,Pirates,1990s,Jon Lieber,1996,RP,2.6,3.751737,-1.151737,Pirates
+D,Pirates,1990s,Joe Randa,1997,3B,3.6,5.071042,-1.471042,Pirates
+D,Pirates,1990s,Francisco Cordova,1998,SP,5.5,7.261004,-1.761004,Pirates
+D,Pirates,1990s,Warren Morris,1999,2B,1.8,4.773745,-2.973745,Pirates
+C,Pirates,2000s,Jason Kendall,2000,C,4.7,3.904247,0.795753,Pirates
+C,Pirates,2000s,Jack Wilson,2004,SS,4.5,4.840927,-0.340927,Pirates
+C,Pirates,2000s,Brian Giles,2000,OF,6.4,6.851737,-0.451737,Pirates
+C,Pirates,2000s,Freddy Sanchez,2006,3B,4.5,5.071042,-0.571042,Pirates
+D,Pirates,2000s,Matt Capps,2007,RP,2.6,3.751737,-1.151737,Pirates
+D,Pirates,2000s,Oliver Perez,2004,SP,5.7,7.261004,-1.561004,Pirates
+D,Pirates,2000s,Freddy Sanchez,2007,2B,2.8,4.773745,-1.973745,Pirates
+F,Pirates,2000s,Adam LaRoche,2009,1B,1.9,5.011969,-3.111969,Pirates
+B,Pirates,2010s,Russell Martin,2014,C,5.9,3.904247,1.995753,Pirates
+C,Pirates,2010s,Andrew McCutchen,2013,OF,7.8,6.851737,0.948263,Pirates
+C,Pirates,2010s,Josh Harrison,2014,3B,5.2,5.071042,0.128958,Pirates
+C,Pirates,2010s,Felipe Vazquez,2019,RP,2.9,3.751737,-0.851737,Pirates
+C,Pirates,2010s,Neil Walker,2014,2B,3.9,4.773745,-0.873745,Pirates
+D,Pirates,2010s,Josh Bell,2019,1B,2.8,5.011969,-2.211969,Pirates
+D,Pirates,2010s,Kevin Newman,2019,SS,2.6,4.840927,-2.240927,Pirates
+D,Pirates,2010s,Jameson Taillon,2018,SP,4.8,7.261004,-2.461004,Pirates
+C,Pirates,2020s,Paul Skenes,2025,SP,8.0,7.261004,0.738996,Pirates
+C,Pirates,2020s,Luis Ortiz,2024,RP,3.0,3.751737,-0.751737,Pirates
+C,Pirates,2020s,Bryan Reynolds,2021,OF,6.1,6.851737,-0.751737,Pirates
+C,Pirates,2020s,Jacob Stallings,2021,C,3.0,3.904247,-0.904247,Pirates
+D,Pirates,2020s,Ke'Bryan Hayes,2022,3B,3.8,5.071042,-1.271042,Pirates
+D,Pirates,2020s,Oneil Cruz,2024,SS,3.0,4.840927,-1.840927,Pirates
+F,Pirates,2020s,Adam Frazier,2025,2B,1.3,4.773745,-3.473745,Pirates
+F,Pirates,2020s,Spencer Horwitz,2025,1B,1.5,5.011969,-3.511969,Pirates
+B,Rangers,1970s,Jim Kern,1979,RP,6.1,3.751737,2.348263,Rangers
+B,Rangers,1970s,Toby Harrah,1975,SS,7.1,4.840927,2.259073,Rangers
+B,Rangers,1970s,Buddy Bell,1979,3B,6.9,5.071042,1.828958,Rangers
+B,Rangers,1970s,Jim Sundberg,1978,C,5.3,3.904247,1.395753,Rangers
+C,Rangers,1970s,Mike Hargrove,1977,1B,5.6,5.011969,0.588031,Rangers
+C,Rangers,1970s,Fergie Jenkins,1974,SP,7.7,7.261004,0.438996,Rangers
+C,Rangers,1970s,Bump Wills,1977,2B,5.0,4.773745,0.226255,Rangers
+D,Rangers,1970s,Bobby Bonds,1978,OF,4.4,6.851737,-2.451737,Rangers
+B,Rangers,1980s,Buddy Bell,1980,3B,6.5,5.071042,1.428958,Rangers
+C,Rangers,1980s,Julio Franco,1989,2B,5.4,4.773745,0.626255,Rangers
+C,Rangers,1980s,Jim Sundberg,1981,C,3.7,3.904247,-0.204247,Rangers
+C,Rangers,1980s,Danny Darwin,1980,RP,3.4,3.751737,-0.351737,Rangers
+C,Rangers,1980s,Scott Fletcher,1986,SS,4.4,4.840927,-0.440927,Rangers
+C,Rangers,1980s,Pete O'Brien,1986,1B,4.4,5.011969,-0.611969,Rangers
+C,Rangers,1980s,Charlie Hough,1985,SP,6.3,7.261004,-0.961004,Rangers
+D,Rangers,1980s,Ruben Sierra,1989,OF,5.7,6.851737,-1.151737,Rangers
+B,Rangers,1990s,Ivan Rodriguez,1999,C,6.6,3.904247,2.695753,Rangers
+B,Rangers,1990s,Rafael Palmeiro,1993,1B,6.6,5.011969,1.588031,Rangers
+B,Rangers,1990s,Julio Franco,1990,2B,6.3,4.773745,1.526255,Rangers
+C,Rangers,1990s,Jeff Zimmerman,1999,RP,3.9,3.751737,0.148263,Rangers
+C,Rangers,1990s,Ken Hill,1996,SP,6.6,7.261004,-0.661004,Rangers
+C,Rangers,1990s,Juan Gonzalez,1993,OF,6.1,6.851737,-0.751737,Rangers
+D,Rangers,1990s,Royce Clayton,1999,SS,3.2,4.840927,-1.640927,Rangers
+D,Rangers,1990s,Dean Palmer,1996,3B,2.9,5.071042,-2.171042,Rangers
+A,Rangers,2000s,Alex Rodriguez,2002,SS,8.8,4.840927,3.959073,Rangers
+B,Rangers,2000s,Mark Teixeira,2005,1B,6.6,5.011969,1.588031,Rangers
+B,Rangers,2000s,Ian Kinsler,2009,2B,6.0,4.773745,1.226255,Rangers
+B,Rangers,2000s,Ivan Rodriguez,2001,C,5.0,3.904247,1.095753,Rangers
+C,Rangers,2000s,Hank Blalock,2003,3B,5.6,5.071042,0.528958,Rangers
+C,Rangers,2000s,Francisco Cordero,2004,RP,3.6,3.751737,-0.151737,Rangers
+D,Rangers,2000s,Josh Hamilton,2008,OF,5.5,6.851737,-1.351737,Rangers
+D,Rangers,2000s,Kenny Rogers,2000,SP,5.0,7.261004,-2.261004,Rangers
+B,Rangers,2010s,Ian Kinsler,2011,2B,7.0,4.773745,2.226255,Rangers
+B,Rangers,2010s,Adrian Beltre,2012,3B,7.2,5.071042,2.128958,Rangers
+B,Rangers,2010s,Josh Hamilton,2010,OF,8.7,6.851737,1.848263,Rangers
+C,Rangers,2010s,Mike Napoli,2011,C,4.9,3.904247,0.995753,Rangers
+C,Rangers,2010s,Mike Minor,2019,SP,8.0,7.261004,0.738996,Rangers
+C,Rangers,2010s,Elvis Andrus,2017,SS,4.9,4.840927,0.059073,Rangers
+C,Rangers,2010s,Joe Nathan,2013,RP,3.2,3.751737,-0.551737,Rangers
+D,Rangers,2010s,Mitch Moreland,2015,1B,2.2,5.011969,-2.811969,Rangers
+B,Rangers,2020s,Marcus Semien,2023,2B,7.0,4.773745,2.226255,Rangers
+B,Rangers,2020s,Corey Seager,2023,SS,6.7,4.840927,1.859073,Rangers
+C,Rangers,2020s,Jonah Heim,2023,C,3.5,3.904247,-0.404247,Rangers
+C,Rangers,2020s,Kirby Yates,2024,RP,3.3,3.751737,-0.451737,Rangers
+D,Rangers,2020s,Wyatt Langford,2025,OF,5.5,6.851737,-1.351737,Rangers
+D,Rangers,2020s,Nathaniel Lowe,2022,1B,3.1,5.011969,-1.911969,Rangers
+D,Rangers,2020s,Josh Smith,2024,3B,3.0,5.071042,-2.071042,Rangers
+D,Rangers,2020s,Martín Pérez,2022,SP,5.1,7.261004,-2.161004,Rangers
+D,Rays,1990s,Roberto Hernandez,1999,RP,2.7,3.751737,-1.051737,Rays
+D,Rays,1990s,Fred McGriff,1999,1B,3.8,5.011969,-1.211969,Rays
+D,Rays,1990s,Miguel Cairo,1998,2B,2.8,4.773745,-1.973745,Rays
+D,Rays,1990s,John Flaherty,1999,C,1.8,3.904247,-2.104247,Rays
+D,Rays,1990s,Bob Smith,1998,3B,2.3,5.071042,-2.771042,Rays
+F,Rays,1990s,Aaron Ledesma,1998,SS,1.8,4.840927,-3.040927,Rays
+F,Rays,1990s,Rolando Arrojo,1998,SP,4.1,7.261004,-3.161004,Rays
+F,Rays,1990s,Jose Canseco,1999,OF,2.7,6.851737,-4.151737,Rays
+A,Rays,2000s,Ben Zobrist,2009,2B,8.6,4.773745,3.826255,Rays
+B,Rays,2000s,Evan Longoria,2009,3B,7.0,5.071042,1.928958,Rays
+B,Rays,2000s,Carlos Pena,2007,1B,6.5,5.011969,1.488031,Rays
+C,Rays,2000s,Jason Bartlett,2009,SS,5.7,4.840927,0.859073,Rays
+C,Rays,2000s,Grant Balfour,2008,RP,2.9,3.751737,-0.851737,Rays
+D,Rays,2000s,Scott Kazmir,2007,SP,5.8,7.261004,-1.461004,Rays
+D,Rays,2000s,Toby Hall,2005,C,2.2,3.904247,-1.704247,Rays
+D,Rays,2000s,Carl Crawford,2009,OF,5.0,6.851737,-1.851737,Rays
+A,Rays,2010s,Evan Longoria,2010,3B,8.2,5.071042,3.128958,Rays
+B,Rays,2010s,Ben Zobrist,2011,2B,7.6,4.773745,2.826255,Rays
+C,Rays,2010s,Carl Crawford,2010,OF,7.0,6.851737,0.148263,Rays
+C,Rays,2010s,Fernando Rodney,2012,RP,3.7,3.751737,-0.051737,Rays
+C,Rays,2010s,Blake Snell,2018,SP,7.1,7.261004,-0.161004,Rays
+D,Rays,2010s,Willy Adames,2019,SS,3.6,4.840927,-1.240927,Rays
+D,Rays,2010s,Jose Molina,2012,C,2.5,3.904247,-1.404247,Rays
+D,Rays,2010s,Casey Kotchman,2011,1B,3.0,5.011969,-2.011969,Rays
+C,Rays,2020s,Wander Franco,2023,SS,5.1,4.840927,0.259073,Rays
+C,Rays,2020s,Mike Zunino,2021,C,3.9,3.904247,-0.004247,Rays
+C,Rays,2020s,Yandy Díaz,2023,1B,5.0,5.011969,-0.011969,Rays
+C,Rays,2020s,Brandon Lowe,2021,2B,4.5,4.773745,-0.273745,Rays
+C,Rays,2020s,Junior Caminero,2025,3B,4.3,5.071042,-0.771042,Rays
+D,Rays,2020s,Jason Adam,2022,RP,2.7,3.751737,-1.051737,Rays
+D,Rays,2020s,Randy Arozarena,2021,OF,4.0,6.851737,-2.851737,Rays
+D,Rays,2020s,Drew Rasmussen,2025,SP,4.4,7.261004,-2.861004,Rays
+B,Red Sox,1920s,Howard Ehmke,1924,SP,8.3,7.261004,1.038996,Red Sox
+C,Red Sox,1920s,Wally Schang,1920,C,3.6,3.904247,-0.304247,Red Sox
+C,Red Sox,1920s,Topper Rigney,1926,SS,4.3,4.840927,-0.540927,Red Sox
+D,Red Sox,1920s,George Burns,1923,1B,4.0,5.011969,-1.011969,Red Sox
+D,Red Sox,1920s,Jack Russell,1927,RP,2.6,3.751737,-1.151737,Red Sox
+D,Red Sox,1920s,Del Pratt,1921,2B,3.6,4.773745,-1.173745,Red Sox
+D,Red Sox,1920s,Buddy Myer,1928,3B,3.8,5.071042,-1.271042,Red Sox
+D,Red Sox,1920s,Harry Hooper,1920,OF,5.2,6.851737,-1.651737,Red Sox
+A,Red Sox,1930s,Lefty Grove,1936,SP,11.2,7.261004,3.938996,Red Sox
+B,Red Sox,1930s,Jimmie Foxx,1938,1B,7.4,5.011969,2.388031,Red Sox
+B,Red Sox,1930s,Jack Wilson,1937,RP,5.7,3.751737,1.948263,Red Sox
+B,Red Sox,1930s,Joe Cronin,1938,SS,6.1,4.840927,1.259073,Red Sox
+C,Red Sox,1930s,Billy Werber,1934,3B,5.4,5.071042,0.328958,Red Sox
+C,Red Sox,1930s,Ted Williams,1939,OF,6.6,6.851737,-0.251737,Red Sox
+C,Red Sox,1930s,Rick Ferrell,1936,C,3.0,3.904247,-0.904247,Red Sox
+D,Red Sox,1930s,Bobby Doerr,1939,2B,2.5,4.773745,-2.273745,Red Sox
+A,Red Sox,1940s,Ted Williams,1946,OF,10.6,6.851737,3.748263,Red Sox
+B,Red Sox,1940s,Johnny Pesky,1946,SS,7.2,4.840927,2.359073,Red Sox
+B,Red Sox,1940s,Bobby Doerr,1944,2B,6.1,4.773745,1.326255,Red Sox
+C,Red Sox,1940s,Mel Parnell,1949,SP,8.0,7.261004,0.738996,Red Sox
+C,Red Sox,1940s,Jimmie Foxx,1940,1B,4.4,5.011969,-0.611969,Red Sox
+C,Red Sox,1940s,Johnny Pesky,1949,3B,4.1,5.071042,-0.971042,Red Sox
+D,Red Sox,1940s,Bill Butland,1942,RP,2.7,3.751737,-1.051737,Red Sox
+D,Red Sox,1940s,Hal Wagner,1944,C,2.2,3.904247,-1.704247,Red Sox
+B,Red Sox,1950s,Ted Williams,1957,OF,9.7,6.851737,2.848263,Red Sox
+B,Red Sox,1950s,Ellis Kinder,1951,RP,5.1,3.751737,1.348263,Red Sox
+C,Red Sox,1950s,Pete Runnels,1958,2B,5.5,4.773745,0.726255,Red Sox
+C,Red Sox,1950s,Johnny Pesky,1951,SS,4.4,4.840927,-0.440927,Red Sox
+C,Red Sox,1950s,Frank Sullivan,1957,SP,6.4,7.261004,-0.861004,Red Sox
+D,Red Sox,1950s,Frank Malzone,1958,3B,3.5,5.071042,-1.571042,Red Sox
+D,Red Sox,1950s,Walt Dropo,1950,1B,2.9,5.011969,-2.111969,Red Sox
+D,Red Sox,1950s,Sammy White,1953,C,1.7,3.904247,-2.204247,Red Sox
+S,Red Sox,1960s,Carl Yastrzemski,1967,OF,12.5,6.851737,5.648263,Red Sox
+S,Red Sox,1960s,Rico Petrocelli,1969,SS,10.0,4.840927,5.159073,Red Sox
+B,Red Sox,1960s,Dick Radatz,1964,RP,6.1,3.751737,2.348263,Red Sox
+C,Red Sox,1960s,Pete Runnels,1960,2B,4.5,4.773745,-0.273745,Red Sox
+C,Red Sox,1960s,George Scott,1967,1B,4.4,5.011969,-0.611969,Red Sox
+C,Red Sox,1960s,Joe Foy,1966,3B,4.1,5.071042,-0.971042,Red Sox
+D,Red Sox,1960s,Bob Tillman,1964,C,2.3,3.904247,-1.604247,Red Sox
+D,Red Sox,1960s,Bill Monbouquette,1960,SP,4.9,7.261004,-2.361004,Red Sox
+A,Red Sox,1970s,Carl Yastrzemski,1970,1B,9.5,5.011969,4.488031,Red Sox
+A,Red Sox,1970s,Carlton Fisk,1972,C,7.3,3.904247,3.395753,Red Sox
+B,Red Sox,1970s,Luis Tiant,1972,RP,6.5,3.751737,2.748263,Red Sox
+B,Red Sox,1970s,Fred Lynn,1979,OF,8.9,6.851737,2.048263,Red Sox
+C,Red Sox,1970s,Luis Tiant,1974,SP,7.7,7.261004,0.438996,Red Sox
+C,Red Sox,1970s,Rico Petrocelli,1970,SS,4.8,4.840927,-0.040927,Red Sox
+C,Red Sox,1970s,Rico Petrocelli,1971,3B,4.9,5.071042,-0.171042,Red Sox
+D,Red Sox,1970s,Denny Doyle,1975,2B,1.9,4.773745,-2.873745,Red Sox
+A,Red Sox,1980s,Wade Boggs,1985,3B,9.1,5.071042,4.028958,Red Sox
+B,Red Sox,1980s,Roger Clemens,1987,SP,9.4,7.261004,2.138996,Red Sox
+B,Red Sox,1980s,Rich Gedman,1985,C,5.5,3.904247,1.595753,Red Sox
+C,Red Sox,1980s,Bob Stanley,1982,RP,4.6,3.751737,0.848263,Red Sox
+C,Red Sox,1980s,Mike Greenwell,1988,OF,7.5,6.851737,0.648263,Red Sox
+C,Red Sox,1980s,Dwight Evans,1987,1B,4.8,5.011969,-0.211969,Red Sox
+D,Red Sox,1980s,Jody Reed,1988,SS,3.4,4.840927,-1.440927,Red Sox
+D,Red Sox,1980s,Dave Stapleton,1980,2B,3.1,4.773745,-1.673745,Red Sox
+A,Red Sox,1990s,John Valentin,1995,SS,8.3,4.840927,3.459073,Red Sox
+A,Red Sox,1990s,Roger Clemens,1990,SP,10.4,7.261004,3.138996,Red Sox
+B,Red Sox,1990s,Wade Boggs,1991,3B,6.4,5.071042,1.328958,Red Sox
+C,Red Sox,1990s,Mo Vaughn,1998,1B,6.0,5.011969,0.988031,Red Sox
+C,Red Sox,1990s,John Valentin,1997,2B,4.7,4.773745,-0.073745,Red Sox
+C,Red Sox,1990s,Derek Lowe,1999,RP,3.5,3.751737,-0.251737,Red Sox
+D,Red Sox,1990s,Mike Stanley,1996,C,2.3,3.904247,-1.604247,Red Sox
+F,Red Sox,1990s,Mike Greenwell,1993,OF,3.6,6.851737,-3.251737,Red Sox
+A,Red Sox,2000s,Pedro Martinez,2000,SP,11.7,7.261004,4.438996,Red Sox
+B,Red Sox,2000s,Nomar Garciaparra,2000,SS,7.4,4.840927,2.559073,Red Sox
+B,Red Sox,2000s,Dustin Pedroia,2008,2B,6.9,4.773745,2.126255,Red Sox
+B,Red Sox,2000s,David Ortiz,2007,1B,6.3,5.011969,1.288031,Red Sox
+B,Red Sox,2000s,Jonathan Papelbon,2006,RP,5.0,3.751737,1.248263,Red Sox
+C,Red Sox,2000s,Bill Mueller,2003,3B,5.2,5.071042,0.128958,Red Sox
+C,Red Sox,2000s,Jason Varitek,2004,C,4.0,3.904247,0.095753,Red Sox
+C,Red Sox,2000s,Manny Ramirez,2002,OF,6.0,6.851737,-0.851737,Red Sox
+A,Red Sox,2010s,Mookie Betts,2018,OF,10.7,6.851737,3.848263,Red Sox
+A,Red Sox,2010s,Dustin Pedroia,2011,2B,8.0,4.773745,3.226255,Red Sox
+B,Red Sox,2010s,Adrian Beltre,2010,3B,7.8,5.071042,2.728958,Red Sox
+B,Red Sox,2010s,Adrian Gonzalez,2011,1B,6.5,5.011969,1.488031,Red Sox
+B,Red Sox,2010s,Xander Bogaerts,2019,SS,6.1,4.840927,1.259073,Red Sox
+C,Red Sox,2010s,Craig Kimbrel,2017,RP,3.6,3.751737,-0.151737,Red Sox
+C,Red Sox,2010s,Victor Martinez,2010,C,3.6,3.904247,-0.304247,Red Sox
+C,Red Sox,2010s,Chris Sale,2018,SP,6.5,7.261004,-0.761004,Red Sox
+B,Red Sox,2020s,Xander Bogaerts,2022,SS,5.9,4.840927,1.059073,Red Sox
+C,Red Sox,2020s,Jarren Duran,2024,OF,7.7,6.851737,0.848263,Red Sox
+C,Red Sox,2020s,Aroldis Chapman,2025,RP,3.4,3.751737,-0.351737,Red Sox
+C,Red Sox,2020s,Rafael Devers,2022,3B,4.7,5.071042,-0.371042,Red Sox
+D,Red Sox,2020s,Carlos Narvaez,2025,C,2.8,3.904247,-1.104247,Red Sox
+D,Red Sox,2020s,Garrett Crochet,2025,SP,6.0,7.261004,-1.261004,Red Sox
+D,Red Sox,2020s,Trevor Story,2022,2B,2.5,4.773745,-2.273745,Red Sox
+D,Red Sox,2020s,Romy Gonzalez,2025,1B,2.1,5.011969,-2.911969,Red Sox
+A,Reds,1920s,Dolf Luque,1923,SP,10.7,7.261004,3.438996,Reds
+B,Reds,1920s,Bubbles Hargrave,1923,C,5.0,3.904247,1.095753,Reds
+C,Reds,1920s,Chuck Dressen,1927,3B,4.6,5.071042,-0.471042,Reds
+C,Reds,1920s,Jake Daubert,1922,1B,4.3,5.011969,-0.711969,Reds
+C,Reds,1920s,Edd Roush,1920,OF,5.9,6.851737,-0.951737,Reds
+D,Reds,1920s,Jakie May,1926,RP,2.7,3.751737,-1.051737,Reds
+D,Reds,1920s,Hughie Critz,1926,2B,3.7,4.773745,-1.073745,Reds
+D,Reds,1920s,Hod Ford,1928,SS,2.0,4.840927,-2.840927,Reds
+B,Reds,1930s,Lonny Frey,1939,2B,6.3,4.773745,1.526255,Reds
+B,Reds,1930s,Ernie Lombardi,1938,C,5.0,3.904247,1.095753,Reds
+C,Reds,1930s,Bucky Walters,1939,SP,8.2,7.261004,0.938996,Reds
+C,Reds,1930s,Billy Myers,1939,SS,5.4,4.840927,0.559073,Reds
+C,Reds,1930s,Frank McCormick,1939,1B,5.1,5.011969,0.088031,Reds
+C,Reds,1930s,Babe Herman,1932,OF,6.3,6.851737,-0.551737,Reds
+C,Reds,1930s,Gene Thompson,1939,RP,3.1,3.751737,-0.651737,Reds
+C,Reds,1930s,Billy Werber,1939,3B,4.3,5.071042,-0.771042,Reds
+B,Reds,1940s,Ewell Blackwell,1947,SP,9.4,7.261004,2.138996,Reds
+B,Reds,1940s,Lonny Frey,1940,2B,6.5,4.773745,1.726255,Reds
+C,Reds,1940s,Frank McCormick,1944,1B,5.9,5.011969,0.888031,Reds
+C,Reds,1940s,Ray Mueller,1944,C,3.7,3.904247,-0.204247,Reds
+C,Reds,1940s,Billy Werber,1940,3B,4.8,5.071042,-0.271042,Reds
+C,Reds,1940s,Joe Beggs,1940,RP,3.0,3.751737,-0.751737,Reds
+D,Reds,1940s,Eddie Miller,1943,SS,2.9,4.840927,-1.940927,Reds
+D,Reds,1940s,Eric Tipton,1943,OF,4.4,6.851737,-2.451737,Reds
+B,Reds,1950s,Ted Kluszewski,1954,1B,7.8,5.011969,2.788031,Reds
+C,Reds,1950s,Ed Bailey,1956,C,4.9,3.904247,0.995753,Reds
+C,Reds,1950s,Ewell Blackwell,1950,SP,7.5,7.261004,0.238996,Reds
+C,Reds,1950s,Frank Robinson,1957,OF,6.9,6.851737,0.048263,Reds
+C,Reds,1950s,Hersh Freeman,1955,RP,3.2,3.751737,-0.551737,Reds
+C,Reds,1950s,Roy McMillan,1956,SS,4.1,4.840927,-0.740927,Reds
+D,Reds,1950s,Don Hoak,1957,3B,3.8,5.071042,-1.271042,Reds
+D,Reds,1950s,Johnny Temple,1958,2B,3.5,4.773745,-1.273745,Reds
+B,Reds,1960s,Ted Abernathy,1967,RP,6.2,3.751737,2.448263,Reds
+B,Reds,1960s,Johnny Bench,1969,C,6.2,3.904247,2.295753,Reds
+B,Reds,1960s,Frank Robinson,1962,OF,8.7,6.851737,1.848263,Reds
+B,Reds,1960s,Frank Robinson,1960,1B,6.2,5.011969,1.188031,Reds
+C,Reds,1960s,Jim Maloney,1965,SP,8.2,7.261004,0.938996,Reds
+C,Reds,1960s,Tony Perez,1969,3B,6.0,5.071042,0.928958,Reds
+C,Reds,1960s,Pete Rose,1965,2B,5.6,4.773745,0.826255,Reds
+C,Reds,1960s,Leo Cardenas,1962,SS,4.2,4.840927,-0.640927,Reds
+S,Reds,1970s,Joe Morgan,1975,2B,11.0,4.773745,6.226255,Reds
+A,Reds,1970s,Johnny Bench,1972,C,8.6,3.904247,4.695753,Reds
+B,Reds,1970s,Tony Perez,1970,3B,7.2,5.071042,2.128958,Reds
+B,Reds,1970s,George Foster,1977,OF,8.4,6.851737,1.548263,Reds
+C,Reds,1970s,Dave Concepcion,1974,SS,5.6,4.840927,0.759073,Reds
+C,Reds,1970s,Tom Seaver,1977,SP,7.9,7.261004,0.638996,Reds
+C,Reds,1970s,Lee May,1971,1B,5.3,5.011969,0.288031,Reds
+C,Reds,1970s,Doug Bair,1978,RP,4.0,3.751737,0.248263,Reds
+B,Reds,1980s,Barry Larkin,1988,SS,7.0,4.840927,2.159073,Reds
+B,Reds,1980s,Eric Davis,1987,OF,7.9,6.851737,1.048263,Reds
+C,Reds,1980s,Mario Soto,1982,SP,7.5,7.261004,0.238996,Reds
+C,Reds,1980s,Jose Rijo,1988,RP,3.9,3.751737,0.148263,Reds
+C,Reds,1980s,Chris Sabo,1988,3B,4.9,5.071042,-0.171042,Reds
+C,Reds,1980s,Johnny Bench,1980,C,3.4,3.904247,-0.504247,Reds
+D,Reds,1980s,Ron Oester,1985,2B,3.6,4.773745,-1.173745,Reds
+D,Reds,1980s,Dan Driessen,1980,1B,2.8,5.011969,-2.211969,Reds
+B,Reds,1990s,Barry Larkin,1996,SS,7.2,4.840927,2.359073,Reds
+B,Reds,1990s,Jose Rijo,1993,SP,9.2,7.261004,1.938996,Reds
+C,Reds,1990s,Rob Dibble,1990,RP,4.0,3.751737,0.248263,Reds
+C,Reds,1990s,Chris Sabo,1991,3B,5.2,5.071042,0.128958,Reds
+C,Reds,1990s,Reggie Sanders,1995,OF,6.6,6.851737,-0.251737,Reds
+C,Reds,1990s,Pokey Reese,1999,2B,4.1,4.773745,-0.673745,Reds
+C,Reds,1990s,Sean Casey,1999,1B,4.1,5.011969,-0.911969,Reds
+D,Reds,1990s,Joe Oliver,1992,C,1.8,3.904247,-2.104247,Reds
+C,Reds,2000s,Joey Votto,2009,1B,4.8,5.011969,-0.211969,Reds
+C,Reds,2000s,Felipe Lopez,2005,SS,4.5,4.840927,-0.340927,Reds
+C,Reds,2000s,Bronson Arroyo,2006,SP,6.8,7.261004,-0.461004,Reds
+C,Reds,2000s,Brandon Phillips,2007,2B,4.2,4.773745,-0.573745,Reds
+C,Reds,2000s,Danny Graves,2000,RP,2.8,3.751737,-0.951737,Reds
+D,Reds,2000s,Jason LaRue,2005,C,2.7,3.904247,-1.204247,Reds
+D,Reds,2000s,Ken Griffey,2000,OF,5.5,6.851737,-1.351737,Reds
+D,Reds,2000s,Aaron Boone,2002,3B,3.0,5.071042,-2.071042,Reds
+B,Reds,2010s,Joey Votto,2017,1B,7.9,5.011969,2.888031,Reds
+C,Reds,2010s,Devin Mesoraco,2014,C,4.4,3.904247,0.495753,Reds
+C,Reds,2010s,Brandon Phillips,2011,2B,5.1,4.773745,0.326255,Reds
+C,Reds,2010s,Zack Cozart,2017,SS,4.6,4.840927,-0.240927,Reds
+C,Reds,2010s,Aroldis Chapman,2012,RP,3.4,3.751737,-0.351737,Reds
+C,Reds,2010s,Todd Frazier,2014,3B,4.6,5.071042,-0.471042,Reds
+C,Reds,2010s,Johnny Cueto,2014,SP,6.6,7.261004,-0.661004,Reds
+D,Reds,2010s,Shin-Soo Choo,2013,OF,5.5,6.851737,-1.351737,Reds
+C,Reds,2020s,Elly De La Cruz,2024,SS,5.8,4.840927,0.959073,Reds
+C,Reds,2020s,Nick Martinez,2024,RP,4.0,3.751737,0.248263,Reds
+D,Reds,2020s,Hunter Greene,2024,SP,6.2,7.261004,-1.061004,Reds
+D,Reds,2020s,Jonathan India,2021,2B,3.7,4.773745,-1.073745,Reds
+D,Reds,2020s,Tyler Stephenson,2024,C,2.7,3.904247,-1.204247,Reds
+D,Reds,2020s,Joey Votto,2021,1B,3.3,5.011969,-1.711969,Reds
+F,Reds,2020s,TJ Friedl,2023,OF,3.7,6.851737,-3.151737,Reds
+F,Reds,2020s,Eugenio Suarez,2020,3B,0.8,5.071042,-4.271042,Reds
+B,Rockies,1990s,Larry Walker,1997,OF,9.8,6.851737,2.948263,Rockies
+C,Rockies,1990s,Steve Reed,1995,RP,4.1,3.751737,0.348263,Rockies
+C,Rockies,1990s,Vinny Castilla,1998,3B,5.0,5.071042,-0.071042,Rockies
+D,Rockies,1990s,Andres Galarraga,1993,1B,3.8,5.011969,-1.211969,Rockies
+D,Rockies,1990s,Pedro Astacio,1999,SP,5.9,7.261004,-1.361004,Rockies
+D,Rockies,1990s,Eric Young,1996,2B,3.0,4.773745,-1.773745,Rockies
+D,Rockies,1990s,Jeff Reed,1997,C,2.1,3.904247,-1.804247,Rockies
+F,Rockies,1990s,Walt Weiss,1997,SS,1.8,4.840927,-3.040927,Rockies
+A,Rockies,2000s,Todd Helton,2000,1B,8.9,5.011969,3.888031,Rockies
+B,Rockies,2000s,Troy Tulowitzki,2007,SS,6.0,4.840927,1.159073,Rockies
+C,Rockies,2000s,Larry Walker,2001,OF,7.8,6.851737,0.948263,Rockies
+C,Rockies,2000s,Gabe White,2000,RP,4.5,3.751737,0.748263,Rockies
+C,Rockies,2000s,Garrett Atkins,2006,3B,5.2,5.071042,0.128958,Rockies
+D,Rockies,2000s,Joe Kennedy,2004,SP,5.6,7.261004,-1.661004,Rockies
+D,Rockies,2000s,Kazuo Matsui,2007,2B,3.1,4.773745,-1.673745,Rockies
+D,Rockies,2000s,Chris Iannetta,2008,C,1.9,3.904247,-2.004247,Rockies
+B,Rockies,2010s,Trevor Story,2019,SS,6.5,4.840927,1.659073,Rockies
+B,Rockies,2010s,Nolan Arenado,2019,3B,6.6,5.071042,1.528958,Rockies
+C,Rockies,2010s,Kyle Freeland,2018,SP,7.8,7.261004,0.538996,Rockies
+C,Rockies,2010s,DJ LeMahieu,2016,2B,5.2,4.773745,0.426255,Rockies
+C,Rockies,2010s,Rex Brothers,2013,RP,3.1,3.751737,-0.651737,Rockies
+D,Rockies,2010s,Carlos Gonzalez,2010,OF,5.8,6.851737,-1.051737,Rockies
+D,Rockies,2010s,Miguel Olivo,2010,C,2.5,3.904247,-1.404247,Rockies
+D,Rockies,2010s,Justin Morneau,2014,1B,2.9,5.011969,-2.111969,Rockies
+C,Rockies,2020s,Daniel Bard,2022,RP,3.7,3.751737,-0.051737,Rockies
+C,Rockies,2020s,Hunter Goodman,2025,C,3.7,3.904247,-0.204247,Rockies
+D,Rockies,2020s,Ezequiel Tovar,2024,SS,3.7,4.840927,-1.140927,Rockies
+D,Rockies,2020s,Brendan Rodgers,2022,2B,3.1,4.773745,-1.673745,Rockies
+D,Rockies,2020s,Ryan McMahon,2021,3B,3.3,5.071042,-1.771042,Rockies
+D,Rockies,2020s,C. J. Cron,2021,1B,2.9,5.011969,-2.111969,Rockies
+D,Rockies,2020s,Nolan Jones,2023,OF,4.0,6.851737,-2.851737,Rockies
+F,Rockies,2020s,German Marquez,2021,SP,2.4,7.261004,-4.861004,Rockies
+C,Royals,1960s,Moe Drabowsky,1969,RP,3.0,3.751737,-0.751737,Royals
+D,Royals,1960s,Mike Fiore,1969,1B,2.8,5.011969,-2.211969,Royals
+F,Royals,1960s,Wally Bunker,1969,SP,4.2,7.261004,-3.061004,Royals
+F,Royals,1960s,Ellie Rodriguez,1969,C,0.8,3.904247,-3.104247,Royals
+F,Royals,1960s,Joe Foy,1969,3B,1.6,5.071042,-3.471042,Royals
+F,Royals,1960s,Ed Kirkpatrick,1969,OF,3.1,6.851737,-3.751737,Royals
+F,Royals,1960s,Jerry Adair,1969,2B,-0.6,4.773745,-5.373745,Royals
+F,Royals,1960s,Jackie Hernandez,1969,SS,-1.0,4.840927,-5.840927,Royals
+A,Royals,1970s,Darrell Porter,1979,C,7.6,3.904247,3.695753,Royals
+A,Royals,1970s,George Brett,1979,3B,8.6,5.071042,3.528958,Royals
+B,Royals,1970s,John Mayberry,1975,1B,7.2,5.011969,2.188031,Royals
+C,Royals,1970s,Amos Otis,1978,OF,7.4,6.851737,0.548263,Royals
+C,Royals,1970s,Mark Littell,1976,RP,3.1,3.751737,-0.651737,Royals
+C,Royals,1970s,Steve Busby,1974,SP,6.5,7.261004,-0.761004,Royals
+D,Royals,1970s,Frank White,1978,2B,3.6,4.773745,-1.173745,Royals
+D,Royals,1970s,Freddie Patek,1971,SS,3.6,4.840927,-1.240927,Royals
+A,Royals,1980s,George Brett,1980,3B,9.4,5.071042,4.328958,Royals
+B,Royals,1980s,Bret Saberhagen,1989,SP,9.7,7.261004,2.438996,Royals
+B,Royals,1980s,Dan Quisenberry,1983,RP,5.5,3.751737,1.748263,Royals
+B,Royals,1980s,Willie Wilson,1980,OF,8.5,6.851737,1.648263,Royals
+C,Royals,1980s,George Brett,1988,1B,5.2,5.011969,0.188031,Royals
+C,Royals,1980s,Frank White,1986,2B,4.2,4.773745,-0.573745,Royals
+D,Royals,1980s,John Wathan,1980,C,2.7,3.904247,-1.204247,Royals
+D,Royals,1980s,U. L. Washington,1982,SS,3.0,4.840927,-1.840927,Royals
+B,Royals,1990s,Kevin Appier,1993,SP,9.3,7.261004,2.038996,Royals
+B,Royals,1990s,Steve Farr,1990,RP,4.8,3.751737,1.048263,Royals
+C,Royals,1990s,Jay Bell,1997,SS,5.4,4.840927,0.559073,Royals
+C,Royals,1990s,Jose Offerman,1998,2B,5.0,4.773745,0.226255,Royals
+C,Royals,1990s,Mike Macfarlane,1993,C,3.2,3.904247,-0.704247,Royals
+C,Royals,1990s,George Brett,1990,1B,4.1,5.011969,-0.911969,Royals
+D,Royals,1990s,Gary Gaetti,1995,3B,3.4,5.071042,-1.671042,Royals
+D,Royals,1990s,Johnny Damon,1999,OF,4.8,6.851737,-2.051737,Royals
+A,Royals,2000s,Zack Greinke,2009,SP,10.4,7.261004,3.138996,Royals
+C,Royals,2000s,Joakim Soria,2008,RP,3.6,3.751737,-0.151737,Royals
+C,Royals,2000s,Mike Sweeney,2002,1B,4.8,5.011969,-0.211969,Royals
+C,Royals,2000s,Mike Aviles,2008,SS,4.5,4.840927,-0.340927,Royals
+C,Royals,2000s,Carlos Beltran,2001,OF,6.5,6.851737,-0.351737,Royals
+D,Royals,2000s,Mark Teahen,2006,3B,3.4,5.071042,-1.671042,Royals
+D,Royals,2000s,Mark Grudzielanek,2006,2B,3.0,4.773745,-1.773745,Royals
+D,Royals,2000s,Miguel Olivo,2009,C,1.6,3.904247,-2.304247,Royals
+C,Royals,2010s,Brad Keller,2018,RP,4.2,3.751737,0.448263,Royals
+C,Royals,2010s,Alex Gordon,2011,OF,7.3,6.851737,0.448263,Royals
+C,Royals,2010s,Whit Merrifield,2018,2B,4.8,4.773745,0.026255,Royals
+C,Royals,2010s,Salvador Perez,2013,C,3.7,3.904247,-0.204247,Royals
+D,Royals,2010s,Eric Hosmer,2017,1B,4.0,5.011969,-1.011969,Royals
+D,Royals,2010s,Mike Moustakas,2015,3B,3.9,5.071042,-1.171042,Royals
+D,Royals,2010s,Alcides Escobar,2014,SS,3.1,4.840927,-1.740927,Royals
+D,Royals,2010s,James Shields,2013,SP,4.7,7.261004,-2.561004,Royals
+S,Royals,2020s,Bobby Witt Jr.,2024,SS,9.9,4.840927,5.059073,Royals
+C,Royals,2020s,Maikel Garcia,2025,3B,5.8,5.071042,0.728958,Royals
+C,Royals,2020s,Salvador Perez,2021,C,4.0,3.904247,0.095753,Royals
+C,Royals,2020s,Scott Barlow,2021,RP,2.8,3.751737,-0.951737,Royals
+D,Royals,2020s,Whit Merrifield,2021,2B,3.2,4.773745,-1.573745,Royals
+D,Royals,2020s,Seth Lugo,2024,SP,5.4,7.261004,-1.861004,Royals
+D,Royals,2020s,Vinnie Pasquantino,2025,1B,2.4,5.011969,-2.611969,Royals
+F,Royals,2020s,Michael Taylor,2021,OF,2.6,6.851737,-4.251737,Royals
+B,Tigers,1920s,Harry Heilmann,1923,OF,9.3,6.851737,2.448263,Tigers
+B,Tigers,1920s,Charlie Gehringer,1929,2B,5.9,4.773745,1.126255,Tigers
+C,Tigers,1920s,Johnny Bassler,1924,C,4.1,3.904247,0.195753,Tigers
+C,Tigers,1920s,Dale Alexander,1929,1B,4.8,5.011969,-0.211969,Tigers
+C,Tigers,1920s,Topper Rigney,1924,SS,4.4,4.840927,-0.440927,Tigers
+D,Tigers,1920s,Rip Collins,1926,RP,2.7,3.751737,-1.051737,Tigers
+D,Tigers,1920s,Herman Pillette,1922,SP,5.8,7.261004,-1.461004,Tigers
+D,Tigers,1920s,Marty McManus,1929,3B,2.9,5.071042,-2.171042,Tigers
+A,Tigers,1930s,Charlie Gehringer,1934,2B,8.9,4.773745,4.126255,Tigers
+B,Tigers,1930s,Hank Greenberg,1935,1B,7.5,5.011969,2.488031,Tigers
+C,Tigers,1930s,Bobo Newsom,1939,SP,8.2,7.261004,0.938996,Tigers
+C,Tigers,1930s,Mickey Cochrane,1935,C,4.8,3.904247,0.895753,Tigers
+C,Tigers,1930s,Billy Rogell,1933,SS,5.3,4.840927,0.459073,Tigers
+C,Tigers,1930s,Harry Eisenstat,1938,RP,3.2,3.751737,-0.551737,Tigers
+C,Tigers,1930s,Marty McManus,1930,3B,4.2,5.071042,-0.871042,Tigers
+D,Tigers,1930s,Pete Fox,1935,OF,3.9,6.851737,-2.951737,Tigers
+A,Tigers,1940s,Hal Newhouser,1945,SP,11.3,7.261004,4.038996,Tigers
+B,Tigers,1940s,Al Benton,1941,RP,5.7,3.751737,1.948263,Tigers
+B,Tigers,1940s,Hank Greenberg,1946,1B,6.5,5.011969,1.488031,Tigers
+C,Tigers,1940s,Hank Greenberg,1940,OF,6.7,6.851737,-0.151737,Tigers
+C,Tigers,1940s,George Kell,1949,3B,4.9,5.071042,-0.171042,Tigers
+C,Tigers,1940s,Eddie Mayo,1945,2B,4.6,4.773745,-0.173745,Tigers
+D,Tigers,1940s,Aaron Robinson,1949,C,2.6,3.904247,-1.304247,Tigers
+D,Tigers,1940s,Johnny Lipon,1948,SS,2.9,4.840927,-1.940927,Tigers
+B,Tigers,1950s,Al Kaline,1955,OF,8.3,6.851737,1.448263,Tigers
+C,Tigers,1950s,Eddie Yost,1959,3B,5.8,5.071042,0.728958,Tigers
+C,Tigers,1950s,Harvey Kuenn,1956,SS,4.9,4.840927,0.059073,Tigers
+C,Tigers,1950s,Jerry Priddy,1950,2B,4.6,4.773745,-0.173745,Tigers
+C,Tigers,1950s,Frank Lary,1958,SP,6.7,7.261004,-0.561004,Tigers
+D,Tigers,1950s,Red Wilson,1956,C,2.3,3.904247,-1.604247,Tigers
+D,Tigers,1950s,Herb Moford,1958,RP,1.6,3.751737,-2.151737,Tigers
+D,Tigers,1950s,Earl Torgeson,1955,1B,2.3,5.011969,-2.711969,Tigers
+A,Tigers,1960s,Norm Cash,1961,1B,9.2,5.011969,4.188031,Tigers
+B,Tigers,1960s,Bill Freehan,1968,C,6.9,3.904247,2.995753,Tigers
+B,Tigers,1960s,Al Kaline,1961,OF,8.4,6.851737,1.548263,Tigers
+C,Tigers,1960s,Dick McAuliffe,1966,SS,5.8,4.840927,0.959073,Tigers
+C,Tigers,1960s,Denny McLain,1969,SP,8.1,7.261004,0.838996,Tigers
+C,Tigers,1960s,Dick McAuliffe,1968,2B,5.4,4.773745,0.626255,Tigers
+C,Tigers,1960s,Terry Fox,1962,RP,3.7,3.751737,-0.051737,Tigers
+D,Tigers,1960s,Don Wert,1965,3B,3.4,5.071042,-1.671042,Tigers
+A,Tigers,1970s,John Hiller,1973,RP,7.9,3.751737,4.148263,Tigers
+B,Tigers,1970s,Mark Fidrych,1976,SP,9.6,7.261004,2.338996,Tigers
+C,Tigers,1970s,Bill Freehan,1971,C,4.3,3.904247,0.395753,Tigers
+C,Tigers,1970s,Jason Thompson,1978,1B,5.3,5.011969,0.288031,Tigers
+C,Tigers,1970s,Lou Whitaker,1979,2B,4.1,4.773745,-0.673745,Tigers
+D,Tigers,1970s,Alan Trammell,1978,SS,2.8,4.840927,-2.040927,Tigers
+D,Tigers,1970s,Ron LeFlore,1976,OF,4.7,6.851737,-2.151737,Tigers
+D,Tigers,1970s,Aurelio Rodriguez,1972,3B,2.5,5.071042,-2.571042,Tigers
+A,Tigers,1980s,Alan Trammell,1987,SS,8.2,4.840927,3.359073,Tigers
+B,Tigers,1980s,Lou Whitaker,1983,2B,6.3,4.773745,1.526255,Tigers
+B,Tigers,1980s,Lance Parrish,1982,C,5.1,3.904247,1.195753,Tigers
+B,Tigers,1980s,Willie Hernandez,1984,RP,4.8,3.751737,1.048263,Tigers
+C,Tigers,1980s,Darrell Evans,1987,1B,4.9,5.011969,-0.111969,Tigers
+C,Tigers,1980s,Chet Lemon,1984,OF,6.2,6.851737,-0.651737,Tigers
+D,Tigers,1980s,Jack Morris,1986,SP,5.1,7.261004,-2.161004,Tigers
+D,Tigers,1980s,Tom Brookens,1980,3B,2.3,5.071042,-2.771042,Tigers
+B,Tigers,1990s,Alan Trammell,1990,SS,6.7,4.840927,1.859073,Tigers
+B,Tigers,1990s,Mickey Tettleton,1991,C,5.6,3.904247,1.695753,Tigers
+B,Tigers,1990s,Lou Whitaker,1991,2B,6.4,4.773745,1.626255,Tigers
+B,Tigers,1990s,Cecil Fielder,1990,1B,6.5,5.011969,1.488031,Tigers
+C,Tigers,1990s,Justin Thompson,1997,SP,7.7,7.261004,0.438996,Tigers
+C,Tigers,1990s,Tony Phillips,1990,3B,4.6,5.071042,-0.471042,Tigers
+C,Tigers,1990s,Doug Brocail,1999,RP,3.1,3.751737,-0.651737,Tigers
+D,Tigers,1990s,Tony Phillips,1993,OF,5.4,6.851737,-1.451737,Tigers
+B,Tigers,2000s,Carlos Guillen,2006,SS,5.9,4.840927,1.059073,Tigers
+C,Tigers,2000s,Placido Polanco,2007,2B,5.7,4.773745,0.926255,Tigers
+C,Tigers,2000s,Curtis Granderson,2007,OF,7.6,6.851737,0.748263,Tigers
+C,Tigers,2000s,Ivan Rodriguez,2004,C,4.6,3.904247,0.695753,Tigers
+C,Tigers,2000s,Miguel Cabrera,2009,1B,5.1,5.011969,0.088031,Tigers
+C,Tigers,2000s,Brandon Inge,2006,3B,4.6,5.071042,-0.471042,Tigers
+C,Tigers,2000s,Joel Zumaya,2006,RP,3.2,3.751737,-0.551737,Tigers
+D,Tigers,2000s,Justin Verlander,2009,SP,5.5,7.261004,-1.761004,Tigers
+B,Tigers,2010s,Miguel Cabrera,2011,1B,7.6,5.011969,2.588031,Tigers
+B,Tigers,2010s,Miguel Cabrera,2013,3B,7.5,5.071042,2.428958,Tigers
+B,Tigers,2010s,Justin Verlander,2011,SP,8.6,7.261004,1.338996,Tigers
+B,Tigers,2010s,Alex Avila,2011,C,5.0,3.904247,1.095753,Tigers
+C,Tigers,2010s,Ian Kinsler,2016,2B,5.6,4.773745,0.826255,Tigers
+C,Tigers,2010s,Jhonny Peralta,2011,SS,4.3,4.840927,-0.540927,Tigers
+C,Tigers,2010s,Joaquin Benoit,2013,RP,2.8,3.751737,-0.951737,Tigers
+D,Tigers,2010s,J. D. Martinez,2015,OF,5.4,6.851737,-1.451737,Tigers
+C,Tigers,2020s,Dillon Dingler,2025,C,3.2,3.904247,-0.704247,Tigers
+C,Tigers,2020s,Tyler Holton,2024,RP,3.0,3.751737,-0.751737,Tigers
+C,Tigers,2020s,Tarik Skubal,2024,SP,6.4,7.261004,-0.861004,Tigers
+D,Tigers,2020s,Jeimer Candelario,2021,3B,3.7,5.071042,-1.371042,Tigers
+D,Tigers,2020s,Gleyber Torres,2025,2B,3.0,4.773745,-1.773745,Tigers
+D,Tigers,2020s,Riley Greene,2024,OF,4.7,6.851737,-2.151737,Tigers
+D,Tigers,2020s,Spencer Torkelson,2025,1B,2.4,5.011969,-2.611969,Tigers
+D,Tigers,2020s,Javier Báez,2022,SS,2.2,4.840927,-2.640927,Tigers
+C,Twins,1920s,Goose Goslin,1928,OF,7.5,6.851737,0.648263,Senators
+C,Twins,1920s,Garland Braxton,1927,RP,3.9,3.751737,0.148263,Senators
+C,Twins,1920s,Muddy Ruel,1923,C,4.0,3.904247,0.095753,Senators
+C,Twins,1920s,Roger Peckinpaugh,1924,SS,4.4,4.840927,-0.440927,Senators
+C,Twins,1920s,George Mogridge,1921,SP,6.8,7.261004,-0.461004,Senators
+C,Twins,1920s,Ossie Bluege,1928,3B,4.1,5.071042,-0.971042,Senators
+D,Twins,1920s,Joe Judge,1920,1B,4.0,5.011969,-1.011969,Senators
+D,Twins,1920s,Bucky Harris,1923,2B,2.9,4.773745,-1.873745,Senators
+A,Twins,1930s,Joe Cronin,1930,SS,8.5,4.840927,3.659073,Senators
+B,Twins,1930s,Buddy Myer,1935,2B,6.2,4.773745,1.426255,Senators
+C,Twins,1930s,Bobby Burke,1934,RP,4.3,3.751737,0.548263,Senators
+C,Twins,1930s,Buddy Lewis,1939,3B,5.6,5.071042,0.528958,Senators
+C,Twins,1930s,General Crowder,1932,SP,6.6,7.261004,-0.661004,Senators
+D,Twins,1930s,Rick Ferrell,1938,C,2.9,3.904247,-1.004247,Senators
+D,Twins,1930s,Joe Judge,1930,1B,3.9,5.011969,-1.111969,Senators
+D,Twins,1930s,Heinie Manush,1932,OF,5.6,6.851737,-1.251737,Senators
+B,Twins,1940s,Cecil Travis,1941,SS,6.5,4.840927,1.659073,Senators
+C,Twins,1940s,Mickey Vernon,1946,1B,5.7,5.011969,0.688031,Senators
+C,Twins,1940s,Stan Spence,1944,OF,6.1,6.851737,-0.751737,Senators
+C,Twins,1940s,George Myatt,1945,2B,3.9,4.773745,-0.873745,Senators
+D,Twins,1940s,Jake Early,1943,C,2.8,3.904247,-1.104247,Senators
+D,Twins,1940s,Roger Wolff,1945,SP,6.0,7.261004,-1.261004,Senators
+D,Twins,1940s,Mickey Haefner,1943,RP,2.4,3.751737,-1.351737,Senators
+D,Twins,1940s,Cecil Travis,1940,3B,3.5,5.071042,-1.571042,Senators
+B,Twins,1950s,Dick Hyde,1958,RP,4.8,3.751737,1.048263,Senators
+C,Twins,1950s,Camilo Pascual,1959,SP,7.8,7.261004,0.538996,Senators
+C,Twins,1950s,Mickey Vernon,1953,1B,5.4,5.011969,0.388031,Senators
+C,Twins,1950s,Eddie Yost,1953,3B,5.0,5.071042,-0.071042,Senators
+D,Twins,1950s,Wayne Terwilliger,1953,2B,2.9,4.773745,-1.873745,Senators
+D,Twins,1950s,Lou Berberet,1956,C,1.9,3.904247,-2.004247,Senators
+D,Twins,1950s,Roy Sievers,1957,OF,4.6,6.851737,-2.251737,Senators
+D,Twins,1950s,Pete Runnels,1954,SS,2.5,4.840927,-2.340927,Senators
+B,Twins,1960s,Zoilo Versalles,1965,SS,7.2,4.840927,2.359073,Twins
+B,Twins,1960s,Harmon Killebrew,1967,1B,6.5,5.011969,1.488031,Twins
+B,Twins,1960s,Harmon Killebrew,1969,3B,6.2,5.071042,1.128958,Twins
+C,Twins,1960s,Ron Perranoski,1969,RP,4.5,3.751737,0.748263,Twins
+C,Twins,1960s,Rod Carew,1969,2B,5.5,4.773745,0.726255,Twins
+C,Twins,1960s,Earl Battey,1963,C,4.5,3.904247,0.595753,Twins
+C,Twins,1960s,Bob Allison,1963,OF,7.4,6.851737,0.548263,Twins
+C,Twins,1960s,Jim Merritt,1967,SP,6.5,7.261004,-0.761004,Twins
+A,Twins,1970s,Rod Carew,1977,1B,9.7,5.011969,4.688031,Twins
+A,Twins,1970s,Rod Carew,1975,2B,7.8,4.773745,3.026255,Twins
+B,Twins,1970s,Bert Blyleven,1973,SP,9.7,7.261004,2.438996,Twins
+C,Twins,1970s,Roy Smalley,1978,SS,5.7,4.840927,0.859073,Twins
+C,Twins,1970s,Mike Marshall,1979,RP,4.4,3.751737,0.648263,Twins
+C,Twins,1970s,Butch Wynegar,1979,C,4.3,3.904247,0.395753,Twins
+C,Twins,1970s,Tony Oliva,1970,OF,7.0,6.851737,0.148263,Twins
+C,Twins,1970s,Aurelio Rodriguez,1970,3B,5.2,5.071042,0.128958,Senators
+B,Twins,1980s,Doug Corbett,1980,RP,5.7,3.751737,1.948263,Twins
+C,Twins,1980s,Kirby Puckett,1988,OF,7.8,6.851737,0.948263,Twins
+C,Twins,1980s,Frank Viola,1987,SP,8.1,7.261004,0.838996,Twins
+C,Twins,1980s,Kent Hrbek,1984,1B,5.6,5.011969,0.588031,Twins
+C,Twins,1980s,Gary Gaetti,1986,3B,5.6,5.071042,0.528958,Twins
+C,Twins,1980s,John Castino,1983,2B,4.1,4.773745,-0.673745,Twins
+D,Twins,1980s,Greg Gagne,1989,SS,3.8,4.840927,-1.040927,Twins
+D,Twins,1980s,Brian Harper,1989,C,2.8,3.904247,-1.104247,Twins
+A,Twins,1990s,Chuck Knoblauch,1996,2B,8.7,4.773745,3.926255,Twins
+C,Twins,1990s,Kirby Puckett,1992,OF,7.1,6.851737,0.248263,Twins
+C,Twins,1990s,Kevin Tapani,1991,SP,6.8,7.261004,-0.461004,Twins
+C,Twins,1990s,Joe Mays,1999,RP,3.2,3.751737,-0.551737,Twins
+D,Twins,1990s,Brian Harper,1990,C,2.9,3.904247,-1.004247,Twins
+D,Twins,1990s,Paul Molitor,1996,1B,3.1,5.011969,-1.911969,Twins
+D,Twins,1990s,Greg Gagne,1990,SS,2.8,4.840927,-2.040927,Twins
+D,Twins,1990s,Corey Koskie,1999,3B,2.6,5.071042,-2.471042,Twins
+A,Twins,2000s,Joe Mauer,2009,C,7.8,3.904247,3.895753,Twins
+B,Twins,2000s,Johan Santana,2004,SP,8.7,7.261004,1.438996,Twins
+C,Twins,2000s,Corey Koskie,2001,3B,6.0,5.071042,0.928958,Twins
+C,Twins,2000s,Johan Santana,2003,RP,4.1,3.751737,0.348263,Twins
+C,Twins,2000s,Cristian Guzman,2001,SS,4.3,4.840927,-0.540927,Twins
+C,Twins,2000s,Justin Morneau,2006,1B,4.1,5.011969,-0.911969,Twins
+D,Twins,2000s,Jacque Jones,2002,OF,5.2,6.851737,-1.651737,Twins
+D,Twins,2000s,Luis Castillo,2006,2B,2.3,4.773745,-2.473745,Twins
+B,Twins,2010s,Joe Mauer,2010,C,5.9,3.904247,1.995753,Twins
+B,Twins,2010s,Brian Dozier,2016,2B,6.2,4.773745,1.426255,Twins
+C,Twins,2010s,Brian Duensing,2010,RP,3.6,3.751737,-0.151737,Twins
+C,Twins,2010s,Justin Morneau,2010,1B,4.8,5.011969,-0.211969,Twins
+C,Twins,2010s,Jorge Polanco,2019,SS,4.0,4.840927,-0.840927,Twins
+D,Twins,2010s,Trevor Plouffe,2014,3B,3.8,5.071042,-1.271042,Twins
+D,Twins,2010s,Byron Buxton,2017,OF,4.7,6.851737,-2.151737,Twins
+D,Twins,2010s,Ervin Santana,2017,SP,4.8,7.261004,-2.461004,Twins
+C,Twins,2020s,Carlos Correa,2022,SS,5.0,4.840927,0.159073,Twins
+C,Twins,2020s,Jorge Polanco,2021,2B,4.5,4.773745,-0.273745,Twins
+C,Twins,2020s,Jhoan Duran,2025,RP,3.1,3.751737,-0.651737,Twins
+D,Twins,2020s,Ryan Jeffers,2023,C,2.8,3.904247,-1.104247,Twins
+D,Twins,2020s,Luis Arraez,2022,1B,3.4,5.011969,-1.611969,Twins
+D,Twins,2020s,Sonny Gray,2023,SP,5.6,7.261004,-1.661004,Twins
+D,Twins,2020s,Byron Buxton,2025,OF,4.9,6.851737,-1.951737,Twins
+D,Twins,2020s,Josh Donaldson,2021,3B,3.0,5.071042,-2.071042,Twins
+A,White Sox,1920s,Red Faber,1921,SP,11.4,7.261004,4.138996,White Sox
+A,White Sox,1920s,Eddie Collins,1920,2B,8.0,4.773745,3.226255,White Sox
+B,White Sox,1920s,Sloppy Thurston,1923,RP,5.1,3.751737,1.348263,White Sox
+C,White Sox,1920s,Shoeless Joe Jackson,1920,OF,7.6,6.851737,0.748263,White Sox
+C,White Sox,1920s,Willie Kamm,1926,3B,5.0,5.071042,-0.071042,White Sox
+C,White Sox,1920s,Ray Schalk,1922,C,3.3,3.904247,-0.604247,White Sox
+D,White Sox,1920s,Earl Sheely,1922,1B,3.7,5.011969,-1.311969,White Sox
+F,White Sox,1920s,Ernie Johnson,1921,SS,1.5,4.840927,-3.340927,White Sox
+B,White Sox,1930s,Luke Appling,1936,SS,7.1,4.840927,2.259073,White Sox
+C,White Sox,1930s,Johnny Rigney,1938,RP,4.6,3.751737,0.848263,White Sox
+C,White Sox,1930s,Lu Blue,1931,1B,4.9,5.011969,-0.111969,White Sox
+C,White Sox,1930s,Carl Reynolds,1930,OF,6.2,6.851737,-0.651737,White Sox
+D,White Sox,1930s,Thornton Lee,1938,SP,5.5,7.261004,-1.761004,White Sox
+D,White Sox,1930s,Charlie Berry,1932,C,1.8,3.904247,-2.104247,White Sox
+D,White Sox,1930s,Jackie Hayes,1936,2B,2.5,4.773745,-2.273745,White Sox
+D,White Sox,1930s,Eric McNair,1939,3B,2.5,5.071042,-2.571042,White Sox
+B,White Sox,1940s,Luke Appling,1943,SS,7.3,4.840927,2.459073,White Sox
+B,White Sox,1940s,Thornton Lee,1941,SP,8.6,7.261004,1.338996,White Sox
+C,White Sox,1940s,Cass Michaels,1949,2B,5.5,4.773745,0.726255,White Sox
+C,White Sox,1940s,Joe Haynes,1944,RP,2.9,3.751737,-0.851737,White Sox
+D,White Sox,1940s,Joe Kuhel,1940,1B,3.8,5.011969,-1.211969,White Sox
+D,White Sox,1940s,Luke Appling,1948,3B,3.5,5.071042,-1.571042,White Sox
+D,White Sox,1940s,Mike Tresh,1945,C,1.7,3.904247,-2.204247,White Sox
+D,White Sox,1940s,Wally Moses,1945,OF,4.5,6.851737,-2.351737,White Sox
+A,White Sox,1950s,Nellie Fox,1957,2B,7.9,4.773745,3.126255,White Sox
+B,White Sox,1950s,Minnie Minoso,1954,OF,8.2,6.851737,1.348263,White Sox
+C,White Sox,1950s,Chico Carrasquel,1954,SS,5.3,4.840927,0.459073,White Sox
+C,White Sox,1950s,Sherm Lollar,1956,C,4.0,3.904247,0.095753,White Sox
+C,White Sox,1950s,Billy Pierce,1952,SP,7.3,7.261004,0.038996,White Sox
+C,White Sox,1950s,Luis Aloma,1951,RP,3.3,3.751737,-0.451737,White Sox
+D,White Sox,1950s,Eddie Robinson,1952,1B,3.9,5.011969,-1.111969,White Sox
+D,White Sox,1950s,George Kell,1955,3B,2.9,5.071042,-2.171042,White Sox
+B,White Sox,1960s,Ron Hansen,1964,SS,7.7,4.840927,2.859073,White Sox
+B,White Sox,1960s,Don Buford,1965,2B,6.9,4.773745,2.126255,White Sox
+B,White Sox,1960s,Wilbur Wood,1968,RP,5.4,3.751737,1.648263,White Sox
+B,White Sox,1960s,Pete Ward,1964,3B,6.2,5.071042,1.128958,White Sox
+C,White Sox,1960s,Tommie Agee,1966,OF,6.4,6.851737,-0.451737,White Sox
+C,White Sox,1960s,Joe Cunningham,1962,1B,4.3,5.011969,-0.711969,White Sox
+D,White Sox,1960s,John Romano,1965,C,2.9,3.904247,-1.004247,White Sox
+D,White Sox,1960s,Gary Peters,1963,SP,5.9,7.261004,-1.361004,White Sox
+A,White Sox,1970s,Wilbur Wood,1971,SP,11.8,7.261004,4.538996,White Sox
+A,White Sox,1970s,Rich Gossage,1975,RP,8.2,3.751737,4.448263,White Sox
+A,White Sox,1970s,Dick Allen,1972,1B,8.6,5.011969,3.588031,White Sox
+C,White Sox,1970s,Bill Melton,1971,3B,5.7,5.071042,0.628958,White Sox
+C,White Sox,1970s,Luis Aparicio,1970,SS,4.4,4.840927,-0.440927,White Sox
+C,White Sox,1970s,Brian Downing,1975,C,3.2,3.904247,-0.704247,White Sox
+C,White Sox,1970s,Jorge Orta,1974,2B,3.9,4.773745,-0.873745,White Sox
+D,White Sox,1970s,Chet Lemon,1979,OF,5.8,6.851737,-1.051737,White Sox
+C,White Sox,1980s,Bob James,1985,RP,4.3,3.751737,0.548263,White Sox
+C,White Sox,1980s,Carlton Fisk,1983,C,4.3,3.904247,0.395753,White Sox
+C,White Sox,1980s,Britt Burns,1980,SP,7.0,7.261004,-0.261004,White Sox
+D,White Sox,1980s,Ozzie Guillen,1987,SS,3.7,4.840927,-1.140927,White Sox
+D,White Sox,1980s,Tony Bernazard,1981,2B,3.5,4.773745,-1.273745,White Sox
+D,White Sox,1980s,Harold Baines,1984,OF,4.6,6.851737,-2.251737,White Sox
+D,White Sox,1980s,Vance Law,1983,3B,2.6,5.071042,-2.471042,White Sox
+D,White Sox,1980s,Greg Luzinski,1983,1B,2.5,5.011969,-2.511969,White Sox
+B,White Sox,1990s,Frank Thomas,1997,1B,7.3,5.011969,2.288031,White Sox
+C,White Sox,1990s,Carlton Fisk,1990,C,4.9,3.904247,0.995753,White Sox
+C,White Sox,1990s,Robin Ventura,1992,3B,6.0,5.071042,0.928958,White Sox
+C,White Sox,1990s,Keith Foulke,1999,RP,4.5,3.751737,0.748263,White Sox
+C,White Sox,1990s,Albert Belle,1998,OF,7.1,6.851737,0.248263,White Sox
+C,White Sox,1990s,Alex Fernandez,1996,SP,6.4,7.261004,-0.861004,White Sox
+C,White Sox,1990s,Ray Durham,1998,2B,3.8,4.773745,-0.973745,White Sox
+D,White Sox,1990s,Ozzie Guillen,1990,SS,2.7,4.840927,-2.140927,White Sox
+C,White Sox,2000s,Frank Thomas,2000,1B,6.0,5.011969,0.988031,White Sox
+C,White Sox,2000s,Damaso Marte,2003,RP,3.8,3.751737,0.048263,White Sox
+C,White Sox,2000s,Esteban Loaiza,2003,SP,7.2,7.261004,-0.061004,White Sox
+C,White Sox,2000s,Jose Valentin,2000,SS,4.7,4.840927,-0.140927,White Sox
+C,White Sox,2000s,Ray Durham,2001,2B,4.1,4.773745,-0.673745,White Sox
+C,White Sox,2000s,Joe Crede,2006,3B,4.3,5.071042,-0.771042,White Sox
+D,White Sox,2000s,Aaron Rowand,2004,OF,5.7,6.851737,-1.151737,White Sox
+D,White Sox,2000s,A. J. Pierzynski,2006,C,2.0,3.904247,-1.904247,White Sox
+C,White Sox,2010s,Jose Abreu,2014,1B,5.5,5.011969,0.488031,White Sox
+C,White Sox,2010s,Yoan Moncada,2019,3B,5.2,5.071042,0.128958,White Sox
+C,White Sox,2010s,Alexei Ramirez,2010,SS,4.8,4.840927,-0.040927,White Sox
+C,White Sox,2010s,A. J. Pierzynski,2012,C,3.5,3.904247,-0.404247,White Sox
+C,White Sox,2010s,Adam Eaton,2016,OF,6.4,6.851737,-0.451737,White Sox
+C,White Sox,2010s,Chris Sale,2013,SP,6.5,7.261004,-0.761004,White Sox
+D,White Sox,2010s,Aaron Bummer,2019,RP,2.7,3.751737,-1.051737,White Sox
+D,White Sox,2010s,Carlos Sanchez,2017,2B,2.8,4.773745,-1.973745,White Sox
+C,White Sox,2020s,Yasmani Grandal,2021,C,3.6,3.904247,-0.304247,White Sox
+C,White Sox,2020s,Tim Anderson,2021,SS,4.4,4.840927,-0.440927,White Sox
+C,White Sox,2020s,Mike Vasil,2025,RP,2.9,3.751737,-0.851737,White Sox
+C,White Sox,2020s,Dylan Cease,2022,SP,6.4,7.261004,-0.861004,White Sox
+D,White Sox,2020s,José Abreu,2022,1B,4.0,5.011969,-1.011969,White Sox
+D,White Sox,2020s,Yoan Moncada,2021,3B,4.0,5.071042,-1.071042,White Sox
+D,White Sox,2020s,Luis Robert Jr.,2023,OF,5.1,6.851737,-1.751737,White Sox
+F,White Sox,2020s,Josh Harrison,2022,2B,1.7,4.773745,-3.073745,White Sox
+S,Yankees,1920s,Babe Ruth,1923,OF,14.1,6.851737,7.248263,Yankees
+S,Yankees,1920s,Lou Gehrig,1927,1B,11.9,5.011969,6.888031,Yankees
+A,Yankees,1920s,Tony Lazzeri,1929,2B,7.8,4.773745,3.026255,Yankees
+B,Yankees,1920s,Wilcy Moore,1927,RP,6.6,3.751737,2.848263,Yankees
+C,Yankees,1920s,Bob Shawkey,1920,SP,8.2,7.261004,0.938996,Yankees
+C,Yankees,1920s,Wally Schang,1921,C,4.1,3.904247,0.195753,Yankees
+D,Yankees,1920s,Roger Peckinpaugh,1920,SS,3.6,4.840927,-1.240927,Yankees
+D,Yankees,1920s,Home Run Baker,1921,3B,2.4,5.071042,-2.671042,Yankees
+A,Yankees,1930s,Lou Gehrig,1934,1B,10.0,5.011969,4.988031,Yankees
+A,Yankees,1930s,Babe Ruth,1931,OF,10.6,6.851737,3.748263,Yankees
+B,Yankees,1930s,Bill Dickey,1937,C,6.6,3.904247,2.695753,Yankees
+B,Yankees,1930s,Lefty Gomez,1937,SP,9.2,7.261004,1.938996,Yankees
+B,Yankees,1930s,Red Rolfe,1939,3B,6.6,5.071042,1.528958,Yankees
+B,Yankees,1930s,Joe Gordon,1939,2B,6.2,4.773745,1.426255,Yankees
+C,Yankees,1930s,Lyn Lary,1931,SS,4.8,4.840927,-0.040927,Yankees
+C,Yankees,1930s,Pat Malone,1936,RP,2.8,3.751737,-0.951737,Yankees
+A,Yankees,1940s,Snuffy Stirnweiss,1945,2B,8.8,4.773745,4.026255,Yankees
+B,Yankees,1940s,Joe DiMaggio,1941,OF,9.3,6.851737,2.448263,Yankees
+C,Yankees,1940s,Phil Rizzuto,1942,SS,5.8,4.840927,0.959073,Yankees
+C,Yankees,1940s,Joe Page,1949,RP,4.4,3.751737,0.648263,Yankees
+C,Yankees,1940s,Nick Etten,1944,1B,5.3,5.011969,0.288031,Yankees
+C,Yankees,1940s,Bill Dickey,1943,C,4.0,3.904247,0.095753,Yankees
+C,Yankees,1940s,Spud Chandler,1943,SP,6.4,7.261004,-0.861004,Yankees
+D,Yankees,1940s,Oscar Grimes,1945,3B,3.8,5.071042,-1.271042,Yankees
+A,Yankees,1950s,Mickey Mantle,1956,OF,11.3,6.851737,4.448263,Yankees
+B,Yankees,1950s,Yogi Berra,1956,C,6.3,3.904247,2.395753,Yankees
+B,Yankees,1950s,Phil Rizzuto,1950,SS,6.8,4.840927,1.959073,Yankees
+C,Yankees,1950s,Gil McDougald,1955,2B,5.1,4.773745,0.326255,Yankees
+C,Yankees,1950s,Ryne Duren,1959,RP,3.8,3.751737,0.048263,Yankees
+C,Yankees,1950s,Gil McDougald,1951,3B,4.6,5.071042,-0.471042,Yankees
+C,Yankees,1950s,Bill Skowron,1956,1B,4.2,5.011969,-0.811969,Yankees
+D,Yankees,1950s,Whitey Ford,1956,SP,5.2,7.261004,-2.061004,Yankees
+A,Yankees,1960s,Mickey Mantle,1961,OF,10.5,6.851737,3.648263,Yankees
+B,Yankees,1960s,Elston Howard,1964,C,5.8,3.904247,1.895753,Yankees
+C,Yankees,1960s,Clete Boyer,1962,3B,4.9,5.071042,-0.171042,Yankees
+C,Yankees,1960s,Mel Stottlemyre,1965,SP,6.9,7.261004,-0.361004,Yankees
+C,Yankees,1960s,Bill Skowron,1960,1B,4.6,5.011969,-0.411969,Yankees
+C,Yankees,1960s,Bill Monbouquette,1967,RP,3.3,3.751737,-0.451737,Yankees
+C,Yankees,1960s,Tom Tresh,1962,SS,4.2,4.840927,-0.640927,Yankees
+C,Yankees,1960s,Horace Clarke,1969,2B,3.9,4.773745,-0.873745,Yankees
+A,Yankees,1970s,Thurman Munson,1973,C,7.2,3.904247,3.295753,Yankees
+B,Yankees,1970s,Graig Nettles,1976,3B,8.0,5.071042,2.928958,Yankees
+B,Yankees,1970s,Ron Guidry,1978,SP,9.6,7.261004,2.338996,Yankees
+B,Yankees,1970s,Bobby Murcer,1972,OF,8.2,6.851737,1.348263,Yankees
+C,Yankees,1970s,Willie Randolph,1978,2B,5.5,4.773745,0.726255,Yankees
+C,Yankees,1970s,Lindy McDaniel,1970,RP,4.1,3.751737,0.348263,Yankees
+C,Yankees,1970s,Chris Chambliss,1976,1B,4.1,5.011969,-0.911969,Yankees
+D,Yankees,1970s,Bucky Dent,1977,SS,2.7,4.840927,-2.140927,Yankees
+A,Yankees,1980s,Rickey Henderson,1985,OF,9.9,6.851737,3.048263,Yankees
+B,Yankees,1980s,Don Mattingly,1986,1B,7.2,5.011969,2.188031,Yankees
+B,Yankees,1980s,Willie Randolph,1980,2B,6.5,4.773745,1.726255,Yankees
+B,Yankees,1980s,Rudy May,1980,RP,4.9,3.751737,1.148263,Yankees
+C,Yankees,1980s,Rick Cerone,1980,C,4.1,3.904247,0.195753,Yankees
+C,Yankees,1980s,Bucky Dent,1980,SS,4.0,4.840927,-0.840927,Yankees
+D,Yankees,1980s,Ron Guidry,1983,SP,5.3,7.261004,-1.961004,Yankees
+D,Yankees,1980s,Mike Pagliarulo,1986,3B,2.9,5.071042,-2.171042,Yankees
+A,Yankees,1990s,Derek Jeter,1999,SS,8.0,4.840927,3.159073,Yankees
+B,Yankees,1990s,Mariano Rivera,1996,RP,5.0,3.751737,1.248263,Yankees
+B,Yankees,1990s,Andy Pettitte,1997,SP,8.4,7.261004,1.138996,Yankees
+C,Yankees,1990s,Mike Stanley,1993,C,4.8,3.904247,0.895753,Yankees
+C,Yankees,1990s,Tino Martinez,1997,1B,5.2,5.011969,0.188031,Yankees
+C,Yankees,1990s,Scott Brosius,1998,3B,5.2,5.071042,0.128958,Yankees
+C,Yankees,1990s,Bernie Williams,1995,OF,6.4,6.851737,-0.451737,Yankees
+C,Yankees,1990s,Steve Sax,1991,2B,3.9,4.773745,-0.873745,Yankees
+A,Yankees,2000s,Alex Rodriguez,2005,3B,9.4,5.071042,4.328958,Yankees
+B,Yankees,2000s,Jorge Posada,2003,C,6.0,3.904247,2.095753,Yankees
+B,Yankees,2000s,Jason Giambi,2002,1B,7.1,5.011969,2.088031,Yankees
+B,Yankees,2000s,Robinson Cano,2007,2B,6.7,4.773745,1.926255,Yankees
+B,Yankees,2000s,Derek Jeter,2009,SS,6.6,4.840927,1.759073,Yankees
+C,Yankees,2000s,Mariano Rivera,2008,RP,4.3,3.751737,0.548263,Yankees
+C,Yankees,2000s,Mike Mussina,2001,SP,7.1,7.261004,-0.161004,Yankees
+D,Yankees,2000s,Bernie Williams,2000,OF,5.0,6.851737,-1.851737,Yankees
+A,Yankees,2010s,Robinson Cano,2012,2B,8.4,4.773745,3.626255,Yankees
+B,Yankees,2010s,Aaron Judge,2017,OF,8.1,6.851737,1.248263,Yankees
+C,Yankees,2010s,Gary Sanchez,2017,C,4.1,3.904247,0.195753,Yankees
+C,Yankees,2010s,Dellin Betances,2015,RP,3.9,3.751737,0.148263,Yankees
+C,Yankees,2010s,Didi Gregorius,2018,SS,4.2,4.840927,-0.640927,Yankees
+C,Yankees,2010s,CC Sabathia,2011,SP,6.4,7.261004,-0.861004,Yankees
+C,Yankees,2010s,Alex Rodriguez,2010,3B,4.2,5.071042,-0.871042,Yankees
+D,Yankees,2010s,Mark Teixeira,2011,1B,3.9,5.011969,-1.111969,Yankees
+A,Yankees,2020s,Aaron Judge,2024,OF,11.0,6.851737,4.148263,Yankees
+C,Yankees,2020s,Gerrit Cole,2023,SP,7.4,7.261004,0.138996,Yankees
+C,Yankees,2020s,Jonathan Loaisiga,2021,RP,3.3,3.751737,-0.451737,Yankees
+C,Yankees,2020s,Jazz Chisholm Jr.,2025,2B,4.1,4.773745,-0.673745,Yankees
+C,Yankees,2020s,Jose Trevino,2022,C,3.0,3.904247,-0.904247,Yankees
+D,Yankees,2020s,Anthony Volpe,2024,SS,3.4,4.840927,-1.440927,Yankees
+D,Yankees,2020s,DJ LeMahieu,2022,3B,3.4,5.071042,-1.671042,Yankees
+D,Yankees,2020s,Anthony Rizzo,2022,1B,2.4,5.011969,-2.611969,Yankees

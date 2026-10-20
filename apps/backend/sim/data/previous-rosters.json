@@ -1,0 +1,602 @@
+[
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 39,
+  "assignment": "DH"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 66,
+  "assignment": "SS"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 78,
+  "assignment": "RF"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 97,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 129,
+  "assignment": "2B"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 159,
+  "assignment": "C"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 202,
+  "assignment": "CF"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 250,
+  "assignment": "LF"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 292,
+  "assignment": "3B"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 332,
+  "assignment": "1B"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 407,
+  "assignment": "RP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 411,
+  "assignment": "RP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 430,
+  "assignment": "RP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 445,
+  "assignment": "RP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 449,
+  "assignment": "SP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 454,
+  "assignment": "SP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 469,
+  "assignment": "SP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 541,
+  "assignment": "RP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 575,
+  "assignment": "SP"
+ },
+ {
+  "team": "Ann Arbor",
+  "season": "Spring 2026",
+  "card_id": 594,
+  "assignment": "RP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 5,
+  "assignment": "3B"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 33,
+  "assignment": "CF"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 38,
+  "assignment": "SS"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 107,
+  "assignment": "DH"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 154,
+  "assignment": "1B"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 163,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 166,
+  "assignment": "LF"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 272,
+  "assignment": "C"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 314,
+  "assignment": "RF"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 354,
+  "assignment": "2B"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 398,
+  "assignment": "SP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 404,
+  "assignment": "RP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 417,
+  "assignment": "SP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 424,
+  "assignment": "RP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 473,
+  "assignment": "RP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 476,
+  "assignment": "RP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 537,
+  "assignment": "SP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 540,
+  "assignment": "RP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 614,
+  "assignment": "SP"
+ },
+ {
+  "team": "Boston",
+  "season": "Spring 2026",
+  "card_id": 620,
+  "assignment": "RP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 59,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 117,
+  "assignment": "SS"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 131,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 140,
+  "assignment": "DH"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 145,
+  "assignment": "3B"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 208,
+  "assignment": "CF"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 215,
+  "assignment": "1B"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 233,
+  "assignment": "RF"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 301,
+  "assignment": "LF"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 316,
+  "assignment": "2B"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 362,
+  "assignment": "C"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 381,
+  "assignment": "SP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 383,
+  "assignment": "SP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 390,
+  "assignment": "RP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 466,
+  "assignment": "RP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 532,
+  "assignment": "SP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 536,
+  "assignment": "RP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 557,
+  "assignment": "RP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 578,
+  "assignment": "SP"
+ },
+ {
+  "team": "Detroit",
+  "season": "Spring 2026",
+  "card_id": 600,
+  "assignment": "RP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 3,
+  "assignment": "LF"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 24,
+  "assignment": "DH"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 46,
+  "assignment": "2B"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 99,
+  "assignment": "C"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 110,
+  "assignment": "1B"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 136,
+  "assignment": "3B"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 207,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 285,
+  "assignment": "RF"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 330,
+  "assignment": "SS"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 334,
+  "assignment": "CF"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 418,
+  "assignment": "SP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 461,
+  "assignment": "RP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 470,
+  "assignment": "SP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 486,
+  "assignment": "RP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 492,
+  "assignment": "SP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 534,
+  "assignment": "SP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 562,
+  "assignment": "RP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 574,
+  "assignment": "RP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 598,
+  "assignment": "RP"
+ },
+ {
+  "team": "Los Angeles",
+  "season": "Spring 2026",
+  "card_id": 607,
+  "assignment": "RP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 29,
+  "assignment": "SS"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 71,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 102,
+  "assignment": "3B"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 139,
+  "assignment": "RF"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 225,
+  "assignment": "C"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 256,
+  "assignment": "2B"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 279,
+  "assignment": "DH"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 296,
+  "assignment": "CF"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 313,
+  "assignment": "LF"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 337,
+  "assignment": "1B"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 416,
+  "assignment": "RP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 423,
+  "assignment": "SP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 434,
+  "assignment": "SP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 448,
+  "assignment": "RP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 490,
+  "assignment": "RP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 495,
+  "assignment": "SP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 509,
+  "assignment": "RP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 567,
+  "assignment": "SP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 569,
+  "assignment": "RP"
+ },
+ {
+  "team": "New York",
+  "season": "Spring 2026",
+  "card_id": 636,
+  "assignment": "RP"
+ }
+]

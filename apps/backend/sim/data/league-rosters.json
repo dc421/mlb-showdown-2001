@@ -1,0 +1,502 @@
+[
+ {
+  "team": "Ann Arbor",
+  "card_id": 17,
+  "assignment": "SS"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 33,
+  "assignment": "CF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 119,
+  "assignment": "DH"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 138,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 176,
+  "assignment": "2B"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 183,
+  "assignment": "LF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 188,
+  "assignment": "RF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 198,
+  "assignment": "1B"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 217,
+  "assignment": "3B"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 261,
+  "assignment": "C"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 411,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 449,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 473,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 562,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 587,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 588,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 591,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 592,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 594,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Ann Arbor",
+  "card_id": 604,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 38,
+  "assignment": "SS"
+ },
+ {
+  "team": "Boston",
+  "card_id": 137,
+  "assignment": "3B"
+ },
+ {
+  "team": "Boston",
+  "card_id": 154,
+  "assignment": "1B"
+ },
+ {
+  "team": "Boston",
+  "card_id": 164,
+  "assignment": "LF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 202,
+  "assignment": "CF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 285,
+  "assignment": "RF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 297,
+  "assignment": "C"
+ },
+ {
+  "team": "Boston",
+  "card_id": 327,
+  "assignment": "DH"
+ },
+ {
+  "team": "Boston",
+  "card_id": 342,
+  "assignment": "2B"
+ },
+ {
+  "team": "Boston",
+  "card_id": 422,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 424,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 448,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 467,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 490,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 508,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 537,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 567,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 569,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 620,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Boston",
+  "card_id": 629,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 30,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 51,
+  "assignment": "DH"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 86,
+  "assignment": "LF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 114,
+  "assignment": "CF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 117,
+  "assignment": "SS"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 132,
+  "assignment": "3B"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 206,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 215,
+  "assignment": "1B"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 226,
+  "assignment": "RF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 272,
+  "assignment": "C"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 316,
+  "assignment": "2B"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 381,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 386,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 390,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 463,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 505,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 528,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 532,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 557,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Detroit",
+  "card_id": 568,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 3,
+  "assignment": "LF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 5,
+  "assignment": "3B"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 42,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 99,
+  "assignment": "C"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 129,
+  "assignment": "2B"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 151,
+  "assignment": "RF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 274,
+  "assignment": "CF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 306,
+  "assignment": "1B"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 312,
+  "assignment": "DH"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 330,
+  "assignment": "SS"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 388,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 401,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 418,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 420,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 460,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 504,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 534,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 582,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 598,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "Los Angeles",
+  "card_id": 601,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 48,
+  "assignment": "2B"
+ },
+ {
+  "team": "New York",
+  "card_id": 66,
+  "assignment": "SS"
+ },
+ {
+  "team": "New York",
+  "card_id": 166,
+  "assignment": "RF"
+ },
+ {
+  "team": "New York",
+  "card_id": 196,
+  "assignment": "BENCH"
+ },
+ {
+  "team": "New York",
+  "card_id": 220,
+  "assignment": "DH"
+ },
+ {
+  "team": "New York",
+  "card_id": 225,
+  "assignment": "C"
+ },
+ {
+  "team": "New York",
+  "card_id": 275,
+  "assignment": "3B"
+ },
+ {
+  "team": "New York",
+  "card_id": 296,
+  "assignment": "CF"
+ },
+ {
+  "team": "New York",
+  "card_id": 313,
+  "assignment": "LF"
+ },
+ {
+  "team": "New York",
+  "card_id": 365,
+  "assignment": "1B"
+ },
+ {
+  "team": "New York",
+  "card_id": 414,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 416,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 423,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 434,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 474,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 476,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 484,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 497,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 509,
+  "assignment": "PITCHING_STAFF"
+ },
+ {
+  "team": "New York",
+  "card_id": 531,
+  "assignment": "PITCHING_STAFF"
+ }
+]
