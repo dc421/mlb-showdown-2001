@@ -24,6 +24,7 @@ const { mapSeasonToPointSet } = require('./utils/seasonUtils');
 const { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty } = require('./utils/seriesUtils');
 const { schedulePlayoffsIfClinched } = require('./services/playoffSchedulingService');
 const { resolveHomeField } = require('./services/homeFieldService');
+const { linkClassicSeries } = require('./services/classicSeriesService');
 const { computeLinescore, computePitchingDecisions, computeHomeRuns, normalizeKey, cardIdOf } = require('./utils/gameSummary');
 const { getReturningPlayerPosition, isDefensivePitchingChange, isIllegalMoundEntry } = require('./utils/substitutionUtils');
 
@@ -940,7 +941,8 @@ async function handleSeriesProgression(gameId, client, finalState) {
     }
 
     const seriesInfo = gameAndSeriesResult.rows[0];
-    const { series_id, game_home_user_id, game_in_series, series_type, series_result_id } = seriesInfo;
+    const { series_id, game_home_user_id, game_in_series, series_type } = seriesInfo;
+    let { series_result_id } = seriesInfo;
     let { series_home_user_id } = seriesInfo;
     let { series_away_user_id, home_wins, away_wins } = seriesInfo; // mutable wins/away user
 
@@ -959,6 +961,12 @@ async function handleSeriesProgression(gameId, client, finalState) {
         }
         await client.query('UPDATE series SET series_away_user_id = $1 WHERE id = $2', [gameAwayUserId, series_id]);
         series_away_user_id = gameAwayUserId; // Update local copy
+    }
+
+    // 2b. A Classic series has no scheduled row; once both teams are known, give it one in its
+    // Classic's bracket so step 4b writes its results through to the Classic page.
+    if (series_type === 'classic' && !series_result_id) {
+        series_result_id = await linkClassicSeries(client, series_id, series_home_user_id, series_away_user_id);
     }
 
     // 3. Recompute the series score from every completed game rather than blind-incrementing. This is

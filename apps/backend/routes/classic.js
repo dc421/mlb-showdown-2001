@@ -4,6 +4,7 @@ const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
 const { getClassicSeeding } = require('../services/classicSeedingService');
+const { classicSeasonName } = require('../services/classicSeriesService');
 
 // GET PLAYERS WHO DO NOT MEET THE CURRENT CLASSIC RATINGS LIMITS
 router.get('/eligibility', authenticateToken, async (req, res) => {
@@ -230,7 +231,7 @@ router.post('/result', authenticateToken, async (req, res) => {
         await client.query('BEGIN');
 
         // 0. Get Active Classic ID
-        const classicRes = await client.query(`SELECT id FROM classics WHERE is_active = true LIMIT 1`);
+        const classicRes = await client.query(`SELECT * FROM classics WHERE is_active = true LIMIT 1`);
         if (classicRes.rows.length === 0) {
              await client.query('ROLLBACK');
              return res.status(400).json({ message: 'No active classic found.' });
@@ -238,15 +239,7 @@ router.post('/result', authenticateToken, async (req, res) => {
         const classicId = classicRes.rows[0].id;
 
         // 1. Determine Season Name
-        const seasonQuery = `
-            SELECT season_name
-            FROM series_results
-            WHERE season_name IS NOT NULL
-            ORDER BY date DESC
-            LIMIT 1
-        `;
-        const seasonRes = await client.query(seasonQuery);
-        const seasonName = seasonRes.rows.length > 0 ? seasonRes.rows[0].season_name : 'Classic';
+        const seasonName = await classicSeasonName(client, classicRes.rows[0]);
 
         // 2. Fetch Team Names
         const teamQuery = `SELECT team_id, user_id, name, city FROM teams WHERE user_id IN ($1, $2)`;

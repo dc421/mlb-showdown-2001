@@ -96,4 +96,21 @@ function higherClassicSeedUserId(seeding, userIdA, userIdB) {
     return a > b ? userIdA : userIdB;
 }
 
-module.exports = { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty, homeFieldRule, higherClassicSeedUserId };
+// Which Classic bracket round a matchup is, from the seeding (ordered 5th → 1st). Mirrors the
+// Classic page's bracket: 4 v 5 is the Play-In, 1 v (4 or 5) and 2 v 3 are the Semi-Finals, and
+// any other pairing of seeded teams is the Silver Submarine. Null unless both users are seeded.
+function classicRoundForPair(seeding, userIdA, userIdB) {
+    const seedOf = (uid) => {
+        const i = (seeding || []).findIndex(s => Number(s.user_id) === Number(uid));
+        return i === -1 ? null : 5 - i;
+    };
+    const a = seedOf(userIdA);
+    const b = seedOf(userIdB);
+    if (!a || !b || a === b) return null;
+    const [hi, lo] = a < b ? [a, b] : [b, a];
+    if (hi === 4 && lo === 5) return 'Play-In';
+    if ((hi === 1 && lo >= 4) || (hi === 2 && lo === 3)) return 'Semi-Final';
+    return 'Silver Submarine';
+}
+
+module.exports = { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty, homeFieldRule, higherClassicSeedUserId, classicRoundForPair };

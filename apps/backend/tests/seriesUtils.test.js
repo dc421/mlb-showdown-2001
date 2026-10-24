@@ -1,4 +1,4 @@
-const { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty, homeFieldRule, higherClassicSeedUserId } = require('../utils/seriesUtils');
+const { resolveSeriesResultUpdate, seriesTypeForRound, relieverCarryoverPenalty, homeFieldRule, higherClassicSeedUserId, classicRoundForPair } = require('../utils/seriesUtils');
 
 describe('seriesTypeForRound', () => {
     test('regular-season rounds map to regular_season', () => {
@@ -114,5 +114,27 @@ describe('higherClassicSeedUserId', () => {
     test('null when either team is unseeded', () => {
         expect(higherClassicSeedUserId(seeding, 1, 99)).toBeNull();
         expect(higherClassicSeedUserId([], 1, 2)).toBeNull();
+    });
+});
+
+describe('classicRoundForPair', () => {
+    // Ordered 5th → 1st seed: user N is seed N.
+    const seeding = [{ user_id: 5 }, { user_id: 4 }, { user_id: 3 }, { user_id: 2 }, { user_id: 1 }];
+    test('4 v 5 is the Play-In', () => {
+        expect(classicRoundForPair(seeding, 5, 4)).toBe('Play-In');
+        expect(classicRoundForPair(seeding, 4, 5)).toBe('Play-In');
+    });
+    test('1 v play-in team and 2 v 3 are Semi-Finals', () => {
+        expect(classicRoundForPair(seeding, 1, 4)).toBe('Semi-Final');
+        expect(classicRoundForPair(seeding, 5, 1)).toBe('Semi-Final');
+        expect(classicRoundForPair(seeding, 3, 2)).toBe('Semi-Final');
+    });
+    test('any other seeded pairing is the Silver Submarine', () => {
+        expect(classicRoundForPair(seeding, 1, 2)).toBe('Silver Submarine');
+        expect(classicRoundForPair(seeding, 4, 3)).toBe('Silver Submarine');
+    });
+    test('null when either team is unseeded', () => {
+        expect(classicRoundForPair(seeding, 1, 99)).toBeNull();
+        expect(classicRoundForPair([], 1, 2)).toBeNull();
     });
 });
