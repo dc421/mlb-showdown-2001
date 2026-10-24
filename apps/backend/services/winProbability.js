@@ -231,4 +231,52 @@ async function forEachGameStates(client, gameIds, fn, { chunkSize = 10 } = {}) {
   }
 }
 
-module.exports = { computeGameWinProbability, getTable, WP_STATE_COLUMN, forEachGameStates };
+// --- Cached results ------------------------------------------------------------------------------
+//
+// Loading a timeline is the expensive part (Postgres detoasts every full state to project it), so a
+// completed game's result is stored in game_win_probability and reused. An entry is valid while the
+// game's latest turn and the model's generatedAt still match what it was computed from; anything else
+// (in-progress game, stale or missing entry) is computed fresh, and stored if the game is complete.
+// Returns { [gameId]: result | null }.
+async function getGameWinProbabilities(client, gameIds, { chunkSize = 10 } = {}) {
+  const out = {};
+  if (!gameIds.length) return out;
+  const modelVersion = getTable().generatedAt || null;
+  const meta = await client.query(
+    `SELECT g.game_id, g.status,
+            (SELECT max(gs.turn_number) FROM game_states gs WHERE gs.game_id = g.game_id) AS last_turn,
+            c.last_turn AS cached_turn, c.model_generated_at, c.data
+     FROM games g
+     LEFT JOIN game_win_probability c ON c.game_id = g.game_id
+     WHERE g.game_id = ANY($1)`, [gameIds]);
+
+  const misses = [];
+  const metaById = {};
+  for (const r of meta.rows) {
+    metaById[r.game_id] = r;
+    const fresh = r.data && r.status === 'completed' && r.cached_turn === r.last_turn
+      && r.model_generated_at === modelVersion;
+    if (fresh) out[r.game_id] = r.data;
+    else misses.push(r.game_id);
+  }
+
+  await forEachGameStates(client, misses, async (gid, states) => {
+    const events = await client.query(
+      'SELECT turn_number, event_type, log_message FROM game_events WHERE game_id = $1 ORDER BY event_id', [gid]);
+    const wp = computeGameWinProbability(states, { topN: 5, gameEvents: events.rows });
+    out[gid] = wp;
+    const m = metaById[gid];
+    if (wp && m.status === 'completed' && m.last_turn != null) {
+      await client.query(
+        `INSERT INTO game_win_probability (game_id, last_turn, model_generated_at, data)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (game_id) DO UPDATE SET last_turn = EXCLUDED.last_turn,
+           model_generated_at = EXCLUDED.model_generated_at, data = EXCLUDED.data, computed_at = NOW()`,
+        [gid, m.last_turn, modelVersion, JSON.stringify(wp)]);
+    }
+  }, { chunkSize });
+  for (const gid of gameIds) if (!(gid in out)) out[gid] = null;
+  return out;
+}
+
+module.exports = { computeGameWinProbability, getTable, WP_STATE_COLUMN, forEachGameStates, getGameWinProbabilities };

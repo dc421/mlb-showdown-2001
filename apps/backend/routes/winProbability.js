@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 const authenticateToken = require('../middleware/authenticateToken');
-const { computeGameWinProbability, WP_STATE_COLUMN, forEachGameStates } = require('../services/winProbability');
+const { getGameWinProbabilities } = require('../services/winProbability');
 
 const TEAM_COLS = 'user_id, team_id, city, name, abbreviation, logo_url, primary_color, secondary_color';
 
@@ -43,11 +43,7 @@ router.get('/games/:gameId/win-probability', authenticateToken, async (req, res)
   try {
     const teams = await loadTeams(client, gameId);
     if (!teams) return res.status(404).json({ message: 'Game not found.' });
-    const states = await client.query(
-      `SELECT turn_number, ${WP_STATE_COLUMN} FROM game_states WHERE game_id = $1 ORDER BY turn_number`, [gameId]);
-    const events = await client.query(
-      'SELECT turn_number, event_type, log_message FROM game_events WHERE game_id = $1 ORDER BY event_id', [gameId]);
-    const wp = computeGameWinProbability(states.rows, { topN: 5, gameEvents: events.rows });
+    const wp = (await getGameWinProbabilities(client, [gameId]))[gameId];
     if (!wp) return res.json({ game_id: gameId, teams, available: false });
     res.json({ game_id: gameId, teams, available: true, ...wp });
   } catch (err) {
@@ -88,14 +84,12 @@ router.get('/series/:seriesId/win-probability', authenticateToken, async (req, r
     const accum = (dst, src) => {
       for (const k of Object.keys(src || {})) dst[k] = Math.round(((dst[k] || 0) + src[k]) * 1000) / 1000;
     };
-    // Chunked + projected: a game's raw state timeline is ~15 MB of JSON, so a full series' worth at
-    // once is enough to exhaust the heap on its own. See forEachGameStates.
-    const gameById = {};
-    for (const g of gamesRes.rows) gameById[g.game_id] = g;
-    await forEachGameStates(client, gameIds, (gid, states) => {
-      const wp = computeGameWinProbability(states, { topN: 3 });
-      if (!wp) return;
-      const g = gameById[gid];
+    // Cached per game once complete (see getGameWinProbabilities).
+    const wpByGame = await getGameWinProbabilities(client, gameIds);
+    for (const g of gamesRes.rows) {
+      const gid = g.game_id;
+      const wp = wpByGame[gid];
+      if (!wp) continue;
       const homeUserId = g.home_team_user_id;
       const awayUserId = (usersByGame[gid] || []).find((u) => u !== homeUserId) ?? null;
       accum(seriesPlayerWpa.batters, wp.playerWpa.batters);
@@ -115,7 +109,7 @@ router.get('/series/:seriesId/win-probability', authenticateToken, async (req, r
         summary: wp.summary,
         topPlay: wp.plays[0] || null,
       });
-    });
+    }
     res.json({ series_id: seriesId, games, playerWpa: seriesPlayerWpa });
   } catch (err) {
     console.error('series win-probability error (series', seriesId, '):', err);

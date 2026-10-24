@@ -9,7 +9,7 @@ const { calculateStandings, findTeamForRecord } = require('../utils/standingsUti
 const { maybeRolloverSeason } = require('../services/seasonRolloverService');
 const { recomputeOdds, getCachedOddsMap } = require('../services/playoffOddsService');
 const { schedulePlayoffsIfClinched } = require('../services/playoffSchedulingService');
-const { computeGameWinProbability, forEachGameStates } = require('../services/winProbability');
+const { getGameWinProbabilities } = require('../services/winProbability');
 
 function processPlayers(playersToProcess) {
     if (!playersToProcess) return [];
@@ -758,20 +758,19 @@ router.get('/leaders-data', authenticateToken, async (req, res) => {
             });
         }
 
-        // Win Probability Added per player, summed across the season. WPA needs the full state
-        // timeline (not just the latest state), so we walk every game's states -- but a chunk of
-        // games at a time, and projected down to the fields the model reads. Loading a whole
-        // season's raw state_data at once decoded >1 GB of JSON and OOM'd the process.
+        // Win Probability Added per player, summed across the season. Each game's result is cached
+        // once complete; uncached games are computed a chunk at a time (see getGameWinProbabilities).
         const wpa = { batters: {}, pitchers: {} };
         const accum = (dst, src) => {
             for (const k of Object.keys(src || {})) dst[k] = Math.round(((dst[k] || 0) + src[k]) * 1000) / 1000;
         };
-        await forEachGameStates(client, gameIds, (gid, states) => {
-            const wp = computeGameWinProbability(states);
-            if (!wp) return;
+        const wpByGame = await getGameWinProbabilities(client, gameIds);
+        for (const gid of gameIds) {
+            const wp = wpByGame[gid];
+            if (!wp) continue;
             accum(wpa.batters, wp.playerWpa.batters);
             accum(wpa.pitchers, wp.playerWpa.pitchers);
-        });
+        }
 
         res.json({ season, games, cards: [...cardMap.values()], teams, wpa });
     } catch (error) {
