@@ -74,7 +74,9 @@ async function loadSeriesBox() {
 
 // Per-game win-probability sparklines + series-wide player WPA for the completed games in this series.
 const winProbByGame = ref({}); // game_id -> { points, teams, summary, topPlay }
-const seriesPlayerWpa = ref(null); // { batters, pitchers } summed across the series
+const seriesPlayerWpa = ref(null); // { batters, pitchers, byUser } summed across the series
+// One team's WPA lines — both teams can carry the same card, so the flat maps would merge them.
+const teamWpa = (team) => seriesPlayerWpa.value?.byUser?.[team?.user_id] || null;
 async function loadWinProb() {
   const s = series.value;
   if (!(s?.games || []).some((g) => g.status === 'completed')) return;
@@ -286,8 +288,8 @@ function teamOf(g, side) {
         <template v-else-if="seriesBox && seriesBox.gamesCounted > 0">
           <p class="series-box-sub">Combined totals from {{ seriesBox.gamesCounted }} completed {{ seriesBox.gamesCounted === 1 ? 'game' : 'games' }}.</p>
           <div class="box-pair">
-            <SeriesBoxScore :side="seriesBox.away" :team="series.away_team" :color="teamColors.away" :cardMap="cardMap" :playerWpa="seriesPlayerWpa" @select-player="selectedCard = $event" />
-            <SeriesBoxScore :side="seriesBox.home" :team="series.home_team" :color="teamColors.home" :cardMap="cardMap" :playerWpa="seriesPlayerWpa" @select-player="selectedCard = $event" />
+            <SeriesBoxScore :side="seriesBox.away" :team="series.away_team" :color="teamColors.away" :cardMap="cardMap" :playerWpa="teamWpa(series.away_team)" @select-player="selectedCard = $event" />
+            <SeriesBoxScore :side="seriesBox.home" :team="series.home_team" :color="teamColors.home" :cardMap="cardMap" :playerWpa="teamWpa(series.home_team)" @select-player="selectedCard = $event" />
           </div>
         </template>
         <p v-else class="box-state">No completed games to total yet.</p>

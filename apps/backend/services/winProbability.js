@@ -155,12 +155,22 @@ function computeGameWinProbability(rawStates, opts = {}) {
   // Per-player WPA: a batter (or a runner on a steal/caught stealing) is credited his play's WPA; the
   // pitcher is charged its negative. Baserunning has a runner but no pitcher, so it lands only on the
   // runner's line — which is what folds those steal swings back into the totals.
-  const playerWpa = { batters: {}, pitchers: {} };
+  // byTeam splits the same totals by side: both teams can carry the same card (Classic rosters), and
+  // the flat maps would merge their two lines.
+  const playerWpa = { batters: {}, pitchers: {}, byTeam: { home: { batters: {}, pitchers: {} }, away: { batters: {}, pitchers: {} } } };
+  const add = (grp, id, v) => { grp[id] = (grp[id] || 0) + v; };
   for (const p of plays) {
-    if (p.batterId != null) playerWpa.batters[p.batterId] = (playerWpa.batters[p.batterId] || 0) + p.wpa;
-    if (p.pitcherId != null) playerWpa.pitchers[p.pitcherId] = (playerWpa.pitchers[p.pitcherId] || 0) - p.wpa;
+    const fielding = p.battingTeam === 'home' ? 'away' : 'home';
+    if (p.batterId != null) {
+      add(playerWpa.batters, p.batterId, p.wpa);
+      add(playerWpa.byTeam[p.battingTeam].batters, p.batterId, p.wpa);
+    }
+    if (p.pitcherId != null) {
+      add(playerWpa.pitchers, p.pitcherId, -p.wpa);
+      add(playerWpa.byTeam[fielding].pitchers, p.pitcherId, -p.wpa);
+    }
   }
-  for (const grp of [playerWpa.batters, playerWpa.pitchers]) {
+  for (const grp of [playerWpa.batters, playerWpa.pitchers, ...['home', 'away'].flatMap((t) => [playerWpa.byTeam[t].batters, playerWpa.byTeam[t].pitchers])]) {
     for (const k of Object.keys(grp)) grp[k] = Math.round(grp[k] * 1000) / 1000;
   }
 

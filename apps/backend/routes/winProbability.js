@@ -82,8 +82,9 @@ router.get('/series/:seriesId/win-probability', authenticateToken, async (req, r
     for (const t of teamsRes.rows) teamByUser[t.user_id] = t;
 
     const games = [];
-    // Player WPA summed across every completed game in the series (for the series box score).
-    const seriesPlayerWpa = { batters: {}, pitchers: {} };
+    // Player WPA summed across every completed game in the series (for the series box score). byUser
+    // keeps each team's lines apart (home/away can swap between games, so key by team owner).
+    const seriesPlayerWpa = { batters: {}, pitchers: {}, byUser: {} };
     const accum = (dst, src) => {
       for (const k of Object.keys(src || {})) dst[k] = Math.round(((dst[k] || 0) + src[k]) * 1000) / 1000;
     };
@@ -99,6 +100,12 @@ router.get('/series/:seriesId/win-probability', authenticateToken, async (req, r
       const awayUserId = (usersByGame[gid] || []).find((u) => u !== homeUserId) ?? null;
       accum(seriesPlayerWpa.batters, wp.playerWpa.batters);
       accum(seriesPlayerWpa.pitchers, wp.playerWpa.pitchers);
+      for (const [side, userId] of [['home', homeUserId], ['away', awayUserId]]) {
+        if (userId == null) continue;
+        const dst = (seriesPlayerWpa.byUser[userId] = seriesPlayerWpa.byUser[userId] || { batters: {}, pitchers: {} });
+        accum(dst.batters, wp.playerWpa.byTeam[side].batters);
+        accum(dst.pitchers, wp.playerWpa.byTeam[side].pitchers);
+      }
       games.push({
         game_id: gid,
         game_in_series: g.game_in_series,

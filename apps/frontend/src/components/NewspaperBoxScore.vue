@@ -17,7 +17,9 @@ const emit = defineEmits(['select-player']);
 // Win Probability Added per player (shown once a game is final, when the data is loaded).
 const showWpa = computed(() => !!props.playerWpa);
 const wpaFor = (cardId, isPitcher) => {
-  const grp = isPitcher ? props.playerWpa?.pitchers : props.playerWpa?.batters;
+  // This team's own lines — both teams can carry the same card.
+  const own = props.playerWpa?.byTeam?.[props.teamKey] || props.playerWpa;
+  const grp = isPitcher ? own?.pitchers : own?.batters;
   const v = grp ? grp[cardId] : undefined;
   return v == null ? null : v;
 };
